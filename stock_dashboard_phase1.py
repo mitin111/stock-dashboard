@@ -1,84 +1,181 @@
-# stock_dashboard_phase2.py
+# intraday_trading_engine.py
+# Complete implementation of BUY/SELL system for whitelisted stocks with dashboard integration controls
 
-import streamlit as st
-from datetime import datetime, timedelta
+APPROVED_STOCK_LIST = [
+    "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
+    "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW",
+    "HONASA", "BSOFT", "KARURVYSYA", "SYRMA", "IGIL", "GRAPHITE", "BLS", "IGL", "NATIONALUM",
+    "ENGINERSIN", "MANAPPURAM", "SWIGGY", "GODIGIT", "DBREALTY", "NAVA", "TRIVENI", "SWSOLAR", "BERGEPAINT",
+    "JINDALSAW", "ABCAPITAL", "ANANTRAJ", "GMDCLTD", "PETRONET", "VEDL", "HINDCOPPER", "NYKAA", "RBLBANK",
+    "AKUMS", "HUDCO", "STARHEALTH", "EIHOTEL", "SCI", "OIL", "CGPOWER", "NLCINDIA", "LTF", "AWL", "RVNL",
+    "SUMICHEM", "KANSAINER", "HBLENGINE", "CHENNPETRO", "LICHSGFIN", "ELGIEQUIP", "KALYANKJIL", "PRAJIND",
+    "KIMS", "INDUSTOWER", "INDIANB", "VGUARD", "JSL", "AMBUJACEM", "TARIL", "GAIL", "RHIM", "IRCON", "ASTERDM",
+    "BANKBARODA", "POONAWALLA", "M&MFIN", "KNRCON", "DELHIVERY", "RKFORGE", "POWERGRID", "JSWENERGY", "INDGN",
+    "PCBL", "IEX", "CASTROLIND", "IIFL", "SWANENERGY", "JKTYRE", "JYOTHYLAB", "CUB", "NIACL", "RAILTEL",
+    "ETERNAL", "GPIL", "HAPPSTMNDS", "GNFC", "RECLTD", "PNCINFRA", "WIPRO", "BPCL", "NTPC", "JSWINFRA", "PFC",
+    "SYNGENE", "JWL", "BANDHANBNK", "BHEL", "CGCL", "INOXWIND", "RITES", "FSL", "MINDACORP", "LATENTVIEW",
+    "AADHARHFC", "GICRE", "AFCONS", "CROMPTON", "FEDERALBNK", "BEL", "PPLPHARMA", "ONGC", "JBMA", "UPL", "NCC",
+    "CAMPUS", "GRANULES", "APOLLOTYRE", "VBL", "SARDAEN", "FINPIPE", "SONACOMS", "BIOCON", "AARTIIND",
+    "ACMESOLAR", "BALRAMCHIN", "EXIDEIND", "TATAPOWER", "SHRIRAMFIN", "DEVYANI", "CHAMBLFERT", "HINDZINC",
+    "COALINDIA", "DABUR", "SAPPHIRE", "ICICIPRULI", "HINDALCO", "TATAMOTORS", "ASHOKLEY", "CESC", "ITC"
+]
 
-# --- Dashboard Config ---
-st.set_page_config(page_title="📊 Stock Strategy Dashboard - Phase 2", layout="wide")
-st.title("📈 Stock Screener & Strategy Control Panel (Phase 2)")
+class TradingEngine:
+    def __init__(self, dashboard):
+        self.dashboard = dashboard
+        self.positions = {}
 
-st.markdown("""
-Use the panel below to configure your indicator settings, stock quantity, entry/exit rules, and more.
-All selections affect strategy logic dynamically.
-""")
+    def is_within_trading_time(self, current_time):
+        return "09:15" <= current_time <= "15:15"
 
-# --- Control Panel ---
-st.sidebar.header("⚙️ Strategy Settings")
+    def is_buy_time_allowed(self, current_time):
+        return "09:15" <= current_time <= "14:50"
 
-# Quantity and Bracket Order
-quantity = st.sidebar.number_input("📦 Order Quantity", min_value=1, value=50)
-use_bracket = st.sidebar.checkbox("🧩 Use Bracket Orders", value=True)
+    def is_sell_time_allowed(self, current_time):
+        return "09:15" <= current_time <= "14:50"
 
-# Indicator Settings
-st.sidebar.subheader("📐 Indicator Parameters")
-tsi_long = st.sidebar.slider("TSI Long Length", 5, 50, 25)
-tsi_short = st.sidebar.slider("TSI Short Length", 2, 20, 5)
-tsi_signal = st.sidebar.slider("TSI Signal Length", 5, 25, 14)
-rsi_length = st.sidebar.slider("RSI Length", 2, 20, 5)
-rsi_buy = st.sidebar.slider("RSI Buy Level", 40, 70, 50)
-rsi_sell = st.sidebar.slider("RSI Sell Level", 30, 60, 50)
+    def check_margin(self, stock_price, quantity, available_balance):
+        required_margin = (stock_price * quantity) / 4
+        return available_balance >= required_margin
 
-# MACD Histogram Settings
-st.sidebar.subheader("📊 MACD Histogram")
-macd_fast = st.sidebar.slider("MACD Fast Length", 10, 150, 90)
-macd_slow = st.sidebar.slider("MACD Slow Length", 20, 300, 210)
-macd_signal = st.sidebar.slider("MACD Signal Smoothing", 5, 15, 9)
+    def get_quantity(self, stock_price, quantity_config):
+        if 170 <= stock_price <= 200:
+            return quantity_config["Q1"]
+        elif 201 <= stock_price <= 400:
+            return quantity_config["Q2"]
+        elif 401 <= stock_price <= 600:
+            return quantity_config["Q3"]
+        elif 601 <= stock_price <= 800:
+            return quantity_config["Q4"]
+        elif 801 <= stock_price <= 1000:
+            return quantity_config["Q5"]
+        elif stock_price > 1000:
+            return quantity_config["Q6"]
+        else:
+            return 0
 
-# PAC EMA Settings
-st.sidebar.subheader("📈 PAC Channel")
-pac_length = st.sidebar.slider("PAC EMA Length", 10, 55, 34)
-use_heikin_ashi = st.sidebar.checkbox("Use Heikin Ashi Candles", value=True)
+    def should_skip_gap_up(self, first_candle_open, y_close):
+        return ((first_candle_open - y_close) / y_close) * 100 >= 2
 
-# ATR Settings
-st.sidebar.subheader("📏 ATR Parameters")
-atr_fast_len = st.sidebar.slider("Fast ATR Period", 2, 20, 5)
-atr_fast_mult = st.sidebar.number_input("Fast ATR Multiplier", value=0.5)
-atr_slow_len = st.sidebar.slider("Slow ATR Period", 5, 30, 10)
-atr_slow_mult = st.sidebar.number_input("Slow ATR Multiplier", value=3.0)
+    def should_skip_gap_down(self, first_candle_open, y_close):
+        return ((y_close - first_candle_open) / y_close) * 100 >= 2
 
-# Target and Stoploss
-st.sidebar.subheader("🎯 Target & Stoploss")
-target_pct = st.sidebar.number_input("Target %", value=1.0)
-stoploss_source = st.sidebar.selectbox("Stoploss Based On", ["PAC Low EMA", "PAC High EMA"])
+    def evaluate_buy_conditions(self, indicators, current_time, y_close, first_candle_open):
+        if not self.is_buy_time_allowed(current_time):
+            return False
+        if self.should_skip_gap_up(first_candle_open, y_close):
+            return False
 
-# Entry Conditions
-st.sidebar.subheader("🚦 Entry Conditions")
-entry_condition = st.sidebar.radio("Entry Trigger", ["Cross Fib R2", "Break Fib S2"], index=0)
-yhl_condition = st.sidebar.radio("Price vs Y.High/Low", ["Above Y.High", "Below Y.Low"], index=0)
-pac_condition = st.sidebar.radio("PAC Filter", ["Trade Above PAC", "Trade Below PAC"], index=0)
+        return (
+            indicators["atr_trail"] == "Buy" and
+            indicators["tkp_trm"] == "Buy" and
+            indicators["macd_hist"] > 0 and
+            indicators["above_pac"] and
+            indicators["volatility"] >= 2
+        )
 
-# Stock Selection
-st.sidebar.subheader("📃 Stock Selection")
-user_symbols = st.sidebar.text_area("Enter comma-separated stock symbols:",
-    "TATAPOWER.NS,WIPRO.NS")
-symbol_list = [sym.strip().upper() for sym in user_symbols.split(",") if sym.strip() != ""]
+    def evaluate_sell_conditions(self, indicators, current_time, y_close, first_candle_open):
+        if not self.is_sell_time_allowed(current_time):
+            return False
+        if self.should_skip_gap_down(first_candle_open, y_close):
+            return False
 
-# Summary Panel
-st.subheader("🧾 Configuration Summary")
-st.markdown(f"""
-- **Symbols Scanning:** `{symbol_list}`
-- **Order Quantity:** `{quantity}` | **Bracket Order:** `{use_bracket}`
-- **TSI:** Long = `{tsi_long}`, Short = `{tsi_short}`, Signal = `{tsi_signal}`
-- **RSI:** Length = `{rsi_length}`, Buy = `{rsi_buy}`, Sell = `{rsi_sell}`
-- **MACD Histogram:** Fast = `{macd_fast}`, Slow = `{macd_slow}`, Signal = `{macd_signal}`
-- **PAC Length:** `{pac_length}` | **Heikin Ashi:** `{use_heikin_ashi}`
-- **ATR Fast:** {atr_fast_len} × {atr_fast_mult} | **ATR Slow:** {atr_slow_len} × {atr_slow_mult}
-- **Target:** `{target_pct}%` | **Stoploss on:** `{stoploss_source}`
-- **Entry:** `{entry_condition}` | **YHL Check:** `{yhl_condition}` | **PAC Filter:** `{pac_condition}`
-""")
+        return (
+            indicators["atr_trail"] == "Sell" and
+            indicators["tkp_trm"] == "Sell" and
+            indicators["macd_hist"] < 0 and
+            not indicators["above_pac"] and
+            indicators["volatility"] >= 2
+        )
 
-st.info("✅ Settings above will be used by the strategy logic for screening & signal generation.")
+    def process_trade(self, stock_symbol, stock_price, y_close, first_candle_open, indicators, quantity_config, current_time, available_balance):
+        if stock_symbol not in APPROVED_STOCK_LIST:
+            return
 
-# Placeholder for results / logic
-st.subheader("🔍 Strategy Logic Placeholder")
-st.write("➡️ In next phase: Integrate with Pine Script screener & backend for real-time signal dashboard.")
+        if stock_symbol in self.positions:
+            return  # position already open
+
+        quantity = self.get_quantity(stock_price, quantity_config)
+        if not self.check_margin(stock_price, quantity, available_balance):
+            return
+
+        if self.dashboard.auto_buy and self.dashboard.master_auto:
+            if self.evaluate_buy_conditions(indicators, current_time, y_close, first_candle_open):
+                self.place_order("BUY", stock_symbol, stock_price, quantity, indicators, current_time)
+
+        if self.dashboard.auto_sell and self.dashboard.master_auto:
+            if self.evaluate_sell_conditions(indicators, current_time, y_close, first_candle_open):
+                self.place_order("SELL", stock_symbol, stock_price, quantity, indicators, current_time)
+
+    def place_order(self, side, stock_symbol, stock_price, quantity, indicators, current_time):
+        if side == "BUY":
+            stop_loss = indicators["pac_band_lower"]
+            target = stock_price * 1.10
+        else:
+            stop_loss = indicators["pac_band_upper"]
+            target = stock_price * 0.90
+
+        self.positions[stock_symbol] = {
+            "side": side,
+            "entry_price": stock_price,
+            "quantity": quantity,
+            "stop_loss": stop_loss,
+            "target": target,
+            "entry_time": current_time,
+        }
+
+        self.dashboard.log_trade(stock_symbol, side, stock_price, quantity, stop_loss, target, current_time)
+        self.dashboard.update_visuals(self.positions, indicators)
+
+    def update_trailing_sl(self, stock_symbol, current_price, current_time):
+        position = self.positions.get(stock_symbol)
+        if not position:
+            return
+
+        profit_percent = (current_price - position["entry_price"]) / position["entry_price"] * 100 if position["side"] == "BUY" else (position["entry_price"] - current_price) / position["entry_price"] * 100
+
+        time_bracket_a = "09:15" <= position["entry_time"] <= "12:00"
+        time_bracket_b = "12:00" < position["entry_time"] <= "14:50"
+
+        if position["side"] == "BUY":
+            if time_bracket_a:
+                if profit_percent >= 5:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.02)
+                elif profit_percent >= 3:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.015)
+                elif profit_percent >= 1:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.01)
+            elif time_bracket_b:
+                if profit_percent >= 5:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.01)
+                elif profit_percent >= 2:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.005)
+                elif profit_percent >= 0.75:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.0075)
+
+        elif position["side"] == "SELL":
+            if time_bracket_a:
+                if profit_percent >= 5:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.98)
+                elif profit_percent >= 3:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.985)
+                elif profit_percent >= 1:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.99)
+            elif time_bracket_b:
+                if profit_percent >= 5:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.99)
+                elif profit_percent >= 2:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.995)
+                elif profit_percent >= 0.75:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.9925)
+
+    def auto_exit_positions(self, current_time):
+        if current_time == "15:12":
+            for stock in list(self.positions):
+                self.dashboard.close_position(stock, self.positions[stock])
+                del self.positions[stock]
+
+# Dashboard class should expose:
+# .auto_buy, .auto_sell, .master_auto, .log_trade(), .close_position(), .update_visuals()
+# Quantity config: {"Q1": 100, "Q2": 80, "Q3": 60, "Q4": 40, "Q5": 30, "Q6": 20}
+# Indicators per stock should be fetched from analytical engine using your strategy logic
