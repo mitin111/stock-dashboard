@@ -1,4 +1,4 @@
-import streamlit as st
+Fimport streamlit as st
 from datetime import datetime
 
 # ====== Trading Engine Logic with Whitelist ======
@@ -109,42 +109,34 @@ engine = TradingEngine(dashboard)
 
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
-with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=False):
+with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=True):
     st.subheader("📌 TKP TRM Settings")
-    st.markdown("""
-    - TSI Long Length: **25**  
-    - TSI Short Length: **5**  
-    - TSI Signal Length: **14**  
-    - RSI Length: **5**  
-    - RSI Buy Level: **50**  
-    - RSI Sell Level: **50**
-    """)
+    tsi_long = st.slider("TSI Long Length", 5, 50, 25)
+    tsi_short = st.slider("TSI Short Length", 1, 20, 5)
+    tsi_signal = st.slider("TSI Signal Length", 1, 30, 14)
+    rsi_length = st.slider("RSI Length", 2, 20, 5)
+    rsi_buy = st.slider("RSI Buy Level", 10, 90, 50)
+    rsi_sell = st.slider("RSI Sell Level", 10, 90, 50)
 
     st.subheader("📌 PAC EMA Settings")
-    st.markdown("""
-    - Channel Length: **34**  
-    - Source: **close**  
-    - Candle Type: **Heikin Ashi**
-    """)
+    pac_length = st.slider("PAC Channel Length", 5, 55, 34)
+    pac_source = st.selectbox("PAC Source", ["close", "open", "hl2", "heikin_ashi"], index=0)
+    pac_use_ha = st.checkbox("Use Heikin Ashi Candles", value=True)
 
     st.subheader("📌 ATR Settings")
-    st.markdown("""
-    - Fast ATR Period: **5**  
-    - Fast Multiplier: **0.5**  
-    - Slow ATR Period: **10**  
-    - Slow Multiplier: **3**  
-    - Position Source: **50**  
-    - ✅ Only **ATR Slow Trail** used
-    """)
+    atr_fast_period = st.slider("Fast ATR Period", 1, 20, 5)
+    atr_fast_mult = st.number_input("Fast Multiplier", value=0.5)
+    atr_slow_period = st.slider("Slow ATR Period", 5, 30, 10)
+    atr_slow_mult = st.number_input("Slow Multiplier", value=3.0)
+    atr_source_pos = st.slider("Position Source", 1, 100, 50)
 
     st.subheader("📌 MACD Histogram Settings")
-    st.markdown("""
-    - Fast Length: **90**  
-    - Slow Length: **210**  
-    - Signal Smoothing: **9**  
-    - Source: **close**  
-    - MA Type: **EMA**
-    """)
+    macd_fast = st.slider("MACD Fast Length", 5, 150, 90)
+    macd_slow = st.slider("MACD Slow Length", 20, 300, 210)
+    macd_signal = st.slider("MACD Signal Smoothing", 3, 20, 9)
+    macd_source = st.selectbox("MACD Source", ["close", "open", "hl2", "heikin_ashi"], index=0)
+    macd_ma_type = st.selectbox("MACD MA Type", ["EMA", "SMA"], index=0)
+
 
 symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
 price = st.number_input("Current Price", min_value=10.0)
