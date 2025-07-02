@@ -126,7 +126,7 @@ class Dashboard:
 
 # ====== Streamlit UI ======
 dashboard = Dashboard()
-engine = TradingEngine(dashboard, trading_start, trading_end, cutoff_time, auto_exit_time)
+
 
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
@@ -136,7 +136,7 @@ with st.expander("🕒 Step 1: Time Configuration", expanded=True):
     cutoff_time = st.time_input("No Buy/Sell After", value=datetime.strptime("14:50", "%H:%M").time())
     auto_exit_time = st.time_input("Auto Exit All Positions At", value=datetime.strptime("15:12", "%H:%M").time())
     chart_tf = st.selectbox("Chart Timeframe", ["5-Minute", "15-Minute", "30-Minute"], index=0)
-
+engine = TradingEngine(dashboard, trading_start, trading_end, cutoff_time, auto_exit_time)
 with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=True):
     st.subheader("📌 TKP TRM Settings")
     tsi_long = st.slider("TSI Long Length", 5, 50, 25)
