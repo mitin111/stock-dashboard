@@ -23,19 +23,21 @@ APPROVED_STOCK_LIST = [
 
 class TradingEngine:
     def __init__(self, dashboard, trading_start, trading_end, cutoff_time, auto_exit_time):
-    self.dashboard = dashboard
-    self.trading_start = trading_start.strftime("%H:%M")
-    self.trading_end = trading_end.strftime("%H:%M")
-    self.cutoff_time = cutoff_time.strftime("%H:%M")
-    self.auto_exit_time = auto_exit_time.strftime("%H:%M")
-    self.positions = {}
+        self.dashboard = dashboard
+        self.trading_start = trading_start.strftime("%H:%M")
+        self.trading_end = trading_end.strftime("%H:%M")
+        self.cutoff_time = cutoff_time.strftime("%H:%M")
+        self.auto_exit_time = auto_exit_time.strftime("%H:%M")
+        self.positions = {}
+
 
 
     def is_buy_time_allowed(self, current_time):
     return self.trading_start <= current_time <= self.cutoff_time
 
-def is_sell_time_allowed(self, current_time):
-    return self.trading_start <= current_time <= self.cutoff_time
+    def is_sell_time_allowed(self, current_time):
+        return self.trading_start <= current_time <= self.cutoff_time
+
 
 
     def check_margin(self, stock_price, quantity, available_balance):
