@@ -182,7 +182,23 @@ indicators = {
     "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0),
 }
 
-quantity_config = {"Q1": 100, "Q2": 80, "Q3": 60, "Q4": 40, "Q5": 30, "Q6": 20}
+with st.expander("🧮 Quantity Mapping by Price Range", expanded=True):
+    q1 = st.slider("Q1 (₹170–200)", 1, 1000, 100)
+    q2 = st.slider("Q2 (₹201–400)", 1, 1000, 80)
+    q3 = st.slider("Q3 (₹401–600)", 1, 1000, 60)
+    q4 = st.slider("Q4 (₹601–800)", 1, 1000, 40)
+    q5 = st.slider("Q5 (₹801–1000)", 1, 1000, 30)
+    q6 = st.slider("Q6 (Above ₹1000)", 1, 1000, 20)
+
+quantity_config = {
+    "Q1": q1,
+    "Q2": q2,
+    "Q3": q3,
+    "Q4": q4,
+    "Q5": q5,
+    "Q6": q6,
+}
+
 available_balance = st.number_input("Available Balance ₹", min_value=0.0, value=100000.0)
 
 if st.button("🔁 Run Trade Engine"):
