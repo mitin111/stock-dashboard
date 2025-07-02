@@ -128,14 +128,17 @@ class TradingEngine:
 
 # ====== Dummy Dashboard for UI Feedback ======
 class Dashboard:
-    auto_buy = True
-    auto_sell = True
-    master_auto = True
+    def __init__(self):
+        self.auto_buy = True
+        self.auto_sell = True
+        self.master_auto = True
+
     def log_trade(self, *args): st.success(f"Trade Log: {args}")
     def update_visuals(self, positions, indicators):
         st.info("Positions:"); st.json(positions)
         st.subheader("Indicators"); st.json(indicators)
     def close_position(self, symbol, pos): st.warning(f"Closed {symbol}: {pos}")
+
 
 # ====== Streamlit UI ======
 dashboard = Dashboard()
@@ -143,6 +146,12 @@ dashboard = Dashboard()
 
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
+# ==== Step 0: Dashboard Controls for Buy/Sell Toggles ====
+with st.expander("⚙️ Step 0: Control Panel", expanded=True):
+    dashboard.master_auto = st.toggle("✅ Master Auto Buy + Sell", value=True)
+    dashboard.auto_buy = st.toggle("▶️ Auto Buy Enabled", value=True)
+    dashboard.auto_sell = st.toggle("🔽 Auto Sell Enabled", value=True)
+
 with st.expander("🕒 Step 1: Time Configuration", expanded=True):
     trading_start = st.time_input("Trading Start", value=datetime.strptime("09:15", "%H:%M").time())
     trading_end = st.time_input("Trading End", value=datetime.strptime("15:15", "%H:%M").time())
