@@ -109,6 +109,42 @@ engine = TradingEngine(dashboard)
 
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
+with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=False):
+    st.subheader("📌 TKP TRM Settings")
+    st.markdown("""
+    - TSI Long Length: **25**  
+    - TSI Short Length: **5**  
+    - TSI Signal Length: **14**  
+    - RSI Length: **5**  
+    - RSI Buy Level: **50**  
+    - RSI Sell Level: **50**
+    """)
+
+    st.subheader("📌 PAC EMA Settings")
+    st.markdown("""
+    - Channel Length: **34**  
+    - Source: **close**  
+    - Candle Type: **Heikin Ashi**
+    """)
+
+    st.subheader("📌 ATR Settings")
+    st.markdown("""
+    - Fast ATR Period: **5**  
+    - Fast Multiplier: **0.5**  
+    - Slow ATR Period: **10**  
+    - Slow Multiplier: **3**  
+    - Position Source: **50**  
+    - ✅ Only **ATR Slow Trail** used
+    """)
+
+    st.subheader("📌 MACD Histogram Settings")
+    st.markdown("""
+    - Fast Length: **90**  
+    - Slow Length: **210**  
+    - Signal Smoothing: **9**  
+    - Source: **close**  
+    - MA Type: **EMA**
+    """)
 
 symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
 price = st.number_input("Current Price", min_value=10.0)
