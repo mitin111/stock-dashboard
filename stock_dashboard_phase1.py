@@ -40,7 +40,7 @@ class TradingEngine:
         return available_balance >= (stock_price * quantity) / 4
 
     with st.expander("🧮 Quantity Mapping by Price Range", expanded=True):
-    q1 = st.slider("Q1 (₹100–200)", 0, 1000, 100)
+    q1 = st.slider("Q1 (₹170–200)", 0, 1000, 100)
     q2 = st.slider("Q2 (₹201–400)", 0, 1000, 80)
     q3 = st.slider("Q3 (₹401–600)", 0, 1000, 60)
     q4 = st.slider("Q4 (₹601–800)", 0, 1000, 40)
@@ -55,6 +55,7 @@ quantity_config = {
     "Q5": q5,
     "Q6": q6,
 }
+
 
 
     def should_skip_gap_up(self, open, close):
