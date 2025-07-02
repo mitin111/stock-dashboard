@@ -39,24 +39,7 @@ class TradingEngine:
     def check_margin(self, stock_price, quantity, available_balance):
         return available_balance >= (stock_price * quantity) / 4
 
-    with st.expander("🧮 Quantity Mapping by Price Range", expanded=True):
-    q1 = st.slider("Q1 (₹170–200)", 0, 1000, 100)
-    q2 = st.slider("Q2 (₹201–400)", 0, 1000, 80)
-    q3 = st.slider("Q3 (₹401–600)", 0, 1000, 60)
-    q4 = st.slider("Q4 (₹601–800)", 0, 1000, 40)
-    q5 = st.slider("Q5 (₹801–1000)", 0, 1000, 30)
-    q6 = st.slider("Q6 (Above ₹1000)", 0, 1000, 20)
-
-quantity_config = {
-    "Q1": q1,
-    "Q2": q2,
-    "Q3": q3,
-    "Q4": q4,
-    "Q5": q5,
-    "Q6": q6,
-}
-
-
+    
 
     def should_skip_gap_up(self, open, close):
         return ((open - close) / close) * 100 >= 2
