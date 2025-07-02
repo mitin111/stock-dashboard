@@ -30,15 +30,11 @@ class TradingEngine:
         self.auto_exit_time = auto_exit_time.strftime("%H:%M")
         self.positions = {}
 
-
-
     def is_buy_time_allowed(self, current_time):
-    return self.trading_start <= current_time <= self.cutoff_time
+        return self.trading_start <= current_time <= self.cutoff_time
 
     def is_sell_time_allowed(self, current_time):
         return self.trading_start <= current_time <= self.cutoff_time
-
-
 
     def check_margin(self, stock_price, quantity, available_balance):
         return available_balance >= (stock_price * quantity) / 4
@@ -53,8 +49,11 @@ class TradingEngine:
             qcfg["Q6"] if stock_price > 1000 else 0
         )
 
-    def should_skip_gap_up(self, open, close): return ((open - close) / close) * 100 >= 2
-    def should_skip_gap_down(self, open, close): return ((close - open) / close) * 100 >= 2
+    def should_skip_gap_up(self, open, close):
+        return ((open - close) / close) * 100 >= 2
+
+    def should_skip_gap_down(self, open, close):
+        return ((close - open) / close) * 100 >= 2
 
     def evaluate_buy_conditions(self, indicators, current_time, y_close, open):
         return (
@@ -79,13 +78,16 @@ class TradingEngine:
         )
 
     def process_trade(self, symbol, price, y_close, open, indicators, qcfg, time, balance):
-        if symbol not in APPROVED_STOCK_LIST or symbol in self.positions: return
+        if symbol not in APPROVED_STOCK_LIST or symbol in self.positions:
+            return
         qty = self.get_quantity(price, qcfg)
-        if not self.check_margin(price, qty, balance): return
+        if not self.check_margin(price, qty, balance):
+            return
 
         if self.dashboard.auto_buy and self.dashboard.master_auto:
             if self.evaluate_buy_conditions(indicators, time, y_close, open):
                 self.place_order("BUY", symbol, price, qty, indicators, time)
+
         if self.dashboard.auto_sell and self.dashboard.master_auto:
             if self.evaluate_sell_conditions(indicators, time, y_close, open):
                 self.place_order("SELL", symbol, price, qty, indicators, time)
@@ -93,15 +95,23 @@ class TradingEngine:
     def place_order(self, side, symbol, price, qty, indicators, time):
         sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
         tgt = price * 1.10 if side == "BUY" else price * 0.90
-        self.positions[symbol] = {"side": side, "entry_price": price, "quantity": qty, "stop_loss": sl, "target": tgt, "entry_time": time}
+        self.positions[symbol] = {
+            "side": side,
+            "entry_price": price,
+            "quantity": qty,
+            "stop_loss": sl,
+            "target": tgt,
+            "entry_time": time
+        }
         self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
         self.dashboard.update_visuals(self.positions, indicators)
 
     def auto_exit_positions(self, current_time):
-    if current_time == self.auto_exit_time:
+        if current_time == self.auto_exit_time:
             for stock in list(self.positions):
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
+
 
 # ====== Dummy Dashboard for UI Feedback ======
 class Dashboard:
