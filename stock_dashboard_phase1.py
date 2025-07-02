@@ -22,12 +22,21 @@ APPROVED_STOCK_LIST = [
 ]
 
 class TradingEngine:
-    def __init__(self, dashboard):
-        self.dashboard = dashboard
-        self.positions = {}
+    def __init__(self, dashboard, trading_start, trading_end, cutoff_time, auto_exit_time):
+    self.dashboard = dashboard
+    self.trading_start = trading_start.strftime("%H:%M")
+    self.trading_end = trading_end.strftime("%H:%M")
+    self.cutoff_time = cutoff_time.strftime("%H:%M")
+    self.auto_exit_time = auto_exit_time.strftime("%H:%M")
+    self.positions = {}
 
-    def is_buy_time_allowed(self, current_time): return "09:15" <= current_time <= "14:50"
-    def is_sell_time_allowed(self, current_time): return "09:15" <= current_time <= "14:50"
+
+    def is_buy_time_allowed(self, current_time):
+    return self.trading_start <= current_time <= self.cutoff_time
+
+def is_sell_time_allowed(self, current_time):
+    return self.trading_start <= current_time <= self.cutoff_time
+
 
     def check_margin(self, stock_price, quantity, available_balance):
         return available_balance >= (stock_price * quantity) / 4
@@ -87,7 +96,7 @@ class TradingEngine:
         self.dashboard.update_visuals(self.positions, indicators)
 
     def auto_exit_positions(self, current_time):
-        if current_time == "15:12":
+    if current_time == self.auto_exit_time:
             for stock in list(self.positions):
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
@@ -105,10 +114,17 @@ class Dashboard:
 
 # ====== Streamlit UI ======
 dashboard = Dashboard()
-engine = TradingEngine(dashboard)
+engine = TradingEngine(dashboard, trading_start, trading_end, cutoff_time, auto_exit_time)
 
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
+with st.expander("🕒 Step 1: Time Configuration", expanded=True):
+    trading_start = st.time_input("Trading Start", value=datetime.strptime("09:15", "%H:%M").time())
+    trading_end = st.time_input("Trading End", value=datetime.strptime("15:15", "%H:%M").time())
+    cutoff_time = st.time_input("No Buy/Sell After", value=datetime.strptime("14:50", "%H:%M").time())
+    auto_exit_time = st.time_input("Auto Exit All Positions At", value=datetime.strptime("15:12", "%H:%M").time())
+    chart_tf = st.selectbox("Chart Timeframe", ["5-Minute", "15-Minute", "30-Minute"], index=0)
+
 with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=True):
     st.subheader("📌 TKP TRM Settings")
     tsi_long = st.slider("TSI Long Length", 5, 50, 25)
