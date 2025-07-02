@@ -39,7 +39,42 @@ class TradingEngine:
     def check_margin(self, stock_price, quantity, available_balance):
         return available_balance >= (stock_price * quantity) / 4
 
-    
+    def get_quantity(self, price, qcfg):
+        if 170 <= price <= 200:
+            return qcfg["Q1"]
+        elif 201 <= price <= 400:
+            return qcfg["Q2"]
+        elif 401 <= price <= 600:
+            return qcfg["Q3"]
+        elif 601 <= price <= 800:
+            return qcfg["Q4"]
+        elif 801 <= price <= 1000:
+            return qcfg["Q5"]
+        elif price > 1000:
+            return qcfg["Q6"]
+        return 0  # fallback
+
+    def process_trade(self, symbol, price, y_close, open, indicators, qcfg, time, balance):
+        if symbol not in APPROVED_STOCK_LIST or symbol in self.positions:
+            return
+
+        qty = self.get_quantity(price, qcfg)
+
+        if qty == 0:
+            st.warning(f"⚠️ No quantity set for price ₹{price} — skipping order.")
+            return
+
+        if not self.check_margin(price, qty, balance):
+            st.warning(f"❌ Not enough margin for {symbol} — required: ₹{(price * qty) / 4:.2f}")
+            return
+
+        if self.dashboard.auto_buy and self.dashboard.master_auto:
+            if self.evaluate_buy_conditions(indicators, time, y_close, open):
+                self.place_order("BUY", symbol, price, qty, indicators, time)
+
+        if self.dashboard.auto_sell and self.dashboard.master_auto:
+            if self.evaluate_sell_conditions(indicators, time, y_close, open):
+                self.place_order("SELL", symbol, price, qty, indicators, time)
 
     def should_skip_gap_up(self, open, close):
         return ((open - close) / close) * 100 >= 2
@@ -69,29 +104,6 @@ class TradingEngine:
             indicators["volatility"] >= 2
         )
 
-    def process_trade(self, symbol, price, y_close, open, indicators, qcfg, time, balance):
-    if symbol not in APPROVED_STOCK_LIST or symbol in self.positions:
-        return
-
-    qty = self.get_quantity(price, qcfg)
-
-    if qty == 0:
-        st.warning(f"⚠️ No quantity set for price ₹{price} — skipping order.")
-        return
-
-    if not self.check_margin(price, qty, balance):
-        st.warning(f"❌ Not enough margin for {symbol} — required: ₹{(price * qty) / 4:.2f}")
-        return
-
-    if self.dashboard.auto_buy and self.dashboard.master_auto:
-        if self.evaluate_buy_conditions(indicators, time, y_close, open):
-            self.place_order("BUY", symbol, price, qty, indicators, time)
-
-    if self.dashboard.auto_sell and self.dashboard.master_auto:
-        if self.evaluate_sell_conditions(indicators, time, y_close, open):
-            self.place_order("SELL", symbol, price, qty, indicators, time)
-
-
     def place_order(self, side, symbol, price, qty, indicators, time):
         sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
         tgt = price * 1.10 if side == "BUY" else price * 0.90
@@ -111,20 +123,7 @@ class TradingEngine:
             for stock in list(self.positions):
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
-def get_quantity(self, price, qcfg):
-    if 170 <= price <= 200:
-        return qcfg["Q1"]
-    elif 201 <= price <= 400:
-        return qcfg["Q2"]
-    elif 401 <= price <= 600:
-        return qcfg["Q3"]
-    elif 601 <= price <= 800:
-        return qcfg["Q4"]
-    elif 801 <= price <= 1000:
-        return qcfg["Q5"]
-    elif price > 1000:
-        return qcfg["Q6"]
-    return 0  # if price doesn't fall into any range
+
 
 
 # ====== Dummy Dashboard for UI Feedback ======
