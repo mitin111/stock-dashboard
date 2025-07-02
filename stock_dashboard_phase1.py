@@ -1,7 +1,8 @@
 import streamlit as st
 from datetime import datetime
+# intraday_trading_engine.py
+# Complete implementation of BUY/SELL system for whitelisted stocks with dashboard integration controls
 
-# ====== Trading Engine Logic with Whitelist ======
 APPROVED_STOCK_LIST = [
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
     "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW",
@@ -26,29 +27,48 @@ class TradingEngine:
         self.dashboard = dashboard
         self.positions = {}
 
-    def is_buy_time_allowed(self, current_time): return "09:15" <= current_time <= "14:50"
-    def is_sell_time_allowed(self, current_time): return "09:15" <= current_time <= "14:50"
+    def is_within_trading_time(self, current_time):
+        return "09:15" <= current_time <= "15:15"
+
+    def is_buy_time_allowed(self, current_time):
+        return "09:15" <= current_time <= "14:50"
+
+    def is_sell_time_allowed(self, current_time):
+        return "09:15" <= current_time <= "14:50"
 
     def check_margin(self, stock_price, quantity, available_balance):
-        return available_balance >= (stock_price * quantity) / 4
+        required_margin = (stock_price * quantity) / 4
+        return available_balance >= required_margin
 
-    def get_quantity(self, stock_price, qcfg):
+    def get_quantity(self, stock_price, quantity_config):
+        if 170 <= stock_price <= 200:
+            return quantity_config["Q1"]
+        elif 201 <= stock_price <= 400:
+            return quantity_config["Q2"]
+        elif 401 <= stock_price <= 600:
+            return quantity_config["Q3"]
+        elif 601 <= stock_price <= 800:
+            return quantity_config["Q4"]
+        elif 801 <= stock_price <= 1000:
+            return quantity_config["Q5"]
+        elif stock_price > 1000:
+            return quantity_config["Q6"]
+        else:
+            return 0
+
+    def should_skip_gap_up(self, first_candle_open, y_close):
+        return ((first_candle_open - y_close) / y_close) * 100 >= 2
+
+    def should_skip_gap_down(self, first_candle_open, y_close):
+        return ((y_close - first_candle_open) / y_close) * 100 >= 2
+
+    def evaluate_buy_conditions(self, indicators, current_time, y_close, first_candle_open):
+        if not self.is_buy_time_allowed(current_time):
+            return False
+        if self.should_skip_gap_up(first_candle_open, y_close):
+            return False
+
         return (
-            qcfg["Q1"] if 170 <= stock_price <= 200 else
-            qcfg["Q2"] if 201 <= stock_price <= 400 else
-            qcfg["Q3"] if 401 <= stock_price <= 600 else
-            qcfg["Q4"] if 601 <= stock_price <= 800 else
-            qcfg["Q5"] if 801 <= stock_price <= 1000 else
-            qcfg["Q6"] if stock_price > 1000 else 0
-        )
-
-    def should_skip_gap_up(self, open, close): return ((open - close) / close) * 100 >= 2
-    def should_skip_gap_down(self, open, close): return ((close - open) / close) * 100 >= 2
-
-    def evaluate_buy_conditions(self, indicators, current_time, y_close, open):
-        return (
-            self.is_buy_time_allowed(current_time) and
-            not self.should_skip_gap_up(open, y_close) and
             indicators["atr_trail"] == "Buy" and
             indicators["tkp_trm"] == "Buy" and
             indicators["macd_hist"] > 0 and
@@ -56,10 +76,13 @@ class TradingEngine:
             indicators["volatility"] >= 2
         )
 
-    def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
+    def evaluate_sell_conditions(self, indicators, current_time, y_close, first_candle_open):
+        if not self.is_sell_time_allowed(current_time):
+            return False
+        if self.should_skip_gap_down(first_candle_open, y_close):
+            return False
+
         return (
-            self.is_sell_time_allowed(current_time) and
-            not self.should_skip_gap_down(open, y_close) and
             indicators["atr_trail"] == "Sell" and
             indicators["tkp_trm"] == "Sell" and
             indicators["macd_hist"] < 0 and
@@ -67,24 +90,86 @@ class TradingEngine:
             indicators["volatility"] >= 2
         )
 
-    def process_trade(self, symbol, price, y_close, open, indicators, qcfg, time, balance):
-        if symbol not in APPROVED_STOCK_LIST or symbol in self.positions: return
-        qty = self.get_quantity(price, qcfg)
-        if not self.check_margin(price, qty, balance): return
+    def process_trade(self, stock_symbol, stock_price, y_close, first_candle_open, indicators, quantity_config, current_time, available_balance):
+        if stock_symbol not in APPROVED_STOCK_LIST:
+            return
+
+        if stock_symbol in self.positions:
+            return  # position already open
+
+        quantity = self.get_quantity(stock_price, quantity_config)
+        if not self.check_margin(stock_price, quantity, available_balance):
+            return
 
         if self.dashboard.auto_buy and self.dashboard.master_auto:
-            if self.evaluate_buy_conditions(indicators, time, y_close, open):
-                self.place_order("BUY", symbol, price, qty, indicators, time)
-        if self.dashboard.auto_sell and self.dashboard.master_auto:
-            if self.evaluate_sell_conditions(indicators, time, y_close, open):
-                self.place_order("SELL", symbol, price, qty, indicators, time)
+            if self.evaluate_buy_conditions(indicators, current_time, y_close, first_candle_open):
+                self.place_order("BUY", stock_symbol, stock_price, quantity, indicators, current_time)
 
-    def place_order(self, side, symbol, price, qty, indicators, time):
-        sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
-        tgt = price * 1.10 if side == "BUY" else price * 0.90
-        self.positions[symbol] = {"side": side, "entry_price": price, "quantity": qty, "stop_loss": sl, "target": tgt, "entry_time": time}
-        self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
+        if self.dashboard.auto_sell and self.dashboard.master_auto:
+            if self.evaluate_sell_conditions(indicators, current_time, y_close, first_candle_open):
+                self.place_order("SELL", stock_symbol, stock_price, quantity, indicators, current_time)
+
+    def place_order(self, side, stock_symbol, stock_price, quantity, indicators, current_time):
+        if side == "BUY":
+            stop_loss = indicators["pac_band_lower"]
+            target = stock_price * 1.10
+        else:
+            stop_loss = indicators["pac_band_upper"]
+            target = stock_price * 0.90
+
+        self.positions[stock_symbol] = {
+            "side": side,
+            "entry_price": stock_price,
+            "quantity": quantity,
+            "stop_loss": stop_loss,
+            "target": target,
+            "entry_time": current_time,
+        }
+
+        self.dashboard.log_trade(stock_symbol, side, stock_price, quantity, stop_loss, target, current_time)
         self.dashboard.update_visuals(self.positions, indicators)
+
+    def update_trailing_sl(self, stock_symbol, current_price, current_time):
+        position = self.positions.get(stock_symbol)
+        if not position:
+            return
+
+        profit_percent = (current_price - position["entry_price"]) / position["entry_price"] * 100 if position["side"] == "BUY" else (position["entry_price"] - current_price) / position["entry_price"] * 100
+
+        time_bracket_a = "09:15" <= position["entry_time"] <= "12:00"
+        time_bracket_b = "12:00" < position["entry_time"] <= "14:50"
+
+        if position["side"] == "BUY":
+            if time_bracket_a:
+                if profit_percent >= 5:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.02)
+                elif profit_percent >= 3:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.015)
+                elif profit_percent >= 1:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.01)
+            elif time_bracket_b:
+                if profit_percent >= 5:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.01)
+                elif profit_percent >= 2:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.005)
+                elif profit_percent >= 0.75:
+                    position["stop_loss"] = max(position["stop_loss"], position["entry_price"] * 1.0075)
+
+        elif position["side"] == "SELL":
+            if time_bracket_a:
+                if profit_percent >= 5:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.98)
+                elif profit_percent >= 3:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.985)
+                elif profit_percent >= 1:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.99)
+            elif time_bracket_b:
+                if profit_percent >= 5:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.99)
+                elif profit_percent >= 2:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.995)
+                elif profit_percent >= 0.75:
+                    position["stop_loss"] = min(position["stop_loss"], position["entry_price"] * 0.9925)
 
     def auto_exit_positions(self, current_time):
         if current_time == "15:12":
@@ -92,50 +177,9 @@ class TradingEngine:
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
 
-# ====== Dummy Dashboard for UI Feedback ======
-class Dashboard:
-    auto_buy = True
-    auto_sell = True
-    master_auto = True
-    def log_trade(self, *args): st.success(f"Trade Log: {args}")
-    def update_visuals(self, positions, indicators):
-        st.info("Positions:"); st.json(positions)
-        st.subheader("Indicators"); st.json(indicators)
-    def close_position(self, symbol, pos): st.warning(f"Closed {symbol}: {pos}")
+# Dashboard class should expose:
+# .auto_buy, .auto_sell, .master_auto, .log_trade(), .close_position(), .update_visuals()
+# Quantity config: {"Q1": 100, "Q2": 80, "Q3": 60, "Q4": 40, "Q5": 30, "Q6": 20}
+# Indicators per stock should be fetched from analytical engine using your strategy logic
 
-# ====== Streamlit UI ======
-dashboard = Dashboard()
-engine = TradingEngine(dashboard)
-
-st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
-st.title("📈 Automated Intraday Trading System")
-
-symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
-price = st.number_input("Current Price", min_value=10.0)
-y_close = st.number_input("Yesterday's Close", min_value=10.0)
-first_candle_open = st.number_input("First Candle Open", min_value=10.0)
-current_time = st.text_input("Current Time (HH:MM)", value=datetime.now().strftime("%H:%M"))
-
-indicators = {
-    "atr_trail": st.selectbox("ATR Trail", ["Buy", "Sell"]),
-    "tkp_trm": st.selectbox("TKP TRM", ["Buy", "Sell"]),
-    "macd_hist": st.number_input("MACD Histogram", step=0.1),
-    "above_pac": st.checkbox("Above PAC EMA", value=True),
-    "volatility": st.number_input("Volatility %", min_value=0.0, step=0.1),
-    "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0),
-    "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0),
-}
-
-quantity_config = {"Q1": 100, "Q2": 80, "Q3": 60, "Q4": 40, "Q5": 30, "Q6": 20}
-available_balance = st.number_input("Available Balance ₹", min_value=0.0, value=100000.0)
-
-if st.button("🔁 Run Trade Engine"):
-    engine.process_trade(
-        symbol, price, y_close, first_candle_open,
-        indicators, quantity_config, current_time,
-        available_balance
-    )
-
-if st.button("❌ Auto Exit All @ 15:12"):
-    engine.auto_exit_positions(current_time)
 
