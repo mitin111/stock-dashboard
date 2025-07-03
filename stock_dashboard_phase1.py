@@ -240,6 +240,18 @@ price = st.number_input("Current Price", min_value=10.0)
 y_close = st.number_input("Yesterday's Close", min_value=10.0)
 first_candle_open = st.number_input("First Candle Open", min_value=10.0)
 current_time = st.text_input("Current Time (HH:MM)", value=datetime.now().strftime("%H:%M"))
+# ✅ Calculate volatility from YFinance
+volatility = fetch_volatility(symbol)
+st.metric("📊 Daily Volatility %", f"{volatility} %")  # Display in UI
+indicators = {
+    "atr_trail": st.selectbox("ATR Trail", ["Buy", "Sell"]),
+    "tkp_trm": st.selectbox("TKP TRM", ["Buy", "Sell"]),
+    "macd_hist": st.number_input("MACD Histogram", step=0.1),
+    "above_pac": st.checkbox("Above PAC EMA", value=True),
+    "volatility": volatility,  # ✅ Use calculated value
+    "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0),
+    "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0),
+}
 
 indicators = # ✅ STEP 1: Auto Calculate Volatility
 import yfinance as yf
