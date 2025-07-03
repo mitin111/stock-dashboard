@@ -17,6 +17,7 @@ def fetch_volatility(symbol):
     except Exception:
         return 0.0
 
+
 # ====== Trading Engine Logic with Whitelist ======
 APPROVED_STOCK_LIST = [
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
@@ -256,18 +257,7 @@ indicators = {
 indicators = # ✅ STEP 1: Auto Calculate Volatility
 import yfinance as yf
 
-def fetch_volatility(symbol):
-    try:
-        stock = yf.Ticker(symbol + ".NS")  # Add ".NS" for NSE
-        data = stock.history(period="1d", interval="1d")
-        if data.empty:
-            return 0.0
-        high = data["High"].iloc[-1]
-        low = data["Low"].iloc[-1]
-        return round(((high - low) / low) * 100, 2)
-    except Exception as e:
-        st.error(f"❌ Failed to fetch volatility for {symbol}: {e}")
-        return 0.0
+
 
 # ✅ STEP 2: Calculate and display volatility in UI
 volatility = fetch_volatility(symbol)
