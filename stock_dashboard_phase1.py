@@ -101,29 +101,28 @@ class TradingEngine:
         return ((close - open) / close) * 100 >= 2
 
     def evaluate_buy_conditions(self, indicators, current_time, y_close, open):
-    return (
-        self.is_buy_time_allowed(current_time) and
-        not self.should_skip_gap_up(open, y_close) and
-        indicators["atr_trail"] == "Buy" and
-        indicators["tkp_trm"] == "Buy" and
-        indicators["macd_hist"] > 0 and
-        indicators["above_pac"] and
-        indicators["volatility"] >= indicators["min_vol_required"]
-    )
-
+        return (
+            self.is_buy_time_allowed(current_time) and
+            not self.should_skip_gap_up(open, y_close) and
+            indicators["atr_trail"] == "Buy" and
+            indicators["tkp_trm"] == "Buy" and
+            indicators["macd_hist"] > 0 and
+            indicators["above_pac"] and
+            indicators["volatility"] >= indicators["min_vol_required"]
+        )
 
 
 
 def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
-    return (
-        self.is_sell_time_allowed(current_time) and
-        not self.should_skip_gap_down(open, y_close) and
-        indicators["atr_trail"] == "Sell" and
-        indicators["tkp_trm"] == "Sell" and
-        indicators["macd_hist"] < 0 and
-        not indicators["above_pac"] and
-        indicators["volatility"] >= indicators["min_vol_required"]
-    )
+        return (
+            self.is_sell_time_allowed(current_time) and
+            not self.should_skip_gap_down(open, y_close) and
+            indicators["atr_trail"] == "Sell" and
+            indicators["tkp_trm"] == "Sell" and
+            indicators["macd_hist"] < 0 and
+            not indicators["above_pac"] and
+            indicators["volatility"] >= indicators["min_vol_required"]
+        )
 
 
 
@@ -261,10 +260,8 @@ indicators = {
     "volatility": volatility,  # ✅ Use calculated value
     "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0, key="pac_band_lower_input"),
     "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0, key="pac_band_upper_input"),
-}
 
 
-"min_vol_required": min_vol_required,
 
 
 
@@ -316,4 +313,16 @@ if st.button("❌ Auto Exit All @ 15:12"):
     engine.auto_exit_positions(current_time)
 if st.button("🔄 Update Trailing Stop-Loss"):
     engine.update_trailing_sl(symbol, price)
+}
 
+
+indicators = {
+   "atr_trail": st.selectbox("ATR Trail", ["Buy", "Sell"], key="atr_trail_input"),
+   "tkp_trm": st.selectbox("TKP TRM", ["Buy", "Sell"], key="tkp_trm_input"),
+   "macd_hist": st.number_input("MACD Histogram", step=0.1, key="macd_hist_input"),
+   "above_pac": st.checkbox("Above PAC EMA", value=True, key="above_pac_input"),
+   "volatility": volatility,
+   "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0, key="pac_band_lower_input"),
+   "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0, key="pac_band_upper_input"),
+   "min_vol_required": min_vol_required  # ✅ Now inside the dictionary
+}
