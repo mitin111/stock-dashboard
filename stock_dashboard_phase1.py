@@ -283,8 +283,21 @@ quantity_config = {
 
 available_balance = st.number_input("Available Balance ₹", min_value=0.0, value=100000.0)
 
-if st.button("🔁 Run Trade Engine"):
-    engine.process_trade(
+import schedule
+import time
+
+def run_engine_for_all():
+    for symbol in APPROVED_STOCK_LIST:
+        live_data = fetch_live_data(symbol)
+        indicators = calculate_indicators(live_data)
+        engine.process_trade(symbol, live_data['price'], ..., indicators, quantity_config, current_time, balance)
+
+schedule.every(5).minutes.do(run_engine_for_all)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
+(
         symbol, price, y_close, first_candle_open,
         indicators, quantity_config, current_time,
         available_balance
