@@ -1,5 +1,21 @@
 import streamlit as st
 from datetime import datetime
+import yfinance as yf
+
+def fetch_volatility(symbol):
+    try:
+        yf_symbol = symbol + ".NS"  # NSE symbols
+        data = yf.download(yf_symbol, period="1d", interval="5m", progress=False)
+        if data.empty:
+            return 0.0
+        day_high = data["High"].max()
+        day_low = data["Low"].min()
+        if day_low > 0:
+            return round(((day_high - day_low) / day_low) * 100, 2)
+        else:
+            return 0.0
+    except Exception:
+        return 0.0
 
 # ====== Trading Engine Logic with Whitelist ======
 APPROVED_STOCK_LIST = [
@@ -225,12 +241,33 @@ y_close = st.number_input("Yesterday's Close", min_value=10.0)
 first_candle_open = st.number_input("First Candle Open", min_value=10.0)
 current_time = st.text_input("Current Time (HH:MM)", value=datetime.now().strftime("%H:%M"))
 
+indicators = # ✅ STEP 1: Auto Calculate Volatility
+import yfinance as yf
+
+def fetch_volatility(symbol):
+    try:
+        stock = yf.Ticker(symbol + ".NS")  # Add ".NS" for NSE
+        data = stock.history(period="1d", interval="1d")
+        if data.empty:
+            return 0.0
+        high = data["High"].iloc[-1]
+        low = data["Low"].iloc[-1]
+        return round(((high - low) / low) * 100, 2)
+    except Exception as e:
+        st.error(f"❌ Failed to fetch volatility for {symbol}: {e}")
+        return 0.0
+
+# ✅ STEP 2: Calculate and display volatility in UI
+volatility = fetch_volatility(symbol)
+st.metric("📊 Daily Volatility %", f"{volatility} %")  # read-only display
+
+# ✅ STEP 3: Use it in your indicator block
 indicators = {
     "atr_trail": st.selectbox("ATR Trail", ["Buy", "Sell"]),
     "tkp_trm": st.selectbox("TKP TRM", ["Buy", "Sell"]),
     "macd_hist": st.number_input("MACD Histogram", step=0.1),
     "above_pac": st.checkbox("Above PAC EMA", value=True),
-    "volatility": st.number_input("Volatility %", min_value=0.0, step=0.1),
+    "volatility": volatility,  # ✅ use calculated value here
     "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0),
     "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0),
 }
