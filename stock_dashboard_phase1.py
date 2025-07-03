@@ -105,59 +105,55 @@ class TradingEngine:
         )
 
     def place_order(self, side, symbol, price, qty, indicators, time):
-    # Bracket Order: SL from PAC bands
-    sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
-    tgt = price * 1.10 if side == "BUY" else price * 0.90
+        sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
+        tgt = price * 1.10 if side == "BUY" else price * 0.90
 
-    self.positions[symbol] = {
-        "side": side,
-        "entry_price": price,
-        "quantity": qty,
-        "stop_loss": sl,
-        "target": tgt,
-        "entry_time": time,
-        "trail_sl": sl  # initial SL
-    }
+        self.positions[symbol] = {
+            "side": side,
+            "entry_price": price,
+            "quantity": qty,
+            "stop_loss": sl,
+            "target": tgt,
+            "entry_time": time,
+            "trail_sl": sl
+        }
 
-    self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
-    self.dashboard.update_visuals(self.positions, indicators)
-
+        self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
+        self.dashboard.update_visuals(self.positions, indicators)
 
     def auto_exit_positions(self, current_time):
         if current_time == self.auto_exit_time:
             for stock in list(self.positions):
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
-def update_trailing_sl(self, symbol, current_price):
-    if symbol not in self.positions:
-        return
 
-    pos = self.positions[symbol]
-    entry = float(pos["entry_price"])
-    time_str = pos["entry_time"]
-    hr, mn = map(int, time_str.split(":"))
-    entry_time = hr * 60 + mn
-    price_change = ((current_price - entry) / entry) * 100 if pos["side"] == "BUY" else ((entry - current_price) / entry) * 100
+    def update_trailing_sl(self, symbol, current_price):
+        if symbol not in self.positions:
+            return
 
-    # Determine time range
-    if entry_time <= 12 * 60:
-        rules = [(1, 1), (3, 1.5), (5, 2)]
-    else:
-        rules = [(0.75, 0.75), (2, 0.5), (5, 1)]
+        pos = self.positions[symbol]
+        entry = float(pos["entry_price"])
+        time_str = pos["entry_time"]
+        hr, mn = map(int, time_str.split(":"))
+        entry_time = hr * 60 + mn
+        price_change = ((current_price - entry) / entry) * 100 if pos["side"] == "BUY" else ((entry - current_price) / entry) * 100
 
-    new_sl = pos["stop_loss"]
-    for level, trail in rules:
-        if price_change >= level:
-            if pos["side"] == "BUY":
-                new_sl = max(new_sl, entry * (1 + (price_change - trail) / 100))
-            else:
-                new_sl = min(new_sl, entry * (1 - (price_change - trail) / 100))
+        if entry_time <= 12 * 60:
+            rules = [(1, 1), (3, 1.5), (5, 2)]
+        else:
+            rules = [(0.75, 0.75), (2, 0.5), (5, 1)]
 
-    # Update only if new SL is better
-    if (pos["side"] == "BUY" and new_sl > pos["trail_sl"]) or (pos["side"] == "SELL" and new_sl < pos["trail_sl"]):
-        self.positions[symbol]["trail_sl"] = round(new_sl, 2)
-        st.info(f"🔄 Trailing SL updated for {symbol}: ₹{round(new_sl,2)}")
+        new_sl = pos["stop_loss"]
+        for level, trail in rules:
+            if price_change >= level:
+                if pos["side"] == "BUY":
+                    new_sl = max(new_sl, entry * (1 + (price_change - trail) / 100))
+                else:
+                    new_sl = min(new_sl, entry * (1 - (price_change - trail) / 100))
 
+        if (pos["side"] == "BUY" and new_sl > pos["trail_sl"]) or (pos["side"] == "SELL" and new_sl < pos["trail_sl"]):
+            self.positions[symbol]["trail_sl"] = round(new_sl, 2)
+            st.info(f"🔄 Trailing SL updated for {symbol}: ₹{round(new_sl, 2)}")
 
 
 # ====== Dummy Dashboard for UI Feedback ======
