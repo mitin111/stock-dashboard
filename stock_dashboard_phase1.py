@@ -113,7 +113,7 @@ class TradingEngine:
 
 
 
-def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
+    def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
         return (
             self.is_sell_time_allowed(current_time) and
             not self.should_skip_gap_down(open, y_close) and
@@ -123,8 +123,6 @@ def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
             not indicators["above_pac"] and
             indicators["volatility"] >= indicators["min_vol_required"]
         )
-
-
 
     def place_order(self, side, symbol, price, qty, indicators, time):
         sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
@@ -142,6 +140,7 @@ def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
 
         self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
         self.dashboard.update_visuals(self.positions, indicators)
+
 
     def auto_exit_positions(self, current_time):
         if current_time == self.auto_exit_time:
