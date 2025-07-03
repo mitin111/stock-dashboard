@@ -108,8 +108,11 @@ class TradingEngine:
         indicators["tkp_trm"] == "Buy" and
         indicators["macd_hist"] > 0 and
         indicators["above_pac"] and
-        indicators["volatility"] >= indicators["min_vol_required"]  # ✅ use user-defined threshold
+        indicators["volatility"] >= indicators["min_vol_required"]
     )
+
+
+
 
 def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
     return (
@@ -119,8 +122,9 @@ def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
         indicators["tkp_trm"] == "Sell" and
         indicators["macd_hist"] < 0 and
         not indicators["above_pac"] and
-        indicators["volatility"] >= indicators["min_vol_required"]  # ✅ use user-defined threshold
+        indicators["volatility"] >= indicators["min_vol_required"]
     )
+
 
 
     def place_order(self, side, symbol, price, qty, indicators, time):
@@ -191,6 +195,9 @@ class Dashboard:
 
 # ====== Streamlit UI ======
 dashboard = Dashboard()
+min_vol_required = st.number_input(
+    "🔧 Min Volatility % Required", min_value=0.0, value=2.0, step=0.1
+)
 
 
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -257,6 +264,7 @@ indicators = {
 }
 
 
+"min_vol_required": min_vol_required,
 
 
 
