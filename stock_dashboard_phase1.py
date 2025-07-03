@@ -297,13 +297,4 @@ if st.button("🔄 Update Trailing Stop-Loss"):
 }
 
 
-indicators = {
-   "atr_trail": st.selectbox("ATR Trail", ["Buy", "Sell"], key="atr_trail_input"),
-   "tkp_trm": st.selectbox("TKP TRM", ["Buy", "Sell"], key="tkp_trm_input"),
-   "macd_hist": st.number_input("MACD Histogram", step=0.1, key="macd_hist_input"),
-   "above_pac": st.checkbox("Above PAC EMA", value=True, key="above_pac_input"),
-   "volatility": volatility,
-   "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0, key="pac_band_lower_input"),
-   "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0, key="pac_band_upper_input"),
-   "min_vol_required": min_vol_required  # ✅ Now inside the dictionary
-}
+
