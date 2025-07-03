@@ -254,25 +254,24 @@ indicators = {
     "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0),
 }
 
-indicators = # ✅ STEP 1: Auto Calculate Volatility
-import yfinance as yf
 
 
 
-# ✅ STEP 2: Calculate and display volatility in UI
+
+# ✅ Calculate volatility from YFinance
 volatility = fetch_volatility(symbol)
-st.metric("📊 Daily Volatility %", f"{volatility} %")  # read-only display
+st.metric("📊 Daily Volatility %", f"{volatility} %")  # Display in UI
 
-# ✅ STEP 3: Use it in your indicator block
 indicators = {
     "atr_trail": st.selectbox("ATR Trail", ["Buy", "Sell"]),
     "tkp_trm": st.selectbox("TKP TRM", ["Buy", "Sell"]),
     "macd_hist": st.number_input("MACD Histogram", step=0.1),
     "above_pac": st.checkbox("Above PAC EMA", value=True),
-    "volatility": volatility,  # ✅ use calculated value here
+    "volatility": volatility,
     "pac_band_lower": st.number_input("PAC Band Lower", min_value=0.0),
     "pac_band_upper": st.number_input("PAC Band Upper", min_value=0.0),
 }
+
 
 engine = TradingEngine(dashboard, trading_start, trading_end, cutoff_time, auto_exit_time)
 
