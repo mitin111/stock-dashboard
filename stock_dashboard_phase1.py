@@ -294,7 +294,7 @@ if st.button("❌ Auto Exit All @ 15:12"):
     engine.auto_exit_positions(current_time)
 if st.button("🔄 Update Trailing Stop-Loss"):
     engine.update_trailing_sl(symbol, price)
-}
+
 
 
 
