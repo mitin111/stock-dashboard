@@ -260,6 +260,28 @@ indicators = {
     "min_vol_required": min_vol_required
 }
 
+def fetch_live_data(symbol):
+    try:
+        yf_symbol = symbol + ".NS"
+        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
+
+        if data.empty or len(data) < 2:
+            return None
+
+        latest_row = data.iloc[-1]
+
+        # Get the first 5-min candle for the day (usually 09:15 AM)
+        first_candle = data[data.index.time == datetime.strptime("09:15", "%H:%M").time()]
+        first_open = first_candle["Open"].iloc[0] if not first_candle.empty else latest_row["Open"]
+
+        return {
+            "price": round(latest_row["Close"], 2),
+            "yesterday_close": round(data.iloc[-2]["Close"], 2),
+            "first_open": round(first_open, 2)
+        }
+    except Exception as e:
+        st.error(f"⚠️ Error fetching data for {symbol}: {e}")
+        return None
 
 engine = TradingEngine(dashboard, trading_start, trading_end, cutoff_time, auto_exit_time)
 
@@ -285,23 +307,38 @@ available_balance = st.number_input("Available Balance ₹", min_value=0.0, valu
 
 import schedule
 import time
+def calculate_indicators(live_data):
+    # This is placeholder logic — replace with your real indicator logic later
+    return {
+        "atr_trail": "Buy",
+        "tkp_trm": "Buy",
+        "macd_hist": 0.8,
+        "above_pac": True,
+        "volatility": 3.5,
+        "pac_band_lower": live_data["price"] * 0.98,
+        "pac_band_upper": live_data["price"] * 1.02,
+        "min_vol_required": min_vol_required
+    }
 
 def run_engine_for_all():
+    current_time = datetime.now().strftime("%H:%M")
     for symbol in APPROVED_STOCK_LIST:
         live_data = fetch_live_data(symbol)
+        if not live_data:
+            continue
+
         indicators = calculate_indicators(live_data)
-        engine.process_trade(symbol, live_data['price'], ..., indicators, quantity_config, current_time, balance)
 
-schedule.every(5).minutes.do(run_engine_for_all)
-
-while True:
-    schedule.run_pending()
-    time.sleep(1)
-(
-        symbol, price, y_close, first_candle_open,
-        indicators, quantity_config, current_time,
-        available_balance
-    )
+        engine.process_trade(
+            symbol,
+            live_data["price"],
+            live_data["yesterday_close"],
+            live_data["first_open"],
+            indicators,
+            quantity_config,
+            current_time,
+            available_balance
+        )
 
 if st.button("❌ Auto Exit All @ 15:12"):
     engine.auto_exit_positions(current_time)
