@@ -21,41 +21,6 @@ APPROVED_STOCK_LIST = [
     "COALINDIA", "DABUR", "SAPPHIRE", "ICICIPRULI", "HINDALCO", "TATAMOTORS", "ASHOKLEY", "CESC", "ITC"
 ]
 
-# Include SL/Target Settings
-with st.expander("🎯 Step: Bracket Order Settings", expanded=False):
-    manual_sl_toggle = st.checkbox("🛠 Enable Manual SL/Target (%)", value=False)
-    buy_sl_pct = st.number_input("Buy Side SL %", min_value=0.0, max_value=50.0, value=2.0, step=0.1)
-    sell_sl_pct = st.number_input("Sell Side SL %", min_value=0.0, max_value=50.0, value=2.0, step=0.1)
-    buy_tgt_pct = st.number_input("Buy Side Target %", min_value=0.0, max_value=50.0, value=10.0, step=0.1)
-    sell_tgt_pct = st.number_input("Sell Side Target %", min_value=0.0, max_value=50.0, value=10.0, step=0.1)
-
-# Trailing SL Settings
-with st.expander("📉 Step: Dynamic Trailing SL Settings", expanded=False):
-    st.markdown("🕒 Morning Session (9:15–12:00)")
-    morning_trail_buy = [st.number_input(f"Trail SL BUY if profit ≥ {p}%", min_value=0.0, value=v, step=0.1) for p, v in zip([1,3,5],[1,1.5,2])]
-    morning_trail_sell = [st.number_input(f"Trail SL SELL if profit ≥ {p}%", min_value=0.0, value=v, step=0.1) for p, v in zip([1,3,5],[1,1.5,2])]
-
-    st.markdown("🕒 Afternoon Session (12:00–14:50)")
-    noon_trail_buy = [st.number_input(f"Trail SL BUY if profit ≥ {p}%", min_value=0.0, value=v, step=0.1) for p, v in zip([0.75,2,5],[0.75,0.5,1])]
-    noon_trail_sell = [st.number_input(f"Trail SL SELL if profit ≥ {p}%", min_value=0.0, value=v, step=0.1) for p, v in zip([0.75,2,5],[0.75,0.5,1])]
-
-# Save these into a config dictionary to use in TradingEngine
-sl_config = {
-    "manual": manual_sl_toggle,
-    "buy_sl_pct": buy_sl_pct,
-    "sell_sl_pct": sell_sl_pct,
-    "buy_tgt_pct": buy_tgt_pct,
-    "sell_tgt_pct": sell_tgt_pct,
-    "morning_buy": list(zip([1,3,5], morning_trail_buy)),
-    "morning_sell": list(zip([1,3,5], morning_trail_sell)),
-    "noon_buy": list(zip([0.75,2,5], noon_trail_buy)),
-    "noon_sell": list(zip([0.75,2,5], noon_trail_sell)),
-}
-
-# Pass `sl_config` into TradingEngine and use it during place_order and update_trailing_sl steps.
-# You can now wire `sl_config` into TradingEngine methods: process_trade, place_order, update_trailing_sl
-
-st.success("✅ SL/Target and Dynamic Trailing SL settings added to dashboard. Ready to wire into TradingEngine.")
 
 class TradingEngine:
     def __init__(self, dashboard, trading_start, trading_end, cutoff_time, auto_exit_time):
