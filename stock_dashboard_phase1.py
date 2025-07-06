@@ -180,7 +180,28 @@ import pandas as pd
 st.subheader("📊 Real-Time Stock Signal Table")
 
 all_rows = []
+def fetch_live_data(symbol):
+    try:
+        yf_symbol = symbol + ".NS"
+        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
 
+        if data.empty or len(data) < 2:
+            return None
+
+        latest_row = data.iloc[-1]
+
+        # Get the first 5-min candle for the day (usually 09:15 AM)
+        first_candle = data[data.index.time == datetime.strptime("09:15", "%H:%M").time()]
+        first_open = first_candle["Open"].iloc[0] if not first_candle.empty else latest_row["Open"]
+
+        return {
+            "price": round(latest_row["Close"], 2),
+            "yesterday_close": round(data.iloc[-2]["Close"], 2),
+            "first_open": round(first_open, 2)
+        }
+    except Exception as e:
+        st.error(f"⚠️ Error fetching data for {symbol}: {e}")
+        return None
 for symbol in APPROVED_STOCK_LIST:
     live_data = fetch_live_data(symbol)
     if not live_data:
@@ -309,28 +330,7 @@ indicators = {
     "min_vol_required": min_vol_required
 }
 
-def fetch_live_data(symbol):
-    try:
-        yf_symbol = symbol + ".NS"
-        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
 
-        if data.empty or len(data) < 2:
-            return None
-
-        latest_row = data.iloc[-1]
-
-        # Get the first 5-min candle for the day (usually 09:15 AM)
-        first_candle = data[data.index.time == datetime.strptime("09:15", "%H:%M").time()]
-        first_open = first_candle["Open"].iloc[0] if not first_candle.empty else latest_row["Open"]
-
-        return {
-            "price": round(latest_row["Close"], 2),
-            "yesterday_close": round(data.iloc[-2]["Close"], 2),
-            "first_open": round(first_open, 2)
-        }
-    except Exception as e:
-        st.error(f"⚠️ Error fetching data for {symbol}: {e}")
-        return None
 
 engine = TradingEngine(dashboard, trading_start, trading_end, cutoff_time, auto_exit_time)
 
