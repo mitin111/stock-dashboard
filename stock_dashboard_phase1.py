@@ -307,6 +307,24 @@ available_balance = st.number_input("Available Balance ₹", min_value=0.0, valu
 
 import schedule
 import time
+def calculate_macd(df, fast_length=12, slow_length=26, signal_length=9, 
+                   src_col='Close', 
+                   ma_type_macd='EMA', 
+                   ma_type_signal='EMA'):
+    df = df.copy()
+    src = df[src_col]
+
+    def ma(series, length, method):
+        return series.ewm(span=length, adjust=False).mean() if method == 'EMA' else series.rolling(window=length).mean()
+
+    fast_ma = ma(src, fast_length, ma_type_macd)
+    slow_ma = ma(src, slow_length, ma_type_macd)
+    df['MACD'] = fast_ma - slow_ma
+    df['Signal'] = ma(df['MACD'], signal_length, ma_type_signal)
+    df['Histogram'] = df['MACD'] - df['Signal']
+
+    return df[['MACD', 'Signal', 'Histogram']]
+
 def calculate_heikin_ashi(df):
     ha_df = df.copy()
     ha_df['HA_Close'] = (df['Open'] + df['High'] + df['Low'] + df['Close']) / 4
@@ -466,16 +484,29 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         atr_df = calculate_atr_trailing_stop(data)
         atr_signal = "Buy" if atr_df.iloc[-1]["Buy"] else "Sell" if atr_df.iloc[-1]["Sell"] else "Neutral"
 
+               # ✅ MACD Histogram Calculation
+        macd_df = calculate_macd(
+            data,
+            fast_length=macd_fast,
+            slow_length=macd_slow,
+            signal_length=macd_signal,
+            src_col=macd_source.lower().capitalize(),
+            ma_type_macd=macd_ma_type,
+            ma_type_signal=macd_ma_type
+        )
+        macd_hist = macd_df["Histogram"].iloc[-1]
+
         return {
             "atr_trail": atr_signal,
             "tkp_trm": tkp_trm_signal,
-            "macd_hist": 0.8,  # TODO: Replace with real MACD logic
+            "macd_hist": round(macd_hist, 3),
             "above_pac": price > latest['PAC_C'],
             "volatility": fetch_volatility(symbol),
             "pac_band_lower": round(latest['PAC_L'], 2),
             "pac_band_upper": round(latest['PAC_U'], 2),
             "min_vol_required": min_vol_required
         }
+
 
     
     except Exception as e:
