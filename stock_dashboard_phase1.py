@@ -182,72 +182,6 @@ import pandas as pd
 
 st.subheader("📊 Real-Time Stock Signal Table")
 
-all_rows = []
-def fetch_live_data(symbol):
-    try:
-        yf_symbol = symbol + ".NS"
-        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
-
-        if data.empty or len(data) < 2:
-            return None
-
-        latest_row = data.iloc[-1]
-
-        # Get the first 5-min candle for the day (usually 09:15 AM)
-        first_candle = data[data.index.time == datetime.strptime("09:15", "%H:%M").time()]
-        first_open = first_candle["Open"].iloc[0] if not first_candle.empty else latest_row["Open"]
-
-        return {
-            "price": round(latest_row["Close"], 2),
-            "yesterday_close": round(data.iloc[-2]["Close"], 2),
-            "first_open": round(first_open, 2)
-        }
-    except Exception as e:
-        st.error(f"⚠️ Error fetching data for {symbol}: {e}")
-        return None
-for symbol in APPROVED_STOCK_LIST:
-    live_data = fetch_live_data(symbol)
-    if not live_data:
-        continue
-
-    indicators = calculate_indicators(
-        live_data,
-        symbol,
-        pac_length=pac_length,
-        use_ha=pac_use_ha,
-        min_vol_required=min_vol_required
-    )
-    if indicators is None:
-        continue
-
-    condition_buy = engine.evaluate_buy_conditions(
-        indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
-    )
-    condition_sell = engine.evaluate_sell_conditions(
-        indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
-    )
-
-    all_rows.append({
-        "Symbol": symbol,
-        "Price": live_data["price"],
-        "ATR Trail": indicators["atr_trail"],
-        "TKP TRM": indicators["tkp_trm"],
-        "MACD Hist": round(indicators["macd_hist"], 2),
-        "PAC Above": indicators["above_pac"],
-        "Volatility %": round(indicators["volatility"], 2),
-        "PAC Lower": indicators["pac_band_lower"],
-        "PAC Upper": indicators["pac_band_upper"],
-        "BUY Signal": "✅" if condition_buy else "",
-        "SELL Signal": "❌" if condition_sell else ""
-    })
-
-if all_rows:
-    df = pd.DataFrame(all_rows)
-    st.dataframe(df.style.applymap(
-        lambda x: "background-color: #d4f4dd" if x == "✅" else ("background-color: #fcdede" if x == "❌" else "")
-    , subset=["BUY Signal", "SELL Signal"]), height=800, use_container_width=True)
-else:
-    st.warning("⚠️ No data to display. Please check your connection or time settings.")
 
 
 # ====== Dummy Dashboard for UI Feedback ======
@@ -313,6 +247,52 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
     macd_signal = st.slider("MACD Signal Smoothing", 3, 20, 9)
     macd_source = st.selectbox("MACD Source", ["close", "open", "hl2", "heikin_ashi"], index=0)
     macd_ma_type = st.selectbox("MACD MA Type", ["EMA", "SMA"], index=0)
+    # === ✅ Run Signal Scan After All Inputs Are Loaded ===
+all_rows = []
+for symbol in APPROVED_STOCK_LIST:
+    live_data = fetch_live_data(symbol)
+    if not live_data:
+        continue
+
+    indicators = calculate_indicators(
+        live_data,
+        symbol,
+        pac_length=pac_length,
+        use_ha=pac_use_ha,
+        min_vol_required=min_vol_required
+    )
+    if indicators is None:
+        continue
+
+    condition_buy = engine.evaluate_buy_conditions(
+        indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
+    )
+    condition_sell = engine.evaluate_sell_conditions(
+        indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
+    )
+
+    all_rows.append({
+        "Symbol": symbol,
+        "Price": live_data["price"],
+        "ATR Trail": indicators["atr_trail"],
+        "TKP TRM": indicators["tkp_trm"],
+        "MACD Hist": round(indicators["macd_hist"], 2),
+        "PAC Above": indicators["above_pac"],
+        "Volatility %": round(indicators["volatility"], 2),
+        "PAC Lower": indicators["pac_band_lower"],
+        "PAC Upper": indicators["pac_band_upper"],
+        "BUY Signal": "✅" if condition_buy else "",
+        "SELL Signal": "❌" if condition_sell else ""
+    })
+
+if all_rows:
+    df = pd.DataFrame(all_rows)
+    st.dataframe(df.style.applymap(
+        lambda x: "background-color: #d4f4dd" if x == "✅" else ("background-color: #fcdede" if x == "❌" else "")
+    , subset=["BUY Signal", "SELL Signal"]), height=800, use_container_width=True)
+else:
+    st.warning("⚠️ No data to display. Please check your connection or time settings.")
+
 
 
 symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
