@@ -463,8 +463,7 @@ else:
     st.warning("⚠️ No data to display. Please check your connection or time settings.")
        
 
-        if indicators is None:
-            continue
+        
 
         
 def calculate_tkp_trm(df, tsi_long=25, tsi_short=5, tsi_signal_len=14, rsi_len=5, rsi_buy=50, rsi_sell=50):
