@@ -175,6 +175,55 @@ class TradingEngine:
         if (pos["side"] == "BUY" and new_sl > pos["trail_sl"]) or (pos["side"] == "SELL" and new_sl < pos["trail_sl"]):
             self.positions[symbol]["trail_sl"] = round(new_sl, 2)
             st.info(f"🔄 Trailing SL updated for {symbol}: ₹{round(new_sl, 2)}")
+import pandas as pd
+
+st.subheader("📊 Real-Time Stock Signal Table")
+
+all_rows = []
+
+for symbol in APPROVED_STOCK_LIST:
+    live_data = fetch_live_data(symbol)
+    if not live_data:
+        continue
+
+    indicators = calculate_indicators(
+        live_data,
+        symbol,
+        pac_length=pac_length,
+        use_ha=pac_use_ha,
+        min_vol_required=min_vol_required
+    )
+    if indicators is None:
+        continue
+
+    condition_buy = engine.evaluate_buy_conditions(
+        indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
+    )
+    condition_sell = engine.evaluate_sell_conditions(
+        indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
+    )
+
+    all_rows.append({
+        "Symbol": symbol,
+        "Price": live_data["price"],
+        "ATR Trail": indicators["atr_trail"],
+        "TKP TRM": indicators["tkp_trm"],
+        "MACD Hist": round(indicators["macd_hist"], 2),
+        "PAC Above": indicators["above_pac"],
+        "Volatility %": round(indicators["volatility"], 2),
+        "PAC Lower": indicators["pac_band_lower"],
+        "PAC Upper": indicators["pac_band_upper"],
+        "BUY Signal": "✅" if condition_buy else "",
+        "SELL Signal": "❌" if condition_sell else ""
+    })
+
+if all_rows:
+    df = pd.DataFrame(all_rows)
+    st.dataframe(df.style.applymap(
+        lambda x: "background-color: #d4f4dd" if x == "✅" else ("background-color: #fcdede" if x == "❌" else "")
+    , subset=["BUY Signal", "SELL Signal"]), height=800, use_container_width=True)
+else:
+    st.warning("⚠️ No data to display. Please check your connection or time settings.")
 
 
 # ====== Dummy Dashboard for UI Feedback ======
