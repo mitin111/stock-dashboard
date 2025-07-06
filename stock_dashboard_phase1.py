@@ -461,13 +461,7 @@ if all_rows:
     , subset=["BUY Signal", "SELL Signal"]), height=800, use_container_width=True)
 else:
     st.warning("⚠️ No data to display. Please check your connection or time settings.")
-        indicators = calculate_indicators(
-            live_data,
-            symbol,
-            pac_length=pac_length,
-            use_ha=pac_use_ha,
-            min_vol_required=min_vol_required
-        )
+       
 
         if indicators is None:
             continue
