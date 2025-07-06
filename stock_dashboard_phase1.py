@@ -307,18 +307,31 @@ available_balance = st.number_input("Available Balance ₹", min_value=0.0, valu
 
 import schedule
 import time
-def calculate_indicators(live_data):
-    # This is placeholder logic — replace with your real indicator logic later
-    return {
-        "atr_trail": "Buy",
-        "tkp_trm": "Buy",
-        "macd_hist": 0.8,
-        "above_pac": True,
-        "volatility": 3.5,
-        "pac_band_lower": live_data["price"] * 0.98,
-        "pac_band_upper": live_data["price"] * 1.02,
-        "min_vol_required": min_vol_required
-    }
+def calculate_heikin_ashi(df):
+    ha_df = df.copy()
+    ha_df['HA_Close'] = (df['Open'] + df['High'] + df['Low'] + df['Close']) / 4
+
+    ha_open = [(df['Open'].iloc[0] + df['Close'].iloc[0]) / 2]
+    for i in range(1, len(df)):
+        ha_open.append((ha_open[i - 1] + ha_df['HA_Close'].iloc[i - 1]) / 2)
+    ha_df['HA_Open'] = ha_open
+    ha_df['HA_High'] = ha_df[['High', 'HA_Open', 'HA_Close']].max(axis=1)
+    ha_df['HA_Low'] = ha_df[['Low', 'HA_Open', 'HA_Close']].min(axis=1)
+
+    return ha_df
+
+def calculate_pac_emas(df, length=34, use_heikin_ashi=True):
+    if use_heikin_ashi:
+        df = calculate_heikin_ashi(df)
+        close_col, high_col, low_col = 'HA_Close', 'HA_High', 'HA_Low'
+    else:
+        close_col, high_col, low_col = 'Close', 'High', 'Low'
+
+    df['PAC_C'] = df[close_col].ewm(span=length, adjust=False).mean()
+    df['PAC_U'] = df[high_col].ewm(span=length, adjust=False).mean()
+    df['PAC_L'] = df[low_col].ewm(span=length, adjust=False).mean()
+
+    return df
 
 def run_engine_for_all():
     current_time = datetime.now().strftime("%H:%M")
@@ -326,6 +339,54 @@ def run_engine_for_all():
         live_data = fetch_live_data(symbol)
         if not live_data:
             continue
+
+        indicators = calculate_indicators(
+            live_data,
+            symbol,
+            pac_length=pac_length,
+            use_ha=pac_use_ha,
+            min_vol_required=min_vol_required
+        )
+
+        if indicators is None:
+            continue
+
+        engine.process_trade(
+            symbol,
+            live_data["price"],
+            live_data["yesterday_close"],
+            live_data["first_open"],
+            indicators,
+            quantity_config,
+            current_time,
+            available_balance
+        )
+
+def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
+    try:
+        yf_symbol = symbol + ".NS"
+        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
+
+        if data.empty or len(data) < pac_length:
+            return None  # Not enough data
+
+        df = calculate_pac_emas(data, length=pac_length, use_heikin_ashi=use_ha)
+        latest = df.iloc[-1]
+        price = live_data["price"]
+
+        return {
+            "atr_trail": "Buy",  # TODO: Replace with actual ATR logic
+            "tkp_trm": "Buy",    # TODO: Replace with actual TRM logic
+            "macd_hist": 0.8,    # TODO: Replace with real MACD Histogram
+            "above_pac": price > latest['PAC_C'],
+            "volatility": fetch_volatility(symbol),
+            "pac_band_lower": round(latest['PAC_L'], 2),
+            "pac_band_upper": round(latest['PAC_U'], 2),
+            "min_vol_required": min_vol_required
+        }
+    except Exception as e:
+        st.error(f"⚠️ Indicator calculation failed for {symbol}: {e}")
+        return None
 
         indicators = calculate_indicators(live_data)
 
