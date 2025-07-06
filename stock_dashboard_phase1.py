@@ -460,7 +460,7 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         latest = df.iloc[-1]
         price = live_data["price"]
 
-        # ✅ Apply TKP TRM
+               # ✅ Apply TKP TRM
         tkp_trm_signal = calculate_tkp_trm(
             data,
             tsi_long=tsi_long,
@@ -471,24 +471,21 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
             rsi_sell=rsi_sell
         )
 
-    
-            atr_df = calculate_atr_trailing_stop(data)
-atr_signal = "Buy" if atr_df.iloc[-1]["Buy"] else "Sell" if atr_df.iloc[-1]["Sell"] else "Neutral"
+        # ✅ Apply ATR Trailing Stop
+        atr_df = calculate_atr_trailing_stop(data)
+        atr_signal = "Buy" if atr_df.iloc[-1]["Buy"] else "Sell" if atr_df.iloc[-1]["Sell"] else "Neutral"
 
-           return {
-    "atr_trail": atr_signal,       # ✅ Now based on real logic
-    "tkp_trm": tkp_trm_signal,
-    "macd_hist": 0.8,              # TODO: Replace with real MACD logic
-    "above_pac": price > latest['PAC_C'],
-    "volatility": fetch_volatility(symbol),
-    "pac_band_lower": round(latest['PAC_L'], 2),
-    "pac_band_upper": round(latest['PAC_U'], 2),
-    "min_vol_required": min_vol_required
-}
+        return {
+            "atr_trail": atr_signal,
+            "tkp_trm": tkp_trm_signal,
+            "macd_hist": 0.8,  # TODO: Replace with real MACD logic
+            "above_pac": price > latest['PAC_C'],
+            "volatility": fetch_volatility(symbol),
+            "pac_band_lower": round(latest['PAC_L'], 2),
+            "pac_band_upper": round(latest['PAC_U'], 2),
+            "min_vol_required": min_vol_required
+        }
 
-    except Exception as e:
-        st.error(f"⚠️ Indicator calculation failed for {symbol}: {e}")
-        return None
 
 
         indicators = calculate_indicators(live_data)
