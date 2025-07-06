@@ -319,6 +319,53 @@ def calculate_heikin_ashi(df):
     ha_df['HA_Low'] = ha_df[['Low', 'HA_Open', 'HA_Close']].min(axis=1)
 
     return ha_df
+def calculate_atr_trailing_stop(df, fast_period=5, fast_mult=0.5, slow_period=10, slow_mult=3):
+    df = df.copy()
+    df["ATR_FAST"] = df["High"].rolling(fast_period).max() - df["Low"].rolling(fast_period).min()
+    df["ATR_FAST"] *= fast_mult
+
+    df["ATR_SLOW"] = df["High"].rolling(slow_period).max() - df["Low"].rolling(slow_period).min()
+    df["ATR_SLOW"] *= slow_mult
+
+    trail1 = []
+    trail2 = []
+    buy = []
+    sell = []
+
+    last_trail1 = df["Close"].iloc[0]
+    last_trail2 = df["Close"].iloc[0]
+
+    for i in range(len(df)):
+        close = df["Close"].iloc[i]
+        atr1 = df["ATR_FAST"].iloc[i]
+        atr2 = df["ATR_SLOW"].iloc[i]
+
+        # --- Fast trail
+        if close > last_trail1:
+            trail_1 = max(last_trail1, close - atr1)
+        else:
+            trail_1 = min(last_trail1, close + atr1)
+
+        # --- Slow trail
+        if close > last_trail2:
+            trail_2 = max(last_trail2, close - atr2)
+        else:
+            trail_2 = min(last_trail2, close + atr2)
+
+        last_trail1 = trail_1
+        last_trail2 = trail_2
+
+        trail1.append(trail_1)
+        trail2.append(trail_2)
+        buy.append(trail_1 > trail_2 and (i > 0 and trail1[i-1] <= trail2[i-1]))
+        sell.append(trail_1 < trail_2 and (i > 0 and trail1[i-1] >= trail2[i-1]))
+
+    df["Trail1"] = trail1
+    df["Trail2"] = trail2
+    df["Buy"] = buy
+    df["Sell"] = sell
+
+    return df
 
 def calculate_pac_emas(df, length=34, use_heikin_ashi=True):
     if use_heikin_ashi:
@@ -424,16 +471,21 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
             rsi_sell=rsi_sell
         )
 
-        return {
-            "atr_trail": "Buy",  # TODO: Replace with actual ATR logic
-            "tkp_trm": tkp_trm_signal,  # ✅ Real logic applied
-            "macd_hist": 0.8,    # TODO: Replace with real MACD Histogram
-            "above_pac": price > latest['PAC_C'],
-            "volatility": fetch_volatility(symbol),
-            "pac_band_lower": round(latest['PAC_L'], 2),
-            "pac_band_upper": round(latest['PAC_U'], 2),
-            "min_vol_required": min_vol_required
-        }
+    
+            atr_df = calculate_atr_trailing_stop(data)
+atr_signal = "Buy" if atr_df.iloc[-1]["Buy"] else "Sell" if atr_df.iloc[-1]["Sell"] else "Neutral"
+
+           return {
+    "atr_trail": atr_signal,       # ✅ Now based on real logic
+    "tkp_trm": tkp_trm_signal,
+    "macd_hist": 0.8,              # TODO: Replace with real MACD logic
+    "above_pac": price > latest['PAC_C'],
+    "volatility": fetch_volatility(symbol),
+    "pac_band_lower": round(latest['PAC_L'], 2),
+    "pac_band_upper": round(latest['PAC_U'], 2),
+    "min_vol_required": min_vol_required
+}
+
     except Exception as e:
         st.error(f"⚠️ Indicator calculation failed for {symbol}: {e}")
         return None
