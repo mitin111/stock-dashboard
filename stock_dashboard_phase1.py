@@ -361,6 +361,45 @@ def run_engine_for_all():
             current_time,
             available_balance
         )
+def calculate_tkp_trm(df, tsi_long=25, tsi_short=5, tsi_signal_len=14, rsi_len=5, rsi_buy=50, rsi_sell=50):
+    """
+    TKP TRM Calculation based on TSI + RSI logic.
+    Returns: "Buy", "Sell", or "Neutral"
+    """
+    df = df.copy()
+    close = df["Close"]
+
+    # TSI (True Strength Index)
+    pc = close.diff()
+    first_smooth = pc.ewm(span=tsi_long, adjust=False).mean()
+    double_smoothed_pc = first_smooth.ewm(span=tsi_short, adjust=False).mean()
+
+    abs_pc = pc.abs()
+    first_smooth_abs = abs_pc.ewm(span=tsi_long, adjust=False).mean()
+    double_smoothed_abs_pc = first_smooth_abs.ewm(span=tsi_short, adjust=False).mean()
+
+    tsi = 100 * (double_smoothed_pc / double_smoothed_abs_pc)
+    tsi_signal = tsi.ewm(span=tsi_signal_len, adjust=False).mean()
+
+    # RSI (Wilder's RMA)
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / rsi_len, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / rsi_len, adjust=False).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    latest_tsi = tsi.iloc[-1]
+    latest_signal = tsi_signal.iloc[-1]
+    latest_rsi = rsi.iloc[-1]
+
+    if latest_tsi > latest_signal and latest_rsi > rsi_buy:
+        return "Buy"
+    elif latest_tsi < latest_signal and latest_rsi < rsi_sell:
+        return "Sell"
+    else:
+        return "Neutral"
 
 def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
     try:
@@ -374,9 +413,20 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         latest = df.iloc[-1]
         price = live_data["price"]
 
+        # ✅ Apply TKP TRM
+        tkp_trm_signal = calculate_tkp_trm(
+            data,
+            tsi_long=tsi_long,
+            tsi_short=tsi_short,
+            tsi_signal_len=tsi_signal,
+            rsi_len=rsi_length,
+            rsi_buy=rsi_buy,
+            rsi_sell=rsi_sell
+        )
+
         return {
             "atr_trail": "Buy",  # TODO: Replace with actual ATR logic
-            "tkp_trm": "Buy",    # TODO: Replace with actual TRM logic
+            "tkp_trm": tkp_trm_signal,  # ✅ Real logic applied
             "macd_hist": 0.8,    # TODO: Replace with real MACD Histogram
             "above_pac": price > latest['PAC_C'],
             "volatility": fetch_volatility(symbol),
@@ -387,6 +437,7 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
     except Exception as e:
         st.error(f"⚠️ Indicator calculation failed for {symbol}: {e}")
         return None
+
 
         indicators = calculate_indicators(live_data)
 
