@@ -1,20 +1,23 @@
+# prostocks_connector.py
+
 from NorenRestApiPy.NorenApi import NorenApi
 import pandas as pd
+import requests
 
 class ProStocksAPI(NorenApi):
     def __init__(self):
         super().__init__()
-        self.user_id = "YOUR_USER_ID"
+        self.user_id = "A0588"  # Replace with your real User ID
         self.password = "YOUR_PASSWORD"
-        self.factor2 = "YOUR_TOTP"           # OTP/TOTP for login
-        self.vc = "YOUR_VENDOR_CODE"         # From UAT credentials
-        self.app_key = "YOUR_API_KEY"        # From UAT
-        self.imei = "abc1234"                # Any static value for UAT
+        self.factor2 = "123456"  # Use TOTP or fixed 2FA for UAT
+        self.vc = "A0588"        # Vendor Code (same as user ID for UAT)
+        self.app_key = "29QvdASGV6zs7886TtxDJCWA6nq8awzN"  # From UAT dashboard
+        self.imei = "abc1234"
         self.token = None
 
     def login(self):
         try:
-            response = self.login(
+            response = super().login(
                 userid=self.user_id,
                 password=self.password,
                 twoFA=self.factor2,
@@ -56,48 +59,45 @@ class ProStocksAPI(NorenApi):
                 remarks="Bracket Order",
                 booklossprice=sl,
                 bookprofitprice=target,
-                trailprice=0  # Or implement trailing logic
+                trailprice=0
             )
             return response
         except Exception as e:
             print(f"Order error: {e}")
             return None
-def get_candles(self, symbol, interval="5minute", days=1):
-    """
-    Fetch OHLC candle data from ProStocks.
-    """
-    try:
-        url = f"{self.base_url}/GetCandleData"
-        params = {
-            "uid": self.user_id,
-            "token": self.token,
-            "exch": "NSE",
-            "symbol": symbol,
-            "interval": interval,
-            "days": str(days)
-        }
 
-        response = requests.get(url, params=params)
-        data = response.json()
+    def get_candles(self, symbol, interval="5minute", days=1):
+        try:
+            url = f"{self.base_url}/GetCandleData"
+            params = {
+                "uid": self.user_id,
+                "token": self.token,
+                "exch": "NSE",
+                "symbol": symbol,
+                "interval": interval,
+                "days": str(days)
+            }
 
-        if data.get("status") != "Ok" or not data.get("data"):
-            print(f"⚠️ Candle fetch failed: {data}")
+            response = requests.get(url, params=params)
+            data = response.json()
+
+            if data.get("status") != "Ok" or not data.get("data"):
+                print(f"⚠️ Candle fetch failed: {data}")
+                return []
+
+            candles = []
+            for item in data["data"]:
+                candles.append({
+                    "time": item["time"],
+                    "open": float(item["open"]),
+                    "high": float(item["high"]),
+                    "low": float(item["low"]),
+                    "close": float(item["close"]),
+                    "volume": float(item["volume"])
+                })
+
+            return candles
+
+        except Exception as e:
+            print(f"❌ Error in get_candles(): {e}")
             return []
-
-        # Parse and return list of OHLC dicts
-        candles = []
-        for item in data["data"]:
-            candles.append({
-                "time": item["time"],
-                "open": float(item["open"]),
-                "high": float(item["high"]),
-                "low": float(item["low"]),
-                "close": float(item["close"]),
-                "volume": float(item["volume"])
-            })
-
-        return candles
-
-    except Exception as e:
-        print(f"❌ Error in get_candles(): {e}")
-        return []
