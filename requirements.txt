@@ -3,3 +3,4 @@ yfinance
 pandas
 numpy
 schedule
+NorenRestApiPy @ git+https://github.com/ProStocks/NorenRestApiPy.git
