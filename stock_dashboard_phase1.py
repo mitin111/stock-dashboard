@@ -301,7 +301,7 @@ for symbol in APPROVED_STOCK_LIST:
 
 
 
-symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main")
+symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main_1")
 
 price = st.number_input("Current Price", min_value=10.0)
 y_close = st.number_input("Yesterday's Close", min_value=10.0)
@@ -583,7 +583,8 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
 
 
 
-symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main")
+symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main_2")
+
 
 price = st.number_input("Current Price", min_value=10.0)
 
