@@ -303,9 +303,10 @@ for symbol in APPROVED_STOCK_LIST:
 
 symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main_1")
 
-price = st.number_input("Current Price", min_value=10.0)
-y_close = st.number_input("Yesterday's Close", min_value=10.0)
-first_candle_open = st.number_input("First Candle Open", min_value=10.0)
+price = st.number_input("Current Price", min_value=10.0, key="price_input_final")
+y_close = st.number_input("Yesterday's Close", min_value=10.0, key="y_close_input_final")
+first_candle_open = st.number_input("First Candle Open", min_value=10.0, key="open_input_final")
+
 current_time = st.text_input("Current Time (HH:MM)", value=datetime.now().strftime("%H:%M"))
 # ✅ Calculate volatility from YFinance
 volatility = fetch_volatility(symbol)
