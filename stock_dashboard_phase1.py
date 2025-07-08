@@ -8,18 +8,26 @@ ps_api.login()           # ✅ Login once
 
 def fetch_volatility(symbol):
     try:
-        yf_symbol = symbol + ".NS"  # NSE symbols
-        data = yf.download(yf_symbol, period="1d", interval="5m", progress=False)
-        if data.empty:
+        # Fetch 1-day 5-min candle data from ProStocks
+        candles = ps_api.get_candles(symbol, interval="5minute", days=1)
+        if not candles or len(candles) == 0:
             return 0.0
-        day_high = data["High"].max()
-        day_low = data["Low"].min()
+
+        highs = [c['high'] for c in candles]
+        lows = [c['low'] for c in candles]
+
+        day_high = max(highs)
+        day_low = min(lows)
+
         if day_low > 0:
             return round(((day_high - day_low) / day_low) * 100, 2)
         else:
             return 0.0
-    except Exception:
+
+    except Exception as e:
+        st.error(f"⚠️ ProStocks Volatility Error for {symbol}: {e}")
         return 0.0
+
 
 
 # ====== Trading Engine Logic with Whitelist ======
