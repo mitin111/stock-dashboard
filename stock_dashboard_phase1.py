@@ -137,6 +137,33 @@ class TradingEngine:
             not indicators["above_pac"] and
             indicators["volatility"] >= indicators["min_vol_required"]
         )
+    def place_order(self, side, symbol, price, qty, indicators, time):
+        sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
+        tgt = round(price * 1.10, 2) if side == "BUY" else round(price * 0.90, 2)
+
+        st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
+
+        order_response = ps_api.place_bracket_order(
+            symbol=symbol,
+            qty=qty,
+            price=price,
+            sl=sl,
+            target=tgt,
+            side=side
+        )
+
+        if order_response:
+            self.positions[symbol] = {
+                "entry_price": price,
+                "stop_loss": sl,
+                "trail_sl": sl,
+                "target": tgt,
+                "side": side,
+                "entry_time": time
+            }
+            self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
+        else:
+            st.error(f"❌ Failed to place order for {symbol}")
 
    # ✅ Send Live Order
 order_response = ps_api.place_bracket_order(
