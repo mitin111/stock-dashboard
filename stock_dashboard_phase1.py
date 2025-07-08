@@ -126,22 +126,21 @@ class TradingEngine:
             indicators["volatility"] >= indicators["min_vol_required"]
         )
 
-    def place_order(self, side, symbol, price, qty, indicators, time):
-        sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
-        tgt = price * 1.10 if side == "BUY" else price * 0.90
+   # ✅ Send Live Order
+order_response = ps_api.place_bracket_order(
+    symbol=symbol,
+    qty=qty,
+    price=price,
+    sl=sl,
+    target=tgt,
+    side=side
+)
 
-        self.positions[symbol] = {
-            "side": side,
-            "entry_price": price,
-            "quantity": qty,
-            "stop_loss": sl,
-            "target": tgt,
-            "entry_time": time,
-            "trail_sl": sl
-        }
-
-        self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
-        self.dashboard.update_visuals(self.positions, indicators)
+# Log the order response in dashboard
+if order_response:
+    self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
+else:
+    st.error(f"❌ Failed to place order for {symbol}")
 
 
     def auto_exit_positions(self, current_time):
@@ -247,27 +246,26 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
     macd_source = st.selectbox("MACD Source", ["close", "open", "hl2", "heikin_ashi"], index=0)
     macd_ma_type = st.selectbox("MACD MA Type", ["EMA", "SMA"], index=0)
     # === ✅ Run Signal Scan After All Inputs Are Loaded ===
+from prostocks_connector import ProStocksAPI
+
+# Initialize and login once
+ps_api = ProStocksAPI()
+ps_api.login()
+
 def fetch_live_data(symbol):
     try:
-        yf_symbol = symbol + ".NS"
-        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
-
-        if data.empty or len(data) < 2:
+        ltp = ps_api.get_ltp(symbol)
+        if ltp is None:
             return None
 
-        latest_row = data.iloc[-1]
-
-        # Get the first 5-min candle for the day (usually 09:15 AM)
-        first_candle = data[data.index.time == datetime.strptime("09:15", "%H:%M").time()]
-        first_open = first_candle["Open"].iloc[0] if not first_candle.empty else latest_row["Open"]
-
+        # Approximate other values with same price since GetQuotes doesn't return OHLC
         return {
-            "price": round(latest_row["Close"], 2),
-            "yesterday_close": round(data.iloc[-2]["Close"], 2),
-            "first_open": round(first_open, 2)
+            "price": round(ltp, 2),
+            "yesterday_close": round(ltp, 2),
+            "first_open": round(ltp, 2)
         }
     except Exception as e:
-        st.error(f"⚠️ Error fetching data for {symbol}: {e}")
+        st.error(f"⚠️ Error fetching ProStocks data for {symbol}: {e}")
         return None
 
 all_rows = []
