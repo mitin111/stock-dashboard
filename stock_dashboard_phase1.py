@@ -165,21 +165,7 @@ class TradingEngine:
         else:
             st.error(f"❌ Failed to place order for {symbol}")
 
-   # ✅ Send Live Order
-order_response = ps_api.place_bracket_order(
-    symbol=symbol,
-    qty=qty,
-    price=price,
-    sl=sl,
-    target=tgt,
-    side=side
-)
-
-# Log the order response in dashboard
-if order_response:
-    self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
-else:
-    st.error(f"❌ Failed to place order for {symbol}")
+  
 
 
     def auto_exit_positions(self, current_time):
