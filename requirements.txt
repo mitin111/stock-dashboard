@@ -3,4 +3,4 @@ yfinance
 pandas
 numpy
 schedule
-from NorenRestApiPy.NorenApi import NorenApi
+
