@@ -301,7 +301,8 @@ for symbol in APPROVED_STOCK_LIST:
 
 
 
-symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
+symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main")
+
 price = st.number_input("Current Price", min_value=10.0)
 y_close = st.number_input("Yesterday's Close", min_value=10.0)
 first_candle_open = st.number_input("First Candle Open", min_value=10.0)
@@ -483,10 +484,7 @@ if all_rows:
 else:
     st.warning("⚠️ No data to display. Please check your connection or time settings.")
        
-
-        
-
-        
+   
 def calculate_tkp_trm(df, tsi_long=25, tsi_short=5, tsi_signal_len=14, rsi_len=5, rsi_buy=50, rsi_sell=50):
     """
     TKP TRM Calculation based on TSI + RSI logic.
@@ -585,7 +583,8 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
 
 
 
-symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
+symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main")
+
 price = st.number_input("Current Price", min_value=10.0)
 
 if st.button("❌ Auto Exit All @ 15:12"):
