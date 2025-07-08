@@ -601,6 +601,8 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
 
 
 
+symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
+price = st.number_input("Current Price", min_value=10.0)
 
 if st.button("❌ Auto Exit All @ 15:12"):
     engine.auto_exit_positions(current_time)
