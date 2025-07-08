@@ -165,8 +165,6 @@ class TradingEngine:
         else:
             st.error(f"❌ Failed to place order for {symbol}")
 
-  
-
 
     def auto_exit_positions(self, current_time):
         if current_time == self.auto_exit_time:
