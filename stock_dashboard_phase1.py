@@ -1,6 +1,10 @@
 import streamlit as st
 from datetime import datetime
-import yfinance as yf
+
+from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
+
+ps_api = ProStocksAPI()  # ✅ Initialize once
+ps_api.login()           # ✅ Login once
 
 def fetch_volatility(symbol):
     try:
