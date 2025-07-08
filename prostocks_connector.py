@@ -62,3 +62,42 @@ class ProStocksAPI(NorenApi):
         except Exception as e:
             print(f"Order error: {e}")
             return None
+def get_candles(self, symbol, interval="5minute", days=1):
+    """
+    Fetch OHLC candle data from ProStocks.
+    """
+    try:
+        url = f"{self.base_url}/GetCandleData"
+        params = {
+            "uid": self.user_id,
+            "token": self.token,
+            "exch": "NSE",
+            "symbol": symbol,
+            "interval": interval,
+            "days": str(days)
+        }
+
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if data.get("status") != "Ok" or not data.get("data"):
+            print(f"⚠️ Candle fetch failed: {data}")
+            return []
+
+        # Parse and return list of OHLC dicts
+        candles = []
+        for item in data["data"]:
+            candles.append({
+                "time": item["time"],
+                "open": float(item["open"]),
+                "high": float(item["high"]),
+                "low": float(item["low"]),
+                "close": float(item["close"]),
+                "volume": float(item["volume"])
+            })
+
+        return candles
+
+    except Exception as e:
+        print(f"❌ Error in get_candles(): {e}")
+        return []
