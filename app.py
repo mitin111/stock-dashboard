@@ -7,14 +7,16 @@ st.set_page_config(page_title="📈 Intraday Stock Dashboard", layout="wide")
 
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
+    st.write("🧪 Debug: Login block entered")  # DEBUG POINT 1
 
-    client_id = st.text_input("Client ID")
-    password = st.text_input("Password", type="password")
-    pan = st.text_input("PAN (or 2FA)", type="password")  # Adjust based on ProStocks auth
+    client_id = st.text_input("Client ID", key="client_id")
+    password = st.text_input("Password", type="password", key="password")
+    pan = st.text_input("PAN (or 2FA)", type="password", key="pan")
 
     if st.button("Login"):
+        st.write("🧪 Debug: Login button clicked")  # DEBUG POINT 2
         try:
-            ps_api = login_ps(client_id, password, pan)  # Must return a valid StarAPI session
+            ps_api = login_ps(client_id, password, pan)
             if ps_api:
                 st.session_state["ps_api"] = ps_api
                 st.success("✅ Logged in successfully! Refreshing...")
@@ -24,7 +26,7 @@ if "ps_api" not in st.session_state:
         except Exception as e:
             st.error(f"❌ Login error: {str(e)}")
 
-    st.stop()  # Prevent rest of app from loading if not logged in
+    st.stop()
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
 
