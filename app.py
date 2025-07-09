@@ -1,5 +1,5 @@
 import streamlit as st
-from prostocks_connector import login_ps  # Ensure this function exists
+from prostocks_connector import login_ps  # ✅ Correct import
 from intraday_trading_engine import TradingEngine
 
 # ========== LOGIN BLOCK (MUST BE AT THE TOP) ==========
