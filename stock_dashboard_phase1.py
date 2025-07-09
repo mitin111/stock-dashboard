@@ -597,7 +597,7 @@ if st.button("🔄 Update Trailing Stop-Loss"):
 # === ✅ Manual Run Trigger for Engine ===
 if st.button("🚀 Run Live Engine Now"):
     run_engine_for_all()
-import streamlit.runtime.scriptrunner.script_run_context as script_context
+
 import threading
 
 def auto_run():
@@ -610,6 +610,7 @@ if "engine_thread" not in st.session_state:
     t.daemon = True
     t.start()
     st.session_state["engine_thread"] = t
+
 
 
 
