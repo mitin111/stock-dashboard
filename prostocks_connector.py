@@ -8,10 +8,15 @@ load_dotenv()
 
 class ProStocksAPI(NorenApi):
     def __init__(self):
-        super().__init__()
+        host = "https://www.prostocks.com/tradeapi"
+        websocket = "wss://www.prostocks.com/NorenWS/"
+
+        # Pass required arguments to base class
+        super().__init__(host=host, websocket=websocket)
+
         self.user_id = os.getenv("PROSTOCKS_UID")
         self.password = os.getenv("PROSTOCKS_PASSWORD")
-        self.factor2 = "123456"
+        self.factor2 = os.getenv("PROSTOCKS_2FA", "123456")  # Can override in .env
         self.vc = os.getenv("PROSTOCKS_VC")
         self.app_key = os.getenv("PROSTOCKS_API_SECRET")
         self.imei = os.getenv("PROSTOCKS_IMEI")
@@ -26,7 +31,7 @@ class ProStocksAPI(NorenApi):
                 vendor_code=self.vc,
                 api_secret=self.app_key,
                 imei=self.imei,
-                app_key=os.getenv("PROSTOCKS_APP_KEY")
+                app_key=os.getenv("PROSTOCKS_APP_KEY")  # Optional extra
             )
             if response['stat'] == 'Ok':
                 print("✅ Login successful.")
@@ -104,4 +109,5 @@ class ProStocksAPI(NorenApi):
         except Exception as e:
             print(f"❌ Error in get_candles(): {e}")
             return []
+
 
