@@ -1,3 +1,4 @@
+# prostocks_login_app.py
 from NorenRestApiPy.NorenApi import NorenApi
 
 class ProStocksAPI(NorenApi):
@@ -33,5 +34,5 @@ class ProStocksAPI(NorenApi):
                 print("❌ Login failed:", response)
                 return False, response.get("emsg", "Unknown error")
         except Exception as e:
-            print("Login Error:", e)
+            print("❌ Login error:", e)
             return False, str(e)
