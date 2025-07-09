@@ -1,19 +1,20 @@
-# prostocks_connector.py
-
-from NorenApi import NorenApi
-
-import pandas as pd
+from NorenRestApiPy.NorenApi import NorenApi
+from dotenv import load_dotenv
+import os
 import requests
+
+# Load .env values
+load_dotenv()
 
 class ProStocksAPI(NorenApi):
     def __init__(self):
         super().__init__()
-        self.user_id = "A0588"  # Replace with your real User ID
-        self.password = "YOUR_PASSWORD"
-        self.factor2 = "123456"  # Use TOTP or fixed 2FA for UAT
-        self.vc = "A0588"        # Vendor Code (same as user ID for UAT)
-        self.app_key = "29QvdASGV6zs7886TtxDJCWA6nq8awzN"  # From UAT dashboard
-        self.imei = "abc1234"
+        self.user_id = os.getenv("PROSTOCKS_UID")
+        self.password = os.getenv("PROSTOCKS_PASSWORD")
+        self.factor2 = "123456"
+        self.vc = os.getenv("PROSTOCKS_VC")
+        self.app_key = os.getenv("PROSTOCKS_API_SECRET")
+        self.imei = os.getenv("PROSTOCKS_IMEI")
         self.token = None
 
     def login(self):
@@ -24,7 +25,8 @@ class ProStocksAPI(NorenApi):
                 twoFA=self.factor2,
                 vendor_code=self.vc,
                 api_secret=self.app_key,
-                imei=self.imei
+                imei=self.imei,
+                app_key=os.getenv("PROSTOCKS_APP_KEY")
             )
             if response['stat'] == 'Ok':
                 print("✅ Login successful.")
@@ -102,3 +104,4 @@ class ProStocksAPI(NorenApi):
         except Exception as e:
             print(f"❌ Error in get_candles(): {e}")
             return []
+
