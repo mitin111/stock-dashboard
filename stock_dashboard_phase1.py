@@ -129,7 +129,7 @@ class TradingEngine:
 
 
 
-    def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
+   def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
     return (
         self.is_sell_time_allowed(current_time) and
         not self.should_skip_gap_down(open, y_close) and
