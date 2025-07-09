@@ -34,7 +34,6 @@ def fetch_volatility(symbol):
 
 # ====== Trading Engine Logic with Whitelist ======
 
-
 APPROVED_STOCK_LIST = [
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
     "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW",
@@ -86,14 +85,13 @@ class TradingEngine:
             return qcfg["Q5"]
         elif price > 1000:
             return qcfg["Q6"]
-        return 0  # fallback
+        return 0
 
     def process_trade(self, symbol, price, y_close, open, indicators, qcfg, time, balance):
         if symbol not in APPROVED_STOCK_LIST or symbol in self.positions:
             return
 
         qty = self.get_quantity(price, qcfg)
-
         if qty == 0:
             st.warning(f"⚠️ No quantity set for price ₹{price} — skipping order.")
             return
@@ -127,8 +125,7 @@ class TradingEngine:
             indicators["volatility"] >= indicators["min_vol_required"]
         )
 
-
-      def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
+    def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
         return (
             self.is_sell_time_allowed(current_time) and
             not self.should_skip_gap_down(open, y_close) and
@@ -139,41 +136,38 @@ class TradingEngine:
             indicators["volatility"] >= indicators["min_vol_required"]
         )
 
+    def place_order(self, side, symbol, price, qty, indicators, time):
+        sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
+        tgt = round(price * 1.10, 2) if side == "BUY" else round(price * 0.90, 2)
 
-def place_order(self, side, symbol, price, qty, indicators, time):
-    sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
-    tgt = round(price * 1.10, 2) if side == "BUY" else round(price * 0.90, 2)
+        st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
 
-    st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
+        if "ps_api" in st.session_state:
+            ps_api = st.session_state["ps_api"]
+            order_response = ps_api.place_bracket_order(
+                symbol=symbol,
+                qty=qty,
+                price=price,
+                sl=sl,
+                target=tgt,
+                side=side
+            )
+        else:
+            st.warning("🔒 Login required to place order.")
+            return
 
-    if "ps_api" in st.session_state:
-        ps_api = st.session_state["ps_api"]
-        order_response = ps_api.place_bracket_order(
-            symbol=symbol,
-            qty=qty,
-            price=price,
-            sl=sl,
-            target=tgt,
-            side=side
-        )
-    else:
-        st.warning("🔒 Login required to place order.")
-        return
-
-    if order_response:
-        self.positions[symbol] = {
-            "entry_price": price,
-            "stop_loss": sl,
-            "trail_sl": sl,
-            "target": tgt,
-            "side": side,
-            "entry_time": time
-        }
-        self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
-    else:
-        st.error(f"❌ Failed to place order for {symbol}")
-
-
+        if order_response:
+            self.positions[symbol] = {
+                "entry_price": price,
+                "stop_loss": sl,
+                "trail_sl": sl,
+                "target": tgt,
+                "side": side,
+                "entry_time": time
+            }
+            self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
+        else:
+            st.error(f"❌ Failed to place order for {symbol}")
 
     def auto_exit_positions(self, current_time):
         if current_time == self.auto_exit_time:
@@ -208,24 +202,28 @@ def place_order(self, side, symbol, price, qty, indicators, time):
         if (pos["side"] == "BUY" and new_sl > pos["trail_sl"]) or (pos["side"] == "SELL" and new_sl < pos["trail_sl"]):
             self.positions[symbol]["trail_sl"] = round(new_sl, 2)
             st.info(f"🔄 Trailing SL updated for {symbol}: ₹{round(new_sl, 2)}")
-import pandas as pd
-
-st.subheader("📊 Real-Time Stock Signal Table")
-
 
 
 # ====== Dummy Dashboard for UI Feedback ======
+
 class Dashboard:
     def __init__(self):
         self.auto_buy = True
         self.auto_sell = True
         self.master_auto = True
 
-    def log_trade(self, *args): st.success(f"Trade Log: {args}")
+    def log_trade(self, *args):
+        st.success(f"Trade Log: {args}")
+
     def update_visuals(self, positions, indicators):
-        st.info("Positions:"); st.json(positions)
-        st.subheader("Indicators"); st.json(indicators)
-    def close_position(self, symbol, pos): st.warning(f"Closed {symbol}: {pos}")
+        st.info("Positions:")
+        st.json(positions)
+        st.subheader("Indicators")
+        st.json(indicators)
+
+    def close_position(self, symbol, pos):
+        st.warning(f"Closed {symbol}: {pos}")
+
 
 
 # ====== Streamlit UI ======
