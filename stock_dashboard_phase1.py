@@ -5,30 +5,30 @@ from datetime import datetime
 
 from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
 
-ps_api = ProStocksAPI()  # ✅ Initialize once
-ps_api.login()           # ✅ Login once
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+else:
+    st.warning("🔒 Please login to continue.")
+    st.stop()
+
 
 def fetch_volatility(symbol):
     try:
-        # Fetch 1-day 5-min candle data from ProStocks
+        if "ps_api" not in st.session_state:
+            return 0.0
+
+        ps_api = st.session_state["ps_api"]
         candles = ps_api.get_candles(symbol, interval="5minute", days=1)
         if not candles or len(candles) == 0:
             return 0.0
 
         highs = [c['high'] for c in candles]
         lows = [c['low'] for c in candles]
-
-        day_high = max(highs)
-        day_low = min(lows)
-
-        if day_low > 0:
-            return round(((day_high - day_low) / day_low) * 100, 2)
-        else:
-            return 0.0
-
+        return round(((max(highs) - min(lows)) / min(lows)) * 100, 2)
     except Exception as e:
-        st.error(f"⚠️ ProStocks Volatility Error for {symbol}: {e}")
+        st.error(f"⚠️ Volatility error for {symbol}: {e}")
         return 0.0
+
 
 
 
@@ -145,7 +145,13 @@ class TradingEngine:
 
         st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
 
-        order_response = ps_api.place_bracket_order(
+        if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    order_response = ps_api.place_bracket_order(...)
+else:
+    st.warning("🔒 Login required to place order.")
+    return
+
             symbol=symbol,
             qty=qty,
             price=price,
@@ -272,10 +278,38 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
     macd_ma_type = st.selectbox("MACD MA Type", ["EMA", "SMA"], index=0)
     # === ✅ Run Signal Scan After All Inputs Are Loaded ===
 from prostocks_connector import ProStocksAPI
+st.title("📈 ProStocks Trading Dashboard")
+
+with st.form("LoginForm"):
+    uid = st.text_input("User ID")
+    pwd = st.text_input("Password", type="password")
+    factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
+    vc = st.text_input("Vendor Code")
+    api_key = st.text_input("API Key", type="password")
+    imei = st.text_input("IMEI or MAC Address", value="MAC123456")
+
+    submitted = st.form_submit_button("🔐 Login")
+
+if submitted:
+    try:
+        ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
+        success, msg = ps_api.login()
+
+        if success:
+            st.success("✅ Login Successful")
+            st.session_state["ps_api"] = ps_api  # Store instance for reuse
+        else:
+            st.error(f"❌ Login failed: {msg}")
+    except Exception as e:
+        st.error(f"❌ Exception during login: {e}")
 
 # Initialize and login once
-ps_api = ProStocksAPI()
-ps_api.login()
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+else:
+    st.warning("🔒 Please login to continue.")
+    st.stop()
+
 
 def fetch_live_data(symbol):
     try:
