@@ -3,6 +3,7 @@ from prostocks_connector import login_ps
 from intraday_trading_engine import TradingEngine
 
 st.set_page_config(page_title="📈 Intraday Stock Dashboard", layout="wide")
+print("📄 app.py started execution")
 
 # ========== LOGIN BLOCK ==========
 if "ps_api" not in st.session_state:
