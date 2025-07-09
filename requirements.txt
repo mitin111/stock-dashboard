@@ -9,6 +9,7 @@ requests
 cryptography
 pyDes
 python-dotenv
+NorenRestApiPy
 
 
 
