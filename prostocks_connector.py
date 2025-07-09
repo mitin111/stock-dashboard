@@ -1,45 +1,34 @@
-from NorenRestApiPy.NorenApi import NorenApi
-from dotenv import load_dotenv
-import os
-import requests
+# prostocks_login_app.py
+import streamlit as st
+from prostocks_connector import ProStocksAPI
 
-# Load .env values
-load_dotenv()
+st.set_page_config(page_title="🔐 ProStocks Login", layout="centered")
 
-class ProStocksAPI(NorenApi):
-    def __init__(self):
-        host = "https://www.prostocks.com/tradeapi"
-        websocket = "wss://www.prostocks.com/NorenWS/"
+st.title("🔐 ProStocks API Login")
 
-        # Pass required arguments to base class
-        super().__init__(host=host, websocket=websocket)
+with st.form("login_form"):
+    uid = st.text_input("User ID", value="", max_chars=30)
+    pwd = st.text_input("Password", type="password")
+    factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
+    vc = st.text_input("Vendor Code")
+    api_key = st.text_input("API Key", type="password")
+    imei = st.text_input("IMEI (MAC or Unique ID)", value="MAC123456")
 
-        self.user_id = os.getenv("PROSTOCKS_UID")
-        self.password = os.getenv("PROSTOCKS_PASSWORD")
-        self.factor2 = os.getenv("PROSTOCKS_2FA", "123456")  # Can override in .env
-        self.vc = os.getenv("PROSTOCKS_VC")
-        self.app_key = os.getenv("PROSTOCKS_API_SECRET")
-        self.imei = os.getenv("PROSTOCKS_IMEI")
-        self.token = None
+    submitted = st.form_submit_button("Login")
 
-    def login(self):
-        try:
-            response = super().login(
-                userid=self.user_id,
-                password=self.password,
-                twoFA=self.factor2,
-                vendor_code=self.vc,
-                api_secret=self.app_key,
-                imei=self.imei,
-                app_key=os.getenv("PROSTOCKS_APP_KEY")  # Optional extra
-            )
-            if response['stat'] == 'Ok':
-                print("✅ Login successful.")
-                self.token = response['susertoken']
-            else:
-                print("❌ Login failed:", response)
-        except Exception as e:
-            print("Login Error:", e)
+if submitted:
+    if all([uid, pwd, factor2, vc, api_key, imei]):
+        # Instantiate with user inputs
+        api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
+        success, result = api.login()
+
+        if success:
+            st.success("✅ Login successful.")
+            st.code(result, language="bash")  # Display token
+        else:
+            st.error(f"❌ Login failed: {result}")
+    else:
+        st.warning("⚠️ Please fill all fields to proceed.")
 
     def get_ltp(self, symbol):
         try:
