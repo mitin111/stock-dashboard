@@ -130,18 +130,17 @@ class TradingEngine:
 
 
     def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
-        return (
-            self.is_sell_time_allowed(current_time) and
-            not self.should_skip_gap_down(open, y_close) and
-            indicators["atr_trail"] == "Sell" and
-            indicators["tkp_trm"] == "Sell" and
-            indicators["macd_hist"] < 0 and
-            not indicators["above_pac"] and
-            indicators["volatility"] >= indicators["min_vol_required"]
-        )
-    
+    return (
+        self.is_sell_time_allowed(current_time) and
+        not self.should_skip_gap_down(open, y_close) and
+        indicators["atr_trail"] == "Sell" and
+        indicators["tkp_trm"] == "Sell" and
+        indicators["macd_hist"] < 0 and
+        not indicators["above_pac"] and
+        indicators["volatility"] >= indicators["min_vol_required"]
+    )
 
-        def place_order(self, side, symbol, price, qty, indicators, time):
+def place_order(self, side, symbol, price, qty, indicators, time):
     sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
     tgt = round(price * 1.10, 2) if side == "BUY" else round(price * 0.90, 2)
 
@@ -173,6 +172,7 @@ class TradingEngine:
         self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
     else:
         st.error(f"❌ Failed to place order for {symbol}")
+
 
 
     def auto_exit_positions(self, current_time):
