@@ -1,20 +1,20 @@
 import streamlit as st
-from prostocks_connector import login_ps  # ✅ Correct import
+from prostocks_connector import login_ps
 from intraday_trading_engine import TradingEngine
 
-# ========== LOGIN BLOCK (MUST BE AT THE TOP) ==========
 st.set_page_config(page_title="📈 Intraday Stock Dashboard", layout="wide")
 
+# ========== LOGIN BLOCK ==========
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
-    st.write("🧪 Debug: Login block entered")  # DEBUG POINT 1
+    st.write("🧪 Debug: Login block entered")  # Debug marker
 
     client_id = st.text_input("Client ID", key="client_id")
     password = st.text_input("Password", type="password", key="password")
     pan = st.text_input("PAN (or 2FA)", type="password", key="pan")
 
     if st.button("Login"):
-        st.write("🧪 Debug: Login button clicked")  # DEBUG POINT 2
+        st.write("🧪 Debug: Login button clicked")  # Another debug marker
         try:
             ps_api = login_ps(client_id, password, pan)
             if ps_api:
@@ -22,11 +22,12 @@ if "ps_api" not in st.session_state:
                 st.success("✅ Logged in successfully! Refreshing...")
                 st.experimental_rerun()
             else:
-                st.error("❌ Login failed. Check your credentials.")
+                st.error("❌ Login failed. Check credentials.")
         except Exception as e:
             st.error(f"❌ Login error: {str(e)}")
 
-    st.stop()
+    st.stop()  # 🧱 Stop app unless logged in
+
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
 
