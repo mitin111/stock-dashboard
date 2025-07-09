@@ -145,20 +145,20 @@ class TradingEngine:
 
         st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
 
-        if "ps_api" in st.session_state:
+       if "ps_api" in st.session_state:
     ps_api = st.session_state["ps_api"]
-    order_response = ps_api.place_bracket_order(...)
+    order_response = ps_api.place_bracket_order(
+        symbol=symbol,
+        qty=qty,
+        price=price,
+        sl=sl,
+        target=tgt,
+        side=side
+    )
 else:
     st.warning("🔒 Login required to place order.")
     return
 
-            symbol=symbol,
-            qty=qty,
-            price=price,
-            sl=sl,
-            target=tgt,
-            side=side
-        )
 
         if order_response:
             self.positions[symbol] = {
