@@ -594,6 +594,22 @@ if st.button("❌ Auto Exit All @ 15:12"):
 if st.button("🔄 Update Trailing Stop-Loss"):
     engine.update_trailing_sl(symbol, price)
 
+# === ✅ Manual Run Trigger for Engine ===
+if st.button("🚀 Run Live Engine Now"):
+    run_engine_for_all()
+import streamlit.runtime.scriptrunner.script_run_context as script_context
+import threading
+
+def auto_run():
+    while True:
+        run_engine_for_all()
+        time.sleep(60)  # Run every 60 seconds
+
+if "engine_thread" not in st.session_state:
+    t = threading.Thread(target=auto_run)
+    t.daemon = True
+    t.start()
+    st.session_state["engine_thread"] = t
 
 
 
