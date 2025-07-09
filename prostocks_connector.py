@@ -1,41 +1,32 @@
-# prostocks_login_app.py
+from prostocks_login_app import ProStocksAPI  # Make sure the path/module is correct
 
-import streamlit as st
-from NorenRestApiPy.NorenApi import NorenApi
-import requests
+def login_ps(client_id, password, pan):
+    try:
+        # 🔑 Replace the credentials below with your actual ProStocks developer credentials
+        vc = "FA12345"               # Vendor Code from ProStocks (e.g., "FA12345")
+        app_key = "your_api_key_here"  # API secret key from developer account
+        imei = "abc123xyz"           # IMEI/device ID (can be a fixed string, like "mitin-device-01")
 
-class ProStocksAPI(NorenApi):
-    def __init__(self, user_id, password, factor2, vc, app_key, imei):
-        host = "https://www.prostocks.com/tradeapi"
-        websocket = "wss://www.prostocks.com/NorenWS/"
-        super().__init__(host=host, websocket=websocket)
+        # Initialize the ProStocks API session object
+        api = ProStocksAPI(
+            user_id=client_id,
+            password=password,
+            factor2=pan,
+            vc=vc,
+            app_key=app_key,
+            imei=imei
+        )
 
-        self.user_id = user_id
-        self.password = password
-        self.factor2 = factor2
-        self.vc = vc
-        self.app_key = app_key
-        self.imei = imei
-        self.token = None
+        # Perform login
+        success, result = api.login()
 
-    def login(self):
-        try:
-            response = super().login(
-                userid=self.user_id,
-                password=self.password,
-                twoFA=self.factor2,
-                vendor_code=self.vc,
-                api_secret=self.app_key,
-                imei=self.imei,
-                app_key=self.app_key
-            )
-            if response.get('stat') == 'Ok':
-                print("✅ Login successful.")
-                self.token = response['susertoken']
-                return True, self.token
-            else:
-                print("❌ Login failed:", response)
-                return False, response.get("emsg", "Unknown error")
-        except Exception as e:
-            print("Login Error:", e)
-            return False, str(e)
+        if success:
+            print("✅ ps_api object created:", type(api))
+            return api  # Return the API object to use later for trading
+        else:
+            print("❌ Login Failed:", result)
+            return None
+
+    except Exception as e:
+        print("❌ Login Error:", e)
+        return None
