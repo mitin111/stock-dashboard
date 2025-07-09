@@ -59,3 +59,4 @@ def login_ps(client_id, password, pan):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
+print("📦 prostocks_connector loaded")
