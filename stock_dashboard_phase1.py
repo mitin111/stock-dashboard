@@ -145,19 +145,39 @@ class TradingEngine:
 
         st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
 
-       if "ps_api" in st.session_state:
-    ps_api = st.session_state["ps_api"]
-    order_response = ps_api.place_bracket_order(
-        symbol=symbol,
-        qty=qty,
-        price=price,
-        sl=sl,
-        target=tgt,
-        side=side
-    )
-else:
-    st.warning("🔒 Login required to place order.")
-    return
+       def place_order(self, side, symbol, price, qty, indicators, time):
+    sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
+    tgt = round(price * 1.10, 2) if side == "BUY" else round(price * 0.90, 2)
+
+    st.info(f"📤 Placing {side} order for {symbol} at ₹{price} | SL: ₹{sl}, Target: ₹{tgt}")
+
+    if "ps_api" in st.session_state:
+        ps_api = st.session_state["ps_api"]
+        order_response = ps_api.place_bracket_order(
+            symbol=symbol,
+            qty=qty,
+            price=price,
+            sl=sl,
+            target=tgt,
+            side=side
+        )
+    else:
+        st.warning("🔒 Login required to place order.")
+        return
+
+    if order_response:
+        self.positions[symbol] = {
+            "entry_price": price,
+            "stop_loss": sl,
+            "trail_sl": sl,
+            "target": tgt,
+            "side": side,
+            "entry_time": time
+        }
+        self.dashboard.log_trade(symbol, side, price, qty, sl, tgt, time)
+    else:
+        st.error(f"❌ Failed to place order for {symbol}")
+
 
 
         if order_response:
