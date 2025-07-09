@@ -8,6 +8,7 @@ pyotp
 requests
 cryptography
 pyDes
+python-dotenv
 
 
 
