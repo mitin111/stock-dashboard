@@ -127,8 +127,6 @@ class TradingEngine:
             indicators["volatility"] >= indicators["min_vol_required"]
         )
 
-
-
    def evaluate_sell_conditions(self, indicators, current_time, y_close, open):
     return (
         self.is_sell_time_allowed(current_time) and
