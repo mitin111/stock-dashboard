@@ -3,6 +3,11 @@ yfinance
 pandas
 numpy
 schedule
+websocket-client
+pyotp
+requests
+cryptography
+pyDes
 
 
 
