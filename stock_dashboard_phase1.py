@@ -1,4 +1,4 @@
-import streamlit as st
+from api_connect import connect_apiimport streamlit as st
 from datetime import datetime
 
 from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
