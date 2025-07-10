@@ -8,26 +8,26 @@ print("📄 app.py started execution")
 # ========== LOGIN BLOCK ==========
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
-    st.write("🧪 Debug: Login block entered")  # Debug marker
 
-    client_id = st.text_input("Client ID", key="client_id")
-    password = st.text_input("Password", type="password", key="password")
-    pan = st.text_input("PAN (or 2FA)", type="password", key="pan")
+    with st.form("login_form"):
+        client_id = st.text_input("Client ID", value="", placeholder="Enter your ProStocks ID")
+        password = st.text_input("Password", type="password", placeholder="••••••••")
+        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", placeholder="ABCDE1234F")
+        submit_btn = st.form_submit_button("Login")
 
-    if st.button("Login"):
-        st.write("🧪 Debug: Login button clicked")  # Another debug marker
-        try:
-            ps_api = login_ps(client_id, password, pan)
-            if ps_api:
-                st.session_state["ps_api"] = ps_api
-                st.success("✅ Logged in successfully! Refreshing...")
-                st.experimental_rerun()
-            else:
-                st.error("❌ Login failed. Check credentials.")
-        except Exception as e:
-            st.error(f"❌ Login error: {str(e)}")
+    if submit_btn:
+        with st.spinner("Logging in..."):
+            ps_api = login_ps(client_id, password, factor2)
 
-    st.stop()  # 🧱 Stop app unless logged in
+        if ps_api:
+            st.session_state["ps_api"] = ps_api
+            st.success("✅ Logged in successfully! Please reload.")
+            st.experimental_rerun()
+        else:
+            st.error("❌ Login failed. Please check your credentials.")
+
+    st.stop()  # Don't show dashboard until login is complete
+
 
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
