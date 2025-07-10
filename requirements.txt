@@ -9,7 +9,8 @@ requests
 cryptography
 pyDes
 python-dotenv
-NorenRestApiPy
+git+https://github.com/prostocksapi/NorenRestApiPy.git
+
 
 
 
