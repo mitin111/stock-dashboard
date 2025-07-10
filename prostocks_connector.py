@@ -1,7 +1,7 @@
 # prostocks_connector.py
 
 from NorenRestApiPy.NorenApi import NorenApi
-print("📦 prostocks_connector loaded")
+
 
 # 🔐 Full Login Class (merged here)
 class ProStocksAPI(NorenApi):
@@ -60,3 +60,4 @@ def login_ps(client_id, password, pan):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
+print("📦 prostocks_connector loaded")
