@@ -25,8 +25,7 @@ if "ps_api" not in st.session_state:
             st.experimental_rerun()
         else:
             st.error("❌ Login failed. Please check your credentials.")
-
-    st.stop()  # Don't show dashboard until login is complete
+    st.stop()  # Halt further execution until login is successful.
 
 
 
