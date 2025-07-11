@@ -1,40 +1,38 @@
 
 import streamlit as st
-import os
 from dotenv import load_dotenv
+import os
 
-# Load environment variables from .env
+# ✅ Load environment variables
 load_dotenv()
 
-# Get credentials from .env
 USER_ID = os.getenv("PROSTOCKS_USER_ID")
 USER_PASS = os.getenv("PROSTOCKS_PASSWORD")
 
-# Session state for login
+st.set_page_config(page_title="Stock Dashboard", layout="centered")
+
+# ✅ Initial session flag
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# Login form
+# ✅ If not logged in
 if not st.session_state["authenticated"]:
-    st.markdown("## 🔐 Login Required")
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
+    st.title("🔒 Login Required")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
-        if submitted:
-            if username == USER_ID and password == USER_PASS:
-                st.session_state["authenticated"] = True
-                st.success("✅ Login successful")
-                # ✅ After successful login, show dashboard content
-if st.session_state.get("authenticated", False):
+    if username == USER_ID and password == USER_PASS:
+        st.session_state["authenticated"] = True
+        st.success("✅ Login successful")
+        st.experimental_rerun()  # 🔁 rerun to show dashboard
+else:
+    # ✅ If authenticated, show dashboard
     st.title("📊 Stock Trading Dashboard")
-
-    # 🔁 Add your dashboard logic here:
     st.success("Dashboard loaded successfully!")
 
-    # Placeholder for your actual trading/screener code
+    # ✅ Placeholder for your screener/engine logic
     st.markdown("🚀 Ready to run your stock screener, signal engine, and auto trading? Add logic here.")
+
 
             else:
                 st.error("❌ Invalid credentials")
