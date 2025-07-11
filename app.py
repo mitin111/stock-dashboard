@@ -44,6 +44,8 @@ if "ps_api" not in st.session_state:
 
         st.stop()  # ✅ Now it only stops after the login attempt
 
+print("🔍 Reached post-login code")  # Will show in Render logs
+st.write("👋 If you're seeing this, login was skipped or failed.")
 
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
