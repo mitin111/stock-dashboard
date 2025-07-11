@@ -52,7 +52,8 @@ class Dashboard:
 st.title("📈 Intraday Trading Dashboard")
 
 dashboard = Dashboard()
-engine = TradingEngine(dashboard)
+engine = TradingEngine(dashboard, st.session_state["ps_api"])
+
 
 # Example static data to simulate
 stock_data = {
