@@ -1,17 +1,18 @@
-import os
-import streamlit as st
-from dotenv import load_dotenv  # ✅ Add this
-load_dotenv()  # ✅ Load .env variables if present
 
+import os
+import logging
+import streamlit as st
+from dotenv import load_dotenv
 from prostocks_connector import login_ps
 from intraday_trading_engine import TradingEngine
 
-
+# ✅ Basic setup
 st.set_page_config(page_title="📈 Intraday Stock Dashboard", layout="wide")
+logging.basicConfig(level=logging.DEBUG)
+load_dotenv()
 print("📄 app.py started execution")
 
 # ========== LOGIN BLOCK ==========
-
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
 
@@ -25,27 +26,30 @@ if "ps_api" not in st.session_state:
 
     if submitted:
         st.warning("🚧 Login button pressed - starting login...")
+        logging.debug("🚀 login_ps() function started")
 
+        # ✅ Save to environment
         os.environ["PROSTOCKS_USER_ID"] = user_id
         os.environ["PROSTOCKS_PASSWORD"] = password
         os.environ["PROSTOCKS_TOTP_SECRET"] = totp_secret
         os.environ["PROSTOCKS_API_KEY"] = api_key
 
         with st.spinner("🔄 Logging in..."):
-            logging.debug("🚀 login_ps() function started")
             ps_api = login_ps()
 
         if ps_api:
             st.session_state["ps_api"] = ps_api
-            st.success("✅ Login successful! Loading dashboard...")
+            st.success("✅ Login successful! Reloading...")
             st.experimental_rerun()
         else:
             st.error("❌ Login failed. Please check your credentials.")
 
-        st.stop()  # ✅ Now it only stops after the login attempt
+        st.stop()  # ✅ Stops execution ONLY after login submit
 
-print("🔍 Reached post-login code")  # Will show in Render logs
+# ✅ Fallback debug check
+print("🔍 Reached post-login code")  # Shows in logs on Render
 st.write("👋 If you're seeing this, login was skipped or failed.")
+
 
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
