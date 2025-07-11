@@ -2,8 +2,17 @@
 import streamlit as st
 
 # ===== App-Level Login (admin/1234) =====
-USERNAME = "admin"
-PASSWORD = "1234"
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# Get from environment
+USER_ID = os.getenv("PROSTOCKS_USER_ID")
+USER_PASS = os.getenv("PROSTOCKS_PASSWORD")
+
+# In your login block:
+if username == USER_ID and password == USER_PASS:
+    st.session_state["authenticated"] = True
 
 if 'login_status' not in st.session_state:
     st.session_state['login_status'] = False
