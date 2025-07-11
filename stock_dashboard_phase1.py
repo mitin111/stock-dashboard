@@ -34,10 +34,7 @@ else:
     st.markdown("🚀 Ready to run your stock screener, signal engine, and auto trading? Add logic here.")
 
 
-            else:
-                st.error("❌ Invalid credentials")
-    st.stop()  # Stop further execution until logged in
-
+           
 from datetime import datetime
 
 from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
