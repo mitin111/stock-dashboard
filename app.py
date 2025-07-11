@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from prostocks_connector import login_ps
 from intraday_trading_engine import TradingEngine
@@ -6,32 +7,39 @@ st.set_page_config(page_title="📈 Intraday Stock Dashboard", layout="wide")
 print("📄 app.py started execution")
 
 # ========== LOGIN BLOCK ==========
+
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
 
     with st.form("login_form"):
-        client_id = st.text_input("Client ID", value="", placeholder="Enter your ProStocks ID")
-        password = st.text_input("Password", type="password", placeholder="••••••••")
-        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", placeholder="ABCDE1234F")
-        submit_btn = st.form_submit_button("Login")
+        st.markdown("**🔑 Enter your ProStocks API credentials:**")
+        user_id = st.text_input("User ID")
+        password = st.text_input("Password", type="password")
+        totp_secret = st.text_input("TOTP Secret")
+        api_key = st.text_input("API Key")
+        submitted = st.form_submit_button("Login")
 
-    if submit_btn:
-        with st.spinner("Logging in..."):
-            ps_api = login_ps(client_id, password, factor2)
+        if submitted:
+            # Store credentials as environment vars (temporarily)
+            os.environ["PROSTOCKS_USER_ID"] = user_id
+            os.environ["PROSTOCKS_PASSWORD"] = password
+            os.environ["PROSTOCKS_TOTP_SECRET"] = totp_secret
+            os.environ["PROSTOCKS_API_KEY"] = api_key
 
-        if ps_api:
-            st.session_state["ps_api"] = ps_api
-            st.success("✅ Logged in successfully! Please reload.")
-            st.experimental_rerun()
-        else:
-            st.error("❌ Login failed. Please check your credentials.")
-    st.stop()  # Halt further execution until login is successful.
+            with st.spinner("🔄 Logging in..."):
+                ps_api = login_ps()
 
+            if ps_api:
+                st.session_state["ps_api"] = ps_api
+                st.success("✅ Login successful! Loading dashboard...")
+                st.experimental_rerun()
+            else:
+                st.error("❌ Login failed. Please check your credentials.")
+    st.stop()  # 🚫 Do not continue until login works
 
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
 
-# Dummy dashboard class
 class Dashboard:
     def __init__(self):
         st.sidebar.title("⚙️ Trading Controls")
@@ -49,13 +57,14 @@ class Dashboard:
         st.subheader("📊 Active Positions")
         st.write(positions)
 
+# 🎯 Main UI Title
 st.title("📈 Intraday Trading Dashboard")
 
+# 🧠 Initialize engine
 dashboard = Dashboard()
 engine = TradingEngine(dashboard, st.session_state["ps_api"])
 
-
-# Example static data to simulate
+# ✅ Simulated input example (you will replace this with real logic later)
 stock_data = {
     "symbol": "LTFOODS",
     "price": 190,
@@ -76,6 +85,6 @@ stock_data = {
     "balance": 50000
 }
 
-# Only process trades if auto mode is enabled
+# 🚀 Trigger trade engine if enabled
 if dashboard.master_auto:
     engine.process_trade(**stock_data)
