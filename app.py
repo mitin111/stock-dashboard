@@ -21,6 +21,8 @@ if "ps_api" not in st.session_state:
 
     if submitted:
         # Store credentials as environment vars (temporarily)
+        st.warning("🚧 Login button pressed - starting login...")
+
         os.environ["PROSTOCKS_USER_ID"] = user_id
         os.environ["PROSTOCKS_PASSWORD"] = password
         os.environ["PROSTOCKS_TOTP_SECRET"] = totp_secret
