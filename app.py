@@ -24,7 +24,6 @@ if "ps_api" not in st.session_state:
         submitted = st.form_submit_button("Login")
 
     if submitted:
-        # Store credentials as environment vars (temporarily)
         st.warning("🚧 Login button pressed - starting login...")
 
         os.environ["PROSTOCKS_USER_ID"] = user_id
@@ -32,11 +31,9 @@ if "ps_api" not in st.session_state:
         os.environ["PROSTOCKS_TOTP_SECRET"] = totp_secret
         os.environ["PROSTOCKS_API_KEY"] = api_key
 
-            with st.spinner("🔄 Logging in..."):
-        logging.debug("🚀 login_ps() function started")  # ✅ DEBUG LOG
-        ps_api = login_ps()
-
-            
+        with st.spinner("🔄 Logging in..."):
+            logging.debug("🚀 login_ps() function started")
+            ps_api = login_ps()
 
         if ps_api:
             st.session_state["ps_api"] = ps_api
@@ -44,7 +41,9 @@ if "ps_api" not in st.session_state:
             st.experimental_rerun()
         else:
             st.error("❌ Login failed. Please check your credentials.")
-        st.stop()  # ✅ Only stop if login attempt submitted
+
+        st.stop()  # ✅ Now it only stops after the login attempt
+
 
 
 # ========== DASHBOARD BEGINS AFTER LOGIN ==========
