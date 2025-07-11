@@ -12,44 +12,49 @@ logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 print("📄 app.py started execution")
 
-# ========== LOGIN BLOCK ==========
+
+
 
 # ========== LOGIN BLOCK ==========
 
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
 
-    # Try to load from environment first (Render or .env)
-    user_id = os.getenv("PROSTOCKS_USER_ID")
-    password = os.getenv("PROSTOCKS_PASSWORD")
-    totp_secret = os.getenv("PROSTOCKS_TOTP_SECRET")
-    api_key = os.getenv("PROSTOCKS_API_KEY")
+    # Load from environment (Render or .env)
+    env_user_id = os.getenv("PROSTOCKS_USER_ID")
+    env_password = os.getenv("PROSTOCKS_PASSWORD")
+    env_totp = os.getenv("PROSTOCKS_TOTP_SECRET")
+    env_api_key = os.getenv("PROSTOCKS_API_KEY")
 
-    # If any value is missing, show login form
-    if not all([user_id, password, totp_secret, api_key]):
-        with st.form("login_form"):
-            st.markdown("**🔑 Enter your ProStocks API credentials:**")
-            user_id = st.text_input("User ID")
-            password = st.text_input("Password", type="password")
-            totp_secret = st.text_input("TOTP Secret")
-            api_key = st.text_input("API Key")
-            submitted = st.form_submit_button("Login")
+    # 🧠 Show login form (default values filled if in env)
+    with st.form("login_form"):
+        st.markdown("**🔑 Enter your ProStocks API credentials:**")
+        user_id = st.text_input("User ID", value=env_user_id or "")
+        password = st.text_input("Password", type="password", value=env_password or "")
+        totp_secret = st.text_input("TOTP Secret", value=env_totp or "")
+        api_key = st.text_input("API Key", value=env_api_key or "")
+        submitted = st.form_submit_button("Login")
 
-        if not submitted:
-            st.warning("🔒 Please submit the login form above to continue.")
+    if submitted:
+        st.warning("🚧 Login button pressed - starting login...")
+        logging.debug("🚀 login_ps() function started")
+
+        # Call login with these inputs
+        with st.spinner("🔄 Logging in..."):
+            ps_api = login_ps(user_id, password, totp_secret, api_key)
+
+        if ps_api:
+            st.session_state["ps_api"] = ps_api
+            st.success("✅ Login successful! Reloading...")
+            st.experimental_rerun()
+        else:
+            st.error("❌ Login failed. Please check your credentials.")
             st.stop()
-
-    st.warning("🚧 Starting login with credentials...")
-    with st.spinner("🔄 Logging in..."):
-        ps_api = login_ps(user_id, password, totp_secret, api_key)
-
-    if ps_api:
-        st.session_state["ps_api"] = ps_api
-        st.success("✅ Login successful! Reloading...")
-        st.experimental_rerun()
     else:
-        st.error("❌ Login failed. Please check your credentials.")
+        # ⚠️ STOP page until form is submitted
+        st.warning("🔒 Please login to continue.")
         st.stop()
+
 
 
 
