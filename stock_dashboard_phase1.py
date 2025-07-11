@@ -1,39 +1,34 @@
 
 import streamlit as st
-
-# ===== App-Level Login (admin/1234) =====
 import os
 from dotenv import load_dotenv
+
+# Load environment variables from .env
 load_dotenv()
 
-# Get from environment
+# Get credentials from .env
 USER_ID = os.getenv("PROSTOCKS_USER_ID")
 USER_PASS = os.getenv("PROSTOCKS_PASSWORD")
 
-# In your login block:
-if username == USER_ID and password == USER_PASS:
-    st.session_state["authenticated"] = True
+# Session state for login
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
 
-if 'login_status' not in st.session_state:
-    st.session_state['login_status'] = False
-
-if not st.session_state['login_status']:
-    st.title("🔐 Login Required")
+# Login form
+if not st.session_state["authenticated"]:
+    st.markdown("## 🔐 Login Required")
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
 
         if submitted:
-            if username == USERNAME and password == PASSWORD:
-                st.session_state['login_status'] = True
-                st.success("✅ Login successful! Please reload the page.")
-                st.stop()
+            if username == USER_ID and password == USER_PASS:
+                st.session_state["authenticated"] = True
+                st.success("✅ Login successful")
             else:
                 st.error("❌ Invalid credentials")
-                st.stop()
-    st.stop()
-
+    st.stop()  # Stop further execution until logged in
 
 from datetime import datetime
 
