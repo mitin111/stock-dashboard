@@ -32,8 +32,11 @@ if "ps_api" not in st.session_state:
         os.environ["PROSTOCKS_TOTP_SECRET"] = totp_secret
         os.environ["PROSTOCKS_API_KEY"] = api_key
 
-        with st.spinner("🔄 Logging in..."):
-            ps_api = login_ps()
+            with st.spinner("🔄 Logging in..."):
+        logging.debug("🚀 login_ps() function started")  # ✅ DEBUG LOG
+        ps_api = login_ps()
+
+            
 
         if ps_api:
             st.session_state["ps_api"] = ps_api
