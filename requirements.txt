@@ -1,14 +1,14 @@
 streamlit
+python-dotenv
+requests
+schedule
 yfinance
 pandas
 numpy
-schedule
 websocket-client
-pyotp
-requests
 cryptography
+pyotp
 pyDes
-python-dotenv
 
 
 
