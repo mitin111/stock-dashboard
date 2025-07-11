@@ -24,7 +24,8 @@ if not st.session_state["authenticated"]:
     if username == USER_ID and password == USER_PASS:
         st.session_state["authenticated"] = True
         st.success("✅ Login successful")
-        st.experimental_rerun()  # 🔁 rerun to show dashboard
+        st.rerun()
+
 else:
     # ✅ If authenticated, show dashboard
     st.title("📊 Stock Trading Dashboard")
