@@ -13,6 +13,7 @@ load_dotenv()
 print("📄 app.py started execution")
 
 # ========== LOGIN BLOCK ==========
+
 if "ps_api" not in st.session_state:
     st.title("🔐 Login to ProStocks")
 
@@ -44,11 +45,12 @@ if "ps_api" not in st.session_state:
         else:
             st.error("❌ Login failed. Please check your credentials.")
 
-        st.stop()  # ✅ Stops execution ONLY after login submit
+        st.stop()  # ✅ Only stop if form submitted
+    else:
+        # ✅ STOP IF FORM NOT YET SUBMITTED
+        st.warning("🔒 Please submit the login form above to continue.")
+        st.stop()
 
-# ✅ Fallback debug check
-print("🔍 Reached post-login code")  # Shows in logs on Render
-st.write("👋 If you're seeing this, login was skipped or failed.")
 
 
 
