@@ -26,6 +26,16 @@ if not st.session_state["authenticated"]:
             if username == USER_ID and password == USER_PASS:
                 st.session_state["authenticated"] = True
                 st.success("✅ Login successful")
+                # ✅ After successful login, show dashboard content
+if st.session_state.get("authenticated", False):
+    st.title("📊 Stock Trading Dashboard")
+
+    # 🔁 Add your dashboard logic here:
+    st.success("Dashboard loaded successfully!")
+
+    # Placeholder for your actual trading/screener code
+    st.markdown("🚀 Ready to run your stock screener, signal engine, and auto trading? Add logic here.")
+
             else:
                 st.error("❌ Invalid credentials")
     st.stop()  # Stop further execution until logged in
