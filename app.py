@@ -1,7 +1,11 @@
 import os
 import streamlit as st
+from dotenv import load_dotenv  # ✅ Add this
+load_dotenv()  # ✅ Load .env variables if present
+
 from prostocks_connector import login_ps
 from intraday_trading_engine import TradingEngine
+
 
 st.set_page_config(page_title="📈 Intraday Stock Dashboard", layout="wide")
 print("📄 app.py started execution")
