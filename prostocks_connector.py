@@ -62,10 +62,15 @@ def login_ps(user_id, password, factor2, app_key=None):
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
 
     try:
+        print("📶 Login attempt started...")
+        print("User ID:", user_id)
+
         api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei)
         success, result = api.login()
+
         if success:
             print("✅ ps_api object created:", type(api))
+            print("✅ Login Token:", result)
             return api
         else:
             print("❌ Login Failed:", result)
