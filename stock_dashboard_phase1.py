@@ -224,6 +224,10 @@ class TradingEngine:
             not indicators["above_pac"] and
             indicators["volatility"] >= indicators["min_vol_required"]
         )
+     ps_api = st.session_state.get("ps_api", None)
+if not ps_api:
+    st.warning("🔒 Login required to place order.")
+    return
 
     def place_order(self, side, symbol, price, qty, indicators, time):
         sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
@@ -400,12 +404,28 @@ if st.button("🚀 Run Live Engine Now"):
 
 
 def fetch_live_data(symbol):
+    ps_api = st.session_state.get("ps_api", None)
+
+    if not ps_api:
+        # ✅ No login — return dummy data
+        return {
+            "price": 100.0,
+            "yesterday_close": 100.0,
+            "first_open": 100.0
+        }
+
     try:
-        ps_api = st.session_state.get("ps_api", None)
-if ps_api:
-    ltp = ps_api.get_ltp(symbol)
-else:
-    return None
+        ltp = ps_api.get_ltp(symbol)
+        candles = ps_api.get_candles(symbol, interval="D", limit=2)
+        return {
+            "price": ltp,
+            "yesterday_close": candles[0]["close"] if candles else ltp,
+            "first_open": candles[1]["open"] if len(candles) > 1 else ltp
+        }
+    except Exception as e:
+        st.error(f"Error fetching data for {symbol}: {e}")
+        return None
+
 
 
         # Approximate other values with same price since GetQuotes doesn't return OHLC
@@ -564,6 +584,10 @@ def calculate_pac_emas(df, length=34, use_heikin_ashi=True):
     df['PAC_L'] = df[low_col].ewm(span=length, adjust=False).mean()
 
     return df
+def run_engine_for_all():
+    ps_api = st.session_state.get("ps_api", None)
+    if not ps_api:
+        st.warning("🔒 Not logged in — engine running in dry-run mode.")
 
 def run_engine_for_all():
     current_time = datetime.now().strftime("%H:%M")
