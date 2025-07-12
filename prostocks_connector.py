@@ -2,55 +2,98 @@
  # prostocks_connector.py
 import hashlib
 import requests
-#from NorenRestApiPy.NorenApi import NorenApi   # No longer used if you bypass its login
 
-# ────── Manual Login Class ───────────────────────────────
 class ProStocksAPI:
-    def __init__(self, user_id, password, factor2, vc, app_key, imei):
-        # Save the credentials provided by the user
-        self.user_id = user_id
+    def __init__(self, userid, password, pan_dob, vc, api_key, imei, base_url="https://api.prostocks.com"):
+        self.userid = userid
         self.password = password
-        self.factor2 = factor2  # Could be PAN or DOB
+        self.pan_dob = pan_dob
         self.vc = vc
-        self.app_key = app_key
+        self.api_key = api_key
         self.imei = imei
-        self.token = None
-
-    def login(self):
-        # Hash the password using SHA256
-        pwd_sha = hashlib.sha256(self.password.encode()).hexdigest()
-        # Create the appkey by combining user_id and the known API key, then hash it.
-        appkey_raw = self.user_id + "|" + self.app_key
-        appkey_sha = hashlib.sha256(appkey_raw.encode()).hexdigest()
-
-        # Prepare the payload as required by the API
-        payload = {
-            "apkversion": "1.0.9",
-            "uid": self.user_id,
-            "pwd": pwd_sha,
-            "factor2": self.factor2,
-            "vc": self.user_id,  # Here we assume your vendor code is the user_id. Adjust if needed.
-            "appkey": appkey_sha,
-            "imei": self.imei,
-            "source": "API"
+        self.base_url = base_url.rstrip("/")
+        self.session_token = None
+        self.headers = {
+            "Content-Type": "application/json"
         }
 
-        headers = {"Content-Type": "text/plain"}
-        url = "https://apitest.prostocks.com/NorenWClientTP/QuickAuth"
+    def login(self):
+        url = f"{self.base_url}/NorenWClientTP/QuickAuth"
+        payload = {
+            "uid": self.userid,
+            "pwd": self.password,
+            "factor2": self.pan_dob,
+            "vc": self.vc,
+            "apikey": self.api_key,
+            "imei": self.imei
+        }
 
         try:
-            response = requests.post(url, json={"jData": payload}, headers=headers)
-            data = response.json()
-            if data.get("stat") == "Ok":
-                self.token = data.get("susertoken")
-                print("✅ Login Success!")
-                return True, self.token
+            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("stat") == "Ok":
+                    self.session_token = data["susertoken"]
+                    self.headers["Authorization"] = self.session_token
+                    print("✅ Login Success!")
+                    return True, self.session_token
+                else:
+                    print("❌ Login failed:", data.get("emsg"))
+                    return False, data.get("emsg", "Unknown login error")
             else:
-                print("❌ Login failed:", data.get("emsg"))
-                return False, data.get("emsg", "Unknown error")
-        except Exception as e:
+                return False, f"HTTP {response.status_code}: {response.text}"
+        except requests.exceptions.RequestException as e:
             print("❌ Login Exception:", e)
-            return False, str(e)
+            return False, f"RequestException: {e}"
+
+    def get_ltp(self, symbol):
+        if not self.session_token:
+            return None
+
+        url = f"{self.base_url}/NorenWClientTP/GetQuotes"
+        payload = {
+            "uid": self.userid,
+            "exch": "NSE",
+            "token": symbol
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return float(data["lp"]) if "lp" in data else None
+            return None
+        except:
+            return None
+
+    def place_bracket_order(self, symbol, qty, price, sl, target, side="BUY"):
+        if not self.session_token:
+            return False
+
+        url = f"{self.base_url}/NorenWClientTP/PlaceOrder"
+        payload = {
+            "uid": self.userid,
+            "actid": self.userid,
+            "exch": "NSE",
+            "tsym": symbol,
+            "qty": qty,
+            "prc": price,
+            "trgprc": sl,
+            "trailing_sl": 0,
+            "ret": "DAY",
+            "prd": "I",
+            "trantype": side,
+            "ordtyp": "LIMIT",
+            "bpprc": target,
+            "bpparms": "SL-LMT"
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
+            return response.status_code == 200 and response.json().get("stat") == "Ok"
+        except:
+            return False
+
 
 # ────── Called from app.py ────────────────────────────────
 def login_ps(user_id, password, factor2, app_key=None):
