@@ -13,7 +13,7 @@ st.set_page_config(page_title="Stock Dashboard", layout="centered")
 
 # === ✅ SIDEBAR LOGIN FORM ===
 with st.sidebar:
-    st.title("🔐 ProStocks Login")
+    st.title("🔐 ProStocks Login (Optional)")
 
     with st.form("LoginForm"):
         uid = st.text_input("User ID", key="uid")
@@ -27,24 +27,17 @@ with st.sidebar:
 
     if submitted:
         try:
-            ps_api = ProStocksAPI(
-                userid=uid,
-                password=pwd,
-                pan_dob=factor2,
-                vc=vc,
-                api_key=api_key,
-                imei=imei,
-                base_url="https://apitest.prostocks.com"  # 🧪 Use sandbox if needed
-            )
+            ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
             success, msg = ps_api.login()
 
             if success:
-                st.success("✅ Login Successful")
                 st.session_state["ps_api"] = ps_api
+                st.success("✅ Login Successful")
             else:
                 st.error(f"❌ Login failed: {msg}")
         except Exception as e:
             st.error(f"❌ Exception during login: {e}")
+
 
 st.title("📈 ProStocks Trading Dashboard")
 if "ps_api" in st.session_state:
