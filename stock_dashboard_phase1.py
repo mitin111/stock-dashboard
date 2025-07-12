@@ -265,7 +265,7 @@ class TradingEngine:
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
 
-   class TradingEngine:
+   
     def update_trailing_sl(self, symbol, current_price):
         if symbol not in self.positions:
             return
