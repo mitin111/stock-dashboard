@@ -92,10 +92,11 @@ from datetime import datetime
 
 from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
 
-ps_api = st.session_state.get("ps_api", None)
-
-if ps_api is None:
-    st.warning("🔒 Not logged in. Trading features will be disabled.")
+if st.button("🚀 Run Live Engine Now"):
+    if ps_api:
+        run_engine_for_all()
+    else:
+        st.warning("🔒 Please login to run live engine.")
 
 
 
@@ -390,11 +391,11 @@ if submitted:
         st.error(f"❌ Exception during login: {e}")
 
 # Initialize and login once
-ps_api = st.session_state.get("ps_api", None)
-
-if ps_api is None:
-    st.warning("🔒 Not logged in. Trading features are disabled.")
-
+if st.button("🚀 Run Live Engine Now"):
+    if ps_api:
+        run_engine_for_all()
+    else:
+        st.warning("🔒 Please login to run live engine.")
 
 
 def fetch_live_data(symbol):
