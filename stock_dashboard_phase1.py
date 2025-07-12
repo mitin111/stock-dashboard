@@ -32,7 +32,7 @@ with st.sidebar:
 
             if success:
                 st.session_state["ps_api"] = ps_api
-                st.success("✅ Login Successful")
+                st.success("✅ Login Successful"
             else:
                 st.error(f"❌ Login failed: {msg}")
         except Exception as e:
@@ -45,8 +45,9 @@ if "ps_api" in st.session_state:
     st.title("📊 Stock Trading Dashboard")
     st.success("Dashboard loaded successfully!")
 else:
-    st.warning("🔒 Please login to continue.")
-    st.stop()
+   ps_api = st.session_state.get("ps_api", None)
+
+
 
 with st.form("LoginForm"):
     uid = st.text_input("User ID")
