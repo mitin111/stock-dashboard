@@ -671,7 +671,7 @@ if st.button("🚀 Run Live Engine Now"):
 import threading
 
 def auto_run():
-    while True:
+    
         run_engine_for_all()
         time.sleep(60)  # Run every 60 seconds
 
