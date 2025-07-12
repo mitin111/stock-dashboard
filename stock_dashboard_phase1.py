@@ -13,6 +13,32 @@ st.set_page_config(page_title="Stock Dashboard", layout="centered")
 
 # ✅ Initial session flag
 from prostocks_connector import ProStocksAPI
+# Sidebar login section
+with st.sidebar:
+    st.title("🔐 Login to ProStocks")
+
+    with st.form("LoginForm"):
+        uid = st.text_input("User ID")
+        pwd = st.text_input("Password", type="password")
+        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
+        vc = st.text_input("Vendor Code", value=uid)
+        api_key = st.text_input("API Key", type="password")
+        imei = st.text_input("IMEI or MAC Address", value="MAC123456")
+
+        submitted = st.form_submit_button("🔐 Login")
+
+    if submitted:
+        try:
+            ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
+            success, msg = ps_api.login()
+
+            if success:
+                st.success("✅ Login Successful")
+                st.session_state["ps_api"] = ps_api
+            else:
+                st.error(f"❌ Login failed: {msg}")
+        except Exception as e:
+            st.error(f"❌ Exception during login: {e}")
 
 st.title("📈 ProStocks Trading Dashboard")
 
@@ -39,9 +65,7 @@ if submitted:
             st.error(f"❌ Login failed: {msg}")
     except Exception as e:
         st.error(f"❌ Exception during login: {e}")
-if "ps_api" not in st.session_state:
-    st.warning("🔒 Please login to continue.")
-    st.stop()
+
 
 ps_api = st.session_state["ps_api"]  # You can now use this safely
 
