@@ -1,60 +1,78 @@
 
  # prostocks_connector.py
-import os
 import hashlib
 import requests
+#from NorenRestApiPy.NorenApi import NorenApi   # No longer used if you bypass its login
 
 # ────── Manual Login Class ───────────────────────────────
 class ProStocksAPI:
-    def login_ps():
-        user_id = os.getenv("PROSTOCKS_USER_ID")
-        password = os.getenv("PROSTOCKS_PASSWORD")
-        factor2 = os.getenv("PROSTOCKS_TOTP_SECRET")
-        app_key = os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
-        imei = os.getenv("IMEI", "abc1234")
-        vc = user_id
+    def __init__(self, user_id, password, factor2, vc, app_key, imei):
+        # Save the credentials provided by the user
+        self.user_id = user_id
+        self.password = password
+        self.factor2 = factor2  # Could be PAN or DOB
+        self.vc = vc
+        self.app_key = app_key
+        self.imei = imei
+        self.token = None
 
-        print("🔐 DEBUG: Loaded credentials:")
-        print(f"user_id={user_id}, password={'****' if password else None}, factor2={'****' if factor2 else None}, app_key={'****' if app_key else None}")
+    def login(self):
+        # Hash the password using SHA256
+        pwd_sha = hashlib.sha256(self.password.encode()).hexdigest()
+        # Create the appkey by combining user_id and the known API key, then hash it.
+        appkey_raw = self.user_id + "|" + self.app_key
+        appkey_sha = hashlib.sha256(appkey_raw.encode()).hexdigest()
 
-        if not all([user_id, password, factor2]):
-            print("❌ Missing one or more required credentials.")
-            return None, "Missing credentials"
+        # Prepare the payload as required by the API
+        payload = {
+            "apkversion": "1.0.9",
+            "uid": self.user_id,
+            "pwd": pwd_sha,
+            "factor2": self.factor2,
+            "vc": self.user_id,  # Here we assume your vendor code is the user_id. Adjust if needed.
+            "appkey": appkey_sha,
+            "imei": self.imei,
+            "source": "API"
+        }
+
+        headers = {"Content-Type": "text/plain"}
+        url = "https://apitest.prostocks.com/NorenWClientTP/QuickAuth"
 
         try:
-            api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei)
-            success, result = api.login()
-            if success:
-                print("✅ ps_api object created:", type(api))
-                return api, None
+            response = requests.post(url, json={"jData": payload}, headers=headers)
+            data = response.json()
+            if data.get("stat") == "Ok":
+                self.token = data.get("susertoken")
+                print("✅ Login Success!")
+                return True, self.token
             else:
-                print("❌ Login Failed:", result)
-                return None, result
+                print("❌ Login failed:", data.get("emsg"))
+                return False, data.get("emsg", "Unknown error")
         except Exception as e:
-            print("❌ Login Error:", e)
-            return None, str(e)
+            print("❌ Login Exception:", e)
+            return False, str(e)
 
 # ────── Called from app.py ────────────────────────────────
-def login_ps():
-    user_id = os.getenv("PROSTOCKS_USER_ID")
-    password = os.getenv("PROSTOCKS_PASSWORD")
-    factor2 = os.getenv("PROSTOCKS_TOTP_SECRET")  # could be PAN/DOB/TOTP
-    app_key = os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
-    imei = os.getenv("IMEI", "abc1234")
-    vc = user_id
-
-    if not all([user_id, password, factor2]):
-        return None, "Missing credentials"
-
+def login_ps(client_id, password, pan):
     try:
-        api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei)
+        # Set values for vc, app_key, and imei that are used for all logins.
+        # In a manual login scenario, these can be constant or configurable in your code.
+        vc = client_id  # Use client_id as vendor code if appropriate.
+        app_key = "pssUATAPI12122021ASGND1234DL"  # Replace with your real API key.
+        imei = "abc1234"  # This might remain a constant or be handled dynamically.
+
+        # Create an instance of the ProStocksAPI with the manual credentials.
+        api = ProStocksAPI(client_id, password, pan, vc, app_key, imei)
         success, result = api.login()
+
         if success:
             print("✅ ps_api object created:", type(api))
-            return api, None
+            return api
         else:
-            return None, result
+            print("❌ Login Failed:", result)
+            return None
     except Exception as e:
-        return None, str(e)
+        print("❌ Login Error:", e)
+        return None
 
 print("📦 prostocks_connector loaded")
