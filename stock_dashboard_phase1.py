@@ -49,8 +49,6 @@ if "ps_api" in st.session_state:
 else:
    ps_api = st.session_state.get("ps_api", None)
 
-
-
 with st.form("LoginForm_2"):
     uid = st.text_input("User ID")
     pwd = st.text_input("Password", type="password")
@@ -298,11 +296,6 @@ if not ps_api:
         if (pos["side"] == "BUY" and new_sl > pos["trail_sl"]) or (pos["side"] == "SELL" and new_sl < pos["trail_sl"]):
             self.positions[symbol]["trail_sl"] = round(new_sl, 2)
             st.info(f"🔄 Trailing SL updated for {symbol}: ₹{round(new_sl, 2)}")
-
-# ✅ This is OUTSIDE the class, with no indentation
-ps_api = st.session_state.get("ps_api", None)
-if not ps_api:
-    st.warning("🔒 Login required to place order.")
 
 
 
