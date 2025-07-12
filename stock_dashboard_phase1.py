@@ -270,6 +270,7 @@ if not ps_api:
                 self.dashboard.close_position(stock, self.positions[stock])
                 del self.positions[stock]
 
+   class TradingEngine:
     def update_trailing_sl(self, symbol, current_price):
         if symbol not in self.positions:
             return
@@ -297,6 +298,12 @@ if not ps_api:
         if (pos["side"] == "BUY" and new_sl > pos["trail_sl"]) or (pos["side"] == "SELL" and new_sl < pos["trail_sl"]):
             self.positions[symbol]["trail_sl"] = round(new_sl, 2)
             st.info(f"🔄 Trailing SL updated for {symbol}: ₹{round(new_sl, 2)}")
+
+# ✅ This is OUTSIDE the class, with no indentation
+ps_api = st.session_state.get("ps_api", None)
+if not ps_api:
+    st.warning("🔒 Login required to place order.")
+
 
 
 # ====== Dummy Dashboard for UI Feedback ======
