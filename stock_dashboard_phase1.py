@@ -15,13 +15,13 @@ st.set_page_config(page_title="Stock Dashboard", layout="centered")
 with st.sidebar:
     st.title("🔐 ProStocks Login (Optional)")
 
-    with st.form("LoginForm_1"):
-        uid = st.text_input("User ID", key="uid")
-        pwd = st.text_input("Password", type="password", key="pwd")
-        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", key="factor2")
-        vc = st.text_input("Vendor Code", value=st.session_state.get("uid", ""), key="vc")
-        api_key = st.text_input("API Key", type="password", key="api_key")
-        imei = st.text_input("IMEI / MAC Address", value="MAC123456", key="imei")
+    with st.form("LoginForm"):
+        uid = st.text_input("User ID")
+        pwd = st.text_input("Password", type="password")
+        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
+        vc = st.text_input("Vendor Code", value=uid)
+        api_key = st.text_input("API Key", type="password")
+        imei = st.text_input("IMEI or MAC Address", value="MAC123456")
 
         submitted = st.form_submit_button("🔐 Login")
 
@@ -32,11 +32,13 @@ with st.sidebar:
 
             if success:
                 st.session_state["ps_api"] = ps_api
-                st.success("✅ Login Successful"
+                st.success("✅ Login Successful")
+                st.rerun()
             else:
                 st.error(f"❌ Login failed: {msg}")
         except Exception as e:
             st.error(f"❌ Exception during login: {e}")
+
 
 
 st.title("📈 ProStocks Trading Dashboard")
