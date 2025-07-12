@@ -401,9 +401,12 @@ if st.button("🚀 Run Live Engine Now"):
 
 def fetch_live_data(symbol):
     try:
-        ltp = ps_api.get_ltp(symbol)
-        if ltp is None:
-            return None
+        ps_api = st.session_state.get("ps_api", None)
+if ps_api:
+    ltp = ps_api.get_ltp(symbol)
+else:
+    return None
+
 
         # Approximate other values with same price since GetQuotes doesn't return OHLC
         return {
