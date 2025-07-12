@@ -15,7 +15,7 @@ st.set_page_config(page_title="Stock Dashboard", layout="centered")
 with st.sidebar:
     st.title("🔐 ProStocks Login (Optional)")
 
-    with st.form("LoginForm"):
+    with st.form("LoginForm_1"):
         uid = st.text_input("User ID", key="uid")
         pwd = st.text_input("Password", type="password", key="pwd")
         factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", key="factor2")
@@ -49,7 +49,7 @@ else:
 
 
 
-with st.form("LoginForm"):
+with st.form("LoginForm_2"):
     uid = st.text_input("User ID")
     pwd = st.text_input("Password", type="password")
     factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
@@ -368,7 +368,7 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
 from prostocks_connector import ProStocksAPI
 
 
-with st.form("LoginForm"):
+with st.form("LoginForm_3"):
     uid = st.text_input("User ID")
     pwd = st.text_input("Password", type="password")
     factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
