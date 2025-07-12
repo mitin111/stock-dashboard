@@ -93,11 +93,11 @@ from datetime import datetime
 
 from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
 
-if "ps_api" in st.session_state:
-    ps_api = st.session_state["ps_api"]
-else:
-    st.warning("🔒 Please login to continue.")
-    st.stop()
+ps_api = st.session_state.get("ps_api", None)
+
+if ps_api is None:
+    st.warning("🔒 Not logged in. Trading features will be disabled.")
+
 
 
 def fetch_volatility(symbol):
