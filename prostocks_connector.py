@@ -53,18 +53,17 @@ class ProStocksAPI:
             return False, str(e)
 
 # ────── Called from app.py ────────────────────────────────
-def login_ps(client_id, password, pan):
+def login_ps(user_id, password, factor2, app_key=None):
+    if not all([user_id, password, factor2]):
+        return None
+
+    imei = os.getenv("IMEI", "abc1234")
+    vc = user_id
+    app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
+
     try:
-        # Set values for vc, app_key, and imei that are used for all logins.
-        # In a manual login scenario, these can be constant or configurable in your code.
-        vc = client_id  # Use client_id as vendor code if appropriate.
-        app_key = "pssUATAPI12122021ASGND1234DL"  # Replace with your real API key.
-        imei = "abc1234"  # This might remain a constant or be handled dynamically.
-
-        # Create an instance of the ProStocksAPI with the manual credentials.
-        api = ProStocksAPI(client_id, password, pan, vc, app_key, imei)
+        api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei)
         success, result = api.login()
-
         if success:
             print("✅ ps_api object created:", type(api))
             return api
@@ -74,5 +73,3 @@ def login_ps(client_id, password, pan):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
-
-print("📦 prostocks_connector loaded")
