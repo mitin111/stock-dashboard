@@ -224,10 +224,7 @@ class TradingEngine:
             not indicators["above_pac"] and
             indicators["volatility"] >= indicators["min_vol_required"]
         )
-     ps_api = st.session_state.get("ps_api", None)
-if not ps_api:
-    st.warning("🔒 Login required to place order.")
-    return
+     
 
     def place_order(self, side, symbol, price, qty, indicators, time):
         sl = indicators["pac_band_lower"] if side == "BUY" else indicators["pac_band_upper"]
