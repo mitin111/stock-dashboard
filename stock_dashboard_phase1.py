@@ -13,7 +13,6 @@ st.set_page_config(page_title="Stock Dashboard", layout="centered")
 
 # ✅ Initial session flag
 from prostocks_connector import ProStocksAPI
-# Sidebar login section
 with st.sidebar:
     st.title("🔐 Login to ProStocks")
 
@@ -35,12 +34,20 @@ with st.sidebar:
             if success:
                 st.success("✅ Login Successful")
                 st.session_state["ps_api"] = ps_api
+                st.rerun()
             else:
                 st.error(f"❌ Login failed: {msg}")
         except Exception as e:
             st.error(f"❌ Exception during login: {e}")
 
 st.title("📈 ProStocks Trading Dashboard")
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    st.title("📊 Stock Trading Dashboard")
+    st.success("Dashboard loaded successfully!")
+else:
+    st.warning("🔒 Please login to continue.")
+    st.stop()
 
 with st.form("LoginForm"):
     uid = st.text_input("User ID")
@@ -67,13 +74,15 @@ if submitted:
         st.error(f"❌ Exception during login: {e}")
 
 
-ps_api = st.session_state["ps_api"]  # You can now use this safely
-
-
-else:
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    
     # ✅ If authenticated, show dashboard
     st.title("📊 Stock Trading Dashboard")
     st.success("Dashboard loaded successfully!")
+else:
+    st.warning("🔒 Please login to continue.")
+
 
     # ✅ Placeholder for your screener/engine logic
     st.markdown("🚀 Ready to run your stock screener, signal engine, and auto trading? Add logic here.")
@@ -356,7 +365,7 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
     macd_ma_type = st.selectbox("MACD MA Type", ["EMA", "SMA"], index=0)
     # === ✅ Run Signal Scan After All Inputs Are Loaded ===
 from prostocks_connector import ProStocksAPI
-st.title("📈 ProStocks Trading Dashboard")
+
 
 with st.form("LoginForm"):
     uid = st.text_input("User ID")
