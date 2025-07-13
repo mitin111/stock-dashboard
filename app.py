@@ -23,7 +23,8 @@ if "ps_api" not in st.session_state:
     # Load from environment (Render or .env)
     env_user_id = os.getenv("PROSTOCKS_USER_ID")
     env_password = os.getenv("PROSTOCKS_PASSWORD")
-    env_totp = os.getenv("PROSTOCKS_TOTP_SECRET")
+    env_totp = os.getenv("PROSTOCKS_FACTOR2")
+
     env_api_key = os.getenv("PROSTOCKS_API_KEY")
 
     # 🧠 Show login form (default values filled if in env)
