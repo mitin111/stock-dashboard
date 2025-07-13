@@ -1,35 +1,34 @@
 
+from prostocks_connector import ProStocksAPI
 import streamlit as st
 from dotenv import load_dotenv
 import os
 
-# ✅ Load environment variables
+# Load credentials from .env
 load_dotenv()
+DEFAULT_UID = os.getenv("PROSTOCKS_USER_ID", "")
+DEFAULT_PWD = os.getenv("PROSTOCKS_PASSWORD", "")
+DEFAULT_FACTOR2 = os.getenv("PROSTOCKS_FACTOR2", "")
+DEFAULT_VC = os.getenv("PROSTOCKS_VENDOR_CODE", "")
+DEFAULT_API_KEY = os.getenv("PROSTOCKS_API_KEY", "")
+DEFAULT_MAC = os.getenv("PROSTOCKS_MAC", "MAC123456")
 
-USER_ID = os.getenv("PROSTOCKS_USER_ID")
-USER_PASS = os.getenv("PROSTOCKS_PASSWORD")
-
-st.set_page_config(page_title="Stock Dashboard", layout="centered")
-
-# === ✅ SIDEBAR LOGIN FORM ===
+# Sidebar Login Form (only one)
 with st.sidebar:
-    st.title("🔐 ProStocks Login (Optional)")
-
-    with st.form("LoginForm_1"):
-        uid = st.text_input("User ID")
-        pwd = st.text_input("Password", type="password")
-        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
-        vc = st.text_input("Vendor Code", value=uid)
-        api_key = st.text_input("API Key", type="password")
-        imei = st.text_input("IMEI or MAC Address", value="MAC123456")
-
+    st.header("🔐 ProStocks Login")
+    with st.form("ProStocksLoginForm"):
+        uid = st.text_input("User ID", value=DEFAULT_UID)
+        pwd = st.text_input("Password", type="password", value=DEFAULT_PWD)
+        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", value=DEFAULT_FACTOR2)
+        vc = st.text_input("Vendor Code", value=DEFAULT_VC or uid)
+        api_key = st.text_input("API Key", type="password", value=DEFAULT_API_KEY)
+        imei = st.text_input("MAC Address", value=DEFAULT_MAC)
         submitted = st.form_submit_button("🔐 Login")
 
     if submitted:
         try:
             ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
             success, msg = ps_api.login()
-
             if success:
                 st.session_state["ps_api"] = ps_api
                 st.success("✅ Login Successful")
@@ -41,6 +40,7 @@ with st.sidebar:
 
 
 
+
 st.title("📈 ProStocks Trading Dashboard")
 if "ps_api" in st.session_state:
     ps_api = st.session_state["ps_api"]
@@ -48,30 +48,6 @@ if "ps_api" in st.session_state:
     st.success("Dashboard loaded successfully!")
 else:
    ps_api = st.session_state.get("ps_api", None)
-
-with st.form("LoginForm_2"):
-    uid = st.text_input("User ID")
-    pwd = st.text_input("Password", type="password")
-    factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
-    vc = st.text_input("Vendor Code", value=uid)
-    api_key = st.text_input("API Key", type="password")
-    imei = st.text_input("IMEI or MAC Address", value="MAC123456")
-
-    submitted = st.form_submit_button("🔐 Login")
-
-if submitted:
-    try:
-        ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
-        success, msg = ps_api.login()
-
-        if success:
-            st.success("✅ Login Successful")
-            st.session_state["ps_api"] = ps_api
-            st.rerun()
-        else:
-            st.error(f"❌ Login failed: {msg}")
-    except Exception as e:
-        st.error(f"❌ Exception during login: {e}")
 
 
 if "ps_api" in st.session_state:
@@ -372,32 +348,7 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
 from prostocks_connector import ProStocksAPI
 
 
-with st.form("LoginForm_3"):
-    uid = st.text_input("User ID")
-    pwd = st.text_input("Password", type="password")
-    factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
-    vc = st.text_input("Vendor Code")
-    api_key = st.text_input("API Key", type="password")
-    imei = st.text_input("IMEI or MAC Address", value="MAC123456")
 
-    submitted = st.form_submit_button("🔐 Login")
-
-if submitted:
-    try:
-        ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
-        success, msg = ps_api.login()
-
-        if success:
-            st.success("✅ Login Successful")
-            st.session_state["ps_api"] = ps_api  # Store instance for reuse
-        else:
-            st.error(f"❌ Login failed: {msg}")
-    except Exception as e:
-        st.error(f"❌ Exception during login: {e}")
-
-# Initialize and login once
-if st.button("🚀 Run Live Engine Now", key="run_engine_btn_2"):
-    run_engine_for_all()
 
     if ps_api:
         run_engine_for_all()
