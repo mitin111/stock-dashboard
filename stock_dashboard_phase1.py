@@ -1,5 +1,5 @@
 
-from prostocks_connector import login_ps
+from prostocks_connector import ProStocksAPI
 import streamlit as st
 from dotenv import load_dotenv
 import os
