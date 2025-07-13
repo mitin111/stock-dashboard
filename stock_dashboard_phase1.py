@@ -15,7 +15,7 @@ st.set_page_config(page_title="Stock Dashboard", layout="centered")
 with st.sidebar:
     st.title("🔐 ProStocks Login (Optional)")
 
-    with st.form("LoginForm"):
+    with st.form("LoginForm_1"):
         uid = st.text_input("User ID")
         pwd = st.text_input("Password", type="password")
         factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)")
@@ -93,7 +93,8 @@ from datetime import datetime
 
 from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
 
-if st.button("🚀 Run Live Engine Now"):
+if st.button("🚀 Run Live Engine Now", key="run_engine_btn_1"):
+
     if ps_api:
         run_engine_for_all()
     else:
@@ -395,7 +396,9 @@ if submitted:
         st.error(f"❌ Exception during login: {e}")
 
 # Initialize and login once
-if st.button("🚀 Run Live Engine Now"):
+if st.button("🚀 Run Live Engine Now", key="run_engine_btn_2"):
+    run_engine_for_all()
+
     if ps_api:
         run_engine_for_all()
     else:
@@ -745,7 +748,9 @@ if st.button("🔄 Update Trailing Stop-Loss"):
     engine.update_trailing_sl(symbol, price)
 
 # === ✅ Manual Run Trigger for Engine ===
-if st.button("🚀 Run Live Engine Now"):
+if st.button("🚀 Run Live Engine Now", key="run_engine_btn_3"):
+    run_engine_for_all()
+
     run_engine_for_all()
 
 import threading
