@@ -1,35 +1,44 @@
 
- # prostocks_connector.py
+# prostocks_connector.py
 import hashlib
 import requests
+import os
 
 class ProStocksAPI:
-    def __init__(self, userid, password, pan_dob, vc, api_key, imei, base_url="https://api.prostocks.com"):
+    def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url="https://api.prostocks.com"):
         self.userid = userid
-        self.password = password
-        self.pan_dob = pan_dob
+        self.password_plain = password_plain
+        self.factor2 = factor2
         self.vc = vc
         self.api_key = api_key
         self.imei = imei
         self.base_url = base_url.rstrip("/")
         self.session_token = None
+        self.session = requests.Session()
         self.headers = {
             "Content-Type": "application/json"
         }
 
+    def sha256(self, text):
+        return hashlib.sha256(text.encode()).hexdigest()
+
     def login(self):
         url = f"{self.base_url}/NorenWClientTP/QuickAuth"
+        pwd_hash = self.sha256(self.password_plain)
+        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+
         payload = {
             "uid": self.userid,
-            "pwd": self.password,
-            "factor2": self.pan_dob,
+            "pwd": pwd_hash,
+            "factor2": self.factor2,
             "vc": self.vc,
-            "apikey": self.api_key,
-            "imei": self.imei
+            "apikey": appkey_hash,
+            "imei": self.imei,
+            "source": "API"
         }
 
         try:
-            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
+            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
@@ -58,12 +67,13 @@ class ProStocksAPI:
         }
 
         try:
-            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
+            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                return float(data["lp"]) if "lp" in data else None
+                return float(data.get("lp", 0))
             return None
-        except:
+        except Exception as e:
+            print("❌ LTP fetch error:", e)
             return None
 
     def place_bracket_order(self, symbol, qty, price, sl, target, side="BUY"):
@@ -89,13 +99,20 @@ class ProStocksAPI:
         }
 
         try:
-            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
-            return response.status_code == 200 and response.json().get("stat") == "Ok"
-        except:
+            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
+            data = response.json()
+            if response.status_code == 200 and data.get("stat") == "Ok":
+                print("✅ Order placed:", data)
+                return True
+            else:
+                print("❌ Order failed:", data)
+                return False
+        except Exception as e:
+            print("❌ Order exception:", e)
             return False
 
 
-# ────── Called from app.py ────────────────────────────────
+# ────── Callable Login Function ────────────────────────────────
 def login_ps(user_id, password, factor2, app_key=None):
     if not all([user_id, password, factor2]):
         return None
@@ -121,3 +138,5 @@ def login_ps(user_id, password, factor2, app_key=None):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
+
+        
