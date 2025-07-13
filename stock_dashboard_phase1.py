@@ -30,18 +30,18 @@ with st.sidebar:
 
 
     if submitted:
-        try:
-            ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei)
-            success, msg = ps_api.login()
-            if success:
-                st.session_state["ps_api"] = ps_api
-                st.success("✅ Login Successful")
-                st.rerun()
-            else:
-                st.error(f"❌ Login failed: {msg}")
-        except Exception as e:
-            st.error(f"❌ Exception during login: {e}")
+    try:
+        ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url)  # ✅ FIXED
+        success, msg = ps_api.login()
 
+        if success:
+            st.session_state["ps_api"] = ps_api
+            st.success("✅ Login Successful")
+            st.rerun()
+        else:
+            st.error(f"❌ Login failed: {msg}")
+    except Exception as e:
+        st.error(f"❌ Exception during login: {e}")
 
 
 
