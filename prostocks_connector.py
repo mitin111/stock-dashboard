@@ -5,7 +5,7 @@ import requests
 import os
 
 class ProStocksAPI:
-    def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url="https://api.prostocks.com"):
+    def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url):
         self.userid = userid
         self.password_plain = password_plain
         self.factor2 = factor2
@@ -117,15 +117,17 @@ def login_ps(user_id, password, factor2, app_key=None):
     if not all([user_id, password, factor2]):
         return None
 
-    imei = os.getenv("IMEI", "abc1234")
-    vc = user_id
+    imei = os.getenv("PROSTOCKS_MAC", "abc1234")
+    vc = os.getenv("PROSTOCKS_VENDOR_CODE", user_id)
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
+    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://api.prostocks.com")
 
     try:
         print("📶 Login attempt started...")
+        print("🔧 Using base_url:", base_url)
         print("User ID:", user_id)
 
-        api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei)
+        api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei, base_url)
         success, result = api.login()
 
         if success:
@@ -138,5 +140,3 @@ def login_ps(user_id, password, factor2, app_key=None):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
-
-        
