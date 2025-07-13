@@ -67,14 +67,14 @@ else:
            
 from datetime import datetime
 
-from prostocks_connector import ProStocksAPI  # ✅ NEW IMPORT
-
-if st.button("🚀 Run Live Engine Now", key="run_engine_btn_1"):
-
-    if ps_api:
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    
+    if st.button("🚀 Run Live Engine Now", key="run_engine_btn_1"):
         run_engine_for_all()
-    else:
-        st.warning("🔒 Please login to run live engine.")
+else:
+    st.warning("🔒 Please login to run live engine.")
+
 
 
 
