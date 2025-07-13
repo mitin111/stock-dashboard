@@ -347,13 +347,12 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
     # === ✅ Run Signal Scan After All Inputs Are Loaded ===
 from prostocks_connector import ProStocksAPI
 
-
-
-
-    if ps_api:
-        run_engine_for_all()
-    else:
-        st.warning("🔒 Please login to run live engine.")
+# ✅ Ensure this is inside a Streamlit control block or safely placed globally
+if "ps_api" in st.session_state and st.session_state["ps_api"]:
+    ps_api = st.session_state["ps_api"]
+    run_engine_for_all()
+else:
+    st.warning("🔒 Please login to run live engine.")
 
 
 def fetch_live_data(symbol):
