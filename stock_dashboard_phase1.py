@@ -19,30 +19,29 @@ DEFAULT_MAC = os.getenv("PROSTOCKS_MAC", "MAC123456")
 with st.sidebar:
     st.header("🔐 ProStocks Login")
     with st.form("ProStocksLoginForm"):
-    uid = st.text_input("User ID", value=DEFAULT_UID)
-    pwd = st.text_input("Password", type="password", value=DEFAULT_PWD)
-    factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", value=DEFAULT_FACTOR2)
-    vc = st.text_input("Vendor Code", value=DEFAULT_VC or uid)
-    api_key = st.text_input("API Key", type="password", value=DEFAULT_API_KEY)
-    imei = st.text_input("MAC Address", value=DEFAULT_MAC)
-    base_url = st.text_input("ProStocks Base URL", value=DEFAULT_BASE_URL)  # ✅ ADD THIS LINE
-    submitted = st.form_submit_button("🔐 Login")
+        uid = st.text_input("User ID", value=DEFAULT_UID)
+        pwd = st.text_input("Password", type="password", value=DEFAULT_PWD)
+        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", value=DEFAULT_FACTOR2)
+        vc = st.text_input("Vendor Code", value=DEFAULT_VC or DEFAULT_UID)
+        api_key = st.text_input("API Key", type="password", value=DEFAULT_API_KEY)
+        imei = st.text_input("MAC Address", value=DEFAULT_MAC)
+        base_url = st.text_input("ProStocks Base URL", value=DEFAULT_BASE_URL)
 
+        submitted = st.form_submit_button("🔐 Login")
 
-    if submitted:
-    try:
-        ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url)  # ✅ FIXED
-        success, msg = ps_api.login()
+        if submitted:
+            try:
+                ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url)
+                success, msg = ps_api.login()
 
-        if success:
-            st.session_state["ps_api"] = ps_api
-            st.success("✅ Login Successful")
-            st.rerun()
-        else:
-            st.error(f"❌ Login failed: {msg}")
-    except Exception as e:
-        st.error(f"❌ Exception during login: {e}")
-
+                if success:
+                    st.session_state["ps_api"] = ps_api
+                    st.success("✅ Login Successful")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Login failed: {msg}")
+            except Exception as e:
+                st.error(f"❌ Exception during login: {e}")
 
 
 st.title("📈 ProStocks Trading Dashboard")
