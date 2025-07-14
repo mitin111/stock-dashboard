@@ -25,7 +25,7 @@ class ProStocksAPI:
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
-    def login(self):
+        def login(self):
         """
         Logs in to the ProStocks API using hashed credentials.
         """
@@ -38,16 +38,22 @@ class ProStocksAPI:
             "pwd": pwd_hash,
             "factor2": self.factor2,
             "vc": self.vc,
-            "apikey": appkey_hash,
+            "appkey": appkey_hash,  # ✅ Use "appkey" not "apikey"
             "imei": self.imei,
+            "apkversion": "1.0.0",
             "source": "API"
         }
 
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}"  # ✅ Send as raw text string
+
+            # ✅ FIXED: Update Content-Type for ProStocks API login
+            self.headers["Content-Type"] = "text/plain"
+
             response = self.session.post(
                 url,
-                data={"jData": jdata},
+                data=raw_data,  # ✅ Send as raw string, not dict
                 headers=self.headers,
                 timeout=10
             )
