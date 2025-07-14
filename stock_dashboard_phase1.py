@@ -543,10 +543,6 @@ def calculate_pac_emas(df, length=34, use_heikin_ashi=True):
     df['PAC_L'] = df[low_col].ewm(span=length, adjust=False).mean()
 
     return df
-def run_engine_for_all():
-    ps_api = st.session_state.get("ps_api", None)
-    if not ps_api:
-        st.warning("🔒 Not logged in — engine running in dry-run mode.")
 
 def run_engine_for_all():
     current_time = datetime.now().strftime("%H:%M")
