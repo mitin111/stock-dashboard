@@ -23,50 +23,48 @@ class ProStocksAPI:
         return hashlib.sha256(text.encode()).hexdigest()
 
     def login(self):
-    url = f"{self.base_url}/QuickAuth"
-    pwd_hash = self.sha256(self.password_plain)
-    appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+        url = f"{self.base_url}/QuickAuth"
+        pwd_hash = self.sha256(self.password_plain)
+        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
 
-    payload = {
-        "uid": self.userid,
-        "pwd": pwd_hash,
-        "factor2": self.factor2,
-        "vc": self.vc,
-        "apikey": appkey_hash,
-        "imei": self.imei,
-        "source": "API"
-    }
+        payload = {
+            "uid": self.userid,
+            "pwd": pwd_hash,
+            "factor2": self.factor2,
+            "vc": self.vc,
+            "apikey": appkey_hash,
+            "imei": self.imei,
+            "source": "API"
+        }
 
-    try:
-        # ✅ Final fix: Use compact JSON for jData
-        jdata = json.dumps(payload, separators=(",", ":"))
-        post_data = {"jData": jdata}
-        print("🧪 POST data:", post_data)  # Optional for debug
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))  # ✅ compact json
+            post_data = {"jData": jdata}
+            print("🧪 POST data:", post_data)
 
-        response = self.session.post(
-            url,
-            data=post_data,
-            headers=self.headers,
-            timeout=10
-        )
+            response = self.session.post(
+                url,
+                data=post_data,
+                headers=self.headers,
+                timeout=10
+            )
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("stat") == "Ok":
-                self.session_token = data["susertoken"]
-                self.headers["Authorization"] = self.session_token
-                print("✅ Login Success!")
-                return True, self.session_token
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("stat") == "Ok":
+                    self.session_token = data["susertoken"]
+                    self.headers["Authorization"] = self.session_token
+                    print("✅ Login Success!")
+                    return True, self.session_token
+                else:
+                    print("❌ Login failed:", data.get("emsg"))
+                    return False, data.get("emsg", "Unknown login error")
             else:
-                print("❌ Login failed:", data.get("emsg"))
-                return False, data.get("emsg", "Unknown login error")
-        else:
-            print("❌ Login failed: HTTP", response.status_code, ":", response.text)
-            return False, f"HTTP {response.status_code}: {response.text}"
-    except requests.exceptions.RequestException as e:
-        print("❌ Login Exception:", e)
-        return False, f"RequestException: {e}"
-
+                print("❌ Login failed: HTTP", response.status_code, ":", response.text)
+                return False, f"HTTP {response.status_code}: {response.text}"
+        except requests.exceptions.RequestException as e:
+            print("❌ Login Exception:", e)
+            return False, f"RequestException: {e}"
 
     def get_ltp(self, symbol):
         if not self.session_token:
@@ -144,7 +142,6 @@ def login_ps(user_id, password, factor2, app_key=None):
     vc = os.getenv("PROSTOCKS_VENDOR_CODE", user_id)
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
 
-    # ✅ Use correct base URL
     base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
 
     try:
@@ -165,3 +162,4 @@ def login_ps(user_id, password, factor2, app_key=None):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
+
