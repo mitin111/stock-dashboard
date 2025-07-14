@@ -5,9 +5,6 @@ import os
 import json
 
 class ProStocksAPI:
-    """
-    A class to interact with the ProStocks API, including login, fetch LTP, and placing bracket orders.
-    """
     def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url):
         self.userid = userid
         self.password_plain = password_plain
@@ -25,7 +22,7 @@ class ProStocksAPI:
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
-        def login(self):
+    def login(self):  # ✅ Not nested under sha256
         """
         Logs in to the ProStocks API using hashed credentials.
         """
@@ -38,7 +35,7 @@ class ProStocksAPI:
             "pwd": pwd_hash,
             "factor2": self.factor2,
             "vc": self.vc,
-            "appkey": appkey_hash,  # ✅ Use "appkey" not "apikey"
+            "appkey": appkey_hash,
             "imei": self.imei,
             "apkversion": "1.0.0",
             "source": "API"
@@ -46,14 +43,12 @@ class ProStocksAPI:
 
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"  # ✅ Send as raw text string
-
-            # ✅ FIXED: Update Content-Type for ProStocks API login
+            raw_data = f"jData={jdata}"
             self.headers["Content-Type"] = "text/plain"
 
             response = self.session.post(
                 url,
-                data=raw_data,  # ✅ Send as raw string, not dict
+                data=raw_data,
                 headers=self.headers,
                 timeout=10
             )
