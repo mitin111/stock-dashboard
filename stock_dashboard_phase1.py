@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 
 # Load credentials from .env
+# Load credentials from .env
 load_dotenv()
 DEFAULT_BASE_URL = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
 
@@ -14,6 +15,8 @@ DEFAULT_FACTOR2 = os.getenv("PROSTOCKS_FACTOR2", "")
 DEFAULT_VC = os.getenv("PROSTOCKS_VENDOR_CODE", "")
 DEFAULT_API_KEY = os.getenv("PROSTOCKS_API_KEY", "")
 DEFAULT_MAC = os.getenv("PROSTOCKS_MAC", "MAC123456")
+DEFAULT_APK_VERSION = os.getenv("PROSTOCKS_APK_VERSION", "1.0.0")  # ✅ NEW LINE
+
 
 # Sidebar Login Form (only one)
 with st.sidebar:
@@ -26,12 +29,13 @@ with st.sidebar:
         api_key = st.text_input("API Key", type="password", value=DEFAULT_API_KEY)
         imei = st.text_input("MAC Address", value=DEFAULT_MAC)
         base_url = st.text_input("ProStocks Base URL", value=DEFAULT_BASE_URL)
+        apkversion = st.text_input("APK Version", value=DEFAULT_APK_VERSION)  # ✅ NEW FIELD
 
         submitted = st.form_submit_button("🔐 Login")
 
         if submitted:
             try:
-                ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url)
+                ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url, apkversion)  # ✅ pass apkversion
                 success, msg = ps_api.login()
 
                 if success:
