@@ -27,7 +27,7 @@ class ProStocksAPI:
     def login(self):
     url = f"{self.base_url}/QuickAuth"
     pwd_hash = self.sha256(self.password_plain)
-    
+
     appkey_raw = f"{self.userid}|{self.api_key}"
     appkey_hash = self.sha256(appkey_raw)
 
@@ -68,7 +68,6 @@ class ProStocksAPI:
             return False, f"HTTP {response.status_code}: {response.text}"
     except requests.exceptions.RequestException as e:
         return False, f"RequestException: {e}"
-
 
     def get_ltp(self, symbol):
         if not self.session_token:
