@@ -353,6 +353,44 @@ with st.expander("🟦 Step 2: Indicator Settings (Click to Expand)", expanded=T
     macd_ma_type = st.selectbox("MACD MA Type", ["EMA", "SMA"], index=0)
     # === ✅ Run Signal Scan After All Inputs Are Loaded ===
 from prostocks_connector import ProStocksAPI
+def run_engine_for_all():
+    current_time = datetime.now().strftime("%H:%M")
+    for symbol in APPROVED_STOCK_LIST:
+        live_data = fetch_live_data(symbol)
+        if not live_data:
+            continue
+
+        indicators = calculate_indicators(
+            live_data,
+            symbol,
+            pac_length=pac_length,
+            use_ha=pac_use_ha,
+            min_vol_required=min_vol_required
+        )
+
+        if indicators is None:
+            continue
+
+        condition_buy = engine.evaluate_buy_conditions(
+            indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
+        )
+        condition_sell = engine.evaluate_sell_conditions(
+            indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
+        )
+
+        all_rows.append({
+            "Symbol": symbol,
+            "Price": live_data["price"],
+            "ATR Trail": indicators["atr_trail"],
+            "TKP TRM": indicators["tkp_trm"],
+            "MACD Hist": round(indicators["macd_hist"], 2),
+            "PAC Above": indicators["above_pac"],
+            "Volatility %": round(indicators["volatility"], 2),
+            "PAC Lower": indicators["pac_band_lower"],
+            "PAC Upper": indicators["pac_band_upper"],
+            "BUY Signal": "✅" if condition_buy else "",
+            "SELL Signal": "❌" if condition_sell else ""
+        })
 
 # ✅ Ensure this is inside a Streamlit control block or safely placed globally
 if "ps_api" in st.session_state and st.session_state["ps_api"]:
@@ -549,44 +587,6 @@ if "ps_api" in st.session_state and st.session_state["ps_api"]:
 else:
     st.warning("🔒 Please login to run live engine.")
 
-def run_engine_for_all():
-    current_time = datetime.now().strftime("%H:%M")
-    for symbol in APPROVED_STOCK_LIST:
-        live_data = fetch_live_data(symbol)
-        if not live_data:
-            continue
-
-        indicators = calculate_indicators(
-            live_data,
-            symbol,
-            pac_length=pac_length,
-            use_ha=pac_use_ha,
-            min_vol_required=min_vol_required
-        )
-
-        if indicators is None:
-            continue
-
-        condition_buy = engine.evaluate_buy_conditions(
-            indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
-        )
-        condition_sell = engine.evaluate_sell_conditions(
-            indicators, current_time, live_data["yesterday_close"], live_data["first_open"]
-        )
-
-        all_rows.append({
-            "Symbol": symbol,
-            "Price": live_data["price"],
-            "ATR Trail": indicators["atr_trail"],
-            "TKP TRM": indicators["tkp_trm"],
-            "MACD Hist": round(indicators["macd_hist"], 2),
-            "PAC Above": indicators["above_pac"],
-            "Volatility %": round(indicators["volatility"], 2),
-            "PAC Lower": indicators["pac_band_lower"],
-            "PAC Upper": indicators["pac_band_upper"],
-            "BUY Signal": "✅" if condition_buy else "",
-            "SELL Signal": "❌" if condition_sell else ""
-        })
 
 if all_rows:
     df = pd.DataFrame(all_rows)
