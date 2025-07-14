@@ -24,15 +24,13 @@ class ProStocksAPI:
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
-
     def login(self):
     url = f"{self.base_url}/QuickAuth"
     pwd_hash = self.sha256(self.password_plain)
-
-    appkey_raw = f"{self.userid}|{self.api_key}"  # ✅ exact match with CLI
+    
+    appkey_raw = f"{self.userid}|{self.api_key}"
     appkey_hash = self.sha256(appkey_raw)
 
-    # 🔍 Debug
     print("📎 App Key Raw:", appkey_raw)
     print("🔐 Hashed App Key:", appkey_hash)
 
@@ -70,6 +68,7 @@ class ProStocksAPI:
             return False, f"HTTP {response.status_code}: {response.text}"
     except requests.exceptions.RequestException as e:
         return False, f"RequestException: {e}"
+
 
     def get_ltp(self, symbol):
         if not self.session_token:
