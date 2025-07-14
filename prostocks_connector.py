@@ -26,50 +26,50 @@ class ProStocksAPI:
         return hashlib.sha256(text.encode()).hexdigest()
 
     def login(self):
-        url = f"{self.base_url}/QuickAuth"
-        pwd_hash = self.sha256(self.password_plain)
-appkey_raw = f"{self.userid}|{self.api_key}"        # ✅ same as your CLI script
-appkey_hash = self.sha256(appkey_raw)
+    url = f"{self.base_url}/QuickAuth"
+    pwd_hash = self.sha256(self.password_plain)
 
-# ✅ DEBUG PRINT to verify correctness
-print("📎 App Key Raw:", appkey_raw)
-print("🔐 Hashed App Key:", appkey_hash)
+    appkey_raw = f"{self.userid}|{self.api_key}"  # ✅ exact match with CLI
+    appkey_hash = self.sha256(appkey_raw)
 
+    # 🔍 Debug
+    print("📎 App Key Raw:", appkey_raw)
+    print("🔐 Hashed App Key:", appkey_hash)
 
-       payload = {
-    "uid": self.userid,
-    "pwd": pwd_hash,
-    "factor2": self.factor2,
-    "vc": self.vc,
-    "appkey": appkey_hash,              # ✅ hashed key
-    "imei": self.imei,
-    "apkversion": self.apkversion,
-    "source": "API"
-}
+    payload = {
+        "uid": self.userid,
+        "pwd": pwd_hash,
+        "factor2": self.factor2,
+        "vc": self.vc,
+        "appkey": appkey_hash,
+        "imei": self.imei,
+        "apkversion": self.apkversion,
+        "source": "API"
+    }
 
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"
+    try:
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}"
 
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers=self.headers,
-                timeout=10
-            )
+        response = self.session.post(
+            url,
+            data=raw_data,
+            headers=self.headers,
+            timeout=10
+        )
 
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("stat") == "Ok":
-                    self.session_token = data["susertoken"]
-                    self.headers["Authorization"] = self.session_token
-                    return True, self.session_token
-                else:
-                    return False, data.get("emsg", "Unknown login error")
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("stat") == "Ok":
+                self.session_token = data["susertoken"]
+                self.headers["Authorization"] = self.session_token
+                return True, self.session_token
             else:
-                return False, f"HTTP {response.status_code}: {response.text}"
-        except requests.exceptions.RequestException as e:
-            return False, f"RequestException: {e}"
+                return False, data.get("emsg", "Unknown login error")
+        else:
+            return False, f"HTTP {response.status_code}: {response.text}"
+    except requests.exceptions.RequestException as e:
+        return False, f"RequestException: {e}"
 
     def get_ltp(self, symbol):
         if not self.session_token:
