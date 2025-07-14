@@ -6,7 +6,8 @@ import os
 
 # Load credentials from .env
 load_dotenv()
-DEFAULT_BASE_URL = os.getenv("PROSTOCKS_BASE_URL", "https://api.prostocks.com")
+DEFAULT_BASE_URL = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com")
+
 
 DEFAULT_UID = os.getenv("PROSTOCKS_USER_ID", "")
 DEFAULT_PWD = os.getenv("PROSTOCKS_PASSWORD", "")
