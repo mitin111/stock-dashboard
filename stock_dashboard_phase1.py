@@ -714,7 +714,9 @@ import threading
 
 def auto_run():
     
-        run_engine_for_all()
+        if __name__ == "__main__":
+    run_engine_for_all()
+
         time.sleep(60)  # Run every 60 seconds
 
 if "engine_thread" not in st.session_state:
