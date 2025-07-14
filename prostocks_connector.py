@@ -7,7 +7,6 @@ import json
 
 class ProStocksAPI:
     def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url, apkversion="1.0.0"):
-
         self.userid = userid
         self.password_plain = password_plain
         self.factor2 = factor2
@@ -15,11 +14,13 @@ class ProStocksAPI:
         self.api_key = api_key
         self.imei = imei
         self.base_url = base_url.rstrip("/")
+        self.apkversion = apkversion  # ✅ ADD THIS LINE
         self.session_token = None
         self.session = requests.Session()
         self.headers = {
-            "Content-Type": "text/plain"  # ✅ must be plain text for login
+            "Content-Type": "text/plain"
         }
+
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
