@@ -28,18 +28,24 @@ class ProStocksAPI:
     def login(self):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
-        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+appkey_raw = f"{self.userid}|{self.api_key}"        # ✅ same as your CLI script
+appkey_hash = self.sha256(appkey_raw)
 
-        payload = {
-            "uid": self.userid,
-            "pwd": pwd_hash,
-            "factor2": self.factor2,
-            "vc": self.vc,
-            "appkey": appkey_hash,
-            "imei": self.imei,
-            "apkversion": self.apkversion,
-            "source": "API"
-        }
+# ✅ DEBUG PRINT to verify correctness
+print("📎 App Key Raw:", appkey_raw)
+print("🔐 Hashed App Key:", appkey_hash)
+
+
+       payload = {
+    "uid": self.userid,
+    "pwd": pwd_hash,
+    "factor2": self.factor2,
+    "vc": self.vc,
+    "appkey": appkey_hash,              # ✅ hashed key
+    "imei": self.imei,
+    "apkversion": self.apkversion,
+    "source": "API"
+}
 
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
