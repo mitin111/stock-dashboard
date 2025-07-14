@@ -146,7 +146,7 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
     imei = os.getenv("PROSTOCKS_MAC", "MAC123456")
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY")
     base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
-    apkversion = os.getenv("PROSTOCKS_APKVERSION", "1.0.0")  # ✅ Add this line
+    apkversion = os.getenv("PROSTOCKS_APKVERSION", "1.0.0")  # ✅ added apkversion
 
     if not all([user_id, password, factor2, app_key]):
         print("❌ Missing login env vars.")
@@ -154,9 +154,8 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
 
     try:
         print("📶 Logging into ProStocks API...")
-            api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei, base_url, apkversion)
-    success, token = api.login()
-
+        api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei, base_url, apkversion)  # ✅ must be indented here
+        success, token = api.login()
         if success:
             print("✅ Login successful!")
             return api
@@ -166,3 +165,4 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
     except Exception as e:
         print("❌ Login Exception:", e)
         return None
+
