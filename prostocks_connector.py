@@ -120,7 +120,9 @@ def login_ps(user_id, password, factor2, app_key=None):
     imei = os.getenv("PROSTOCKS_MAC", "abc1234")
     vc = os.getenv("PROSTOCKS_VENDOR_CODE", user_id)
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
-    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://api.prostocks.com")
+
+    # 🔧 ✅ Updated URL for UAT
+    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com")
 
     try:
         print("📶 Login attempt started...")
@@ -140,3 +142,4 @@ def login_ps(user_id, password, factor2, app_key=None):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
+
