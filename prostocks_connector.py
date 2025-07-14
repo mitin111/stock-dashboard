@@ -4,8 +4,10 @@ import requests
 import os
 import json
 
+
 class ProStocksAPI:
-    def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url):
+    def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url, apkversion="1.0.0"):
+
         self.userid = userid
         self.password_plain = password_plain
         self.factor2 = factor2
@@ -34,7 +36,7 @@ class ProStocksAPI:
             "vc": self.vc,
             "appkey": appkey_hash,
             "imei": self.imei,
-            "apkversion": "1.0.0",
+            "apkversion": self.apkversion,
             "source": "API"
         }
 
@@ -144,6 +146,7 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
     imei = os.getenv("PROSTOCKS_MAC", "MAC123456")
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY")
     base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
+    apkversion = os.getenv("PROSTOCKS_APKVERSION", "1.0.0")  # ✅ Add this line
 
     if not all([user_id, password, factor2, app_key]):
         print("❌ Missing login env vars.")
@@ -151,8 +154,9 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
 
     try:
         print("📶 Logging into ProStocks API...")
-        api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei, base_url)
-        success, token = api.login()
+            api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei, base_url, apkversion)
+    success, token = api.login()
+
         if success:
             print("✅ Login successful!")
             return api
