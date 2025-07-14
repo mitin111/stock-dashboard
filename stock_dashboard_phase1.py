@@ -711,12 +711,11 @@ if st.button("🚀 Run Live Engine Now", key="run_engine_btn_3"):
     run_engine_for_all()
 
 import threading
+import time
 
 def auto_run():
-    
-        if __name__ == "__main__":
-    run_engine_for_all()
-
+    while True:
+        run_engine_for_all()
         time.sleep(60)  # Run every 60 seconds
 
 if "engine_thread" not in st.session_state:
@@ -724,6 +723,7 @@ if "engine_thread" not in st.session_state:
     t.daemon = True
     t.start()
     st.session_state["engine_thread"] = t
+
 
 
 
