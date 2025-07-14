@@ -2,6 +2,7 @@
 import hashlib
 import requests
 import os
+import json  # ✅ Required for jData encoding
 
 class ProStocksAPI:
     def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url):
@@ -15,7 +16,7 @@ class ProStocksAPI:
         self.session_token = None
         self.session = requests.Session()
         self.headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/x-www-form-urlencoded"  # ✅ Required for form POST
         }
 
     def sha256(self, text):
@@ -37,7 +38,12 @@ class ProStocksAPI:
         }
 
         try:
-            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
+            response = self.session.post(
+                url,
+                data={"jData": json.dumps(payload)},  # ✅ Form POST with jData
+                headers=self.headers,
+                timeout=10
+            )
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
@@ -67,7 +73,12 @@ class ProStocksAPI:
         }
 
         try:
-            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
+            response = self.session.post(
+                url,
+                data={"jData": json.dumps(payload)},
+                headers=self.headers,
+                timeout=10
+            )
             if response.status_code == 200:
                 data = response.json()
                 return float(data.get("lp", 0))
@@ -99,7 +110,12 @@ class ProStocksAPI:
         }
 
         try:
-            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
+            response = self.session.post(
+                url,
+                data={"jData": json.dumps(payload)},
+                headers=self.headers,
+                timeout=10
+            )
             data = response.json()
             if response.status_code == 200 and data.get("stat") == "Ok":
                 print("✅ Order placed:", data)
