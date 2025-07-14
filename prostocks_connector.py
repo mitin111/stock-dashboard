@@ -2,9 +2,12 @@
 import hashlib
 import requests
 import os
-import json  # ✅ Required for jData encoding
+import json
 
 class ProStocksAPI:
+    """
+    A class to interact with the ProStocks API, including login, fetch LTP, and placing bracket orders.
+    """
     def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url):
         self.userid = userid
         self.password_plain = password_plain
@@ -16,13 +19,16 @@ class ProStocksAPI:
         self.session_token = None
         self.session = requests.Session()
         self.headers = {
-            "Content-Type": "application/x-www-form-urlencoded"  # ✅ Required for form POST
+            "Content-Type": "application/x-www-form-urlencoded"
         }
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
     def login(self):
+        """
+        Logs in to the ProStocks API using hashed credentials.
+        """
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
@@ -38,13 +44,10 @@ class ProStocksAPI:
         }
 
         try:
-            jdata = json.dumps(payload, separators=(",", ":"))  # ✅ compact json
-            post_data = {"jData": jdata}
-            print("🧪 POST data:", post_data)
-
+            jdata = json.dumps(payload, separators=(",", ":"))
             response = self.session.post(
                 url,
-                data=post_data,
+                data={"jData": jdata},
                 headers=self.headers,
                 timeout=10
             )
@@ -54,20 +57,20 @@ class ProStocksAPI:
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
                     self.headers["Authorization"] = self.session_token
-                    print("✅ Login Success!")
                     return True, self.session_token
                 else:
-                    print("❌ Login failed:", data.get("emsg"))
                     return False, data.get("emsg", "Unknown login error")
             else:
-                print("❌ Login failed: HTTP", response.status_code, ":", response.text)
                 return False, f"HTTP {response.status_code}: {response.text}"
         except requests.exceptions.RequestException as e:
-            print("❌ Login Exception:", e)
             return False, f"RequestException: {e}"
 
     def get_ltp(self, symbol):
+        """
+        Fetches the latest traded price (LTP) for a given symbol.
+        """
         if not self.session_token:
+            print("❌ Session token missing. Login required.")
             return None
 
         url = f"{self.base_url}/GetQuotes"
@@ -87,13 +90,19 @@ class ProStocksAPI:
             if response.status_code == 200:
                 data = response.json()
                 return float(data.get("lp", 0))
-            return None
+            else:
+                print("❌ Failed to fetch LTP:", response.text)
+                return None
         except Exception as e:
             print("❌ LTP fetch error:", e)
             return None
 
     def place_bracket_order(self, symbol, qty, price, sl, target, side="BUY"):
+        """
+        Places a bracket order for the given symbol.
+        """
         if not self.session_token:
+            print("❌ Session token missing. Login required.")
             return False
 
         url = f"{self.base_url}/PlaceOrder"
@@ -107,7 +116,7 @@ class ProStocksAPI:
             "trgprc": sl,
             "trailing_sl": 0,
             "ret": "DAY",
-            "prd": "I",
+            "prd": "I",  # Intraday
             "trantype": side,
             "ordtyp": "LIMIT",
             "bpprc": target,
@@ -133,33 +142,32 @@ class ProStocksAPI:
             return False
 
 
-# ────── Callable Login Function ────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# ✅ Wrapper function for login
+# ──────────────────────────────────────────────────────────────
 def login_ps(user_id, password, factor2, app_key=None):
+    """
+    Handles user login and returns an authenticated ProStocksAPI instance.
+    """
     if not all([user_id, password, factor2]):
+        print("❌ Missing required login credentials.")
         return None
 
     imei = os.getenv("PROSTOCKS_MAC", "abc1234")
     vc = os.getenv("PROSTOCKS_VENDOR_CODE", user_id)
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
-
     base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
 
     try:
-        print("📶 Login attempt started...")
-        print("🔧 Using base_url:", base_url)
-        print("User ID:", user_id)
-
+        print("📶 Logging in...")
         api = ProStocksAPI(user_id, password, factor2, vc, app_key, imei, base_url)
         success, result = api.login()
-
         if success:
-            print("✅ ps_api object created:", type(api))
-            print("✅ Login Token:", result)
+            print("✅ Login successful!")
             return api
         else:
-            print("❌ Login Failed:", result)
+            print("❌ Login failed:", result)
             return None
     except Exception as e:
-        print("❌ Login Error:", e)
+        print("❌ Login Exception:", e)
         return None
-
