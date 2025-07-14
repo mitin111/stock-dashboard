@@ -1,5 +1,4 @@
 
-# prostocks_connector.py
 import hashlib
 import requests
 import os
@@ -23,46 +22,44 @@ class ProStocksAPI:
         return hashlib.sha256(text.encode()).hexdigest()
 
     def login(self):
-    url = f"{self.base_url}/QuickAuth"  # ✅ FIXED
-    pwd_hash = self.sha256(self.password_plain)
-    appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+        url = f"{self.base_url}/QuickAuth"
+        pwd_hash = self.sha256(self.password_plain)
+        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
 
-    payload = {
-        "uid": self.userid,
-        "pwd": pwd_hash,
-        "factor2": self.factor2,
-        "vc": self.vc,
-        "apikey": appkey_hash,
-        "imei": self.imei,
-        "source": "API"
-    }
+        payload = {
+            "uid": self.userid,
+            "pwd": pwd_hash,
+            "factor2": self.factor2,
+            "vc": self.vc,
+            "apikey": appkey_hash,
+            "imei": self.imei,
+            "source": "API"
+        }
 
-    try:
-        response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("stat") == "Ok":
-                self.session_token = data["susertoken"]
-                self.headers["Authorization"] = self.session_token
-                print("✅ Login Success!")
-                return True, self.session_token
+        try:
+            response = self.session.post(url, json=payload, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("stat") == "Ok":
+                    self.session_token = data["susertoken"]
+                    self.headers["Authorization"] = self.session_token
+                    print("✅ Login Success!")
+                    return True, self.session_token
+                else:
+                    print("❌ Login failed:", data.get("emsg"))
+                    return False, data.get("emsg", "Unknown login error")
             else:
-                print("❌ Login failed:", data.get("emsg"))
-                return False, data.get("emsg", "Unknown login error")
-        else:
-            print("❌ Login failed: HTTP", response.status_code, ":", response.text)
-            return False, f"HTTP {response.status_code}: {response.text}"
-    except requests.exceptions.RequestException as e:
-        print("❌ Login Exception:", e)
-        return False, f"RequestException: {e}"
-
+                print("❌ Login failed: HTTP", response.status_code, ":", response.text)
+                return False, f"HTTP {response.status_code}: {response.text}"
+        except requests.exceptions.RequestException as e:
+            print("❌ Login Exception:", e)
+            return False, f"RequestException: {e}"
 
     def get_ltp(self, symbol):
         if not self.session_token:
             return None
 
         url = f"{self.base_url}/GetQuotes"
-
         payload = {
             "uid": self.userid,
             "exch": "NSE",
@@ -83,8 +80,7 @@ class ProStocksAPI:
         if not self.session_token:
             return False
 
-       url = f"{self.base_url}/PlaceOrder"
-
+        url = f"{self.base_url}/PlaceOrder"
         payload = {
             "uid": self.userid,
             "actid": self.userid,
@@ -125,8 +121,8 @@ def login_ps(user_id, password, factor2, app_key=None):
     vc = os.getenv("PROSTOCKS_VENDOR_CODE", user_id)
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY", "pssUATAPI12122021ASGND1234DL")
 
-    # 🔧 ✅ Updated URL for UAT
-    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com")
+    # ✅ Use correct base URL
+    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
 
     try:
         print("📶 Login attempt started...")
@@ -146,4 +142,3 @@ def login_ps(user_id, password, factor2, app_key=None):
     except Exception as e:
         print("❌ Login Error:", e)
         return None
-
