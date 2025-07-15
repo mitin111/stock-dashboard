@@ -44,3 +44,20 @@ with st.sidebar:
                     st.error(f"❌ Login failed: {msg}")
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
+               
+# Main dashboard view
+if "ps_api" in st.session_state:
+    api = st.session_state["ps_api"]
+
+    st.success("✅ Connected to ProStocks")
+
+    symbol = st.text_input("Enter Symbol", "RELIANCE-EQ")
+
+    if st.button("Get LTP"):
+        ltp = api.get_ltp(exchange="NSE", symbol=symbol)
+        st.write("📊 Last Traded Price:", ltp)
+
+    if st.button("Get Intraday Candles"):
+        candles = api.get_time_price_series(exchange="NSE", symbol=symbol, interval="5minute", days="1")
+        st.dataframe(candles.tail())
+
