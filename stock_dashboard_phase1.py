@@ -12,6 +12,9 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
     try:
         yf_symbol = symbol + ".NS"
         data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
+        # 🛠️ Fix possible multi-index issue
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.get_level_values(1)
 
         if data.empty or len(data) < pac_length:
             return None  # Not enough data
@@ -33,7 +36,13 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
 
         # ✅ Apply ATR Trailing Stop
         atr_df = calculate_atr_trailing_stop(data)
-        atr_signal = "Buy" if atr_df.iloc[-1]["Buy"] else "Sell" if atr_df.iloc[-1]["Sell"] else "Neutral"
+        # ✅ Patch ATR signal logic
+atr_signal = (
+    "Buy" if atr_df["Buy"].iloc[-1] else
+    "Sell" if atr_df["Sell"].iloc[-1] else
+    "Neutral"
+)
+
 
         # ✅ MACD Histogram Calculation
         macd_df = calculate_macd(
