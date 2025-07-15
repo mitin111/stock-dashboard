@@ -73,7 +73,8 @@ if "ps_api" in st.session_state:
     tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Market Data"])
 
     # 🚀 Tab 2: Market Data (LTP + Intraday)
-    with tab2:
+    # 🚀 Tab 2: Market Data (LTP + Intraday)
+with tab2:
     st.subheader("📈 Live Market Table – Approved Stocks")
 
     market_data = []
