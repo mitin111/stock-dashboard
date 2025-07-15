@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import os
 import pandas as pd
 import ta  # Make sure ta is installed: pip install ta
+import yfinance as yf  # ✅ Add this line to fix 'yf not defined' error
+
 
 def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
     try:
