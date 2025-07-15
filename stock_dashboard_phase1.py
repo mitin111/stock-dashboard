@@ -10,60 +10,70 @@ from prostocks_connector import ProStocksAPI  # ✅ Load your custom API connect
 from utils.data_fetcher import fetch_live_data  # ✅ If you have helper file
 from utils.indicators import calculate_indicators  # ✅ If moved to a separate file
 
-# ✅ Load environment variables
+# Load credentials from .env
 load_dotenv()
-DEFAULT_UID = os.getenv("PROSTOCKS_UID", "")
-DEFAULT_PWD = os.getenv("PROSTOCKS_PWD", "")
+DEFAULT_BASE_URL = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
+
+DEFAULT_UID = os.getenv("PROSTOCKS_USER_ID", "")
+DEFAULT_PWD = os.getenv("PROSTOCKS_PASSWORD", "")
 DEFAULT_FACTOR2 = os.getenv("PROSTOCKS_FACTOR2", "")
-DEFAULT_VC = os.getenv("PROSTOCKS_VC", "")
+DEFAULT_VC = os.getenv("PROSTOCKS_VENDOR_CODE", "")
 DEFAULT_API_KEY = os.getenv("PROSTOCKS_API_KEY", "")
-DEFAULT_IMEI = os.getenv("PROSTOCKS_IMEI", "")
-APKVERSION = "1.0"
+DEFAULT_MAC = os.getenv("PROSTOCKS_MAC", "MAC123456")
+DEFAULT_APK_VERSION = os.getenv("PROSTOCKS_APK_VERSION", "1.0.0")  # ✅ NEW LINE
 
-APPROVED_STOCK_LIST = ["RECLTD", "LTFOODS", "HINDCOPPER", "VEDL", "JIOFIN", "GSPL"]  # Replace with full list
 
-# ✅ Streamlit page config
-st.set_page_config(page_title="📈 Stock Dashboard", layout="wide")
-
-# ✅ Sidebar Login
+# Sidebar Login Form (only one)
 with st.sidebar:
     st.header("🔐 ProStocks Login")
     with st.form("ProStocksLoginForm"):
         uid = st.text_input("User ID", value=DEFAULT_UID)
         pwd = st.text_input("Password", type="password", value=DEFAULT_PWD)
-        factor2 = st.text_input("2FA / DOB", value=DEFAULT_FACTOR2)
-        vc = st.text_input("Vendor Code", value=DEFAULT_VC)
-        api_key = st.text_input("API Key", value=DEFAULT_API_KEY)
-        imei = st.text_input("IMEI", value=DEFAULT_IMEI)
-        base_url = st.text_input("Base URL", value="https://api.prostocks.com")
-        submitted = st.form_submit_button("Login")
+        factor2 = st.text_input("PAN / DOB (DD-MM-YYYY)", value=DEFAULT_FACTOR2)
+        vc = st.text_input("Vendor Code", value=DEFAULT_VC or DEFAULT_UID)
+        api_key = st.text_input("API Key", type="password", value=DEFAULT_API_KEY)
+        imei = st.text_input("MAC Address", value=DEFAULT_MAC)
+        base_url = st.text_input("ProStocks Base URL", value=DEFAULT_BASE_URL)
+        apkversion = st.text_input("APK Version", value=DEFAULT_APK_VERSION)  # ✅ NEW FIELD
+
+        submitted = st.form_submit_button("🔐 Login")
 
         if submitted:
             try:
-                ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url, APKVERSION)
+                ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url, apkversion)  # ✅ pass apkversion
                 success, msg = ps_api.login()
+
                 if success:
                     st.session_state["ps_api"] = ps_api
-                    st.success("✅ Login successful!")
+                    st.success("✅ Login Successful")
+                    st.rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
             except Exception as e:
-                st.error(f"⚠️ Error: {e}")
+                st.error(f"❌ Exception during login: {e}")
 
-# ✅ After login
-if "ps_api" in st.session_state and st.session_state["ps_api"]:
-    st.title("📊 Stock Dashboard")
 
-    # Select a stock
-    symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST), key="select_stock_main")
-
-    # Fetch & display data
-    if st.button("Fetch Data"):
-        df = fetch_live_data(symbol)
-        st.write(f"Live Data for {symbol}", df.tail(5))
-
-        # Calculate & display indicators
-        df = calculate_indicators(df)
-        st.write("📊 Indicators", df.tail(5))
+st.title("📈 ProStocks Trading Dashboard")
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    st.title("📊 Stock Trading Dashboard")
+    st.success("Dashboard loaded successfully!")
 else:
-    st.warning("🔒 Please login to access the dashboard.")
+   ps_api = st.session_state.get("ps_api", None)
+
+
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    
+    # ✅ If authenticated, show dashboard
+    st.title("📊 Stock Trading Dashboard")
+    st.success("Dashboard loaded successfully!")
+else:
+    st.warning("🔒 Please login to continue.")
+
+
+    # ✅ Placeholder for your screener/engine logic
+    st.markdown("🚀 Ready to run your stock screener, signal engine, and auto trading? Add logic here.")
+
+
+           
