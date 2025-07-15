@@ -45,19 +45,40 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
                
-# Main dashboard view
+# Main content (tabs)
 if "ps_api" in st.session_state:
-    api = st.session_state["ps_api"]
+    ps_api = st.session_state["ps_api"]
 
-    st.success("✅ Connected to ProStocks")
+    tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Market Data"])
 
-    symbol = st.text_input("Enter Symbol", "RELIANCE-EQ")
+    # 🚀 Tab 2: Market Data (LTP + Intraday)
+    with tab2:
+        st.subheader("📈 Live Market Data – Approved Stocks Only")
 
-    if st.button("Get LTP"):
-        ltp = api.get_ltp(exchange="NSE", symbol=symbol)
-        st.write("📊 Last Traded Price:", ltp)
+        selected_symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
 
-    if st.button("Get Intraday Candles"):
-        candles = api.get_time_price_series(exchange="NSE", symbol=symbol, interval="5minute", days="1")
-        st.dataframe(candles.tail())
+        col1, col2 = st.columns([1, 2])
 
+        with col1:
+            if st.button("📍 Get LTP"):
+                try:
+                    ltp = ps_api.get_ltp(exchange="NSE", symbol=f"{selected_symbol}-EQ")
+                    st.metric(label=f"{selected_symbol} LTP", value=f"₹{ltp}")
+                except Exception as e:
+                    st.error(f"LTP error: {e}")
+
+        with col2:
+            if st.button("📊 Get Intraday (5-min)"):
+                try:
+                    candles = ps_api.get_time_price_series(
+                        exchange="NSE", symbol=f"{selected_symbol}-EQ", interval="5minute", days="1"
+                    )
+                    if isinstance(candles, list) and len(candles) > 0:
+                        df = pd.DataFrame(candles)
+                        df.columns = ["Time", "Open", "High", "Low", "Close", "Volume"]
+                        df["Time"] = pd.to_datetime(df["Time"])
+                        st.dataframe(df.tail(15), use_container_width=True)
+                    else:
+                        st.warning("No intraday data found.")
+                except Exception as e:
+                    st.error(f"Intraday error: {e}")
