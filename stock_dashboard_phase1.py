@@ -73,44 +73,38 @@ if "ps_api" in st.session_state:
     tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Market Data"])
 
     # 🚀 Tab 2: Market Data (LTP + Intraday)
-    # 🚀 Tab 2: Market Data (LTP + Intraday)
-with tab2:
-    st.subheader("📈 Live Market Table – Approved Stocks")
+    with tab2:
+        st.subheader("📈 Live Market Table – Approved Stocks")
 
-    market_data = []
+        market_data = []
 
-    for symbol in APPROVED_STOCK_LIST:
-        try:
-            # ✅ Format symbol
-            full_symbol = f"{symbol}-EQ"
+        for symbol in APPROVED_STOCK_LIST:
+            try:
+                full_symbol = f"{symbol}-EQ"
+                ltp = ps_api.get_ltp("NSE", full_symbol)
+                candles = ps_api.get_time_price_series("NSE", full_symbol, "5minute", "1")
+                latest = candles[-1] if candles else {}
 
-            # 🔹 Get LTP
-            ltp = ps_api.get_ltp("NSE", full_symbol)
+                market_data.append({
+                    "Symbol": symbol,
+                    "LTP (₹)": ltp,
+                    "Open": latest.get("open"),
+                    "High": latest.get("high"),
+                    "Low": latest.get("low"),
+                    "Close": latest.get("close"),
+                    "Volume": latest.get("volume")
+                })
 
-            # 🔹 Get latest candle
-            candles = ps_api.get_time_price_series("NSE", full_symbol, "5minute", "1")
-            latest = candles[-1] if candles else {}
+            except Exception as e:
+                market_data.append({
+                    "Symbol": symbol,
+                    "LTP (₹)": "⚠️ Error",
+                    "Open": None,
+                    "High": None,
+                    "Low": None,
+                    "Close": None,
+                    "Volume": None
+                })
 
-            market_data.append({
-                "Symbol": symbol,
-                "LTP (₹)": ltp,
-                "Open": latest.get("open"),
-                "High": latest.get("high"),
-                "Low": latest.get("low"),
-                "Close": latest.get("close"),
-                "Volume": latest.get("volume")
-            })
-
-        except Exception as e:
-            market_data.append({
-                "Symbol": symbol,
-                "LTP (₹)": "⚠️ Error",
-                "Open": None,
-                "High": None,
-                "Low": None,
-                "Close": None,
-                "Volume": None
-            })
-
-    df_market = pd.DataFrame(market_data)
-    st.dataframe(df_market, use_container_width=True)
+        df_market = pd.DataFrame(market_data)
+        st.dataframe(df_market, use_container_width=True)
