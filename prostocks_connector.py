@@ -100,6 +100,54 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ Error in get_ltp for {symbol}: {e}")
             return None
+    def get_ltp(self, symbol, exchange="NSE"):
+        """
+        Returns the Last Traded Price (LTP) of the given symbol.
+        """
+        try:
+            quote = self.get_quotes(symbol, exchange)
+            return float(quote.get("lp", 0)) if quote else None
+        except Exception as e:
+            print(f"❌ Error in get_ltp for {symbol}: {e}")
+            return None
+
+    # 📊 Add below get_ltp
+    def get_candles(self, symbol, interval="5", exchange="NSE", days=1):
+        """
+        Fetches historical OHLC candle data for the given symbol.
+
+        interval:
+            "1" - 1 minute
+            "3" - 3 minutes
+            "5" - 5 minutes
+            "15" - 15 minutes
+            "30" - 30 minutes
+            "60" - 1 hour
+            "D" - 1 day
+
+        days: number of past days to fetch
+        """
+        try:
+            payload = {
+                "uid": self.userid,
+                "exch": exchange,
+                "token": symbol,
+                "interval": interval,
+                "days": str(days)
+            }
+            url = f"{self.base_url}/GetCandleData"
+            response = self.session.get(url, params=payload, headers=self.headers)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("stat") == "Ok":
+                return data.get("candles", [])
+            else:
+                print(f"❌ get_candles error: {data.get('emsg', 'Unknown error')}")
+                return []
+        except Exception as e:
+            print(f"❌ Exception in get_candles for {symbol}: {e}")
+            return []
 
 
 # ✅ Wrapper for reuse
