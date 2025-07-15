@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import ta  # Make sure ta is installed: pip install ta
 
-def calculate_indicators(candle_data):
+def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
     """
     Calculates indicators from candle data (list of [time, open, high, low, close, volume]).
     Returns a DataFrame with additional indicator columns.
