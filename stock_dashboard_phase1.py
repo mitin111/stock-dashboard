@@ -12,9 +12,14 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         yf_symbol = symbol + ".NS"
         data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
 
-        # ✅ Patch: Fix multi-index issue if present
+        # ✅ Fix: Handle duplicate column names from YFinance or multi-index bug
         if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(1)
+            data.columns = ['_'.join(col).strip() for col in data.columns.values]
+        else:
+            data.columns = [col.strip() for col in data.columns]
+
+        # ✅ Additional: Rename standard YF columns for consistent access
+        data.rename(columns=lambda x: x.capitalize(), inplace=True)
 
         if data.empty or len(data) < pac_length:
             return None  # Not enough data
@@ -66,9 +71,8 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         }
 
     except Exception as e:
-        # ✅ Final Patch: Helpful debug output
         st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
-        st.write(data.tail())  # Optional: Inspect latest rows of YF data
+        st.write(data.tail() if 'data' in locals() else "No DataFrame")
         return None
 
 
