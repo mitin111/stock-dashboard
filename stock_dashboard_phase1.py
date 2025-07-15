@@ -5,6 +5,7 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 from prostocks_connector import ProStocksAPI
+import pandas as pd
 
 # Load credentials
 load_dotenv()
