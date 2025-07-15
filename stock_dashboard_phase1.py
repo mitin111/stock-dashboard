@@ -67,9 +67,10 @@ atr_signal = (
             "min_vol_required": min_vol_required
         }
 
-    except Exception as e:
-        st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
-        return None
+   except Exception as e:
+    st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
+    st.write(data.tail())  # Optional: Show last 5 rows to debug
+    return None
 
 # Load credentials from .env
 # Load credentials from .env
