@@ -6,6 +6,32 @@ import os
 import pandas as pd
 import ta  # Make sure ta is installed: pip install ta
 import yfinance as yf  # ✅ Add this line to fix 'yf not defined' error
+# ✅ TKP TRM Calculation Function
+def calculate_tkp_trm(df, tsi_long=25, tsi_short=5, tsi_signal_len=14, rsi_len=5, rsi_buy=50, rsi_sell=50):
+    # Add your logic for TSI, RSI and TRM condition
+    # Must return "Buy", "Sell", or "Neutral"
+    ...
+
+# ✅ MACD Histogram Calculation
+def calculate_macd(df, fast_length, slow_length, signal_length, src_col, ma_type_macd, ma_type_signal):
+    # Return a DataFrame with MACD and Histogram columns
+    ...
+    
+# ✅ Heikin Ashi Candle Conversion
+def calculate_heikin_ashi(df):
+    # Returns a modified df with Heikin Ashi candles
+    ...
+
+# ✅ ATR Trailing Stop Calculation
+def calculate_atr_trailing_stop(df, atr_length=14, atr_mult=3):
+    # Return df with trailing stop Buy/Sell signals
+    ...
+
+# ✅ PAC EMA Band Calculation
+def calculate_pac_emas(df, length=20, use_heikin_ashi=False):
+    # Add PAC_C, PAC_L, PAC_U to the DataFrame and return it
+    ...
+
 # ✅ Helper: Safely get a column by name
 def get_column(df, key, symbol=None):
     key = key.strip().lower()
@@ -87,6 +113,81 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
         st.write(data.tail() if 'data' in locals() else "No DataFrame")
         return None
+def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
+    try:
+        yf_symbol = symbol + ".NS"
+        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
+
+        # ✅ Fix: Handle duplicate or MultiIndex columns from yfinance
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = ['_'.join(col).strip() for col in data.columns.values]
+        else:
+            data.columns = [col.strip() for col in data.columns]
+
+        # ✅ Clean column names
+        data.columns = [col.split('_')[0].capitalize() for col in data.columns]
+
+        if data.empty or len(data) < pac_length:
+            return None  # Not enough data
+
+        close = get_column(data, "Close", symbol)
+        open_ = get_column(data, "Open", symbol)
+        high = get_column(data, "High", symbol)
+        low = get_column(data, "Low", symbol)
+        volume = get_column(data, "Volume", symbol)
+
+        df = calculate_pac_emas(data, length=pac_length, use_heikin_ashi=use_ha)
+        latest = df.iloc[-1]
+        price = live_data["price"]
+
+        # ✅ TKP TRM Logic
+        tkp_trm_signal = calculate_tkp_trm(
+            data,
+            tsi_long=tsi_long,
+            tsi_short=tsi_short,
+            tsi_signal_len=tsi_signal,
+            rsi_len=rsi_length,
+            rsi_buy=rsi_buy,
+            rsi_sell=rsi_sell
+        )
+
+        # ✅ ATR Trailing Stop
+        atr_df = calculate_atr_trailing_stop(data)
+        atr_signal = (
+            "Buy" if atr_df["Buy"].iloc[-1] else
+            "Sell" if atr_df["Sell"].iloc[-1] else
+            "Neutral"
+        )
+
+        # ✅ MACD Histogram
+        macd_df = calculate_macd(
+            data,
+            fast_length=macd_fast,
+            slow_length=macd_slow,
+            signal_length=macd_signal,
+            src_col=macd_source.lower().capitalize(),
+            ma_type_macd=macd_ma_type,
+            ma_type_signal=macd_ma_type
+        )
+        macd_hist = macd_df["Histogram"].iloc[-1]
+
+        return {
+            "atr_trail": atr_signal,
+            "tkp_trm": tkp_trm_signal,
+            "macd_hist": round(macd_hist, 3),
+            "above_pac": price > latest['PAC_C'],
+            "volatility": fetch_volatility(symbol),
+            "pac_band_lower": round(latest['PAC_L'], 2),
+            "pac_band_upper": round(latest['PAC_U'], 2),
+            "min_vol_required": min_vol_required
+        }
+
+    except Exception as e:
+        st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
+        st.write(data.tail() if 'data' in locals() else "No DataFrame")
+        return None
+# ✅ Helper: Safely get a column by name
+def get_column(df, key, symbol=None):
 
 
 
