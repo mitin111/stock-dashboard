@@ -9,6 +9,7 @@ websocket-client
 cryptography
 pyotp
 pyDes
+ta
 
 
 
