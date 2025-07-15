@@ -69,6 +69,52 @@ class ProStocksAPI:
                 return False, f"HTTP {response.status_code}: {response.text}"
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
+    def login(self):
+        # ... your existing login method logic ...
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}"
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers=self.headers,
+                timeout=10
+            )
+            # ... your existing login response handling ...
+        except requests.exceptions.RequestException as e:
+            return False, f"RequestException: {e}"
+
+    # 🔍 Add this below login
+    def get_quotes(self, symbol, exchange="NSE"):
+        """
+        Fetches live market data (LTP, OHLC, etc.) for the given symbol.
+        """
+        try:
+            payload = {
+                "uid": self.userid,
+                "exch": exchange,
+                "tsym": symbol,
+            }
+            url = f"{self.base_url}/QuickQuote"
+            response = self.session.get(url, params=payload, headers=self.headers)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except Exception as e:
+            print(f"❌ Error in get_quotes for {symbol}: {e}")
+            return None
+
+    # 💰 Add this below get_quotes
+    def get_ltp(self, symbol, exchange="NSE"):
+        """
+        Returns the Last Traded Price (LTP) of the given symbol.
+        """
+        try:
+            quote = self.get_quotes(symbol, exchange)
+            return float(quote.get("lp", 0)) if quote else None
+        except Exception as e:
+            print(f"❌ Error in get_ltp for {symbol}: {e}")
+            return None
 
 
 # ✅ Wrapper for reuse
