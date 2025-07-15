@@ -1,14 +1,14 @@
 
 # stock_dashboard_clean.py
 
+from prostocks_connector import ProStocksAPI
 import streamlit as st
 from dotenv import load_dotenv
 import os
 import pandas as pd
-from datetime import datetime, timedelta
-from prostocks_connector import ProStocksAPI  # ✅ Load your custom API connector
-from utils.data_fetcher import fetch_live_data  # ✅ If you have helper file
-from utils.indicators import calculate_indicators  # ✅ If moved to a separate file
+import ta  # Make sure ta is installed: pip install ta
+import yfinance as yf  # ✅ Add this line to fix 'yf not defined' error
+
 
 # Load credentials from .env
 load_dotenv()
