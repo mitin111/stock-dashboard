@@ -23,6 +23,11 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
 
         if data.empty or len(data) < pac_length:
             return None  # Not enough data
+        close = get_column(data, "Close", symbol)
+        open_ = get_column(data, "Open", symbol)
+        high = get_column(data, "High", symbol)
+        low = get_column(data, "Low", symbol)
+        volume = get_column(data, "Volume", symbol)
 
         df = calculate_pac_emas(data, length=pac_length, use_heikin_ashi=use_ha)
         latest = df.iloc[-1]
