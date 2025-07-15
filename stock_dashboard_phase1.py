@@ -712,13 +712,14 @@ import time
 def auto_run():
     while True:
         run_engine_for_all()
-        time.sleep(60)  # Run every 60 seconds
+        time.sleep(60)
 
 if "engine_thread" not in st.session_state:
     t = threading.Thread(target=auto_run)
     t.daemon = True
     t.start()
     st.session_state["engine_thread"] = t
+
 
 
 
