@@ -16,14 +16,17 @@ def get_column(df, key, symbol=None):
 
 def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
     try:
-        yf_symbol = symbol + ".NS"
-        data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
+    yf_symbol = symbol + ".NS"
+    data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
 
-        # ✅ Fix: Handle duplicate column names from YFinance or multi-index bug
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = ['_'.join(col).strip() for col in data.columns.values]
-        else:
-            data.columns = [col.strip() for col in data.columns]
+    # ✅ Fix: Handle duplicate column names from YFinance or multi-index bug
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = ['_'.join(col).strip() for col in data.columns.values]
+    else:
+        data.columns = [col.strip() for col in data.columns]
+
+    # ✅ Clean column names: Remove ticker suffixes (e.g., '_ltfoods.ns')
+    data.columns = [col.split('_')[0].capitalize() for col in data.columns]
 
        # ✅ Clean column names: Remove ticker suffixes (e.g., '_ltfoods.ns')
 data.columns = [col.split('_')[0].capitalize() for col in data.columns]
