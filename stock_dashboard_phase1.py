@@ -77,8 +77,7 @@ from datetime import datetime
 if "ps_api" in st.session_state:
     ps_api = st.session_state["ps_api"]
     
-    if st.button("🚀 Run Live Engine Now", key="run_engine_btn_1"):
-        run_engine_for_all()
+
 else:
     st.warning("🔒 Please login to run live engine.")
 
@@ -706,10 +705,6 @@ if st.button("🔄 Update Trailing Stop-Loss"):
     engine.update_trailing_sl(symbol, price)
 
 # === ✅ Manual Run Trigger for Engine ===
-if st.button("🚀 Run Live Engine Now", key="run_engine_btn_3"):
-    run_engine_for_all()
-
-    run_engine_for_all()
 
 import threading
 import time
