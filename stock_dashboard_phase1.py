@@ -3,6 +3,30 @@ from prostocks_connector import ProStocksAPI
 import streamlit as st
 from dotenv import load_dotenv
 import os
+import pandas as pd
+import ta  # Make sure ta is installed: pip install ta
+
+def calculate_indicators(candle_data):
+    """
+    Calculates indicators from candle data (list of [time, open, high, low, close, volume]).
+    Returns a DataFrame with additional indicator columns.
+    """
+    if not candle_data:
+        return None
+
+    df = pd.DataFrame(candle_data, columns=["time", "open", "high", "low", "close", "volume"])
+    df["time"] = pd.to_datetime(df["time"])
+    df = df.sort_values("time")
+
+    # Convert to numeric
+    df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
+
+    # Add indicators (modify as per your needs)
+    df["rsi"] = ta.momentum.RSIIndicator(close=df["close"], window=14).rsi()
+    df["macd"] = ta.trend.MACD(close=df["close"]).macd_diff()
+    df["ema20"] = ta.trend.EMAIndicator(close=df["close"], window=20).ema_indicator()
+
+    return df
 
 # Load credentials from .env
 # Load credentials from .env
@@ -681,30 +705,6 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
             "min_vol_required": min_vol_required
         }
 
-import pandas as pd
-import ta  # Make sure ta is installed: pip install ta
-
-def calculate_indicators(candle_data):
-    """
-    Calculates indicators from candle data (list of [time, open, high, low, close, volume]).
-    Returns a DataFrame with additional indicator columns.
-    """
-    if not candle_data:
-        return None
-
-    df = pd.DataFrame(candle_data, columns=["time", "open", "high", "low", "close", "volume"])
-    df["time"] = pd.to_datetime(df["time"])
-    df = df.sort_values("time")
-
-    # Convert to numeric
-    df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
-
-    # Add indicators (modify as per your needs)
-    df["rsi"] = ta.momentum.RSIIndicator(close=df["close"], window=14).rsi()
-    df["macd"] = ta.trend.MACD(close=df["close"]).macd_diff()
-    df["ema20"] = ta.trend.EMAIndicator(close=df["close"], window=20).ema_indicator()
-
-    return df
 
     
     except Exception as e:
