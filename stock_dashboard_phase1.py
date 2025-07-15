@@ -392,11 +392,6 @@ def run_engine_for_all():
         })
 
 # ✅ Ensure this is inside a Streamlit control block or safely placed globally
-if "ps_api" in st.session_state and st.session_state["ps_api"]:
-    ps_api = st.session_state["ps_api"]
-    run_engine_for_all()
-else:
-    st.warning("🔒 Please login to run live engine.")
 
 
 def fetch_live_data(symbol):
@@ -703,6 +698,11 @@ if st.button("❌ Auto Exit All @ 15:12"):
     engine.auto_exit_positions(current_time)
 if st.button("🔄 Update Trailing Stop-Loss"):
     engine.update_trailing_sl(symbol, price)
+if "ps_api" in st.session_state and st.session_state["ps_api"]:
+    ps_api = st.session_state["ps_api"]
+    run_engine_for_all()
+else:
+    st.warning("🔒 Please login to run live engine.")
 
 # === ✅ Manual Run Trigger for Engine ===
 
