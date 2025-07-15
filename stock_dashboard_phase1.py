@@ -6,6 +6,13 @@ import os
 import pandas as pd
 import ta  # Make sure ta is installed: pip install ta
 import yfinance as yf  # ✅ Add this line to fix 'yf not defined' error
+# ✅ Helper: Safely get a column by name
+def get_column(df, key, symbol=None):
+    key = key.strip().lower()
+    for col in df.columns:
+        if col.strip().lower() == key:
+            return df[col]
+    raise KeyError(f"❌ Column '{key}' not found in {symbol if symbol else 'DataFrame'} columns: {df.columns.tolist()}")
 
 def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
     try:
