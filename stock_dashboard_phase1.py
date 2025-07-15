@@ -11,6 +11,55 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         yf_symbol = symbol + ".NS"
         data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
 
+        if data.empty or len(data) < pac_length:
+            return None  # Not enough data
+
+        df = calculate_pac_emas(data, length=pac_length, use_heikin_ashi=use_ha)
+        latest = df.iloc[-1]
+        price = live_data["price"]
+
+        # ✅ Apply TKP TRM
+        tkp_trm_signal = calculate_tkp_trm(
+            data,
+            tsi_long=tsi_long,
+            tsi_short=tsi_short,
+            tsi_signal_len=tsi_signal,
+            rsi_len=rsi_length,
+            rsi_buy=rsi_buy,
+            rsi_sell=rsi_sell
+        )
+
+        # ✅ Apply ATR Trailing Stop
+        atr_df = calculate_atr_trailing_stop(data)
+        atr_signal = "Buy" if atr_df.iloc[-1]["Buy"] else "Sell" if atr_df.iloc[-1]["Sell"] else "Neutral"
+
+        # ✅ MACD Histogram Calculation
+        macd_df = calculate_macd(
+            data,
+            fast_length=macd_fast,
+            slow_length=macd_slow,
+            signal_length=macd_signal,
+            src_col=macd_source.lower().capitalize(),
+            ma_type_macd=macd_ma_type,
+            ma_type_signal=macd_ma_type
+        )
+        macd_hist = macd_df["Histogram"].iloc[-1]
+
+        return {
+            "atr_trail": atr_signal,
+            "tkp_trm": tkp_trm_signal,
+            "macd_hist": round(macd_hist, 3),
+            "above_pac": price > latest['PAC_C'],
+            "volatility": fetch_volatility(symbol),
+            "pac_band_lower": round(latest['PAC_L'], 2),
+            "pac_band_upper": round(latest['PAC_U'], 2),
+            "min_vol_required": min_vol_required
+        }
+
+    except Exception as e:
+        st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
+        return None
+
 # Load credentials from .env
 # Load credentials from .env
 load_dotenv()
