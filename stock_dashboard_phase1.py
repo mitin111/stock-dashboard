@@ -53,27 +53,7 @@ with st.sidebar:
                 st.error(f"❌ Exception during login: {e}")
 
 
-st.title("📈 ProStocks Trading Dashboard")
-if "ps_api" in st.session_state:
-    ps_api = st.session_state["ps_api"]
-    st.title("📊 Stock Trading Dashboard")
-    st.success("Dashboard loaded successfully!")
-else:
-   ps_api = st.session_state.get("ps_api", None)
 
-
-if "ps_api" in st.session_state:
-    ps_api = st.session_state["ps_api"]
-    
-    # ✅ If authenticated, show dashboard
-    st.title("📊 Stock Trading Dashboard")
-    st.success("Dashboard loaded successfully!")
-else:
-    st.warning("🔒 Please login to continue.")
-
-
-    # ✅ Placeholder for your screener/engine logic
-    st.markdown("🚀 Ready to run your stock screener, signal engine, and auto trading? Add logic here.")
 
 
            
