@@ -29,7 +29,6 @@ class ProStocksAPI:
         appkey_raw = f"{self.userid}|{self.api_key}"
         appkey_hash = self.sha256(appkey_raw)
 
-        # Debug print
         print("📎 App Key Raw:", appkey_raw)
         print("🔐 Hashed App Key:", appkey_hash)
 
@@ -69,22 +68,8 @@ class ProStocksAPI:
                 return False, f"HTTP {response.status_code}: {response.text}"
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
-    def login(self):
-        # ... your existing login method logic ...
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers=self.headers,
-                timeout=10
-            )
-            # ... your existing login response handling ...
-        except requests.exceptions.RequestException as e:
-            return False, f"RequestException: {e}"
 
-    # 🔍 Add this below login
+    # 🔍 Add below login
     def get_quotes(self, symbol, exchange="NSE"):
         """
         Fetches live market data (LTP, OHLC, etc.) for the given symbol.
@@ -104,7 +89,7 @@ class ProStocksAPI:
             print(f"❌ Error in get_quotes for {symbol}: {e}")
             return None
 
-    # 💰 Add this below get_quotes
+    # 💰 Add below get_quotes
     def get_ltp(self, symbol, exchange="NSE"):
         """
         Returns the Last Traded Price (LTP) of the given symbol.
@@ -145,3 +130,5 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
     except Exception as e:
         print("❌ Login Exception:", e)
         return None
+
+        
