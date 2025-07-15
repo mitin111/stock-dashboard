@@ -74,32 +74,42 @@ if "ps_api" in st.session_state:
 
     # 🚀 Tab 2: Market Data (LTP + Intraday)
     with tab2:
-        st.subheader("📈 Live Market Data – Approved Stocks Only")
+    st.subheader("📈 Live Market Table – Approved Stocks")
 
-        selected_symbol = st.selectbox("Select Stock", sorted(APPROVED_STOCK_LIST))
+    market_data = []
 
-        col1, col2 = st.columns([1, 2])
+    for symbol in APPROVED_STOCK_LIST:
+        try:
+            # ✅ Format symbol
+            full_symbol = f"{symbol}-EQ"
 
-        with col1:
-            if st.button("📍 Get LTP"):
-                try:
-                    ltp = ps_api.get_ltp(exchange="NSE", symbol=f"{selected_symbol}-EQ")
-                    st.metric(label=f"{selected_symbol} LTP", value=f"₹{ltp}")
-                except Exception as e:
-                    st.error(f"LTP error: {e}")
+            # 🔹 Get LTP
+            ltp = ps_api.get_ltp("NSE", full_symbol)
 
-        with col2:
-            if st.button("📊 Get Intraday (5-min)"):
-                try:
-                    candles = ps_api.get_time_price_series(
-                        exchange="NSE", symbol=f"{selected_symbol}-EQ", interval="5minute", days="1"
-                    )
-                    if isinstance(candles, list) and len(candles) > 0:
-                        df = pd.DataFrame(candles)
-                        df.columns = ["Time", "Open", "High", "Low", "Close", "Volume"]
-                        df["Time"] = pd.to_datetime(df["Time"])
-                        st.dataframe(df.tail(15), use_container_width=True)
-                    else:
-                        st.warning("No intraday data found.")
-                except Exception as e:
-                    st.error(f"Intraday error: {e}")
+            # 🔹 Get latest candle
+            candles = ps_api.get_time_price_series("NSE", full_symbol, "5minute", "1")
+            latest = candles[-1] if candles else {}
+
+            market_data.append({
+                "Symbol": symbol,
+                "LTP (₹)": ltp,
+                "Open": latest.get("open"),
+                "High": latest.get("high"),
+                "Low": latest.get("low"),
+                "Close": latest.get("close"),
+                "Volume": latest.get("volume")
+            })
+
+        except Exception as e:
+            market_data.append({
+                "Symbol": symbol,
+                "LTP (₹)": "⚠️ Error",
+                "Open": None,
+                "High": None,
+                "Low": None,
+                "Close": None,
+                "Volume": None
+            })
+
+    df_market = pd.DataFrame(market_data)
+    st.dataframe(df_market, use_container_width=True)
