@@ -25,8 +25,8 @@ def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required
         else:
             data.columns = [col.strip() for col in data.columns]
 
-        # ✅ Additional: Rename standard YF columns for consistent access
-        data.rename(columns=lambda x: x.capitalize(), inplace=True)
+       # ✅ Clean column names: Remove ticker suffixes (e.g., '_ltfoods.ns')
+data.columns = [col.split('_')[0].capitalize() for col in data.columns]
 
         if data.empty or len(data) < pac_length:
             return None  # Not enough data
