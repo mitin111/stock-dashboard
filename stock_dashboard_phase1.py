@@ -7,14 +7,14 @@ import pandas as pd
 import ta  # Make sure ta is installed: pip install ta
 import yfinance as yf  # ✅ Add this line to fix 'yf not defined' error
 
-
 def calculate_indicators(live_data, symbol, pac_length, use_ha, min_vol_required):
     try:
         yf_symbol = symbol + ".NS"
         data = yf.download(yf_symbol, period="2d", interval="5m", progress=False)
-        # 🛠️ Fix possible multi-index issue
-if isinstance(data.columns, pd.MultiIndex):
-    data.columns = data.columns.get_level_values(1)
+
+        # ✅ Patch: Fix multi-index issue if present
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(1)
 
         if data.empty or len(data) < pac_length:
             return None  # Not enough data
@@ -23,7 +23,7 @@ if isinstance(data.columns, pd.MultiIndex):
         latest = df.iloc[-1]
         price = live_data["price"]
 
-        # ✅ Apply TKP TRM
+        # ✅ TKP TRM Logic
         tkp_trm_signal = calculate_tkp_trm(
             data,
             tsi_long=tsi_long,
@@ -34,17 +34,15 @@ if isinstance(data.columns, pd.MultiIndex):
             rsi_sell=rsi_sell
         )
 
-        # ✅ Apply ATR Trailing Stop
+        # ✅ ATR Trailing Stop
         atr_df = calculate_atr_trailing_stop(data)
-        # ✅ Patch ATR signal logic
-atr_signal = (
-    "Buy" if atr_df["Buy"].iloc[-1] else
-    "Sell" if atr_df["Sell"].iloc[-1] else
-    "Neutral"
-)
+        atr_signal = (
+            "Buy" if atr_df["Buy"].iloc[-1] else
+            "Sell" if atr_df["Sell"].iloc[-1] else
+            "Neutral"
+        )
 
-
-        # ✅ MACD Histogram Calculation
+        # ✅ MACD Histogram
         macd_df = calculate_macd(
             data,
             fast_length=macd_fast,
@@ -67,10 +65,12 @@ atr_signal = (
             "min_vol_required": min_vol_required
         }
 
-   except Exception as e:
-    st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
-    st.write(data.tail())  # Optional: Show last 5 rows to debug
-    return None
+    except Exception as e:
+        # ✅ Final Patch: Helpful debug output
+        st.error(f"⚠️ Error calculating indicators for {symbol}: {e}")
+        st.write(data.tail())  # Optional: Inspect latest rows of YF data
+        return None
+
 
 # Load credentials from .env
 # Load credentials from .env
