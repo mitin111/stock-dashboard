@@ -62,7 +62,13 @@ if "ps_api" in st.session_state:
         st.rerun()
 
 # === Tabs Layout
-tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Market Data"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "⚙️ Trade Controls", 
+    "📊 Dashboard", 
+    "📈 Market Data",
+    "📐 Indicator Settings & View"
+])
+
 
 # === Tab 1: Trade Control Panel ===
 with tab1:
@@ -135,4 +141,64 @@ with tab3:
 
     df_market = pd.DataFrame(market_data)
     st.dataframe(df_market, use_container_width=True)
+
+# === Tab 4: Indicator Settings & MACD View ===
+with tab4:
+    st.subheader("📐 MACD Indicator Settings")
+
+    with st.form("macd_settings_form"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            macd_fast = st.number_input("Fast EMA Length", value=st.session_state.get("macd_fast", 12), min_value=1, max_value=50)
+        with col2:
+            macd_slow = st.number_input("Slow EMA Length", value=st.session_state.get("macd_slow", 26), min_value=1, max_value=100)
+        with col3:
+            macd_signal = st.number_input("Signal EMA Length", value=st.session_state.get("macd_signal", 9), min_value=1, max_value=50)
+
+        col4, col5 = st.columns(2)
+        with col4:
+            macd_source = st.selectbox("Source Column", ["Close", "Open", "High", "Low"], index=0)
+        with col5:
+            macd_ma_type = st.selectbox("MA Type", ["EMA", "SMA"], index=0)
+
+        submit_macd = st.form_submit_button("✅ Save & Recalculate MACD")
+
+    # Save selections to session_state
+    if submit_macd:
+        st.session_state["macd_fast"] = macd_fast
+        st.session_state["macd_slow"] = macd_slow
+        st.session_state["macd_signal"] = macd_signal
+        st.session_state["macd_source"] = macd_source
+        st.session_state["macd_ma_type"] = macd_ma_type
+        st.success("✅ MACD settings saved!")
+
+    # Load saved values
+    macd_fast = st.session_state.get("macd_fast", 12)
+    macd_slow = st.session_state.get("macd_slow", 26)
+    macd_signal = st.session_state.get("macd_signal", 9)
+    macd_source = st.session_state.get("macd_source", "Close")
+    macd_ma_type = st.session_state.get("macd_ma_type", "EMA")
+
+    st.divider()
+    st.subheader("📉 Latest MACD Output (on sample stock)")
+
+    # Example calculation using sample symbol
+    sample_symbol = "RELIANCE"
+    df = yf.download(sample_symbol + ".NS", period="2d", interval="5m", progress=False)
+    if not df.empty:
+        macd_df = calculate_macd(
+            df,
+            fast_length=macd_fast,
+            slow_length=macd_slow,
+            signal_length=macd_signal,
+            src_col=macd_source,
+            ma_type_macd=macd_ma_type,
+            ma_type_signal=macd_ma_type
+        )
+        macd_hist = macd_df["Histogram"].iloc[-1]
+        st.write(f"**MACD:** {round(macd_df['MACD'].iloc[-1], 3)}")
+        st.write(f"**Signal:** {round(macd_df['Signal'].iloc[-1], 3)}")
+        st.write(f"**Histogram:** {round(macd_hist, 3)}")
+    else:
+        st.warning("⚠️ Unable to fetch sample data for MACD display.")
 
