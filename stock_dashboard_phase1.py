@@ -109,7 +109,7 @@ with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
     market_data = []
 
-        for symbol in APPROVED_STOCK_LIST:
+    for symbol in APPROVED_STOCK_LIST:
         full_symbol = f"{symbol}-EQ"  # ✅ Required format for ProStocks
 
         try:
@@ -144,9 +144,9 @@ with tab3:
                 "Close": None, "Volume": None
             })
 
-
     df_market = pd.DataFrame(market_data)
     st.dataframe(df_market, use_container_width=True)
+
 
 # === Tab 4: Indicator Settings & MACD View ===
 with tab4:
