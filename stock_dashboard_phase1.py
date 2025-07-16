@@ -5,17 +5,20 @@ import pandas as pd
 from dotenv import load_dotenv
 from prostocks_connector import ProStocksAPI
 
-# Load credentials
+# 🧱 Set page config
+st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
+st.title("📈 Automated Intraday Trading System")
+
+# 🔐 Load environment
 load_dotenv()
 
 # ✅ Approved stock list
-APPROVED_STOCK_LIST = [  # Your full list here...
+APPROVED_STOCK_LIST = [
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
     "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW"
-    # ... etc
 ]
 
-# 🔐 Load login defaults
+# 🔒 Load credentials
 DEFAULT_UID = os.getenv("PROSTOCKS_USER_ID", "")
 DEFAULT_PWD = os.getenv("PROSTOCKS_PASSWORD", "")
 DEFAULT_FACTOR2 = os.getenv("PROSTOCKS_FACTOR2", "")
@@ -25,7 +28,7 @@ DEFAULT_MAC = os.getenv("PROSTOCKS_MAC", "MAC123456")
 DEFAULT_BASE_URL = os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
 DEFAULT_APK_VERSION = os.getenv("PROSTOCKS_APK_VERSION", "1.0.0")
 
-# 🔒 Sidebar Login Form
+# 🔐 Sidebar Login
 with st.sidebar:
     st.header("🔐 ProStocks Login")
     with st.form("ProStocksLoginForm"):
@@ -53,11 +56,18 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-# ✅ Always show dashboard and tabs
-tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Market Data"])
+# 📊 TABS
+tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Market Data"])
 
-# 🚀 Market Data Tab
-with tab2:
+# ✅ === Step 0: Control Panel (in tab1) ===
+with tab1:
+    with st.expander("⚙️ Step 0: Control Panel", expanded=True):
+        st.session_state["master_auto"] = st.toggle("✅ Master Auto Buy + Sell", value=True)
+        st.session_state["auto_buy"] = st.toggle("▶️ Auto Buy Enabled", value=True)
+        st.session_state["auto_sell"] = st.toggle("🔽 Auto Sell Enabled", value=True)
+
+# 📈 === Tab 3: Market Data ===
+with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
     market_data = []
 
@@ -65,14 +75,12 @@ with tab2:
         try:
             full_symbol = f"{symbol}-EQ"
 
-            # If logged in: use live data
             if "ps_api" in st.session_state:
                 ps_api = st.session_state["ps_api"]
                 ltp = ps_api.get_ltp("NSE", full_symbol)
                 candles = ps_api.get_time_price_series("NSE", full_symbol, "5minute", "1")
                 latest = candles[-1] if candles else {}
             else:
-                # Mock data if not logged in
                 ltp = "🔒 Login required"
                 latest = {}
 
@@ -89,7 +97,7 @@ with tab2:
         except Exception as e:
             market_data.append({
                 "Symbol": symbol,
-                "LTP (₹)": f"⚠️ Error",
+                "LTP (₹)": "⚠️ Error",
                 "Open": None,
                 "High": None,
                 "Low": None,
