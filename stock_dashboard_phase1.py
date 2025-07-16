@@ -72,38 +72,29 @@ with tab1:
     auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True))
     auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True))
 
-    # 🕒 Time inputs for trading
-    st.markdown("#### ⏱️ Trading Timings")
+    # === Step 1: Trading Time Settings ===
+st.markdown("#### ⏱️ Trading Timings")
 
-    def time_state(key, default_str):
-        if key not in st.session_state:
-            st.session_state[key] = datetime.strptime(default_str, "%H:%M").time()
-        return st.time_input(key.replace("_", " ").title(), value=st.session_state[key], key=key)
+def time_state(key, default_str):
+    if key not in st.session_state:
+        st.session_state[key] = datetime.strptime(default_str, "%H:%M").time()
+    return st.time_input(key.replace("_", " ").title(), value=st.session_state[key], key=key)
 
-    trading_start = time_state("trading_start", "09:15")
-    trading_end = time_state("trading_end", "15:15")
-    cutoff_time = time_state("cutoff_time", "14:50")
-    auto_exit_time = time_state("auto_exit_time", "15:12")
+trading_start = time_state("trading_start", "09:15")
+trading_end = time_state("trading_end", "15:15")
+cutoff_time = time_state("cutoff_time", "14:50")
+auto_exit_time = time_state("auto_exit_time", "15:12")
 
-    # Update session state
-    st.session_state["master_auto"] = master
-    st.session_state["auto_buy"] = auto_buy
-    st.session_state["auto_sell"] = auto_sell
-    st.session_state["trading_start"] = trading_start
-    st.session_state["trading_end"] = trading_end
-    st.session_state["cutoff_time"] = cutoff_time
-    st.session_state["auto_exit_time"] = auto_exit_time
-
-    # Save settings persistently
-    save_settings({
-        "master_auto": master,
-        "auto_buy": auto_buy,
-        "auto_sell": auto_sell,
-        "trading_start": trading_start.strftime("%H:%M"),
-        "trading_end": trading_end.strftime("%H:%M"),
-        "cutoff_time": cutoff_time.strftime("%H:%M"),
-        "auto_exit_time": auto_exit_time.strftime("%H:%M")
-    })
+# Save updated settings
+save_settings({
+    "master_auto": master,
+    "auto_buy": auto_buy,
+    "auto_sell": auto_sell,
+    "trading_start": trading_start.strftime("%H:%M"),
+    "trading_end": trading_end.strftime("%H:%M"),
+    "cutoff_time": cutoff_time.strftime("%H:%M"),
+    "auto_exit_time": auto_exit_time.strftime("%H:%M")
+})
 
 
 # === Tab 3: Market Data ===
