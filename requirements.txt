@@ -10,7 +10,8 @@ cryptography
 pyotp
 pyDes
 ta
-pip install starapi-py
+starapi-py
+
 
 
 
