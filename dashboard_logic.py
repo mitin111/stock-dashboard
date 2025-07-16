@@ -35,3 +35,22 @@ def load_credentials():
         "base_url": os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP"),
         "apkversion": os.getenv("PROSTOCKS_APK_VERSION", "1.0.0"),
     }
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r") as f:
+            data = json.load(f)
+            # Convert string times to datetime.time
+            for k in ["trading_start", "trading_end", "cutoff_time", "auto_exit_time"]:
+                if k in data:
+                    data[k] = datetime.strptime(data[k], "%H:%M").time()
+            return data
+    return {
+        "master_auto": True,
+        "auto_buy": True,
+        "auto_sell": True,
+        "trading_start": time(9, 15),
+        "trading_end": time(15, 15),
+        "cutoff_time": time(14, 50),
+        "auto_exit_time": time(15, 12)
+    }
