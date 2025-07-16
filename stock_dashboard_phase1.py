@@ -110,34 +110,40 @@ with tab3:
     market_data = []
 
     for symbol in APPROVED_STOCK_LIST:
-        try:
-            full_symbol = f"{symbol}-EQ"
-            if "ps_api" in st.session_state:
-                ps_api = st.session_state["ps_api"]
-                ltp = ps_api.get_ltp("NSE", full_symbol)
-                candles = ps_api.get_time_price_series("NSE", full_symbol, "5minute", "1")
-                latest = candles[-1] if candles else {}
-            else:
-                ltp = "🔒 Login required"
-                latest = {}
+    full_symbol = f"{symbol}-EQ"  # ✅ Required format for ProStocks
+
+    try:
+        if "ps_api" in st.session_state:
+            ps_api = st.session_state["ps_api"]
+            ltp = ps_api.get_ltp(symbol=full_symbol, exchange="NSE")
+            quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
 
             market_data.append({
                 "Symbol": symbol,
                 "LTP (₹)": ltp,
-                "Open": latest.get("open"),
-                "High": latest.get("high"),
-                "Low": latest.get("low"),
-                "Close": latest.get("close"),
-                "Volume": latest.get("volume")
+                "Open": quote.get("op"),
+                "High": quote.get("hp"),
+                "Low": quote.get("lp"),
+                "Close": quote.get("c"),
+                "Volume": quote.get("v")
             })
-
-        except Exception:
+        else:
             market_data.append({
                 "Symbol": symbol,
-                "LTP (₹)": "⚠️ Error",
+                "LTP (₹)": "🔒 Login required",
                 "Open": None, "High": None, "Low": None,
                 "Close": None, "Volume": None
             })
+
+    except Exception as e:
+        st.error(f"❌ Error for {symbol}: {e}")
+        market_data.append({
+            "Symbol": symbol,
+            "LTP (₹)": "⚠️ Error",
+            "Open": None, "High": None, "Low": None,
+            "Close": None, "Volume": None
+        })
+
 
     df_market = pd.DataFrame(market_data)
     st.dataframe(df_market, use_container_width=True)
