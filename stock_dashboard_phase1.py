@@ -1,34 +1,21 @@
 
-# stock_dashboard_clean.py
-
 import streamlit as st
 import os
+import pandas as pd
 from dotenv import load_dotenv
 from prostocks_connector import ProStocksAPI
-import pandas as pd
 
 # Load credentials
 load_dotenv()
+
 # ✅ Approved stock list
-APPROVED_STOCK_LIST = [
+APPROVED_STOCK_LIST = [  # Your full list here...
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
-    "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW",
-    "HONASA", "BSOFT", "KARURVYSYA", "SYRMA", "IGIL", "GRAPHITE", "BLS", "IGL", "NATIONALUM",
-    "ENGINERSIN", "MANAPPURAM", "SWIGGY", "GODIGIT", "DBREALTY", "NAVA", "TRIVENI", "SWSOLAR", "BERGEPAINT",
-    "JINDALSAW", "ABCAPITAL", "ANANTRAJ", "GMDCLTD", "PETRONET", "VEDL", "HINDCOPPER", "NYKAA", "RBLBANK",
-    "AKUMS", "HUDCO", "STARHEALTH", "EIHOTEL", "SCI", "OIL", "CGPOWER", "NLCINDIA", "LTF", "AWL", "RVNL",
-    "SUMICHEM", "KANSAINER", "HBLENGINE", "CHENNPETRO", "LICHSGFIN", "ELGIEQUIP", "KALYANKJIL", "PRAJIND",
-    "KIMS", "INDUSTOWER", "INDIANB", "VGUARD", "JSL", "AMBUJACEM", "TARIL", "GAIL", "RHIM", "IRCON", "ASTERDM",
-    "BANKBARODA", "POONAWALLA", "M&MFIN", "KNRCON", "DELHIVERY", "RKFORGE", "POWERGRID", "JSWENERGY", "INDGN",
-    "PCBL", "IEX", "CASTROLIND", "IIFL", "SWANENERGY", "JKTYRE", "JYOTHYLAB", "CUB", "NIACL", "RAILTEL",
-    "ETERNAL", "GPIL", "HAPPSTMNDS", "GNFC", "RECLTD", "PNCINFRA", "WIPRO", "BPCL", "NTPC", "JSWINFRA", "PFC",
-    "SYNGENE", "JWL", "BANDHANBNK", "BHEL", "CGCL", "INOXWIND", "RITES", "FSL", "MINDACORP", "LATENTVIEW",
-    "AADHARHFC", "GICRE", "AFCONS", "CROMPTON", "FEDERALBNK", "BEL", "PPLPHARMA", "ONGC", "JBMA", "UPL", "NCC",
-    "CAMPUS", "GRANULES", "APOLLOTYRE", "VBL", "SARDAEN", "FINPIPE", "SONACOMS", "BIOCON", "AARTIIND",
-    "ACMESOLAR", "BALRAMCHIN", "EXIDEIND", "TATAPOWER", "SHRIRAMFIN", "DEVYANI", "CHAMBLFERT", "HINDZINC",
-    "COALINDIA", "DABUR", "SAPPHIRE", "ICICIPRULI", "HINDALCO", "TATAMOTORS", "ASHOKLEY", "CESC", "ITC"
+    "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW"
+    # ... etc
 ]
 
+# 🔐 Load login defaults
 DEFAULT_UID = os.getenv("PROSTOCKS_USER_ID", "")
 DEFAULT_PWD = os.getenv("PROSTOCKS_PASSWORD", "")
 DEFAULT_FACTOR2 = os.getenv("PROSTOCKS_FACTOR2", "")
@@ -38,7 +25,7 @@ DEFAULT_MAC = os.getenv("PROSTOCKS_MAC", "MAC123456")
 DEFAULT_BASE_URL = os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
 DEFAULT_APK_VERSION = os.getenv("PROSTOCKS_APK_VERSION", "1.0.0")
 
-# Sidebar Login UI
+# 🔒 Sidebar Login Form
 with st.sidebar:
     st.header("🔐 ProStocks Login")
     with st.form("ProStocksLoginForm"):
@@ -66,46 +53,49 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-              
-# Main content (tabs)
-if "ps_api" in st.session_state:
-    ps_api = st.session_state["ps_api"]
+# ✅ Always show dashboard and tabs
+tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Market Data"])
 
-    tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Market Data"])
+# 🚀 Market Data Tab
+with tab2:
+    st.subheader("📈 Live Market Table – Approved Stocks")
+    market_data = []
 
-    # 🚀 Tab 2: Market Data (LTP + Intraday)
-    with tab2:
-        st.subheader("📈 Live Market Table – Approved Stocks")
+    for symbol in APPROVED_STOCK_LIST:
+        try:
+            full_symbol = f"{symbol}-EQ"
 
-        market_data = []
-
-        for symbol in APPROVED_STOCK_LIST:
-            try:
-                full_symbol = f"{symbol}-EQ"
+            # If logged in: use live data
+            if "ps_api" in st.session_state:
+                ps_api = st.session_state["ps_api"]
                 ltp = ps_api.get_ltp("NSE", full_symbol)
                 candles = ps_api.get_time_price_series("NSE", full_symbol, "5minute", "1")
                 latest = candles[-1] if candles else {}
+            else:
+                # Mock data if not logged in
+                ltp = "🔒 Login required"
+                latest = {}
 
-                market_data.append({
-                    "Symbol": symbol,
-                    "LTP (₹)": ltp,
-                    "Open": latest.get("open"),
-                    "High": latest.get("high"),
-                    "Low": latest.get("low"),
-                    "Close": latest.get("close"),
-                    "Volume": latest.get("volume")
-                })
+            market_data.append({
+                "Symbol": symbol,
+                "LTP (₹)": ltp,
+                "Open": latest.get("open"),
+                "High": latest.get("high"),
+                "Low": latest.get("low"),
+                "Close": latest.get("close"),
+                "Volume": latest.get("volume")
+            })
 
-            except Exception as e:
-                market_data.append({
-                    "Symbol": symbol,
-                    "LTP (₹)": "⚠️ Error",
-                    "Open": None,
-                    "High": None,
-                    "Low": None,
-                    "Close": None,
-                    "Volume": None
-                })
+        except Exception as e:
+            market_data.append({
+                "Symbol": symbol,
+                "LTP (₹)": f"⚠️ Error",
+                "Open": None,
+                "High": None,
+                "Low": None,
+                "Close": None,
+                "Volume": None
+            })
 
-        df_market = pd.DataFrame(market_data)
-        st.dataframe(df_market, use_container_width=True)
+    df_market = pd.DataFrame(market_data)
+    st.dataframe(df_market, use_container_width=True)
