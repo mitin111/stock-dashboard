@@ -68,9 +68,9 @@ tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Mar
 with tab1:
     st.subheader("⚙️ Step 0: Trading Control Panel")
 
-    master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True))
-    auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True))
-    auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True))
+    master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True), key="master_toggle")
+auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True), key="auto_buy_toggle")
+auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True), key="auto_sell_toggle")
 
   # === Tab 1: Trade Control Panel ===
 with tab1:
