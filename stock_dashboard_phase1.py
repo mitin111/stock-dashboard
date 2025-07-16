@@ -109,40 +109,40 @@ with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
     market_data = []
 
-    for symbol in APPROVED_STOCK_LIST:
-    full_symbol = f"{symbol}-EQ"  # ✅ Required format for ProStocks
+        for symbol in APPROVED_STOCK_LIST:
+        full_symbol = f"{symbol}-EQ"  # ✅ Required format for ProStocks
 
-    try:
-        if "ps_api" in st.session_state:
-            ps_api = st.session_state["ps_api"]
-            ltp = ps_api.get_ltp(symbol=full_symbol, exchange="NSE")
-            quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
+        try:
+            if "ps_api" in st.session_state:
+                ps_api = st.session_state["ps_api"]
+                ltp = ps_api.get_ltp(symbol=full_symbol, exchange="NSE")
+                quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
 
+                market_data.append({
+                    "Symbol": symbol,
+                    "LTP (₹)": ltp,
+                    "Open": quote.get("op"),
+                    "High": quote.get("hp"),
+                    "Low": quote.get("lp"),
+                    "Close": quote.get("c"),
+                    "Volume": quote.get("v")
+                })
+            else:
+                market_data.append({
+                    "Symbol": symbol,
+                    "LTP (₹)": "🔒 Login required",
+                    "Open": None, "High": None, "Low": None,
+                    "Close": None, "Volume": None
+                })
+
+        except Exception as e:
+            st.error(f"❌ Error for {symbol}: {e}")
             market_data.append({
                 "Symbol": symbol,
-                "LTP (₹)": ltp,
-                "Open": quote.get("op"),
-                "High": quote.get("hp"),
-                "Low": quote.get("lp"),
-                "Close": quote.get("c"),
-                "Volume": quote.get("v")
-            })
-        else:
-            market_data.append({
-                "Symbol": symbol,
-                "LTP (₹)": "🔒 Login required",
+                "LTP (₹)": "⚠️ Error",
                 "Open": None, "High": None, "Low": None,
                 "Close": None, "Volume": None
             })
-
-    except Exception as e:
-        st.error(f"❌ Error for {symbol}: {e}")
-        market_data.append({
-            "Symbol": symbol,
-            "LTP (₹)": "⚠️ Error",
-            "Open": None, "High": None, "Low": None,
-            "Close": None, "Volume": None
-        })
 
 
     df_market = pd.DataFrame(market_data)
