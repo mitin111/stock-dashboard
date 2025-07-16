@@ -4,6 +4,26 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from prostocks_connector import ProStocksAPI
+import json
+
+# === Path to save settings
+SETTINGS_FILE = "dashboard_settings.json"
+
+# === Load settings from file
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    return {
+        "master_auto": True,
+        "auto_buy": True,
+        "auto_sell": True
+    }
+
+# === Save settings to file
+def save_settings(settings):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f)
 
 # 🧱 Set page config
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -58,18 +78,31 @@ with st.sidebar:
 
 # 📊 TABS
 tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Market Data"])
+# === Load saved settings at app start
+if "settings_loaded" not in st.session_state:
+    st.session_state.update(load_settings())
+    st.session_state["settings_loaded"] = True
 
 # === Step 0: Trade Control Panel (Tab 1) ===
 with tab1:
     st.subheader("⚙️ Step 0: Trading Control Panel")
 
-    # ✅ Auto toggle controls
-    st.session_state["master_auto"] = st.toggle("✅ Master Auto Buy + Sell", value=True)
-    st.session_state["auto_buy"] = st.toggle("▶️ Auto Buy Enabled", value=True)
-    st.session_state["auto_sell"] = st.toggle("🔽 Auto Sell Enabled", value=True)
+    master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True))
+    auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True))
+    auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True))
 
-    # Show toggle status for debugging (optional)
-    st.markdown(f"**Master:** `{st.session_state['master_auto']}` | **Buy:** `{st.session_state['auto_buy']}` | **Sell:** `{st.session_state['auto_sell']}`")
+    # Update session and save to file
+    st.session_state["master_auto"] = master
+    st.session_state["auto_buy"] = auto_buy
+    st.session_state["auto_sell"] = auto_sell
+
+    # Save to file after change
+    save_settings({
+        "master_auto": master,
+        "auto_buy": auto_buy,
+        "auto_sell": auto_sell
+    })
+
 
 # 📈 === Tab 3: Market Data ===
 with tab3:
