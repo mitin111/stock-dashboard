@@ -88,14 +88,4 @@ def calculate_heikin_ashi(df):
     ha_df['HA_Low'] = ha_df[['Low', 'HA_Open', 'HA_Close']].min(axis=1)
 
     return ha_df
-macd_df = calculate_macd(
-    data,
-    fast_length=macd_fast,
-    slow_length=macd_slow,
-    signal_length=macd_signal,
-    src_col=macd_source.lower().capitalize(),  # e.g., "Close"
-    ma_type_macd=macd_ma_type,
-    ma_type_signal=macd_ma_type  # or separate config for signal MA
-)
 
-macd_hist = macd_df["Histogram"].iloc[-1]
