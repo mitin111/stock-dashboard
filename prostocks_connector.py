@@ -70,24 +70,28 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     # 🔍 Add below login
-    def get_quotes(self, symbol, exchange="NSE"):
-        """
-        Fetches live market data (LTP, OHLC, etc.) for the given symbol.
-        """
-        try:
-            payload = {
-                "uid": self.userid,
-                "exch": exchange,
-                "tsym": symbol,
-            }
-            url = f"{self.base_url}/QuickQuote"
-            response = self.session.get(url, params=payload, headers=self.headers)
-            response.raise_for_status()
-            data = response.json()
-            return data
-        except Exception as e:
-            print(f"❌ Error in get_quotes for {symbol}: {e}")
-            return None
+    import urllib.parse  # ⬅️ At top of file if not already
+
+def get_quotes(self, symbol, exchange="NSE"):
+    """
+    Fetches live market data (LTP, OHLC, etc.) for the given symbol.
+    Format: symbol should be like "LTFOODS-EQ"
+    """
+    try:
+        tsym = urllib.parse.quote_plus(symbol.upper())  # ✅ Required format
+        payload = {
+            "uid": self.userid,
+            "exch": exchange,
+            "tsym": tsym,
+        }
+        url = f"{self.base_url}/QuickQuote"
+        response = self.session.get(url, params=payload, headers=self.headers)
+        response.raise_for_status()
+        data = response.json()
+        return data
+    except Exception as e:
+        print(f"❌ Error in get_quotes for {symbol}: {e}")
+        return None
 
     # 💰 Add below get_quotes
     def get_ltp(self, symbol, exchange="NSE"):
