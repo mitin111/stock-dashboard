@@ -183,9 +183,16 @@ with tab4:
     st.subheader("📉 Latest MACD Output (on sample stock)")
 
     # Example calculation using sample symbol
-    sample_symbol = "RELIANCE"
-    df = yf.download(sample_symbol + ".NS", period="2d", interval="5m", progress=False)
-    if not df.empty:
+    sample_symbol = "RELIANCE-EQ"
+
+if "ps_api" in st.session_state:
+    ps_api = st.session_state["ps_api"]
+    candles = ps_api.get_time_price_series("NSE", sample_symbol, "5minute", "1")  # Last 1 day
+
+    if candles:
+        df = pd.DataFrame(candles)
+        df.columns = [col.capitalize() for col in df.columns]  # Ensure columns match: Open, High, Low, Close, Volume
+
         macd_df = calculate_macd(
             df,
             fast_length=macd_fast,
@@ -200,5 +207,6 @@ with tab4:
         st.write(f"**Signal:** {round(macd_df['Signal'].iloc[-1], 3)}")
         st.write(f"**Histogram:** {round(macd_hist, 3)}")
     else:
-        st.warning("⚠️ Unable to fetch sample data for MACD display.")
-
+        st.warning("⚠️ No data available from ProStocks for MACD.")
+else:
+    st.warning("🔒 Login to ProStocks to view MACD output.")
