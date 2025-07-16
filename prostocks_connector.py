@@ -94,16 +94,7 @@ def get_quotes(self, symbol, exchange="NSE"):
         return None
 
     # 💰 Add below get_quotes
-    def get_ltp(self, symbol, exchange="NSE"):
-        """
-        Returns the Last Traded Price (LTP) of the given symbol.
-        """
-        try:
-            quote = self.get_quotes(symbol, exchange)
-            return float(quote.get("lp", 0)) if quote else None
-        except Exception as e:
-            print(f"❌ Error in get_ltp for {symbol}: {e}")
-            return None
+    
     def get_ltp(self, symbol, exchange="NSE"):
         """
         Returns the Last Traded Price (LTP) of the given symbol.
