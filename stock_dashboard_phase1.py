@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
+from datetime import datetime, time
 
 # 🧱 Page Layout
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -81,6 +82,29 @@ with tab1:
         "auto_buy": auto_buy,
         "auto_sell": auto_sell
     })
+# === Step 1: Trading Time Settings ===
+st.markdown("#### ⏱️ Trading Timings")
+
+def time_state(key, default_str):
+    if key not in st.session_state:
+        st.session_state[key] = datetime.strptime(default_str, "%H:%M").time()
+    return st.time_input(key.replace("_", " ").title(), value=st.session_state[key], key=key)
+
+trading_start = time_state("trading_start", "09:15")
+trading_end = time_state("trading_end", "15:15")
+cutoff_time = time_state("cutoff_time", "14:50")
+auto_exit_time = time_state("auto_exit_time", "15:12")
+
+# Save updated settings
+save_settings({
+    "master_auto": master,
+    "auto_buy": auto_buy,
+    "auto_sell": auto_sell,
+    "trading_start": trading_start.strftime("%H:%M"),
+    "trading_end": trading_end.strftime("%H:%M"),
+    "cutoff_time": cutoff_time.strftime("%H:%M"),
+    "auto_exit_time": auto_exit_time.strftime("%H:%M")
+})
 
 # === Tab 3: Market Data ===
 with tab3:
