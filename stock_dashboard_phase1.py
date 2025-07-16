@@ -103,13 +103,12 @@ with tab1:
     })
 
 
-
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
     market_data = []
 
-        for symbol in APPROVED_STOCK_LIST:
+    for symbol in APPROVED_STOCK_LIST:  # ✅ FIXED INDENTATION
         try:
             ps_api = st.session_state["ps_api"]
             full_symbol = f"{symbol}-EQ"  # ✅ Required format
@@ -136,7 +135,6 @@ with tab3:
                 "Open": None, "High": None, "Low": None,
                 "Close": None, "Volume": None
             })
-
 
     df_market = pd.DataFrame(market_data)
     st.dataframe(df_market, use_container_width=True)
