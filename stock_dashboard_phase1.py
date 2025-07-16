@@ -52,6 +52,14 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
+# 🔓 Logout button if already logged in
+if "ps_api" in st.session_state:
+    st.markdown("---")
+    if st.button("🔓 Logout"):
+        del st.session_state["ps_api"]
+        st.success("✅ Logged out successfully")
+        st.rerun()
+
 # === Tabs Layout
 tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Market Data"])
 
