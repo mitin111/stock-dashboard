@@ -65,16 +65,14 @@ if "ps_api" in st.session_state:
 tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Market Data"])
 
 # === Tab 1: Trade Control Panel ===
-# === Tab 1: Trade Control Panel ===
 with tab1:
     st.subheader("⚙️ Step 0: Trading Control Panel")
 
-    # ✅ Trading toggles with unique keys
+    # ✅ Unique keys for toggles
     master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True), key="master_toggle")
     auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True), key="auto_buy_toggle")
     auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True), key="auto_sell_toggle")
 
-    # 🕒 Time inputs for trading (ONLY inside tab1)
     st.markdown("#### ⏱️ Trading Timings")
 
     def time_state(key, default_str):
@@ -87,16 +85,7 @@ with tab1:
     cutoff_time = time_state("cutoff_time", "14:50")
     auto_exit_time = time_state("auto_exit_time", "15:12")
 
-    # Update session state
-    st.session_state["master_auto"] = master
-    st.session_state["auto_buy"] = auto_buy
-    st.session_state["auto_sell"] = auto_sell
-    st.session_state["trading_start"] = trading_start
-    st.session_state["trading_end"] = trading_end
-    st.session_state["cutoff_time"] = cutoff_time
-    st.session_state["auto_exit_time"] = auto_exit_time
-
-    # Save to file
+    # Save to file (Streamlit already has correct session state due to widget keys)
     save_settings({
         "master_auto": master,
         "auto_buy": auto_buy,
@@ -106,6 +95,7 @@ with tab1:
         "cutoff_time": cutoff_time.strftime("%H:%M"),
         "auto_exit_time": auto_exit_time.strftime("%H:%M")
     })
+
 
 
 # === Tab 3: Market Data ===
