@@ -72,14 +72,6 @@ with tab1:
 auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True), key="auto_buy_toggle")
 auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True), key="auto_sell_toggle")
 
-  # === Tab 1: Trade Control Panel ===
-with tab1:
-    st.subheader("⚙️ Step 0: Trading Control Panel")
-
-    master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True))
-    auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True))
-    auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True))
-
     # 🕒 Time inputs for trading (ONLY inside tab1)
     st.markdown("#### ⏱️ Trading Timings")
 
