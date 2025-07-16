@@ -186,7 +186,7 @@ with tab4:
 
 if "ps_api" in st.session_state:
     ps_api = st.session_state["ps_api"]
-    candles = ps_api.get_time_price_series("NSE", sample_symbol, "5minute", "1")  # Last 1 day
+    candles = ps_api.get_candles(symbol=sample_symbol, interval="5", exchange="NSE", days=1)
 
     if candles:
         df = pd.DataFrame(candles)
