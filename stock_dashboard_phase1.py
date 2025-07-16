@@ -59,12 +59,17 @@ with st.sidebar:
 # 📊 TABS
 tab1, tab2, tab3 = st.tabs(["⚙️ Trade Controls", "📊 Dashboard", "📈 Market Data"])
 
-# ✅ === Step 0: Control Panel (in tab1) ===
+# === Step 0: Trade Control Panel (Tab 1) ===
 with tab1:
-    with st.expander("⚙️ Step 0: Control Panel", expanded=True):
-        st.session_state["master_auto"] = st.toggle("✅ Master Auto Buy + Sell", value=True)
-        st.session_state["auto_buy"] = st.toggle("▶️ Auto Buy Enabled", value=True)
-        st.session_state["auto_sell"] = st.toggle("🔽 Auto Sell Enabled", value=True)
+    st.subheader("⚙️ Step 0: Trading Control Panel")
+
+    # ✅ Auto toggle controls
+    st.session_state["master_auto"] = st.toggle("✅ Master Auto Buy + Sell", value=True)
+    st.session_state["auto_buy"] = st.toggle("▶️ Auto Buy Enabled", value=True)
+    st.session_state["auto_sell"] = st.toggle("🔽 Auto Sell Enabled", value=True)
+
+    # Show toggle status for debugging (optional)
+    st.markdown(f"**Master:** `{st.session_state['master_auto']}` | **Buy:** `{st.session_state['auto_buy']}` | **Sell:** `{st.session_state['auto_sell']}`")
 
 # 📈 === Tab 3: Market Data ===
 with tab3:
