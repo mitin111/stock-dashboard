@@ -1,3 +1,15 @@
+# === Auto-install ProStocks SDK if not already installed ===
+import subprocess
+import sys
+
+try:
+    from NorenApi import NorenApi  # Attempt to import it
+except ImportError:
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install",
+        "git+https://github.com/Prostocks/starapi-python.git"
+    ])
+    from NorenApi import NorenApi  # Try again after install
 
 import os
 import logging
