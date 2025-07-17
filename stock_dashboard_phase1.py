@@ -103,7 +103,7 @@ with tab1:
     })
 
 
-# === Tab 3: Market Data ===
+
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
