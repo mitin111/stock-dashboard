@@ -20,10 +20,13 @@ if "settings_loaded" not in st.session_state:
 creds = load_credentials()
 
 # ✅ Approved stock list
-APPROVED_STOCK_LIST = [
-    "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL", "HEG", "RAYMOND", "GUJGASLTD",
-    "TRITURBINE", "ADANIPOWER", "ELECON", "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW"
+original_symbols = [
+    "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL",
+    "HEG", "RAYMOND", "GUJGASLTD", "TRITURBINE", "ADANIPOWER", "ELECON",
+    "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW"
 ]
+
+APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
 
 # 🔐 Sidebar Login
 with st.sidebar:
