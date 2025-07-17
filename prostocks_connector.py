@@ -123,7 +123,7 @@ class ProStocksAPI:
 
 
     
-     def place_order(self, order_params: dict):
+         def place_order(self, order_params: dict):
         """
         Places an order using ProStocks API.
         Required keys in order_params: exch, tsym, qty, prc, prctyp, prd, trantype, ret
@@ -169,6 +169,7 @@ class ProStocksAPI:
                 "status": "error",
                 "message": f"Exception: {str(e)}"
             }
+
 
 
 # ✅ Wrapper for reuse
