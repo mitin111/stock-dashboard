@@ -3,6 +3,7 @@ import hashlib
 import requests
 import json
 import os
+import urllib.parse  # ✅ moved to top
 
 class ProStocksAPI:
     def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url, apkversion="1.0.0"):
@@ -69,19 +70,9 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-    # 🔍 Add below login
-    import urllib.parse  # ⬅️ Move this to the top of the file if it's not already
-
-class ProStocksAPI:
-    # ... (your existing __init__, sha256, and login methods)
-
     def get_quotes(self, symbol, exchange="NSE"):
-        """
-        Fetches live market data (LTP, OHLC, etc.) for the given symbol.
-        Format: symbol should be like "LTFOODS-EQ"
-        """
         try:
-            tsym = urllib.parse.quote_plus(symbol.upper())  # ✅ Required format
+            tsym = urllib.parse.quote_plus(symbol.upper())
             payload = {
                 "uid": self.userid,
                 "exch": exchange,
@@ -97,9 +88,6 @@ class ProStocksAPI:
             return None
 
     def get_ltp(self, symbol, exchange="NSE"):
-        """
-        Returns the Last Traded Price (LTP) of the given symbol.
-        """
         try:
             quote = self.get_quotes(symbol, exchange)
             return float(quote.get("lp", 0)) if quote else None
@@ -108,9 +96,6 @@ class ProStocksAPI:
             return None
 
     def get_candles(self, token, interval="5", exchange="NSE", days=1, limit=None):
-        """
-        Fetches historical OHLC candle data for the given token.
-        """
         try:
             payload = {
                 "uid": self.userid,
