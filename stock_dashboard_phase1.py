@@ -116,7 +116,7 @@ with tab3:
         for symbol in APPROVED_STOCK_LIST:
             try:
                 full_symbol = f"{symbol}-EQ"
-                ltp = get_ltp(full_symbol)
+                ltp = ps_api.get_ltp(full_symbol)
                 quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
 
                 market_data.append({
