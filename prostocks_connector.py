@@ -70,31 +70,32 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     # 🔍 Add below login
-    import urllib.parse  # ⬅️ At top of file if not already
+    import urllib.parse  # ⬅️ Move this to the top of the file if it's not already
 
-def get_quotes(self, symbol, exchange="NSE"):
-    """
-    Fetches live market data (LTP, OHLC, etc.) for the given symbol.
-    Format: symbol should be like "LTFOODS-EQ"
-    """
-    try:
-        tsym = urllib.parse.quote_plus(symbol.upper())  # ✅ Required format
-        payload = {
-            "uid": self.userid,
-            "exch": exchange,
-            "tsym": tsym,
-        }
-        url = f"{self.base_url}/QuickQuote"
-        response = self.session.get(url, params=payload, headers=self.headers)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    except Exception as e:
-        print(f"❌ Error in get_quotes for {symbol}: {e}")
-        return None
+class ProStocksAPI:
+    # ... (your existing __init__, sha256, and login methods)
 
-    # 💰 Add below get_quotes
-    
+    def get_quotes(self, symbol, exchange="NSE"):
+        """
+        Fetches live market data (LTP, OHLC, etc.) for the given symbol.
+        Format: symbol should be like "LTFOODS-EQ"
+        """
+        try:
+            tsym = urllib.parse.quote_plus(symbol.upper())  # ✅ Required format
+            payload = {
+                "uid": self.userid,
+                "exch": exchange,
+                "tsym": tsym,
+            }
+            url = f"{self.base_url}/QuickQuote"
+            response = self.session.get(url, params=payload, headers=self.headers)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except Exception as e:
+            print(f"❌ Error in get_quotes for {symbol}: {e}")
+            return None
+
     def get_ltp(self, symbol, exchange="NSE"):
         """
         Returns the Last Traded Price (LTP) of the given symbol.
@@ -106,16 +107,9 @@ def get_quotes(self, symbol, exchange="NSE"):
             print(f"❌ Error in get_ltp for {symbol}: {e}")
             return None
 
-       # 📊 Add below get_ltp
-    
     def get_candles(self, token, interval="5", exchange="NSE", days=1, limit=None):
         """
         Fetches historical OHLC candle data for the given token.
-
-        token: Instrument token (not the symbol like "RELIANCE-EQ")
-        interval: "1", "3", "5", "15", "30", "60", "D"
-        days: Number of days to fetch
-        limit: Optional max number of candles to return
         """
         try:
             payload = {
