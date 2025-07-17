@@ -122,7 +122,6 @@ class ProStocksAPI:
             return []
 
 
-    
          def place_order(self, order_params: dict):
         """
         Places an order using ProStocks API.
