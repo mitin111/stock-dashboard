@@ -120,6 +120,8 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ Exception in get_candles for {token}: {e}")
             return []
+
+    
      def place_order(self, order_params: dict):
         """
         Places an order using ProStocks API.
