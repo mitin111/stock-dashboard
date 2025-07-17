@@ -116,8 +116,8 @@ with tab3:
         for symbol in APPROVED_STOCK_LIST:
             try:
                 full_symbol = f"{symbol}-EQ"
-                ltp = ps_api.get_ltp(symbol=full_symbol, exchange="NSE")
-                quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
+               ltp = get_ltp(full_symbol)
+quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")  # Keep this if you're using other quote details
 
                 market_data.append({
                     "Symbol": symbol,
@@ -186,7 +186,7 @@ with tab4:
 
 if "ps_api" in st.session_state:
     ps_api = st.session_state["ps_api"]
-    candles = ps_api.get_candles(symbol=sample_symbol, interval="5", exchange="NSE", days=1)
+    candles = get_candles(sample_symbol, interval="5", days=1)
 
     if candles:
         df = pd.DataFrame(candles)
