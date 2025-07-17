@@ -8,15 +8,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class ProStocksAPI:
-    def __init__(self):
-        self.userid = os.getenv("PROSTOCKS_USERID")
-        self.password = os.getenv("PROSTOCKS_PASSWORD")
-        self.factor2 = os.getenv("PROSTOCKS_FACTOR2")
-        self.vc = os.getenv("PROSTOCKS_VC")
-        self.api_key = os.getenv("PROSTOCKS_API_KEY")
-        self.app_key = os.getenv("PROSTOCKS_APP_KEY")
-        self.imei = os.getenv("PROSTOCKS_IMEI")
-        self.base_url = "https://api.prostocks.com/NorenWClientTP"
+    def __init__(self, userid=None, password=None, factor2=None, vc=None, api_key=None, imei=None, base_url=None, apkversion="1.0.0"):
+        self.userid = userid or os.getenv("PROSTOCKS_USERID")
+        self.password = password or os.getenv("PROSTOCKS_PASSWORD")
+        self.factor2 = factor2 or os.getenv("PROSTOCKS_FACTOR2")
+        self.vc = vc or os.getenv("PROSTOCKS_VC")
+        self.api_key = api_key or os.getenv("PROSTOCKS_API_KEY")
+        self.imei = imei or os.getenv("PROSTOCKS_IMEI")
+        self.base_url = base_url or "https://api.prostocks.com/NorenWClientTP"
+        self.apkversion = apkversion
         self.session = requests.Session()
         self.session_token = None
         self.headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -31,7 +31,7 @@ class ProStocksAPI:
 
             payload = {
                 "jData": json.dumps({
-                    "apkversion": "1.0.0",
+                    "apkversion": self.apkversion,
                     "uid": self.userid,
                     "pwd": hashed_password,
                     "factor2": self.factor2,
@@ -44,19 +44,19 @@ class ProStocksAPI:
 
             response = self.session.post(url, data=payload, headers=self.headers)
             response.raise_for_status()
-
             data = response.json()
+
             if data.get("stat") == "Ok":
                 self.session_token = data["susertoken"]
                 print("✅ Login successful.")
-                return True
+                return True, self.session_token
             else:
                 print(f"❌ Login failed: {data.get('emsg')}")
-                return False
+                return False, data.get("emsg")
 
         except Exception as e:
             print(f"❌ Exception during login: {e}")
-            return False
+            return False, str(e)
 
     def get_candles(self, exch, token, interval, from_date, to_date):
         try:
@@ -92,13 +92,11 @@ class ProStocksAPI:
         """
         try:
             endpoint = f"{self.base_url}/PlaceOrder"
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
+            headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
             jdata = order_params.copy()
             jdata["uid"] = self.userid
-            jdata["actid"] = self.userid  # often same as uid
+            jdata["actid"] = self.userid  # usually same as uid
 
             payload = {
                 "jData": json.dumps(jdata),
@@ -131,17 +129,15 @@ class ProStocksAPI:
                 "message": f"Exception: {str(e)}"
             }
 
-
-
-# ✅ Wrapper for reuse
+# ✅ Reusable login function
 def login_ps(user_id=None, password=None, factor2=None, app_key=None):
-    user_id = user_id or os.getenv("PROSTOCKS_USER_ID")
+    user_id = user_id or os.getenv("PROSTOCKS_USERID")
     password = password or os.getenv("PROSTOCKS_PASSWORD")
     factor2 = factor2 or os.getenv("PROSTOCKS_FACTOR2")
-    vc = os.getenv("PROSTOCKS_VENDOR_CODE", user_id)
-    imei = os.getenv("PROSTOCKS_MAC", "MAC123456")
+    vc = os.getenv("PROSTOCKS_VC", user_id)
+    imei = os.getenv("PROSTOCKS_IMEI", "MAC123456")
     app_key = app_key or os.getenv("PROSTOCKS_API_KEY")
-    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
+    base_url = os.getenv("PROSTOCKS_BASE_URL", "https://api.prostocks.com/NorenWClientTP")
     apkversion = os.getenv("PROSTOCKS_APKVERSION", "1.0.0")
 
     if not all([user_id, password, factor2, app_key]):
@@ -161,5 +157,3 @@ def login_ps(user_id=None, password=None, factor2=None, app_key=None):
     except Exception as e:
         print("❌ Login Exception:", e)
         return None
-
-        
