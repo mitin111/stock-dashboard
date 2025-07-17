@@ -10,7 +10,8 @@ cryptography
 pyotp
 pyDes
 ta
-git+https://github.com/Prostocks/starapi-python.git  ✅
+git+https://github.com/Prostocks/starapi-python.git
+
 
 
 
