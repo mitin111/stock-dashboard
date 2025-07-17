@@ -10,7 +10,7 @@ cryptography
 pyotp
 pyDes
 ta
-loguru
+starapi-py
 
 
 
