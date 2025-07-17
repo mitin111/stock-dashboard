@@ -3,7 +3,6 @@
 
 import streamlit as st
 import pandas as pd
-from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime, time
 # === MANUAL ORDER MODE SWITCH ===
