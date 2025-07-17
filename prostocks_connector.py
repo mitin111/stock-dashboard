@@ -148,6 +148,39 @@ def get_quotes(self, symbol, exchange="NSE"):
             print(f"❌ Exception in get_candles for {symbol}: {e}")
             return []
 
+    def get_candles(self, token, interval="5", exchange="NSE", days=1, limit=None):
+        """
+        Fetches historical OHLC candle data for the given token.
+
+        token: Instrument token (not the symbol like "RELIANCE-EQ")
+        interval: "1", "3", "5", "15", "30", "60", "D"
+        days: Number of days to fetch
+        limit: Optional max number of candles to return
+        """
+        try:
+            payload = {
+                "uid": self.userid,
+                "exch": exchange,
+                "token": token,
+                "interval": interval,
+                "days": str(days)
+            }
+            url = f"{self.base_url}/GetCandleData"
+            response = self.session.get(url, params=payload, headers=self.headers)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("stat") == "Ok":
+                candles = data.get("candles", [])
+                if limit:
+                    return candles[-limit:]
+                return candles
+            else:
+                print(f"❌ get_candles error: {data.get('emsg', 'Unknown error')}")
+                return []
+        except Exception as e:
+            print(f"❌ Exception in get_candles for {token}: {e}")
+            return []
 
 
 # ✅ Wrapper for reuse
