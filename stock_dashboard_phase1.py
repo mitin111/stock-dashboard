@@ -6,6 +6,8 @@ import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime, time
+# === MANUAL ORDER MODE SWITCH ===
+manual_order_mode = True  # ✅ Change to False for auto-trading
 
 # 🧱 Page Layout
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
