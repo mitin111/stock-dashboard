@@ -182,7 +182,7 @@ from prostocks_connector import login_ps  # make sure you’re using the right l
 
 # === Place test order button ===
 with st.expander("🔧 Test Order Placement (UAT Only)"):
-    if st.button("🚀 Place Test Order on INFY-EQ"):
+    if st.button("🚀 Place Test Order on SYMBOL-EQ"):
         try:
             api = login_ps()  # login and get session
             response = place_test_order(api)
@@ -190,4 +190,24 @@ with st.expander("🔧 Test Order Placement (UAT Only)"):
             st.json(response)
         except Exception as e:
             st.error(f"❌ Order Placement Failed: {e}")
+
+symbol = st.selectbox("Select Symbol", APPROVED_STOCK_LIST)
+qty = st.number_input("Quantity", min_value=1, value=1)
+price = st.number_input("Price (₹)", value=0.0)
+prctyp = st.radio("Price Type", ["MKT", "LMT"])
+
+if st.button("🛒 Place Order"):
+    order_params = {
+        "exch": "NSE",
+        "tsym": symbol,
+        "qty": qty,
+        "prc": price if prctyp == "LMT" else 0,
+        "prctyp": prctyp,
+        "prd": "I",
+        "trantype": "B",
+        "ret": "DAY"
+    }
+    response = st.session_state["ps_api"].place_order(order_params)
+    st.write("📦 Order Response", response)
+
 
