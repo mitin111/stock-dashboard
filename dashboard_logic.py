@@ -89,3 +89,20 @@ def calculate_heikin_ashi(df):
 
     return ha_df
 
+
+# === Place Test Order Function ===
+def place_test_order(api):
+    return api.place_order(
+        buy_or_sell='B',
+        product_type='C',
+        exchange='NSE',
+        tradingsymbol='INFY-EQ',
+        quantity=1,
+        discloseqty=0,
+        price_type='LMT',
+        price=1500.00,
+        trigger_price=None,
+        retention='DAY',
+        remarks='UAT Live Test'
+    )
+
