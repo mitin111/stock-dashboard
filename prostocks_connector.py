@@ -123,37 +123,37 @@ class ProStocksAPI:
 
 
     
-         def place_order(self, order_params: dict):
+             def place_order(self, order_params: dict):
         """
         Places an order using ProStocks API.
         Required keys in order_params: exch, tsym, qty, prc, prctyp, prd, trantype, ret
         Optional: trgprc, dscqty, bpprc, blprc, trailprc, remarks
         """
-        endpoint = f"{self.base_url}/PlaceOrder"
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-
-        # Add UID and ACTID to the payload
-        jdata = order_params.copy()
-        jdata["uid"] = self.userid
-        jdata["actid"] = self.userid  # usually actid is same as uid
-
-        payload = {
-            "jData": json.dumps(jdata),
-            "jKey": self.session_token  # This is the token returned after login
-        }
-
         try:
+            endpoint = f"{self.base_url}/PlaceOrder"
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+
+            jdata = order_params.copy()
+            jdata["uid"] = self.userid
+            jdata["actid"] = self.userid  # often same as uid
+
+            payload = {
+                "jData": json.dumps(jdata),
+                "jKey": self.session_token
+            }
+
             response = self.session.post(endpoint, data=payload, headers=headers)
+            response.raise_for_status()
             data = response.json()
 
             if data.get("stat") == "Ok":
                 print("✅ Order Placed Successfully")
                 return {
                     "status": "success",
-                    "order_id": data["norenordno"],
-                    "time": data["request_time"]
+                    "order_id": data.get("norenordno"),
+                    "time": data.get("request_time")
                 }
             else:
                 print(f"❌ Order Failed: {data.get('emsg', 'Unknown error')}")
