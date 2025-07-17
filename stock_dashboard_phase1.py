@@ -107,6 +107,43 @@ with tab1:
         "auto_exit_time": auto_exit_time.strftime("%H:%M")
     })
 
+# === Manual Order Mode UI ===
+if manual_order_mode:
+    st.warning("🧪 Manual Order Mode Enabled: No automatic orders will be placed.")
+
+    if "ps_api" in st.session_state:
+        st.markdown("### 🛠️ Manual Order Panel")
+
+        symbol = st.selectbox("Select Symbol", APPROVED_STOCK_LIST)
+        qty = st.number_input("Quantity", min_value=1, value=10)
+        price = st.number_input("Price (₹)", min_value=0.0, value=0.0)
+        prctyp = st.radio("Price Type", ["MKT", "LMT"])
+        order_type = st.radio("Transaction Type", ["BUY", "SELL"])
+
+        if st.button(f"🚀 Place {order_type} Order"):
+            order_params = {
+                "exch": "NSE",
+                "tsym": symbol,
+                "qty": qty,
+                "prc": price if prctyp == "LMT" else 0,
+                "prctyp": prctyp,
+                "prd": "I",  # Intraday
+                "trantype": "B" if order_type == "BUY" else "S",
+                "ret": "DAY"
+            }
+
+            st.write("📝 Order Payload", order_params)
+
+            try:
+                response = st.session_state["ps_api"].place_order(order_params)
+                if response.get("status") == "success":
+                    st.success(f"✅ Order Placed! Order ID: {response['order_id']}")
+                else:
+                    st.error(f"❌ Order Failed: {response.get('message', 'Unknown error')}")
+            except Exception as e:
+                st.error(f"❌ Exception while placing order: {e}")
+    else:
+        st.warning("🔒 Login required to place orders.")
 
 # === Tab 3: Market Data ===
 with tab3:
