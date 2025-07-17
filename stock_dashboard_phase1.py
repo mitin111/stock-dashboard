@@ -104,6 +104,7 @@ with tab1:
 
 
 # === Tab 3: Market Data ===
+# === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
 
@@ -116,8 +117,8 @@ with tab3:
         for symbol in APPROVED_STOCK_LIST:
             try:
                 full_symbol = f"{symbol}-EQ"
-               ltp = get_ltp(full_symbol)
-quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")  # Keep this if you're using other quote details
+                ltp = get_ltp(full_symbol)
+                quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
 
                 market_data.append({
                     "Symbol": symbol,
@@ -139,6 +140,7 @@ quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")  # Keep this if yo
 
         df_market = pd.DataFrame(market_data)
         st.dataframe(df_market, use_container_width=True)
+
 
 
 # === Tab 4: Indicator Settings & MACD View ===
