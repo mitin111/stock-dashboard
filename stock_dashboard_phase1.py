@@ -6,8 +6,6 @@ import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime, time
-# === MANUAL ORDER MODE SWITCH ===
-manual_order_mode = True  # ✅ Change to False for auto-trading
 
 # 🧱 Page Layout
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -27,7 +25,6 @@ original_symbols = [
     "HEG", "RAYMOND", "GUJGASLTD", "TRITURBINE", "ADANIPOWER", "ELECON",
     "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW"
 ]
-
 APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
 
 # 🔐 Sidebar Login
@@ -44,7 +41,6 @@ with st.sidebar:
         apkversion = st.text_input("APK Version", value=creds["apkversion"])
 
         submitted = st.form_submit_button("🔐 Login")
-
         if submitted:
             try:
                 ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url, apkversion)
@@ -58,7 +54,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-# 🔓 Logout button if already logged in
+# 🔓 Logout
 if "ps_api" in st.session_state:
     st.markdown("---")
     if st.button("🔓 Logout"):
@@ -71,15 +67,13 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "⚙️ Trade Controls", 
     "📊 Dashboard", 
     "📈 Market Data",
-    "📐 Indicator Settings & View"
+    "📐 Indicator Settings"
 ])
 
-
-# === Tab 1: Trade Control Panel ===
+# === Tab 1: Trade Controls ===
 with tab1:
     st.subheader("⚙️ Step 0: Trading Control Panel")
 
-    # ✅ Unique keys for toggles
     master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True), key="master_toggle")
     auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True), key="auto_buy_toggle")
     auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True), key="auto_sell_toggle")
@@ -96,7 +90,7 @@ with tab1:
     cutoff_time = time_state("cutoff_time", "14:50")
     auto_exit_time = time_state("auto_exit_time", "15:12")
 
-    # Save to file (Streamlit already has correct session state due to widget keys)
+    # Save to file
     save_settings({
         "master_auto": master,
         "auto_buy": auto_buy,
@@ -106,44 +100,6 @@ with tab1:
         "cutoff_time": cutoff_time.strftime("%H:%M"),
         "auto_exit_time": auto_exit_time.strftime("%H:%M")
     })
-
-# === Manual Order Mode UI ===
-if manual_order_mode:
-    st.warning("🧪 Manual Order Mode Enabled: No automatic orders will be placed.")
-
-    if "ps_api" in st.session_state:
-        st.markdown("### 🛠️ Manual Order Panel")
-
-        symbol = st.selectbox("Select Symbol", APPROVED_STOCK_LIST)
-        qty = st.number_input("Quantity", min_value=1, value=10)
-        price = st.number_input("Price (₹)", min_value=0.0, value=0.0)
-        prctyp = st.radio("Price Type", ["MKT", "LMT"])
-        order_type = st.radio("Transaction Type", ["BUY", "SELL"])
-
-        if st.button(f"🚀 Place {order_type} Order"):
-            order_params = {
-                "exch": "NSE",
-                "tsym": symbol,
-                "qty": qty,
-                "prc": price if prctyp == "LMT" else 0,
-                "prctyp": prctyp,
-                "prd": "I",  # Intraday
-                "trantype": "B" if order_type == "BUY" else "S",
-                "ret": "DAY"
-            }
-
-            st.write("📝 Order Payload", order_params)
-
-            try:
-                response = st.session_state["ps_api"].place_order(order_params)
-                if response.get("status") == "success":
-                    st.success(f"✅ Order Placed! Order ID: {response['order_id']}")
-                else:
-                    st.error(f"❌ Order Failed: {response.get('message', 'Unknown error')}")
-            except Exception as e:
-                st.error(f"❌ Exception while placing order: {e}")
-    else:
-        st.warning("🔒 Login required to place orders.")
 
 # === Tab 3: Market Data ===
 with tab3:
@@ -182,71 +138,8 @@ with tab3:
         df_market = pd.DataFrame(market_data)
         st.dataframe(df_market, use_container_width=True)
 
-
-
-# === Tab 4 continued...
-
-sample_token = "2885"  # 🔁 Use ProStocks token for RELIANCE (example)
-if "ps_api" in st.session_state:
-    ps_api = st.session_state["ps_api"]
-    candles = ps_api.get_candles(sample_token, interval="5", days=1)
-
-    if candles:
-        df = pd.DataFrame(candles, columns=["Timestamp", "Open", "High", "Low", "Close", "Volume"])
-        df["Timestamp"] = pd.to_datetime(df["Timestamp"])  # Ensure correct time format
-
-        # 🚫 Temporarily disabled MACD logic
-# macd_df = calculate_macd(
-#     df,
-#     fast_length=macd_fast,
-#     slow_length=macd_slow,
-#     signal_length=macd_signal,
-#     src_col=macd_source,
-#     ma_type_macd=macd_ma_type,
-#     ma_type_signal=macd_ma_type
-# )
-
-# macd_hist = macd_df["Histogram"].iloc[-1]
-# st.write(f"**MACD:** {round(macd_df['MACD'].iloc[-1], 3)}")
-# st.write(f"**Signal:** {round(macd_df['Signal'].iloc[-1], 3)}")
-# st.write(f"**Histogram:** {round(macd_hist, 3)}")
-
-    else:
-        st.warning("⚠️ No data available from ProStocks for MACD.")
-else:
-    st.warning("🔒 Login to ProStocks to view MACD output.")
-
-from dashboard_logic import place_test_order
-from prostocks_connector import login_ps  # make sure you’re using the right login module
-
-# === Place test order button ===
-with st.expander("🔧 Test Order Placement (UAT Only)"):
-    if st.button("🚀 Place Test Order on SYMBOL-EQ"):
-        try:
-            api = login_ps()  # login and get session
-            response = place_test_order(api)
-            st.success("✅ Order Placed Successfully!")
-            st.json(response)
-        except Exception as e:
-            st.error(f"❌ Order Placement Failed: {e}")
-
-symbol = st.selectbox("Select Symbol", APPROVED_STOCK_LIST)
-qty = st.number_input("Quantity", min_value=1, value=1)
-price = st.number_input("Price (₹)", value=0.0)
-prctyp = st.radio("Price Type", ["MKT", "LMT"])
-
-if st.button("🛒 Place Order"):
-    order_params = {
-        "exch": "NSE",
-        "tsym": symbol,
-        "qty": qty,
-        "prc": price if prctyp == "LMT" else 0,
-        "prctyp": prctyp,
-        "prd": "I",
-        "trantype": "B",
-        "ret": "DAY"
-    }
-    response = st.session_state["ps_api"].place_order(order_params)
-    st.write("📦 Order Response", response)
+# === Tab 4: Indicator Settings (placeholder) ===
+with tab4:
+    st.info("📐 Indicator settings section coming soon...")
 
 
