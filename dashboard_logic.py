@@ -1,5 +1,7 @@
 # dashboard_logic.py
 
+# dashboard_logic.py
+
 import os
 import json
 from dotenv import load_dotenv
@@ -11,11 +13,20 @@ SETTINGS_FILE = "dashboard_settings.json"
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, "r") as f:
-            return json.load(f)
+            data = json.load(f)
+            # Convert string times to datetime.time
+            for k in ["trading_start", "trading_end", "cutoff_time", "auto_exit_time"]:
+                if k in data:
+                    data[k] = datetime.strptime(data[k], "%H:%M").time()
+            return data
     return {
         "master_auto": True,
         "auto_buy": True,
-        "auto_sell": True
+        "auto_sell": True,
+        "trading_start": time(9, 15),
+        "trading_end": time(15, 15),
+        "cutoff_time": time(14, 50),
+        "auto_exit_time": time(15, 12)
     }
 
 # === Save settings to file
@@ -37,44 +48,7 @@ def load_credentials():
         "apkversion": os.getenv("PROSTOCKS_APK_VERSION", "1.0.0"),
     }
 
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, "r") as f:
-            data = json.load(f)
-            # Convert string times to datetime.time
-            for k in ["trading_start", "trading_end", "cutoff_time", "auto_exit_time"]:
-                if k in data:
-                    data[k] = datetime.strptime(data[k], "%H:%M").time()
-            return data
-    return {
-        "master_auto": True,
-        "auto_buy": True,
-        "auto_sell": True,
-        "trading_start": time(9, 15),
-        "trading_end": time(15, 15),
-        "cutoff_time": time(14, 50),
-        "auto_exit_time": time(15, 12)
-    }
-
-def calculate_macd(df, fast_length=12, slow_length=26, signal_length=9, 
-                   src_col='Close', 
-                   ma_type_macd='EMA', 
-                   ma_type_signal='EMA'):
-    df = df.copy()
-    src = df[src_col]
-
-    def ma(series, length, method):
-        return series.ewm(span=length, adjust=False).mean() if method == 'EMA' else series.rolling(window=length).mean()
-
-    fast_ma = ma(src, fast_length, ma_type_macd)
-    slow_ma = ma(src, slow_length, ma_type_macd)
-    df['MACD'] = fast_ma - slow_ma
-    df['Signal'] = ma(df['MACD'], signal_length, ma_type_signal)
-    df['Histogram'] = df['MACD'] - df['Signal']
-
-    return df[['MACD', 'Signal', 'Histogram']]
-
-
+# === Heikin Ashi Calculation
 def calculate_heikin_ashi(df):
     ha_df = df.copy()
     ha_df['HA_Close'] = (df['Open'] + df['High'] + df['Low'] + df['Close']) / 4
@@ -88,21 +62,3 @@ def calculate_heikin_ashi(df):
     ha_df['HA_Low'] = ha_df[['Low', 'HA_Open', 'HA_Close']].min(axis=1)
 
     return ha_df
-
-
-# === Place Test Order Function ===
-def place_test_order(api):
-    return api.place_order(
-        buy_or_sell='B',
-        product_type='C',
-        exchange='NSE',
-        tradingsymbol='INFY-EQ',
-        quantity=1,
-        discloseqty=0,
-        price_type='LMT',
-        price=1500.00,
-        trigger_price=None,
-        retention='DAY',
-        remarks='UAT Live Test'
-    )
-
