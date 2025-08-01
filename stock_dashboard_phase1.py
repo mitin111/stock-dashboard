@@ -27,6 +27,20 @@ original_symbols = [
 ]
 APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
 
+# === Token Mappings for Approved Stocks ===
+matched_tokens = {
+    "REDINGTON": "14255",
+    "HEG": "1336",
+    "ELECON": "13643",
+    "USHAMART": "8840",
+    "HINDPETRO": "1406",
+    "SONATSOFTW": "6596"
+}
+
+def get_token(symbol):
+    base_symbol = symbol.replace("-EQ", "")
+    return matched_tokens.get(base_symbol)
+
 # === Sidebar Login Form ===
 with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
