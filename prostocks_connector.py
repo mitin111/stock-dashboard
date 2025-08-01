@@ -1,19 +1,30 @@
 
-import hashlib
 import requests
+import hashlib
 import json
 import os
-import urllib.parse  # ✅ moved to top
+import urllib.parse
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class ProStocksAPI:
-    def __init__(self, userid, password_plain, factor2, vc, api_key, imei, base_url, apkversion="1.0.0"):
-        self.userid = userid
-        self.password_plain = password_plain
-        self.factor2 = factor2
-        self.vc = vc
-        self.api_key = api_key
-        self.imei = imei
-        self.base_url = base_url.rstrip("/")
+    def __init__(
+        self,
+        userid=None,
+        password_plain=None,
+        vc=None,
+        api_key=None,
+        imei=None,
+        base_url=None,
+        apkversion="1.0.0"
+    ):
+        self.userid = userid or os.getenv("PROSTOCKS_USER_ID")
+        self.password_plain = password_plain or os.getenv("PROSTOCKS_PASSWORD")
+        self.vc = vc or os.getenv("PROSTOCKS_VENDOR_CODE")
+        self.api_key = api_key or os.getenv("PROSTOCKS_API_KEY")
+        self.imei = imei or os.getenv("PROSTOCKS_MAC")
+        self.base_url = (base_url or os.getenv("PROSTOCKS_BASE_URL")).rstrip("/")
         self.apkversion = apkversion
         self.session_token = None
         self.session = requests.Session()
@@ -24,7 +35,10 @@ class ProStocksAPI:
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
-    def login(self):
+    def login(self, factor2_otp):
+        """
+        Login to ProStocks API using manually entered OTP (factor2).
+        """
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
@@ -36,7 +50,7 @@ class ProStocksAPI:
         payload = {
             "uid": self.userid,
             "pwd": pwd_hash,
-            "factor2": self.factor2,
+            "factor2": factor2_otp,
             "vc": self.vc,
             "appkey": appkey_hash,
             "imei": self.imei,
@@ -47,6 +61,7 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
+
             response = self.session.post(
                 url,
                 data=raw_data,
@@ -111,12 +126,11 @@ class ProStocksAPI:
 
             if data.get("stat") == "Ok":
                 candles = data.get("candles", [])
-                if limit:
-                    return candles[-limit:]
-                return candles
+                return candles[-limit:] if limit else candles
             else:
                 print(f"❌ get_candles error: {data.get('emsg', 'Unknown error')}")
                 return []
         except Exception as e:
             print(f"❌ Exception in get_candles for {token}: {e}")
             return []
+
