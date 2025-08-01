@@ -5,21 +5,21 @@ import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
-from datetime import datetime, time
+from datetime import datetime
 
-# 🧱 Page Layout
+# === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
 
-# === Load and Apply Settings (only once)
+# === Load Settings (once) ===
 if "settings_loaded" not in st.session_state:
     st.session_state.update(load_settings())
     st.session_state["settings_loaded"] = True
 
-# === Load Credentials from .env
+# === Load ProStocks credentials from .env or JSON
 creds = load_credentials()
 
-# ✅ Approved stock list
+# === Approved Stock List
 original_symbols = [
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL",
     "HEG", "RAYMOND", "GUJGASLTD", "TRITURBINE", "ADANIPOWER", "ELECON",
@@ -27,13 +27,14 @@ original_symbols = [
 ]
 APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
 
-# 🔐 Sidebar Login
+# === Sidebar Login Form ===
 with st.sidebar:
-    st.header("🔐 ProStocks Login")
-    with st.form("ProStocksLoginForm"):
+    st.header("🔐 ProStocks OTP Login")
+
+    with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
         pwd = st.text_input("Password", type="password", value=creds["pwd"])
-        factor2 = st.text_input("PAN / DOB", value=creds["factor2"])
+        factor2 = st.text_input("OTP from SMS/Email")  # Manual OTP input
         vc = st.text_input("Vendor Code", value=creds["vc"] or uid)
         api_key = st.text_input("API Key", type="password", value=creds["api_key"])
         imei = st.text_input("MAC Address", value=creds["imei"])
@@ -43,29 +44,38 @@ with st.sidebar:
         submitted = st.form_submit_button("🔐 Login")
         if submitted:
             try:
-                ps_api = ProStocksAPI(uid, pwd, factor2, vc, api_key, imei, base_url, apkversion)
-                success, msg = ps_api.login()
+                ps_api = ProStocksAPI(
+                    userid=uid,
+                    password_plain=pwd,
+                    factor2=factor2,  # passed manually
+                    vc=vc,
+                    api_key=api_key,
+                    imei=imei,
+                    base_url=base_url,
+                    apkversion=apkversion
+                )
+                success, msg = ps_api.login(factor2)
                 if success:
                     st.session_state["ps_api"] = ps_api
-                    st.success("✅ Login Successful")
+                    st.success("✅ Login successful!")
                     st.rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-# 🔓 Logout
+# === Logout Button ===
 if "ps_api" in st.session_state:
-    st.markdown("---")
-    if st.button("🔓 Logout"):
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
         st.success("✅ Logged out successfully")
         st.rerun()
 
-# === Tabs Layout
+# === Tabs ===
 tab1, tab2, tab3, tab4 = st.tabs([
-    "⚙️ Trade Controls", 
-    "📊 Dashboard", 
+    "⚙️ Trade Controls",
+    "📊 Dashboard",
     "📈 Market Data",
     "📐 Indicator Settings"
 ])
@@ -90,7 +100,6 @@ with tab1:
     cutoff_time = time_state("cutoff_time", "14:50")
     auto_exit_time = time_state("auto_exit_time", "15:12")
 
-    # Save to file
     save_settings({
         "master_auto": master,
         "auto_buy": auto_buy,
@@ -101,7 +110,12 @@ with tab1:
         "auto_exit_time": auto_exit_time.strftime("%H:%M")
     })
 
-# === Tab 3: Market Data ===
+# === Tab 2: Placeholder Dashboard ===
+with tab2:
+    st.subheader("📊 Dashboard")
+    st.info("Coming soon...")
+
+# === Tab 3: Live Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
 
@@ -113,9 +127,8 @@ with tab3:
 
         for symbol in APPROVED_STOCK_LIST:
             try:
-                full_symbol = f"{symbol}-EQ"
-                ltp = ps_api.get_ltp(full_symbol)
-                quote = ps_api.get_quotes(symbol=full_symbol, exchange="NSE")
+                ltp = ps_api.get_ltp(symbol)
+                quote = ps_api.get_quotes(symbol=symbol, exchange="NSE")
 
                 market_data.append({
                     "Symbol": symbol,
@@ -138,8 +151,7 @@ with tab3:
         df_market = pd.DataFrame(market_data)
         st.dataframe(df_market, use_container_width=True)
 
-# === Tab 4: Indicator Settings (placeholder) ===
+# === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
-
 
