@@ -48,17 +48,3 @@ def load_credentials():
         "apkversion": os.getenv("PROSTOCKS_APK_VERSION", "1.0.0"),
     }
 
-# === Heikin Ashi Calculation
-def calculate_heikin_ashi(df):
-    ha_df = df.copy()
-    ha_df['HA_Close'] = (df['Open'] + df['High'] + df['Low'] + df['Close']) / 4
-
-    ha_open = [(df['Open'].iloc[0] + df['Close'].iloc[0]) / 2]
-    for i in range(1, len(df)):
-        ha_open.append((ha_open[i - 1] + ha_df['HA_Close'].iloc[i - 1]) / 2)
-
-    ha_df['HA_Open'] = ha_open
-    ha_df['HA_High'] = ha_df[['High', 'HA_Open', 'HA_Close']].max(axis=1)
-    ha_df['HA_Low'] = ha_df[['Low', 'HA_Open', 'HA_Close']].min(axis=1)
-
-    return ha_df
