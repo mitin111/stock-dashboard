@@ -19,7 +19,7 @@ if "settings_loaded" not in st.session_state:
 # === Load ProStocks credentials from .env or JSON
 creds = load_credentials()
 
-# === Approved Stock List
+# === Approved Stock List ===
 original_symbols = [
     "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL",
     "HEG", "RAYMOND", "GUJGASLTD", "TRITURBINE", "ADANIPOWER", "ELECON",
@@ -31,10 +31,26 @@ APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
 with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
 
+    if st.button("📩 Send OTP"):
+        temp_api = ProStocksAPI(
+            userid=creds["uid"],
+            password_plain=creds["pwd"],
+            vc=creds["vc"],
+            api_key=creds["api_key"],
+            imei=creds["imei"],
+            base_url=creds["base_url"],
+            apkversion=creds["apkversion"]
+        )
+        success, msg = temp_api.login("")  # empty OTP triggers OTP sending
+        if not success:
+            st.info(f"ℹ️ OTP Trigger Response: {msg}")
+        else:
+            st.success("✅ OTP has been sent to your registered Email/SMS.")
+
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
         pwd = st.text_input("Password", type="password", value=creds["pwd"])
-        factor2 = st.text_input("OTP from SMS/Email")  # Manual OTP input
+        factor2 = st.text_input("OTP from SMS/Email")
         vc = st.text_input("Vendor Code", value=creds["vc"] or uid)
         api_key = st.text_input("API Key", type="password", value=creds["api_key"])
         imei = st.text_input("MAC Address", value=creds["imei"])
@@ -47,7 +63,6 @@ with st.sidebar:
                 ps_api = ProStocksAPI(
                     userid=uid,
                     password_plain=pwd,
-                    factor2=factor2,  # passed manually
                     vc=vc,
                     api_key=api_key,
                     imei=imei,
@@ -154,4 +169,3 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
-
