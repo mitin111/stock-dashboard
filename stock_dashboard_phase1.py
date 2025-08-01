@@ -161,26 +161,26 @@ with tab3:
                     continue
 
                 quote = ps_api.get_quotes(symbol=token, exchange="NSE")
-                ltp = quote.get("lp")  # You can also try 'ltp' depending on API
 
-                market_data.append({
-                    "Symbol": symbol,
-                    "LTP (₹)": ltp,
-                    "Open": quote.get("op"),
-                    "High": quote.get("hp"),
-                    "Low": quote.get("lp"),
-                    "Close": quote.get("c"),
-                    "Volume": quote.get("v")
-                })
-
-            except Exception as e:
-                st.error(f"❌ Error for {symbol}: {e}")
-                market_data.append({
-                    "Symbol": symbol,
-                    "LTP (₹)": "⚠️ Error",
-                    "Open": None, "High": None, "Low": None,
-                    "Close": None, "Volume": None
-                })
+if quote:
+    ltp = quote.get("lp", None)
+    market_data.append({
+        "Symbol": symbol,
+        "LTP (₹)": ltp,
+        "Open": quote.get("op"),
+        "High": quote.get("hp"),
+        "Low": quote.get("lp"),
+        "Close": quote.get("c"),
+        "Volume": quote.get("v")
+    })
+else:
+    st.error(f"❌ Empty quote data received for {symbol}")
+    market_data.append({
+        "Symbol": symbol,
+        "LTP (₹)": "⚠️ No Data",
+        "Open": None, "High": None, "Low": None,
+        "Close": None, "Volume": None
+    })
 
         df_market = pd.DataFrame(market_data)
         st.dataframe(df_market, use_container_width=True)
