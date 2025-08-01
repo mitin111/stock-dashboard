@@ -26,16 +26,6 @@ original_symbols = [
 ]
 APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
 
-# === Token Mappings for Approved Stocks ===
-matched_tokens = {
-    "REDINGTON": "14255",
-    "HEG": "1336",
-    "ELECON": "13643",
-    "USHAMART": "8840",
-    "HINDPETRO": "1406",
-    "SONATSOFTW": "6596"
-}
-
 def get_token(symbol):
     base_symbol = symbol.replace("-EQ", "")
     return matched_tokens.get(base_symbol)
@@ -146,53 +136,6 @@ with tab2:
 # === Tab 3: Live Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
-
-    if "ps_api" not in st.session_state:
-        st.warning("🔒 Please login to ProStocks to load market data.")
-    else:
-        market_data = []
-        ps_api = st.session_state["ps_api"]
-
-        for symbol in APPROVED_STOCK_LIST:
-            try:
-                token = get_token(symbol)
-                if not token:
-                    st.warning(f"⚠️ No token found for {symbol}, skipping.")
-                    continue
-
-                quote = ps_api.get_quotes(symbol=token, exchange="NSE")
-
-                if quote:
-                    ltp = quote.get("lp", None)
-                    market_data.append({
-                        "Symbol": symbol,
-                        "LTP (₹)": ltp,
-                        "Open": quote.get("op"),
-                        "High": quote.get("hp"),
-                        "Low": quote.get("lp"),
-                        "Close": quote.get("c"),
-                        "Volume": quote.get("v")
-                    })
-                else:
-                    st.error(f"❌ Empty quote data received for {symbol}")
-                    market_data.append({
-                        "Symbol": symbol,
-                        "LTP (₹)": "⚠️ No Data",
-                        "Open": None, "High": None, "Low": None,
-                        "Close": None, "Volume": None
-                    })
-
-            except Exception as e:
-                st.error(f"❌ Error for {symbol}: {e}")
-                market_data.append({
-                    "Symbol": symbol,
-                    "LTP (₹)": "⚠️ Error",
-                    "Open": None, "High": None, "Low": None,
-                    "Close": None, "Volume": None
-                })
-
-        df_market = pd.DataFrame(market_data)
-        st.dataframe(df_market, use_container_width=True)
 
 # === Tab 4: Indicator Settings ===
 with tab4:
