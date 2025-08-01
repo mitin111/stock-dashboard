@@ -1,6 +1,5 @@
 
 # main_app.py
-
 import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -156,18 +155,24 @@ with tab3:
 
         for symbol in APPROVED_STOCK_LIST:
             try:
-                ltp = ps_api.get_ltp(symbol)
-                quote = ps_api.get_quotes(symbol=symbol, exchange="NSE")
+                token = get_token(symbol)
+                if not token:
+                    st.warning(f"⚠️ No token found for {symbol}, skipping.")
+                    continue
+
+                quote = ps_api.get_quotes(symbol=token, exchange="NSE")
+                ltp = quote.get("lp")  # You can also try 'ltp' depending on API
 
                 market_data.append({
                     "Symbol": symbol,
                     "LTP (₹)": ltp,
-                    "Open": quote.get("op") if quote else None,
-                    "High": quote.get("hp") if quote else None,
-                    "Low": quote.get("lp") if quote else None,
-                    "Close": quote.get("c") if quote else None,
-                    "Volume": quote.get("v") if quote else None
+                    "Open": quote.get("op"),
+                    "High": quote.get("hp"),
+                    "Low": quote.get("lp"),
+                    "Close": quote.get("c"),
+                    "Volume": quote.get("v")
                 })
+
             except Exception as e:
                 st.error(f"❌ Error for {symbol}: {e}")
                 market_data.append({
@@ -183,3 +188,5 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
+
