@@ -35,6 +35,42 @@ class ProStocksAPI:
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
+    def send_otp(self):
+        """
+        Trigger OTP by sending login request with empty factor2.
+        ProStocks sends OTP to Email/SMS automatically.
+        """
+        url = f"{self.base_url}/QuickAuth"
+        pwd_hash = self.sha256(self.password_plain)
+        appkey_raw = f"{self.userid}|{self.api_key}"
+        appkey_hash = self.sha256(appkey_raw)
+
+        payload = {
+            "uid": self.userid,
+            "pwd": pwd_hash,
+            "factor2": "",  # Empty OTP triggers OTP
+            "vc": self.vc,
+            "appkey": appkey_hash,
+            "imei": self.imei,
+            "apkversion": self.apkversion,
+            "source": "API"
+        }
+
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}"
+
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers=self.headers,
+                timeout=10
+            )
+            print("📨 OTP Trigger Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"emsg": str(e)}
+
     def login(self, factor2_otp):
         """
         Login to ProStocks API using manually entered OTP (factor2).
@@ -43,9 +79,6 @@ class ProStocksAPI:
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
         appkey_hash = self.sha256(appkey_raw)
-
-        print("📎 App Key Raw:", appkey_raw)
-        print("🔐 Hashed App Key:", appkey_hash)
 
         payload = {
             "uid": self.userid,
@@ -68,8 +101,8 @@ class ProStocksAPI:
                 headers=self.headers,
                 timeout=10
             )
-            print("🔁 Response Code:", response.status_code)
-            print("📨 Response Body:", response.text)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
 
             if response.status_code == 200:
                 data = response.json()
@@ -133,4 +166,5 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ Exception in get_candles for {token}: {e}")
             return []
+
 
