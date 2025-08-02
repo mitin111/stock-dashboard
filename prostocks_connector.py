@@ -143,8 +143,7 @@ class ProStocksAPI:
     # === Internal Helper Method ===
     def _post_json(self, url, payload):
     """
-    Send a POST request with jData and jKey as form-encoded fields,
-    where jData is a valid JSON string.
+    Send a POST request with jData and jKey as form-encoded fields.
     """
     if not self.session_token:
         return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -167,3 +166,5 @@ class ProStocksAPI:
         return response.json()
     except requests.exceptions.RequestException as e:
         return {"stat": "Not_Ok", "emsg": str(e)}
+
+
