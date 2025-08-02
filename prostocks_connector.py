@@ -166,20 +166,26 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
       # === Helper function to send jData + jKey encoded POST request ===
-    def _post_json(self, url, payload):
+        def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
 
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
+            # Encode jData and jKey into URL-encoded string
             encoded_data = f"jData={urllib.parse.quote(jdata)}&jKey={urllib.parse.quote(self.session_token)}"
 
             response = self.session.post(
                 url,
-                data=encoded_data,
+                data=encoded_data,  # Must be string, not dict
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=10
             )
+
+            print("🛰️ Watchlist Request Sent To:", url)
+            print("📦 Payload Sent:", jdata)
+            print("📨 Server Response:", response.text)
+
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
