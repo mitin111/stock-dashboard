@@ -137,8 +137,33 @@ with tab2:
 with tab3:
     st.subheader("📈 Live Market Table – Approved Stocks")
 
+    if "ps_api" in st.session_state:
+        ps_api = st.session_state["ps_api"]
+
+        # 🔃 Fetch and select watchlist
+        wl_resp = ps_api.get_watchlists()
+        if wl_resp.get("stat") == "Ok":
+            watchlists = wl_resp["values"]
+            selected_wl = st.selectbox("📁 Choose Watchlist", options=watchlists)
+
+            if selected_wl:
+                wl_data = ps_api.get_watchlist(selected_wl)
+                if wl_data.get("stat") == "Ok":
+                    df = pd.DataFrame(wl_data["values"])
+                    if not df.empty:
+                        st.dataframe(df)
+                    else:
+                        st.info("✅ No scrips found in this watchlist.")
+                else:
+                    st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+        else:
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+    else:
+        st.info("ℹ️ Please login to view live watchlist data.")
+
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
 
 
