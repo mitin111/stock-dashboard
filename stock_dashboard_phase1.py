@@ -202,6 +202,39 @@ with tab3:
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
 
+st.markdown("### 🧹 One-Time Cleanup: Remove Non-NSE Symbols from All Watchlists")
+
+if st.button("🧹 Clean All Watchlists (Remove non-NSE only)"):
+    if "ps_api" in st.session_state:
+        ps_api = st.session_state["ps_api"]
+        mwlist_resp = ps_api._post_json(ps_api.base_url + "/MWList", {"uid": ps_api.user_id})
+        if mwlist_resp.get("stat") == "Ok":
+            watchlist_ids = mwlist_resp.get("values", [])
+            total_deleted = 0
+            for wl_id in watchlist_ids:
+                marketwatch = ps_api._post_json(ps_api.base_url + "/MarketWatch", {
+                    "uid": ps_api.user_id,
+                    "wlname": wl_id
+                })
+                if marketwatch.get("stat") == "Ok":
+                    for scrip in marketwatch.get("values", []):
+                        exch = scrip.get("exch")
+                        token = scrip.get("token")
+                        if exch != "NSE":
+                            del_resp = ps_api._post_json(ps_api.base_url + "/DeleteScripMW", {
+                                "uid": ps_api.user_id,
+                                "exch": exch,
+                                "token": token,
+                                "wlname": wl_id
+                            })
+                            if del_resp.get("stat") == "Ok":
+                                total_deleted += 1
+            st.success(f"✅ Cleanup done. Removed {total_deleted} non-NSE scrip(s).")
+        else:
+            st.error("⚠️ Could not fetch watchlist IDs.")
+    else:
+        st.warning("🔑 Please login first.")
+
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
@@ -290,6 +323,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
