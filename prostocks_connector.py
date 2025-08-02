@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class ProStocksAPI:
-       def __init__(
+    def __init__(
         self,
         userid=None,
         password_plain=None,
@@ -65,7 +65,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 OTP Trigger Response:", response.text)
+            print("\U0001f4e8 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -92,8 +92,8 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("🔁 Login Response Code:", response.status_code)
-            print("📨 Login Response Body:", response.text)
+            print("\U0001f501 Login Response Code:", response.status_code)
+            print("\U0001f4e8 Login Response Body:", response.text)
 
             if response.status_code == 200:
                 data = response.json()
@@ -164,10 +164,7 @@ class ProStocksAPI:
             )
             print("✅ POST URL:", url)
             print("📦 Sent Payload:", jdata)
-            print("📨 Response:", response.text)
+            print("\U0001f4e8 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-           
-
