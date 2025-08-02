@@ -142,29 +142,27 @@ class ProStocksAPI:
 
     # === Internal Helper Method ===
     def _post_json(self, url, payload):
-        """
-        Send a POST request with jData and jKey as form-encoded fields.
-        """
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+    """
+    Send a POST request with jData and jKey in raw text/plain body.
+    """
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
 
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            encoded_data = f"jData={urllib.parse.quote(jdata)}&jKey={urllib.parse.quote(self.session_token)}"
+    try:
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}&jKey={self.session_token}"
 
-            response = self.session.post(
-                url,
-                data=encoded_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=10
-            )
+        response = self.session.post(
+            url,
+            data=raw_data,
+            headers={"Content-Type": "text/plain"},
+            timeout=10
+        )
 
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
-            print("📨 Response:", response.text)
+        print("✅ POST URL:", url)
+        print("📦 Sent Payload:", jdata)
+        print("📨 Response:", response.text)
 
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
-
-
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"stat": "Not_Ok", "emsg": str(e)}
