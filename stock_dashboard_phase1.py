@@ -150,6 +150,7 @@ with tab3:
                 wl_data = ps_api.get_watchlist(selected_wl)
                 if wl_data.get("stat") == "Ok":
                     df = pd.DataFrame(wl_data["values"])
+                    st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                     if not df.empty:
                         st.dataframe(df)
                     else:
@@ -158,12 +159,56 @@ with tab3:
                     st.warning(wl_data.get("emsg", "Failed to load watchlist."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
+        # 🔍 Search scrips
+        st.markdown("---")
+        st.subheader("🔍 Search & Modify Watchlist")
+
+        search_query = st.text_input("Search Symbol or Keyword (e.g. GRANULES)")
+        search_results = []
+
+        if search_query:
+            sr = ps_api.search_scrip(search_query)
+            if sr.get("stat") == "Ok" and sr.get("values"):
+                search_results = sr["values"]
+                scrip_df = pd.DataFrame(search_results)
+                scrip_df["display"] = scrip_df["tsym"] + " (" + scrip_df["exch"] + "|" + scrip_df["token"] + ")"
+                selected_rows = st.multiselect(
+                    "Select Scrips to Add/Delete", scrip_df.index, format_func=lambda i: scrip_df.loc[i, "display"]
+                )
+                selected_scrips = [
+                    f"{scrip_df.loc[i, 'exch']}|{scrip_df.loc[i, 'token']}" for i in selected_rows
+                ]
+
+                # Buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("➕ Add to Watchlist"):
+                        if selected_scrips:
+                            response = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
+                            st.success(f"✅ Added: {response}")
+                            st.rerun()
+                        else:
+                            st.warning("No scrips selected.")
+
+                with col2:
+                    if st.button("➖ Delete from Watchlist"):
+                        if selected_scrips:
+                            response = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
+                            st.success(f"✅ Deleted: {response}")
+                            st.rerun()
+                        else:
+                            st.warning("No scrips selected.")
+            else:
+                st.info("No matching scrips found.")
+
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
 
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
 
 
 
