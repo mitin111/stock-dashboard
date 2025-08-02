@@ -5,6 +5,8 @@ import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime
+import calendar
+from datetime import datetime, timedelta
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -79,11 +81,12 @@ if "ps_api" in st.session_state:
         st.rerun()
 
 # === Tabs ===
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚙️ Trade Controls",
     "📊 Dashboard",
     "📈 Market Data",
-    "📐 Indicator Settings"
+    "📐 Indicator Settings",
+    "📉 Strategy Engine"
 ])
 
 # === Tab 1: Trade Controls ===
@@ -202,6 +205,94 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
+tab5 = st.tabs(["📉 Strategy Engine"])[0]
+
+with tab5:
+    st.subheader("📉 Strategy Engine")
+
+    if "ps_api" in st.session_state:
+        ps_api = st.session_state["ps_api"]
+
+        # User can set and save candle interval
+        intrv = st.selectbox("🕒 Choose Candle Interval (Minutes)", ["1", "3", "5", "10", "15", "30"], index=2)
+        if st.button("💾 Save Interval"):
+            st.session_state["selected_intrv"] = intrv
+            st.success(f"Saved interval: {intrv} min")
+
+        saved_intrv = st.session_state.get("selected_intrv", "5")
+        st.markdown(f"✅ Current Interval: **{saved_intrv} min**")
+
+        st.divider()
+
+        # Set watchlists to scan
+        watchlists = ["5", "3", "1"]
+
+        for wl in watchlists:
+            st.markdown(f"### 📋 Watchlist {wl}")
+
+            symbols = ps_api.get_watchlist(wl)
+            if not symbols or "values" not in symbols:
+                st.warning(f"⚠️ No symbols found in watchlist {wl}")
+                continue
+
+            for sym in symbols["values"]:
+                tsym = sym[4]
+                token = sym[2]
+                exch = sym[1]
+
+                st.markdown(f"**🔍 Symbol: {tsym} | Token: {token} | EXCH: {exch}**")
+
+                # Date range for TPSeries
+                now = datetime.now()
+                et = calendar.timegm(now.timetuple())
+                st_time = now - timedelta(minutes=int(saved_intrv) * 60)
+                st_epoch = calendar.timegm(st_time.timetuple())
+
+                # Fetch TPSeries
+                payload = {
+                    "uid": ps_api.user_id,
+                    "exch": exch,
+                    "token": token,
+                    "st": st_epoch,
+                    "et": et,
+                    "intrv": saved_intrv
+                }
+
+                tp_response = ps_api._post_json(ps_api.base_url + "/TPSeries", payload)
+
+                if not isinstance(tp_response, list):
+                    st.error(f"❌ TPSeries failed for {tsym}: {tp_response.get('emsg')}")
+                    continue
+
+                # Convert to DataFrame
+                df = pd.DataFrame(tp_response)
+                df = df[df["stat"] == "Ok"]
+                if df.empty:
+                    st.warning("No valid candle data found.")
+                    continue
+
+                df["time"] = pd.to_datetime(df["time"], format="%d-%m-%Y %H:%M:%S")
+                df.set_index("time", inplace=True)
+                df.sort_index(inplace=True)
+
+                for col in ["into", "inth", "intl", "intc"]:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                st.line_chart(df[["intc"]], height=150)
+
+                # You can add technical indicator calculation here
+                # Example: EMA, RSI, crossover logic
+
+                # Example mock decision
+                last_price = df["intc"].iloc[-1]
+                if last_price > df["inth"].mean():  # Dummy logic
+                    st.success(f"🟢 BUY Trigger at {last_price}")
+                elif last_price < df["intl"].mean():
+                    st.error(f"🔴 SELL Trigger at {last_price}")
+                else:
+                    st.info("📊 No action taken")
+
 
 
 
