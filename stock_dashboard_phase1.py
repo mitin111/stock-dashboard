@@ -18,18 +18,6 @@ if "settings_loaded" not in st.session_state:
 # === Load ProStocks credentials from .env or JSON
 creds = load_credentials()
 
-# === Approved Stock List ===
-original_symbols = [
-    "LTFOODS", "HSCL", "REDINGTON", "FIRSTCRY", "GSPL", "ATGL",
-    "HEG", "RAYMOND", "GUJGASLTD", "TRITURBINE", "ADANIPOWER", "ELECON",
-    "JIOFIN", "USHAMART", "INDIACEM", "HINDPETRO", "SONATSOFTW"
-]
-APPROVED_STOCK_LIST = [symbol + "-EQ" for symbol in original_symbols]
-
-def get_token(symbol):
-    base_symbol = symbol.replace("-EQ", "")
-    return matched_tokens.get(base_symbol)
-
 # === Sidebar Login Form ===
 with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
@@ -135,7 +123,7 @@ with tab2:
 
 # === Tab 3: Live Market Data ===
 with tab3:
-    st.subheader("📈 Live Market Table – Approved Stocks")
+    st.subheader("📈 Live Market Table – Watchlist Viewer")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
@@ -214,6 +202,7 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
 
 
 
