@@ -206,8 +206,6 @@ with tab3:
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
 
-tab5 = st.tabs(["📉 Strategy Engine"])[0]
-
 with tab5:
     st.subheader("📉 Strategy Engine")
 
@@ -292,6 +290,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
