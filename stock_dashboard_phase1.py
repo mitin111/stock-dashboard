@@ -207,13 +207,14 @@ st.markdown("### 🧹 One-Time Cleanup: Remove Non-NSE Symbols from All Watchlis
 if st.button("🧹 Clean All Watchlists (Remove non-NSE only)"):
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
-        mwlist_resp = ps_api._post_json(ps_api.base_url + "/MWList", {"uid": ps_api.user_id})
+        uid = ps_api.credentials["uid"]
+        mwlist_resp = ps_api._post_json(ps_api.base_url + "/MWList", {"uid": uid})
         if mwlist_resp.get("stat") == "Ok":
             watchlist_ids = mwlist_resp.get("values", [])
             total_deleted = 0
             for wl_id in watchlist_ids:
                 marketwatch = ps_api._post_json(ps_api.base_url + "/MarketWatch", {
-                    "uid": ps_api.user_id,
+                    "uid": uid,
                     "wlname": wl_id
                 })
                 if marketwatch.get("stat") == "Ok":
@@ -222,7 +223,7 @@ if st.button("🧹 Clean All Watchlists (Remove non-NSE only)"):
                         token = scrip.get("token")
                         if exch != "NSE":
                             del_resp = ps_api._post_json(ps_api.base_url + "/DeleteScripMW", {
-                                "uid": ps_api.user_id,
+                                "uid": uid,
                                 "exch": exch,
                                 "token": token,
                                 "wlname": wl_id
@@ -323,6 +324,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
