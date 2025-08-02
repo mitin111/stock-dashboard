@@ -141,7 +141,6 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     # === Internal Helper Method ===
-
     def _post_json(self, url, payload):
     """
     Send a POST request with jData and jKey as form fields,
@@ -171,6 +170,7 @@ class ProStocksAPI:
         return response.json()
     except requests.exceptions.RequestException as e:
         return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
