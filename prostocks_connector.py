@@ -36,10 +36,7 @@ class ProStocksAPI:
         return hashlib.sha256(text.encode()).hexdigest()
 
     def send_otp(self):
-        """
-        Trigger OTP by sending login request with empty factor2.
-        ProStocks sends OTP to Email/SMS automatically.
-        """
+        """Trigger OTP by sending login request with empty factor2"""
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
@@ -48,7 +45,7 @@ class ProStocksAPI:
         payload = {
             "uid": self.userid,
             "pwd": pwd_hash,
-            "factor2": "",  # Empty OTP triggers OTP
+            "factor2": "",
             "vc": self.vc,
             "appkey": appkey_hash,
             "imei": self.imei,
@@ -72,9 +69,7 @@ class ProStocksAPI:
             return {"emsg": str(e)}
 
     def login(self, factor2_otp):
-        """
-        Login to ProStocks API using manually entered OTP (factor2).
-        """
+        """Login to ProStocks API using OTP (factor2)"""
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
@@ -118,55 +113,36 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-       # === Watchlist: Get List of Watchlist Names ===
+    # === Watchlist APIs ===
+
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
-        payload = {
-            "uid": self.userid
-        }
+        payload = {"uid": self.userid}
         return self._post_json(url, payload)
 
-    # === Watchlist: Get Scrips in a Watchlist ===
     def get_watchlist(self, wlname):
         url = f"{self.base_url}/MarketWatch"
-        payload = {
-            "uid": self.userid,
-            "wlname": wlname
-        }
+        payload = {"uid": self.userid, "wlname": wlname}
         return self._post_json(url, payload)
 
-    # === Watchlist: Search Scrips by Text ===
     def search_scrip(self, search_text, exch="NSE"):
         url = f"{self.base_url}/SearchScrip"
-        payload = {
-            "uid": self.userid,
-            "stext": search_text,
-            "exch": exch
-        }
+        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
         return self._post_json(url, payload)
 
-    # === Watchlist: Add Multiple Scrips to Watchlist ===
     def add_scrips_to_watchlist(self, wlname, scrips):
         url = f"{self.base_url}/AddMultiScripsToMW"
-        payload = {
-            "uid": self.userid,
-            "wlname": wlname,
-            "scrips": scrips
-        }
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips}
         return self._post_json(url, payload)
 
-    # === Watchlist: Delete Multiple Scrips from Watchlist ===
     def delete_scrips_from_watchlist(self, wlname, scrips):
         url = f"{self.base_url}/DeleteMultiMWScrips"
-        payload = {
-            "uid": self.userid,
-            "wlname": wlname,
-            "scrips": scrips
-        }
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips}
         return self._post_json(url, payload)
 
-      # === Helper function to send jData + jKey encoded POST request ===
-            def _post_json(self, url, payload):
+    # === Internal Helper Method ===
+
+    def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
 
@@ -188,6 +164,8 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
+
 
 
 
