@@ -118,4 +118,67 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-   
+       # === Watchlist: Get List of Watchlist Names ===
+    def get_watchlists(self):
+        url = f"{self.base_url}/MWList"
+        payload = {
+            "uid": self.userid
+        }
+        return self._post_json(url, payload)
+
+    # === Watchlist: Get Scrips in a Watchlist ===
+    def get_watchlist(self, wlname):
+        url = f"{self.base_url}/MarketWatch"
+        payload = {
+            "uid": self.userid,
+            "wlname": wlname
+        }
+        return self._post_json(url, payload)
+
+    # === Watchlist: Search Scrips by Text ===
+    def search_scrip(self, search_text, exch="NSE"):
+        url = f"{self.base_url}/SearchScrip"
+        payload = {
+            "uid": self.userid,
+            "stext": search_text,
+            "exch": exch
+        }
+        return self._post_json(url, payload)
+
+    # === Watchlist: Add Multiple Scrips to Watchlist ===
+    def add_scrips_to_watchlist(self, wlname, scrips):
+        url = f"{self.base_url}/AddMultiScripsToMW"
+        payload = {
+            "uid": self.userid,
+            "wlname": wlname,
+            "scrips": scrips
+        }
+        return self._post_json(url, payload)
+
+    # === Watchlist: Delete Multiple Scrips from Watchlist ===
+    def delete_scrips_from_watchlist(self, wlname, scrips):
+        url = f"{self.base_url}/DeleteMultiMWScrips"
+        payload = {
+            "uid": self.userid,
+            "wlname": wlname,
+            "scrips": scrips
+        }
+        return self._post_json(url, payload)
+
+    # === Helper function for posting JSON with jKey ===
+    def _post_json(self, url, payload):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            data = {
+                "jData": jdata,
+                "jKey": self.session_token
+            }
+            response = self.session.post(url, data=data, headers=self.headers, timeout=10)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
+
+
