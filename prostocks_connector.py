@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class ProStocksAPI:
-    def __init__(
+       def __init__(
         self,
         userid=None,
         password_plain=None,
@@ -29,6 +29,15 @@ class ProStocksAPI:
         self.session = requests.Session()
         self.headers = {
             "Content-Type": "text/plain"
+        }
+
+        # ✅ Add this block to fix your error
+        self.credentials = {
+            "uid": self.userid,
+            "pwd": self.password_plain,
+            "vc": self.vc,
+            "api_key": self.api_key,
+            "imei": self.imei
         }
 
     def sha256(self, text):
@@ -161,3 +170,4 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
            
+
