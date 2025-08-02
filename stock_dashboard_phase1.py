@@ -143,8 +143,15 @@ with tab3:
         # 🔃 Fetch and select watchlist
         wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
-            watchlists = wl_resp["values"]
-            selected_wl = st.selectbox("📁 Choose Watchlist", options=watchlists)
+            # Sort numerically and format watchlist names
+raw_watchlists = wl_resp["values"]
+watchlists = sorted(raw_watchlists, key=lambda x: int(x))
+
+# Display as: 1, 2, 3, ...
+wl_labels = [f"Watchlist {wl}" for wl in watchlists]
+wl_map = dict(zip(wl_labels, watchlists))
+selected_label = st.selectbox("📁 Choose Watchlist", options=wl_labels)
+selected_wl = wl_map[selected_label]
 
             if selected_wl:
                 wl_data = ps_api.get_watchlist(selected_wl)
@@ -208,6 +215,7 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
 
 
 
