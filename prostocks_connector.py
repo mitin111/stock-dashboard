@@ -55,13 +55,7 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
-
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers=self.headers,
-                timeout=10
-            )
+            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
             print("📨 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -88,13 +82,7 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
-
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers=self.headers,
-                timeout=10
-            )
+            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
             print("🔁 Login Response Code:", response.status_code)
             print("📨 Login Response Body:", response.text)
 
@@ -129,14 +117,22 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "stext": search_text, "exch": exch}
         return self._post_json(url, payload)
 
-    def add_scrips_to_watchlist(self, wlname, scrips):
+    def add_scrips_to_watchlist(self, wlname, scrips_list):
+        """
+        scrips_list: list of strings like ["NSE|11872", "NSE|18124"]
+        """
         url = f"{self.base_url}/AddMultiScripsToMW"
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips}
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    def delete_scrips_from_watchlist(self, wlname, scrips):
+    def delete_scrips_from_watchlist(self, wlname, scrips_list):
+        """
+        scrips_list: list of strings like ["NSE|11872", "NSE|18124"]
+        """
         url = f"{self.base_url}/DeleteMultiMWScrips"
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips}
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
     # === Internal Helper Method ===
@@ -151,18 +147,17 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-
             response = self.session.post(
                 url,
                 data=raw_data,
                 headers={"Content-Type": "text/plain"},
                 timeout=10
             )
-
             print("✅ POST URL:", url)
             print("📦 Sent Payload:", jdata)
             print("📨 Response:", response.text)
-
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
+           
