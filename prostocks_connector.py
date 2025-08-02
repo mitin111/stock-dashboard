@@ -3,7 +3,6 @@ import requests
 import hashlib
 import json
 import os
-import urllib.parse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -141,7 +140,8 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     # === Internal Helper Method ===
-        def _post_json(self, url, payload):
+
+    def _post_json(self, url, payload):
         """
         Send a POST request with jData and jKey in raw text/plain body.
         """
