@@ -249,7 +249,7 @@ with tab5:
 
                 # Fetch TPSeries
                 payload = {
-                    "uid": ps_api.user_id,
+                    "uid": creds["uid"],
                     "exch": exch,
                     "token": token,
                     "st": st_epoch,
@@ -290,6 +290,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
