@@ -141,7 +141,7 @@ with tab3:
         ps_api = st.session_state["ps_api"]
 
                 # 🔃 Fetch and select watchlist
-        wl_resp = ps_api.get_watchlist_names()
+        wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=lambda x: int(x))
@@ -214,6 +214,7 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
+
 
 
 
