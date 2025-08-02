@@ -235,9 +235,9 @@ with tab5:
                 continue
 
             for sym in symbols["values"]:
-                tsym = sym[4]
-                token = sym[2]
-                exch = sym[1]
+                tsym = sym["tsym"]
+                token = sym["token"]
+                exch = sym["exch"]
 
                 st.markdown(f"**🔍 Symbol: {tsym} | Token: {token} | EXCH: {exch}**")
 
@@ -290,6 +290,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
