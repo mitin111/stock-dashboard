@@ -200,27 +200,27 @@ with tab5:
                 st_time = now - timedelta(minutes=int(saved_intrv) * 3)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
-               jdata = {
+                jdata = {
                     "uid": ps_api.userid,
                     "exch": exch,
                     "token": token,
                     "st": st_epoch,
                     "et": et,
                     "intrv": saved_intrv
-            }
-             jdata_str = json.dumps(jdata)
-             payload = {
-                "jData": jdata_str,
-                "jKey": ps_api.session_token
-           }
-            encoded_payload = urllib.parse.urlencode(payload)
+                }
+                jdata_str = json.dumps(jdata)
+                payload = {
+                    "jData": jdata_str,
+                    "jKey": ps_api.session_token
+                }
+                encoded_payload = urllib.parse.urlencode(payload)
 
-            response = requests.post(
-                url=ps_api.base_url + "/TPSeries",
-                data=encoded_payload,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-           )
-            
+                response = requests.post(
+                    url=ps_api.base_url + "/TPSeries",
+                    data=encoded_payload,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                )
+
                 result = response.json()
                 call_count += 1
                 time.sleep(delay_per_call)
@@ -252,16 +252,3 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
-
-
-
-
-
-
-
-
-
-
-
-
-
