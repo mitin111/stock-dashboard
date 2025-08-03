@@ -1,5 +1,6 @@
 
 # main_app.py
+# main_app.py
 import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -209,15 +210,15 @@ with tab5:
                     "intrv": saved_intrv
                 }
 
-               payload = {
-                  "jData": json.dumps(jdata),
-                  "jKey": ps_api.session_token
-             }
+                payload = {
+                    "jData": json.dumps(jdata),
+                    "jKey": ps_api.session_token
+                }
 
-               response = requests.post(
-                  url=ps_api.base_url + "/TPSeries",
-                  data=payload  # Pass as dict (not json=)
-            )
+                response = requests.post(
+                    url=ps_api.base_url + "/TPSeries",
+                    data=payload
+                )
 
                 try:
                     result = response.json()
