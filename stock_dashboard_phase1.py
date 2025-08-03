@@ -36,7 +36,7 @@ with st.sidebar:
             base_url=creds["base_url"],
             apkversion=creds["apkversion"]
         )
-        success, msg = temp_api.login("")  # empty OTP triggers OTP sending
+        success, msg = temp_api.login("")
         if not success:
             st.info(f"ℹ️ OTP Trigger Response: {msg}")
         else:
@@ -87,7 +87,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚙️ Trade Controls",
     "📊 Dashboard",
     "📈 Market Data",
-    "📐 Indicator Settings",
+    "📀 Indicator Settings",
     "📉 Strategy Engine"
 ])
 
@@ -121,12 +121,12 @@ with tab1:
         "auto_exit_time": auto_exit_time.strftime("%H:%M")
     })
 
-# === Tab 2: Placeholder Dashboard ===
+# === Tab 2: Dashboard ===
 with tab2:
     st.subheader("📊 Dashboard")
     st.info("Coming soon...")
 
-# === Tab 3: Live Market Data ===
+# === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
 
@@ -202,7 +202,7 @@ with tab3:
 
 # === Tab 4: Indicator Settings ===
 with tab4:
-    st.info("📐 Indicator settings section coming soon...")
+    st.info("📀 Indicator settings section coming soon...")
 
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -212,7 +212,7 @@ with tab5:
         ps_api = st.session_state["ps_api"]
 
         intrv = st.selectbox("🕒 Choose Candle Interval (Minutes)", ["1", "3", "5", "10", "15", "30"], index=2)
-        if st.button("💾 Save Interval"):
+        if st.button("📏 Save Interval"):
             st.session_state["selected_intrv"] = intrv
             st.success(f"Saved interval: {intrv} min")
 
@@ -260,14 +260,15 @@ with tab5:
                 }
 
                 payload = {
-                  "jData": jdata,  # ⬅️ Pass as dictionary
-                  "jKey": ps_api.session_token
-               }
-               response = requests.post(
-                  url=ps_api.base_url + "/TPSeries",
-                  json=payload,  # ⬅️ Use `json=` not `data=`
-                  headers={"Content-Type": "application/json"}
-               )
+                    "jData": jdata,
+                    "jKey": ps_api.session_token
+                }
+
+                response = requests.post(
+                    url=ps_api.base_url + "/TPSeries",
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
 
                 result = response.json()
                 call_count += 1
@@ -300,6 +301,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
