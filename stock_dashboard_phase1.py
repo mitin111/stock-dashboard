@@ -167,7 +167,7 @@ with tab5:
         ps_api = st.session_state["ps_api"]
 
         intrv = st.selectbox("🕒 Choose Candle Interval", ["1", "3", "5", "10", "15", "30"], index=2)
-        if st.button("📏 Save Interval"):
+        if st.button("🕏 Save Interval"):
             st.session_state["selected_intrv"] = intrv
             st.success(f"Saved interval: {intrv} min")
 
@@ -220,7 +220,12 @@ with tab5:
                     headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
 
-                result = response.json()
+                try:
+                    result = response.json()
+                except Exception:
+                    st.error(f"❌ TPSeries failed for {tsym}: Invalid JSON response")
+                    continue
+
                 call_count += 1
                 time.sleep(delay_per_call)
 
@@ -250,5 +255,6 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
