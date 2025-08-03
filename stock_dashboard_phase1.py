@@ -251,7 +251,7 @@ with tab5:
                 st_epoch = calendar.timegm(st_time.timetuple())
 
                 jdata = {
-                   "uid": uid,
+                   "uid": ps_api.userid,
                    "exch": exch,
                    "token": token,
                    "st": st_epoch,
@@ -295,6 +295,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
