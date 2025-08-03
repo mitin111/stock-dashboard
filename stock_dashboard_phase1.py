@@ -260,15 +260,14 @@ with tab5:
                 }
 
                 payload = {
-                    "jData": json.dumps(jdata),
-                    "jKey": ps_api.session_token
-                }
-
-                response = requests.post(
-                    url=ps_api.base_url + "/TPSeries",
-                    data=json.dumps(payload),
-                    headers={"Content-Type": "application/json"}
-                )
+                  "jData": jdata,  # ⬅️ Pass as dictionary
+                  "jKey": ps_api.session_token
+               }
+               response = requests.post(
+                  url=ps_api.base_url + "/TPSeries",
+                  json=payload,  # ⬅️ Use `json=` not `data=`
+                  headers={"Content-Type": "application/json"}
+               )
 
                 result = response.json()
                 call_count += 1
@@ -301,5 +300,6 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
