@@ -9,6 +9,7 @@ import calendar
 import time
 import json
 import requests
+import urllib.parse 
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -259,17 +260,19 @@ with tab5:
                     "intrv": saved_intrv,
                 }
 
-                payload = {
-                    "jData": json.dumps(jdata),
-                    "jKey": ps_api.session_token
-                }
+               jdata_str = json.dumps(jdata)
+payload = {
+    "jData": jdata_str,
+    "jKey": ps_api.session_token
+}
 
-                response = requests.post(
-                    url=ps_api.base_url + "/TPSeries",
-                    data=payload,
-                    headers={"Content-Type": "application/x-www-form-urlencoded"}
-                )
+encoded_payload = urllib.parse.urlencode(payload)
 
+response = requests.post(
+    url=ps_api.base_url + "/TPSeries",
+    data=encoded_payload,
+    headers={"Content-Type": "application/x-www-form-urlencoded"}
+)
                 result = response.json()
                 call_count += 1
                 time.sleep(delay_per_call)
@@ -301,6 +304,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
