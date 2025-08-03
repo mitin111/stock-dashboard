@@ -261,18 +261,18 @@ with tab5:
                 }
 
                jdata_str = json.dumps(jdata)
-payload = {
-    "jData": jdata_str,
-    "jKey": ps_api.session_token
-}
+               payload = {
+                  "jData": jdata_str,
+                  "jKey": ps_api.session_token
+            )
 
-encoded_payload = urllib.parse.urlencode(payload)
+               encoded_payload = urllib.parse.urlencode(payload)
 
-response = requests.post(
-    url=ps_api.base_url + "/TPSeries",
-    data=encoded_payload,
-    headers={"Content-Type": "application/x-www-form-urlencoded"}
-)
+               response = requests.post(
+               url=ps_api.base_url + "/TPSeries",
+               data=encoded_payload,
+               headers={"Content-Type": "application/x-www-form-urlencoded"}
+           )
                 result = response.json()
                 call_count += 1
                 time.sleep(delay_per_call)
@@ -304,6 +304,7 @@ response = requests.post(
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
