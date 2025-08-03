@@ -8,6 +8,7 @@ from datetime import datetime
 import calendar
 from datetime import datetime, timedelta
 import time
+import json
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -292,6 +293,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
