@@ -257,9 +257,9 @@ with tab5:
                        "st": start_time,
                        "et": end_time,
                        "intrv": interval,
-    }),
-    "jKey": ps_api.session_token
-}
+                  }),
+                  "jKey": ps_api.session_token
+              }
 
                 tp_response = ps_api._post_json(ps_api.base_url + "/TPSeries", payload)
                 call_count += 1
@@ -292,6 +292,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
