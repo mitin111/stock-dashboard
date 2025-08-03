@@ -260,14 +260,14 @@ with tab5:
                 }
 
                 payload = {
-                    "jData": jdata,
+                    "jData": json.dumps(jdata),
                     "jKey": ps_api.session_token
                 }
 
                 response = requests.post(
                     url=ps_api.base_url + "/TPSeries",
-                    json=payload,
-                    headers={"Content-Type": "application/json"}
+                    data=payload,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
 
                 result = response.json()
@@ -301,6 +301,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
