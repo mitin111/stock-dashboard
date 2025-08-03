@@ -263,9 +263,9 @@ with tab5:
                 time.sleep(delay_per_call)
 
                 if not isinstance(tp_response, list):
-                st.error(f"❌ TPSeries failed for {tsym} ({exch}|{token}): {tp_response.get('emsg', 'Unknown error')}")
-                st.json(payload)
-                continue
+                   st.error(f"❌ TPSeries failed for {tsym} ({exch}|{token}): {tp_response.get('emsg', 'Unknown error')}")
+                   st.json(payload)
+                   continue
                 
                 df = pd.DataFrame(tp_response)
                 df = df[df["stat"] == "Ok"]
@@ -289,6 +289,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
