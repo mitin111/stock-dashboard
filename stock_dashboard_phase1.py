@@ -4,12 +4,11 @@ import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
-from datetime import datetime
-import calendar
 from datetime import datetime, timedelta
+import calendar
 import time
 import json
-import requests 
+import requests
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -248,42 +247,39 @@ with tab5:
 
                 now = datetime.now()
                 et = calendar.timegm(now.timetuple())
-                st_time = now - timedelta(minutes=int(saved_intrv) * 3)  # Fetching 3 intervals
+                st_time = now - timedelta(minutes=int(saved_intrv) * 3)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
                 jdata = {
-                   "uid": ps_api.userid,
-                   "exch": exch,
-                   "token": token,
-                   "st": st_epoch,
-                   "et": et,
-                   "intrv": saved_intrv,
-               }
+                    "uid": ps_api.userid,
+                    "exch": exch,
+                    "token": token,
+                    "st": st_epoch,
+                    "et": et,
+                    "intrv": saved_intrv,
+                }
 
                 payload = {
-                     "jData": json.dumps(jdata),
-                     "jKey": ps_api.session_token
-              }
+                    "jData": jdata,
+                    "jKey": ps_api.session_token
+                }
 
-                # Final request
                 response = requests.post(
-                url=ps_api.base_url + "/TPSeries",
-                json=payload,  # ✅ Not data=..., use json=
-                headers={"Content-Type": "application/json"}
-             )
+                    url=ps_api.base_url + "/TPSeries",
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
 
-              result = response.json()
-
-                tp_response = ps_api._post_json(ps_api.base_url + "/TPSeries", payload)
+                result = response.json()
                 call_count += 1
                 time.sleep(delay_per_call)
 
-                if not isinstance(tp_response, list):
-                   st.error(f"❌ TPSeries failed for {tsym} ({exch}|{token}): {tp_response.get('emsg', 'Unknown error')}")
-                   st.json(payload)
-                   continue
-                
-                df = pd.DataFrame(tp_response)
+                if not isinstance(result, list):
+                    st.error(f"❌ TPSeries failed for {tsym} ({exch}|{token}): {result.get('emsg', 'Unknown error')}")
+                    st.json(payload)
+                    continue
+
+                df = pd.DataFrame(result)
                 df = df[df["stat"] == "Ok"]
                 if df.empty:
                     st.warning("No valid candle data found.")
@@ -305,16 +301,3 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
-
-
-
-
-
-
-
-
-
-
-
-
-
