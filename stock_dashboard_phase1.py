@@ -7,6 +7,7 @@ from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime
 import calendar
 from datetime import datetime, timedelta
+import time
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -131,13 +132,11 @@ with tab3:
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
 
-                # 🔃 Fetch and select watchlist
         wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=lambda x: int(x))
 
-            # Display as: 1, 2, 3, ...
             wl_labels = [f"Watchlist {wl}" for wl in watchlists]
             wl_map = dict(zip(wl_labels, watchlists))
             selected_label = st.selectbox("📁 Choose Watchlist", options=wl_labels)
@@ -157,7 +156,6 @@ with tab3:
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
 
-        # 🔍 Search scrips
         st.markdown("---")
         st.subheader("🔍 Search & Modify Watchlist")
 
@@ -177,7 +175,6 @@ with tab3:
                     f"{scrip_df.loc[i, 'exch']}|{scrip_df.loc[i, 'token']}" for i in selected_rows
                 ]
 
-                # Buttons
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("➕ Add to Watchlist"):
@@ -206,13 +203,13 @@ with tab3:
 with tab4:
     st.info("📐 Indicator settings section coming soon...")
 
+# === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 Strategy Engine")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
 
-        # User can set and save candle interval
         intrv = st.selectbox("🕒 Choose Candle Interval (Minutes)", ["1", "3", "5", "10", "15", "30"], index=2)
         if st.button("💾 Save Interval"):
             st.session_state["selected_intrv"] = intrv
@@ -223,8 +220,10 @@ with tab5:
 
         st.divider()
 
-        # Set watchlists to scan
         watchlists = ["5", "3", "1"]
+        MAX_CALLS_PER_MIN = 100
+        delay_per_call = 60 / MAX_CALLS_PER_MIN
+        call_count = 0
 
         for wl in watchlists:
             st.markdown(f"### 📋 Watchlist {wl}")
@@ -235,19 +234,21 @@ with tab5:
                 continue
 
             for sym in symbols["values"]:
+                if call_count >= MAX_CALLS_PER_MIN:
+                    st.warning("⚠️ API TPSeries limit (100/min) reached. Skipping remaining.")
+                    break
+
                 tsym = sym["tsym"]
                 token = sym["token"]
                 exch = sym["exch"]
 
                 st.markdown(f"**🔍 Symbol: {tsym} | Token: {token} | EXCH: {exch}**")
 
-                # Date range for TPSeries
                 now = datetime.now()
                 et = calendar.timegm(now.timetuple())
                 st_time = now - timedelta(minutes=int(saved_intrv) * 60)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
-                # Fetch TPSeries
                 payload = {
                     "uid": creds["uid"],
                     "exch": exch,
@@ -258,12 +259,13 @@ with tab5:
                 }
 
                 tp_response = ps_api._post_json(ps_api.base_url + "/TPSeries", payload)
+                call_count += 1
+                time.sleep(delay_per_call)
 
                 if not isinstance(tp_response, list):
                     st.error(f"❌ TPSeries failed for {tsym}: {tp_response.get('emsg')}")
                     continue
 
-                # Convert to DataFrame
                 df = pd.DataFrame(tp_response)
                 df = df[df["stat"] == "Ok"]
                 if df.empty:
@@ -279,30 +281,10 @@ with tab5:
 
                 st.line_chart(df[["intc"]], height=150)
 
-                # You can add technical indicator calculation here
-                # Example: EMA, RSI, crossover logic
-
-                # Example mock decision
                 last_price = df["intc"].iloc[-1]
-                if last_price > df["inth"].mean():  # Dummy logic
+                if last_price > df["inth"].mean():
                     st.success(f"🟢 BUY Trigger at {last_price}")
                 elif last_price < df["intl"].mean():
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
