@@ -9,7 +9,7 @@ import calendar
 import time
 import json
 import requests
-import urllib.parse 
+import urllib.parse
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -20,28 +20,16 @@ if "settings_loaded" not in st.session_state:
     st.session_state.update(load_settings())
     st.session_state["settings_loaded"] = True
 
-# === Load ProStocks credentials from .env or JSON
+# === Load Credentials ===
 creds = load_credentials()
 
-# === Sidebar Login Form ===
+# === Sidebar Login ===
 with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
-
     if st.button("📩 Send OTP"):
-        temp_api = ProStocksAPI(
-            userid=creds["uid"],
-            password_plain=creds["pwd"],
-            vc=creds["vc"],
-            api_key=creds["api_key"],
-            imei=creds["imei"],
-            base_url=creds["base_url"],
-            apkversion=creds["apkversion"]
-        )
+        temp_api = ProStocksAPI(**creds)
         success, msg = temp_api.login("")
-        if not success:
-            st.info(f"ℹ️ OTP Trigger Response: {msg}")
-        else:
-            st.success("✅ OTP has been sent to your registered Email/SMS.")
+        st.success("✅ OTP Sent") if success else st.info(f"ℹ️ {msg}")
 
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
@@ -57,13 +45,9 @@ with st.sidebar:
         if submitted:
             try:
                 ps_api = ProStocksAPI(
-                    userid=uid,
-                    password_plain=pwd,
-                    vc=vc,
-                    api_key=api_key,
-                    imei=imei,
-                    base_url=base_url,
-                    apkversion=apkversion
+                    userid=uid, password_plain=pwd, vc=vc,
+                    api_key=api_key, imei=imei,
+                    base_url=base_url, apkversion=apkversion
                 )
                 success, msg = ps_api.login(factor2)
                 if success:
@@ -75,9 +59,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-# === Logout Button ===
 if "ps_api" in st.session_state:
-    st.sidebar.markdown("---")
     if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
         st.success("✅ Logged out successfully")
@@ -95,12 +77,9 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # === Tab 1: Trade Controls ===
 with tab1:
     st.subheader("⚙️ Step 0: Trading Control Panel")
-
-    master = st.toggle("✅ Master Auto Buy + Sell", value=st.session_state.get("master_auto", True), key="master_toggle")
-    auto_buy = st.toggle("▶️ Auto Buy Enabled", value=st.session_state.get("auto_buy", True), key="auto_buy_toggle")
-    auto_sell = st.toggle("🔽 Auto Sell Enabled", value=st.session_state.get("auto_sell", True), key="auto_sell_toggle")
-
-    st.markdown("#### ⏱️ Trading Timings")
+    master = st.toggle("✅ Master Auto Buy + Sell", st.session_state.get("master_auto", True), key="master_toggle")
+    auto_buy = st.toggle("▶️ Auto Buy Enabled", st.session_state.get("auto_buy", True), key="auto_buy_toggle")
+    auto_sell = st.toggle("🔽 Auto Sell Enabled", st.session_state.get("auto_sell", True), key="auto_sell_toggle")
 
     def time_state(key, default_str):
         if key not in st.session_state:
@@ -133,71 +112,46 @@ with tab3:
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
-
         wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
-            watchlists = sorted(raw_watchlists, key=lambda x: int(x))
-
+            watchlists = sorted(raw_watchlists, key=int)
             wl_labels = [f"Watchlist {wl}" for wl in watchlists]
-            wl_map = dict(zip(wl_labels, watchlists))
-            selected_label = st.selectbox("📁 Choose Watchlist", options=wl_labels)
-            selected_wl = wl_map[selected_label]
+            selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
+            selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
-            if selected_wl:
-                wl_data = ps_api.get_watchlist(selected_wl)
-                if wl_data.get("stat") == "Ok":
-                    df = pd.DataFrame(wl_data["values"])
-                    st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
-                    if not df.empty:
-                        st.dataframe(df)
-                    else:
-                        st.info("✅ No scrips found in this watchlist.")
+            wl_data = ps_api.get_watchlist(selected_wl)
+            if wl_data.get("stat") == "Ok":
+                df = pd.DataFrame(wl_data["values"])
+                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
+                st.dataframe(df if not df.empty else pd.DataFrame())
+            else:
+                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+
+            st.markdown("---")
+            st.subheader("🔍 Search & Modify Watchlist")
+            search_query = st.text_input("Search Symbol or Keyword")
+            if search_query:
+                sr = ps_api.search_scrip(search_query)
+                if sr.get("stat") == "Ok" and sr.get("values"):
+                    scrip_df = pd.DataFrame(sr["values"])
+                    scrip_df["display"] = scrip_df["tsym"] + " (" + scrip_df["exch"] + "|" + scrip_df["token"] + ")"
+                    selected_rows = st.multiselect("Select Scrips", scrip_df.index, format_func=lambda i: scrip_df.loc[i, "display"])
+                    selected_scrips = [f"{scrip_df.loc[i, 'exch']}|{scrip_df.loc[i, 'token']}" for i in selected_rows]
+
+                    col1, col2 = st.columns(2)
+                    if col1.button("➕ Add to Watchlist") and selected_scrips:
+                        resp = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
+                        st.success(f"✅ Added: {resp}")
+                        st.rerun()
+                    if col2.button("➖ Delete from Watchlist") and selected_scrips:
+                        resp = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
+                        st.success(f"✅ Deleted: {resp}")
+                        st.rerun()
                 else:
-                    st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+                    st.info("No matching scrips found.")
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-        st.markdown("---")
-        st.subheader("🔍 Search & Modify Watchlist")
-
-        search_query = st.text_input("Search Symbol or Keyword (e.g. GRANULES)")
-        search_results = []
-
-        if search_query:
-            sr = ps_api.search_scrip(search_query)
-            if sr.get("stat") == "Ok" and sr.get("values"):
-                search_results = sr["values"]
-                scrip_df = pd.DataFrame(search_results)
-                scrip_df["display"] = scrip_df["tsym"] + " (" + scrip_df["exch"] + "|" + scrip_df["token"] + ")"
-                selected_rows = st.multiselect(
-                    "Select Scrips to Add/Delete", scrip_df.index, format_func=lambda i: scrip_df.loc[i, "display"]
-                )
-                selected_scrips = [
-                    f"{scrip_df.loc[i, 'exch']}|{scrip_df.loc[i, 'token']}" for i in selected_rows
-                ]
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("➕ Add to Watchlist"):
-                        if selected_scrips:
-                            response = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
-                            st.success(f"✅ Added: {response}")
-                            st.rerun()
-                        else:
-                            st.warning("No scrips selected.")
-
-                with col2:
-                    if st.button("➖ Delete from Watchlist"):
-                        if selected_scrips:
-                            response = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
-                            st.success(f"✅ Deleted: {response}")
-                            st.rerun()
-                        else:
-                            st.warning("No scrips selected.")
-            else:
-                st.info("No matching scrips found.")
-
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
 
@@ -212,15 +166,13 @@ with tab5:
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
 
-        intrv = st.selectbox("🕒 Choose Candle Interval (Minutes)", ["1", "3", "5", "10", "15", "30"], index=2)
+        intrv = st.selectbox("🕒 Choose Candle Interval", ["1", "3", "5", "10", "15", "30"], index=2)
         if st.button("📏 Save Interval"):
             st.session_state["selected_intrv"] = intrv
             st.success(f"Saved interval: {intrv} min")
 
         saved_intrv = st.session_state.get("selected_intrv", "5")
         st.markdown(f"✅ Current Interval: **{saved_intrv} min**")
-
-        st.divider()
 
         watchlists = ["5", "3", "1"]
         MAX_CALLS_PER_MIN = 100
@@ -229,7 +181,6 @@ with tab5:
 
         for wl in watchlists:
             st.markdown(f"### 📋 Watchlist {wl}")
-
             symbols = ps_api.get_watchlist(wl)
             if not symbols or "values" not in symbols:
                 st.warning(f"⚠️ No symbols found in watchlist {wl}")
@@ -237,14 +188,12 @@ with tab5:
 
             for sym in symbols["values"]:
                 if call_count >= MAX_CALLS_PER_MIN:
-                    st.warning("⚠️ API TPSeries limit (100/min) reached. Skipping remaining.")
+                    st.warning("⚠️ TPSeries limit reached. Skipping remaining.")
                     break
 
                 tsym = sym["tsym"]
                 token = sym["token"]
                 exch = sym["exch"]
-
-                st.markdown(f"**🔍 Symbol: {tsym} | Token: {token} | EXCH: {exch}**")
 
                 now = datetime.now()
                 et = calendar.timegm(now.timetuple())
@@ -257,28 +206,29 @@ with tab5:
                     "token": token,
                     "st": st_epoch,
                     "et": et,
-                    "intrv": saved_intrv,
+                    "intrv": saved_intrv
                 }
 
-               jdata_str = json.dumps(jdata)
-               payload = {
-                  "jData": jdata_str,
-                  "jKey": ps_api.session_token
-            )
+                jdata_str = json.dumps(jdata)
+                payload = {
+                    "jData": jdata_str,
+                    "jKey": ps_api.session_token
+                }
 
-               encoded_payload = urllib.parse.urlencode(payload)
+                encoded_payload = urllib.parse.urlencode(payload)
 
-               response = requests.post(
-               url=ps_api.base_url + "/TPSeries",
-               data=encoded_payload,
-               headers={"Content-Type": "application/x-www-form-urlencoded"}
-           )
+                response = requests.post(
+                    url=ps_api.base_url + "/TPSeries",
+                    data=encoded_payload,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                )
+
                 result = response.json()
                 call_count += 1
                 time.sleep(delay_per_call)
 
                 if not isinstance(result, list):
-                    st.error(f"❌ TPSeries failed for {tsym} ({exch}|{token}): {result.get('emsg', 'Unknown error')}")
+                    st.error(f"❌ TPSeries failed for {tsym}: {result.get('emsg', 'Unknown error')}")
                     st.json(payload)
                     continue
 
@@ -304,6 +254,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
