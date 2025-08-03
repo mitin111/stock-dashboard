@@ -210,15 +210,23 @@ with tab5:
                     "intrv": saved_intrv
                 }
 
-                payload = {
-                    "jData": json.dumps(jdata),
+               payload = {
+                    "jData": json.dumps(jdata, separators=(',', ':')),
                     "jKey": ps_api.session_token
-                }
+            }
 
-                response = requests.post(
-                    url=ps_api.base_url + "/TPSeries",
-                    data=payload
-                )
+               # Properly encode it like application/x-www-form-urlencoded expects
+               encoded_payload = urlencode(payload)
+
+               headers = {
+                   "Content-Type": "application/x-www-form-urlencoded"
+            }
+
+               response = requests.post(
+                   url=ps_api.base_url + "/TPSeries",
+                   data=encoded_payload,
+                   headers=headers
+           )
 
                 try:
                     result = response.json()
@@ -255,6 +263,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
