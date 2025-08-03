@@ -209,7 +209,7 @@ with tab5:
                     "intrv": saved_intrv
                 }
 
-                jdata_str = json.dumps(jdata)
+                jdata_str = json.dumps(jdata).replace('"', '\\"')  # escape quotes
                 payload = {
                     "jData": jdata_str,
                     "jKey": ps_api.session_token
@@ -252,6 +252,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
