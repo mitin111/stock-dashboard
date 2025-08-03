@@ -200,7 +200,7 @@ with tab5:
                 st_time = now - timedelta(minutes=int(saved_intrv) * 3)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
-                jdata = {
+                               jdata = {
                     "uid": ps_api.userid,
                     "exch": exch,
                     "token": token,
@@ -214,13 +214,12 @@ with tab5:
                     "jKey": ps_api.session_token
                 }
 
-               headers = {"Content-Type": "application/json"}
-                  response = requests.post(
-                  url=ps_api.base_url + "/TPSeries",
-                  json=payload,
-                  headers=headers
-             )  
-
+                headers = {"Content-Type": "application/json"}
+                response = requests.post(
+                    url=ps_api.base_url + "/TPSeries",
+                    json=payload,
+                    headers=headers
+                )
 
                 try:
                     result = response.json()
@@ -257,4 +256,5 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
