@@ -208,7 +208,8 @@ with tab5:
                     "et": et,
                     "intrv": saved_intrv
                 }
-
+                encoded_payload = urllib.parse.urlencode(payload)
+                
                 jdata_str = json.dumps(jdata)
                 payload = {
                     "jData": jdata_str,
@@ -217,10 +218,10 @@ with tab5:
 
                 response = requests.post(
                     url=ps_api.base_url + "/TPSeries",
-                    data=payload,
+                    data=encoded_payload,
                     headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
-
+            
                 result = response.json()
                 call_count += 1
                 time.sleep(delay_per_call)
@@ -252,6 +253,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
