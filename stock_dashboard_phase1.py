@@ -209,16 +209,15 @@ with tab5:
                     "intrv": saved_intrv
                 }
 
-                payload = urlencode({
-                    "jData": json.dumps(jdata, separators=(',', ':')),
-                    "jKey": ps_api.session_token
-                })
+               payload = {
+                  "jData": json.dumps(jdata),
+                  "jKey": ps_api.session_token
+             }
 
-                response = requests.post(
-                    url=ps_api.base_url + "/TPSeries",
-                    data=payload,
-                    headers={"Content-Type": "application/x-www-form-urlencoded"}
-                )
+               response = requests.post(
+                  url=ps_api.base_url + "/TPSeries",
+                  data=payload  # Pass as dict (not json=)
+            )
 
                 try:
                     result = response.json()
@@ -255,6 +254,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
