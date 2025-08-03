@@ -9,7 +9,6 @@ import calendar
 import time
 import json
 import requests
-import urllib.parse
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -208,16 +207,15 @@ with tab5:
                     "et": et,
                     "intrv": saved_intrv
                 }
-                jdata_str = json.dumps(jdata)
+
                 payload = {
-                    "jData": jdata_str,
+                    "jData": json.dumps(jdata),
                     "jKey": ps_api.session_token
                 }
-                encoded_payload = urllib.parse.urlencode(payload)
 
                 response = requests.post(
                     url=ps_api.base_url + "/TPSeries",
-                    data=encoded_payload,
+                    data=payload,
                     headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
 
@@ -227,7 +225,6 @@ with tab5:
 
                 if not isinstance(result, list):
                     st.error(f"❌ TPSeries failed for {tsym}: {result.get('emsg', 'Unknown error')}")
-                    st.json(payload)
                     continue
 
                 df = pd.DataFrame(result)
@@ -252,3 +249,5 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
+
