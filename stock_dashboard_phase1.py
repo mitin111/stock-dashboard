@@ -9,6 +9,7 @@ import calendar
 from datetime import datetime, timedelta
 import time
 import json
+import requests 
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -260,9 +261,18 @@ with tab5:
                }
 
                 payload = {
-                     "jData": jdata,
-                    "jKey": ps_api.session_token
+                     "jData": json.dumps(jdata),
+                     "jKey": ps_api.session_token
               }
+
+                # Final request
+                response = requests.post(
+                url=ps_api.base_url + "/TPSeries",
+                json=payload,  # ✅ Not data=..., use json=
+                headers={"Content-Type": "application/json"}
+             )
+
+              result = response.json()
 
                 tp_response = ps_api._post_json(ps_api.base_url + "/TPSeries", payload)
                 call_count += 1
@@ -295,6 +305,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
