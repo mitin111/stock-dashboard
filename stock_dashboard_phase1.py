@@ -215,11 +215,9 @@ with tab5:
                     "jKey": ps_api.session_token
                 }
 
-                encoded_payload = urllib.parse.urlencode(payload)
-
                 response = requests.post(
                     url=ps_api.base_url + "/TPSeries",
-                    data=encoded_payload,
+                    data=payload,
                     headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
 
@@ -254,6 +252,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
