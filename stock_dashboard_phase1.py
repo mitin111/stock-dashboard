@@ -260,7 +260,7 @@ with tab5:
                 }
 
                 payload = {
-                    "jData": jdata,
+                    "jData": json.dumps(jdata),
                     "jKey": ps_api.session_token
                 }
 
@@ -301,3 +301,4 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
