@@ -1,6 +1,5 @@
 
 # main_app.py
-# main_app.py
 import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -210,23 +209,22 @@ with tab5:
                     "intrv": saved_intrv
                 }
 
-               payload = {
+                payload = {
                     "jData": json.dumps(jdata, separators=(',', ':')),
                     "jKey": ps_api.session_token
-            }
+                }
 
-               # Properly encode it like application/x-www-form-urlencoded expects
-               encoded_payload = urlencode(payload)
+                encoded_payload = urlencode(payload)
 
-               headers = {
-                   "Content-Type": "application/x-www-form-urlencoded"
-            }
+                headers = {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
 
-               response = requests.post(
-                   url=ps_api.base_url + "/TPSeries",
-                   data=encoded_payload,
-                   headers=headers
-           )
+                response = requests.post(
+                    url=ps_api.base_url + "/TPSeries",
+                    data=encoded_payload,
+                    headers=headers
+                )
 
                 try:
                     result = response.json()
@@ -263,8 +261,6 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
-
-
 
 
 
