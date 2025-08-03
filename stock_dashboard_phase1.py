@@ -250,17 +250,19 @@ with tab5:
                 st_time = now - timedelta(minutes=int(saved_intrv) * 3)  # Fetching 3 intervals
                 st_epoch = calendar.timegm(st_time.timetuple())
 
+                jdata = {
+                   "uid": uid,
+                   "exch": exch,
+                   "token": token,
+                   "st": st_epoch,
+                   "et": et,
+                   "intrv": saved_intrv,
+               }
+
                 payload = {
-                   "jData": json.dumps({
-                       "uid": uid,
-                       "exch": exch,
-                       "token": token,
-                       "st": st_epoch,
-                       "et": et,
-                       "intrv": saved_intrv,
-                   }),
-                   "jKey": ps_api.session_token
-                }
+                    "jData": jdata,
+                    "jKey": ps_api.session_token
+              }
 
                 tp_response = ps_api._post_json(ps_api.base_url + "/TPSeries", payload)
                 call_count += 1
@@ -293,6 +295,7 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
 
 
 
