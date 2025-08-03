@@ -246,7 +246,7 @@ with tab5:
 
                 now = datetime.now()
                 et = calendar.timegm(now.timetuple())
-                st_time = now - timedelta(minutes=int(saved_intrv) * 60)
+                st_time = now - timedelta(minutes=int(saved_intrv) * 3)  # Fetching 3 intervals
                 st_epoch = calendar.timegm(st_time.timetuple())
 
                 payload = {
@@ -288,3 +288,4 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
