@@ -200,6 +200,11 @@ with tab5:
                 st_time = now - timedelta(minutes=int(saved_intrv) * 3)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
+                # 🔐 Safety check
+                if not ps_api.session_token or not ps_api.userid:
+                    st.error("🚫 Session token or user ID missing. Please login again.")
+                    st.stop()
+                    
                 jdata = {
                     "uid": ps_api.userid,
                     "exch": exch,
@@ -260,4 +265,5 @@ with tab5:
 
       
        
+
 
