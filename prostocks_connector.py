@@ -144,6 +144,35 @@ class ProStocksAPI:
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
+        
+      def get_tpseries(self, exch, token, interval="5", bars=20):
+        """
+        Fetch TPSeries (OHLC) data for a scrip.
+
+        Args:
+            exch (str): Exchange (e.g., "NSE")
+            token (str): Token ID
+            interval (str): Candle interval in minutes (e.g., "5", "15", etc.)
+            bars (int): Number of candles to fetch
+
+        Returns:
+            List of candle data or error JSON
+        """
+        import time as t
+        et = int(t.time())  # current UNIX timestamp
+        st = et - (bars * int(interval) * 60)  # start time for required candles
+
+        url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": token,
+            "st": st,
+            "et": et,
+            "intrv": interval
+        }
+
+        return self._post_json(url, payload)
 
     # === Internal Helper Method ===
 
@@ -165,6 +194,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
