@@ -143,9 +143,9 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-      # === TPSeries API ===
+     # === TPSeries API ===
 
-    def get_tpseries(self, exch, token, interval="5", bars=300):
+def get_tpseries(self, exch, token, interval="5", bars=300):
     url = f"{self.base_url}/TPSeries"
     et = int(time.time())
     st = et - (bars * int(interval) * 60)
@@ -166,55 +166,54 @@ class ProStocksAPI:
 
     return self._post_json(url, payload)
 
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
-        result = {}
+def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
+    result = {}
 
-        watchlist_data = self.get_watchlist(wlname)
-        if watchlist_data.get("stat") != "Ok":
-            print("❌ Failed to fetch watchlist:", watchlist_data.get("emsg"))
-            return {}
+    watchlist_data = self.get_watchlist(wlname)
+    if watchlist_data.get("stat") != "Ok":
+        print("❌ Failed to fetch watchlist:", watchlist_data.get("emsg"))
+        return {}
 
-        scrips = watchlist_data.get("values", [])
-        for scrip in scrips:
-            try:
-                symbol = scrip.get("tsym")
-                exch = scrip.get("exch")
-                token = scrip.get("token")
-
-                print(f"\n📈 Fetching TPSeries for {symbol} ({exch}, Token: {token})...")
-                tp_data = self.get_tpseries(exch, token, interval, bars)
-
-                if isinstance(tp_data, list) and tp_data[0].get("stat") == "Ok":
-                    result[symbol] = tp_data
-                    print(f"✅ {symbol}: {len(tp_data)} candles fetched.")
-                else:
-                    emsg = tp_data[0].get("emsg") if isinstance(tp_data, list) else tp_data.get("emsg", "Unknown error")
-                    print(f"⚠️ {symbol}: Failed to fetch data. Error: {emsg}")
-            except Exception as e:
-                print(f"⚠️ Error processing scrip {scrip.get('tsym', 'UNKNOWN')}: {e}")
-                continue
-
-        return result
-
-    # === Internal Helper ===
-
-    def _post_json(self, url, payload):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+    scrips = watchlist_data.get("values", [])
+    for scrip in scrips:
         try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
+            symbol = scrip.get("tsym")
+            exch = scrip.get("exch")
+            token = scrip.get("token")
 
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=10
-            )
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
+            print(f"\n📈 Fetching TPSeries for {symbol} ({exch}, Token: {token})...")
+            tp_data = self.get_tpseries(exch, token, interval, bars)
 
+            if isinstance(tp_data, list) and tp_data[0].get("stat") == "Ok":
+                result[symbol] = tp_data
+                print(f"✅ {symbol}: {len(tp_data)} candles fetched.")
+            else:
+                emsg = tp_data[0].get("emsg") if isinstance(tp_data, list) else tp_data.get("emsg", "Unknown error")
+                print(f"⚠️ {symbol}: Failed to fetch data. Error: {emsg}")
+        except Exception as e:
+            print(f"⚠️ Error processing scrip {scrip.get('tsym', 'UNKNOWN')}: {e}")
+            continue
+
+    return result
+
+# === Internal Helper ===
+
+def _post_json(self, url, payload):
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+    try:
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}&jKey={self.session_token}"
+        print("✅ POST URL:", url)
+        print("📦 Sent Payload:", jdata)
+
+        response = self.session.post(
+            url,
+            data=raw_data,
+            headers={"Content-Type": "text/plain"},
+            timeout=10
+        )
+        print("📨 Response:", response.text)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"stat": "Not_Ok", "emsg": str(e)}
