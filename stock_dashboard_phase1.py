@@ -167,7 +167,16 @@ st.title("📉 Strategy Engine")
 # Load credentials and login
 creds = load_credentials()
 if "ps_api" not in st.session_state:
-    st.session_state.ps_api = ProStocksAPI(**creds)
+    st.session_state.ps_api = ProStocksAPI(
+    userid=creds["uid"],
+    password_plain=creds["pwd"],
+    vc=creds["vc"],
+    api_key=creds["api_key"],
+    imei=creds["imei"],
+    base_url=creds["base_url"],
+    apkversion=creds.get("apkversion", "1.0.0")
+)
+
     success, msg = st.session_state.ps_api.login("123456")
     if not success:
         st.error(f"Login failed: {msg}")
@@ -282,5 +291,6 @@ for wl in watchlists:
             st.error(f"🔴 SELL Trigger at {last_price}")
         else:
             st.info("📊 No action taken")
+
 
 
