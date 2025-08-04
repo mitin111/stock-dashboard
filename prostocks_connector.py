@@ -117,6 +117,15 @@ class ProStocksAPI:
         payload = {"uid": self.userid}
         return self._post_json(url, payload)
 
+        def get_watchlist_names(self):
+        """
+        Return list of available watchlist IDs as strings.
+        """
+        resp = self.get_watchlists()
+        if resp.get("stat") == "Ok":
+            return sorted(resp["values"], key=int)  # Example: ['1', '2', '3']
+        return []
+
     def get_watchlist(self, wlname):
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
@@ -169,4 +178,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
