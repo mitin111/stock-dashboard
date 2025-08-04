@@ -144,8 +144,8 @@ class ProStocksAPI:
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
-        
-      def get_tpseries(self, exch, token, interval="5", bars=20):
+
+    def get_tpseries(self, exch, token, interval="5", bars=20):
         """
         Fetch TPSeries (OHLC) data for a scrip.
 
@@ -194,7 +194,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
-
