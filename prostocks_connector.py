@@ -145,21 +145,21 @@ class ProStocksAPI:
 
     # === TPSeries API (LIVE Compatible) ===
 
-    def get_tpseries(self, exch, token, interval="5", bars=20):
-        url = f"{self.base_url}/TPSeries"
-        et = int(time.time())
-        st = et - (bars * int(interval) * 60)
+    def get_tpseries(self, exch, token, interval="5", bars=300):
+    url = f"{self.base_url}/TPSeries"
+    et = int(time.time())
+    st = et - (bars * int(interval) * 60)
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": str(token)
-            "st": st,
-            "et": et,
-            "intrv": interval
-        }
+    payload = {
+        "uid": self.userid,
+        "exch": exch,
+        "token": str(token),  # cast to string
+        "st": st,
+        "et": et,
+        "intrv": interval
+    }
 
-        return self._post_json(url, payload)
+    return self._post_json(url, payload)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
         result = {}
@@ -211,4 +211,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
