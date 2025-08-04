@@ -200,7 +200,7 @@ with tab5:
                 st_time = now - timedelta(minutes=int(saved_intrv) * 3)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
-                               jdata = {
+                jdata = {
                     "uid": ps_api.userid,
                     "exch": exch,
                     "token": token,
@@ -257,5 +257,7 @@ with tab5:
                 else:
                     st.info("📊 No action taken")
 
+
       
        
+
