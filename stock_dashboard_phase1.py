@@ -187,13 +187,26 @@ with tab5:
                 continue
 
             for sym in symbols["values"]:
-                if call_count >= MAX_CALLS_PER_MIN:
-                    st.warning("⚠️ TPSeries limit reached. Skipping remaining.")
-                    break
+    if call_count >= MAX_CALLS_PER_MIN:
+        st.warning("⚠️ TPSeries limit reached. Skipping remaining.")
+        break
 
-                tsym = sym["tsym"]
-                token = sym["token"]
-                exch = sym["exch"]
+    tsym = sym["tsym"]
+    exch = sym["exch"]
+
+    # 🔍 Get correct token using search_scrip
+    search_resp = ps_api.search_scrip(tsym)
+    if not search_resp or search_resp.get("stat") != "Ok":
+        st.error(f"❌ Token lookup failed for {tsym}")
+        continue
+
+    match = next((s for s in search_resp["values"] if s["tsym"] == tsym and s["exch"] == exch), None)
+    if not match:
+        st.error(f"❌ No exact match for {tsym} in exchange {exch}")
+        continue
+
+    token = match["token"]
+
 
                 now = datetime.now()
                 et = calendar.timegm(now.timetuple())
@@ -262,6 +275,7 @@ with tab5:
 
       
        
+
 
 
 
