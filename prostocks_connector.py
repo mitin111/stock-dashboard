@@ -99,6 +99,7 @@ class ProStocksAPI:
                 data = response.json()
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
+                    self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
                     print("✅ Login Success!")
                     return True, self.session_token
@@ -168,3 +169,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
