@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
-st.title("\ud83d\udcc8 Automated Intraday Trading System")
+st.title("📈 Automated Intraday Trading System")
 
 # === Load Settings (once) ===
 if "settings_loaded" not in st.session_state:
@@ -25,11 +25,11 @@ creds = load_credentials()
 
 # === Sidebar Login ===
 with st.sidebar:
-    st.header("\ud83d\udd10 ProStocks OTP Login")
-    if st.button("\ud83d\udce9 Send OTP"):
+    st.header("🔐 ProStocks OTP Login")
+    if st.button("📩 Send OTP"):
         temp_api = ProStocksAPI(**creds)
         success, msg = temp_api.login("")
-        st.success("\u2705 OTP Sent") if success else st.info(f"\u2139\ufe0f {msg}")
+        st.success("✅ OTP Sent") if success else st.info(f"ℹ️ {msg}")
 
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
@@ -41,7 +41,7 @@ with st.sidebar:
         base_url = st.text_input("Base URL", value=creds["base_url"])
         apkversion = st.text_input("APK Version", value=creds["apkversion"])
 
-        submitted = st.form_submit_button("\ud83d\udd10 Login")
+        submitted = st.form_submit_button("🔐 Login")
         if submitted:
             try:
                 ps_api = ProStocksAPI(
@@ -52,34 +52,34 @@ with st.sidebar:
                 success, msg = ps_api.login(factor2)
                 if success:
                     st.session_state["ps_api"] = ps_api
-                    st.success("\u2705 Login successful!")
+                    st.success("✅ Login successful!")
                     st.rerun()
                 else:
-                    st.error(f"\u274c Login failed: {msg}")
+                    st.error(f"❌ Login failed: {msg}")
             except Exception as e:
-                st.error(f"\u274c Exception: {e}")
+                st.error(f"❌ Exception: {e}")
 
 if "ps_api" in st.session_state:
-    if st.sidebar.button("\ud83d\udd13 Logout"):
+    if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
-        st.success("\u2705 Logged out successfully")
+        st.success("✅ Logged out successfully")
         st.rerun()
 
 # === Tabs ===
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "\u2699\ufe0f Trade Controls",
-    "\ud83d\udcca Dashboard",
-    "\ud83d\udcc8 Market Data",
-    "\ud83d\udcc0 Indicator Settings",
-    "\ud83d\udcc9 Strategy Engine"
+    "⚙️ Trade Controls",
+    "📊 Dashboard",
+    "📈 Market Data",
+    "📀 Indicator Settings",
+    "📉 Strategy Engine"
 ])
 
 # === Tab 1: Trade Controls ===
 with tab1:
-    st.subheader("\u2699\ufe0f Step 0: Trading Control Panel")
-    master = st.toggle("\u2705 Master Auto Buy + Sell", st.session_state.get("master_auto", True), key="master_toggle")
-    auto_buy = st.toggle("\u25b6\ufe0f Auto Buy Enabled", st.session_state.get("auto_buy", True), key="auto_buy_toggle")
-    auto_sell = st.toggle("\ud83d\udd3d Auto Sell Enabled", st.session_state.get("auto_sell", True), key="auto_sell_toggle")
+    st.subheader("⚙️ Step 0: Trading Control Panel")
+    master = st.toggle("✅ Master Auto Buy + Sell", st.session_state.get("master_auto", True), key="master_toggle")
+    auto_buy = st.toggle("▶️ Auto Buy Enabled", st.session_state.get("auto_buy", True), key="auto_buy_toggle")
+    auto_sell = st.toggle("🔽 Auto Sell Enabled", st.session_state.get("auto_sell", True), key="auto_sell_toggle")
 
     def time_state(key, default_str):
         if key not in st.session_state:
@@ -103,12 +103,12 @@ with tab1:
 
 # === Tab 2: Dashboard ===
 with tab2:
-    st.subheader("\ud83d\udcca Dashboard")
+    st.subheader("📊 Dashboard")
     st.info("Coming soon...")
 
 # === Tab 3: Market Data ===
 with tab3:
-    st.subheader("\ud83d\udcc8 Live Market Table \u2013 Watchlist Viewer")
+    st.subheader("📈 Live Market Table – Watchlist Viewer")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
@@ -117,19 +117,19 @@ with tab3:
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             wl_labels = [f"Watchlist {wl}" for wl in watchlists]
-            selected_label = st.selectbox("\ud83d\udcc1 Choose Watchlist", wl_labels)
+            selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
             wl_data = ps_api.get_watchlist(selected_wl)
             if wl_data.get("stat") == "Ok":
                 df = pd.DataFrame(wl_data["values"])
-                st.write(f"\ud83d\udce6 {len(df)} scrips in watchlist '{selected_wl}'")
+                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                 st.dataframe(df if not df.empty else pd.DataFrame())
             else:
                 st.warning(wl_data.get("emsg", "Failed to load watchlist."))
 
             st.markdown("---")
-            st.subheader("\ud83d\udd0d Search & Modify Watchlist")
+            st.subheader("🔍 Search & Modify Watchlist")
             search_query = st.text_input("Search Symbol or Keyword")
             if search_query:
                 sr = ps_api.search_scrip(search_query)
@@ -140,39 +140,39 @@ with tab3:
                     selected_scrips = [f"{scrip_df.loc[i, 'exch']}|{scrip_df.loc[i, 'token']}" for i in selected_rows]
 
                     col1, col2 = st.columns(2)
-                    if col1.button("\u2795 Add to Watchlist") and selected_scrips:
+                    if col1.button("➕ Add to Watchlist") and selected_scrips:
                         resp = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
-                        st.success(f"\u2705 Added: {resp}")
+                        st.success(f"✅ Added: {resp}")
                         st.rerun()
-                    if col2.button("\u2796 Delete from Watchlist") and selected_scrips:
+                    if col2.button("➖ Delete from Watchlist") and selected_scrips:
                         resp = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
-                        st.success(f"\u2705 Deleted: {resp}")
+                        st.success(f"✅ Deleted: {resp}")
                         st.rerun()
                 else:
                     st.info("No matching scrips found.")
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
     else:
-        st.info("\u2139\ufe0f Please login to view live watchlist data.")
+        st.info("ℹ️ Please login to view live watchlist data.")
 
 # === Tab 4: Indicator Settings ===
 with tab4:
-    st.info("\ud83d\udcc0 Indicator settings section coming soon...")
+    st.info("📀 Indicator settings section coming soon...")
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("\ud83d\udcc9 Strategy Engine")
+    st.subheader("📉 Strategy Engine")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
 
-        intrv = st.selectbox("\ud83d\udd52 Choose Candle Interval", ["1", "3", "5", "10", "15", "30"], index=2)
-        if st.button("\ud83d\udd4f Save Interval"):
+        intrv = st.selectbox("🕒 Choose Candle Interval", ["1", "3", "5", "10", "15", "30"], index=2)
+        if st.button("🕏 Save Interval"):
             st.session_state["selected_intrv"] = intrv
             st.success(f"Saved interval: {intrv} min")
 
         saved_intrv = st.session_state.get("selected_intrv", "5")
-        st.markdown(f"\u2705 Current Interval: **{saved_intrv} min**")
+        st.markdown(f"✅ Current Interval: **{saved_intrv} min**")
 
         watchlists = ["5", "3", "1"]
         MAX_CALLS_PER_MIN = 100
@@ -180,15 +180,15 @@ with tab5:
         call_count = 0
 
         for wl in watchlists:
-            st.markdown(f"### \ud83d\udccb Watchlist {wl}")
+            st.markdown(f"### 📋 Watchlist {wl}")
             symbols = ps_api.get_watchlist(wl)
             if not symbols or "values" not in symbols:
-                st.warning(f"\u26a0\ufe0f No symbols found in watchlist {wl}")
+                st.warning(f"⚠️ No symbols found in watchlist {wl}")
                 continue
 
             for sym in symbols["values"]:
                 if call_count >= MAX_CALLS_PER_MIN:
-                    st.warning("\u26a0\ufe0f TPSeries limit reached. Skipping remaining.")
+                    st.warning("⚠️ TPSeries limit reached. Skipping remaining.")
                     break
 
                 tsym = sym["tsym"]
@@ -200,7 +200,7 @@ with tab5:
                 st_time = now - timedelta(minutes=int(saved_intrv) * 3)
                 st_epoch = calendar.timegm(st_time.timetuple())
 
-                jdata = {
+                               jdata = {
                     "uid": ps_api.userid,
                     "exch": exch,
                     "token": token,
@@ -224,14 +224,14 @@ with tab5:
                 try:
                     result = response.json()
                 except Exception:
-                    st.error(f"\u274c TPSeries failed for {tsym}: Invalid JSON response")
+                    st.error(f"❌ TPSeries failed for {tsym}: Invalid JSON response")
                     continue
 
                 call_count += 1
                 time.sleep(delay_per_call)
 
                 if not isinstance(result, list):
-                    st.error(f"\u274c TPSeries failed for {tsym}: {result.get('emsg', 'Unknown error')}")
+                    st.error(f"❌ TPSeries failed for {tsym}: {result.get('emsg', 'Unknown error')}")
                     continue
 
                 df = pd.DataFrame(result)
@@ -251,8 +251,11 @@ with tab5:
 
                 last_price = df["intc"].iloc[-1]
                 if last_price > df["inth"].mean():
-                    st.success(f"\ud83d\udfe2 BUY Trigger at {last_price}")
+                    st.success(f"🟢 BUY Trigger at {last_price}")
                 elif last_price < df["intl"].mean():
-                    st.error(f"\ud83d\udd34 SELL Trigger at {last_price}")
+                    st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
-                    st.info("\ud83d\udcc8 No action taken")
+                    st.info("📊 No action taken")
+
+      
+       
