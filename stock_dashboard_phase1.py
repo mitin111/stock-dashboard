@@ -199,7 +199,9 @@ with tab5:
                     st.error(f"❌ Token lookup failed for {tsym}")
                     continue
 
-                match = next((s for s in search_resp["values"] if s["tsym"] == tsym and s["exch"] == exch), None)
+                match = next((s for s in search_resp["values"]
+                             if s["tsym"].strip().upper() == tsym.strip().upper()
+                             and s["exch"].strip().upper() == exch.strip().upper()), None)
                 if not match:
                     st.error(f"❌ No exact match for {tsym} in exchange {exch}")
                     continue
@@ -268,3 +270,4 @@ with tab5:
                     st.error(f"🔴 SELL Trigger at {last_price}")
                 else:
                     st.info("📊 No action taken")
+
