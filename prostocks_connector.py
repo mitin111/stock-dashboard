@@ -143,7 +143,20 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-        def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
+    # === TPSeries API ===
+
+    def get_tpseries(self, exch, token, interval="5", bars=20):
+        url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": token,
+            "interval": interval,
+            "bars": bars
+        }
+        return self._post_json(url, payload)
+
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
         """
         Loops through all scrips in a watchlist and fetches TPSeries data.
 
@@ -205,6 +218,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
 
