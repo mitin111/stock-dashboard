@@ -3,6 +3,7 @@ import requests
 import hashlib
 import json
 import os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -63,7 +64,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001f4e8 OTP Trigger Response:", response.text)
+            print("📨 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -89,8 +90,8 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001f501 Login Response Code:", response.status_code)
-            print("\U0001f4e8 Login Response Body:", response.text)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
 
             if response.status_code == 200:
                 data = response.json()
@@ -115,9 +116,6 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     def get_watchlist_names(self):
-        """
-        Return list of available watchlist IDs as strings.
-        """
         resp = self.get_watchlists()
         if resp.get("stat") == "Ok":
             return sorted(resp["values"], key=int)
@@ -145,7 +143,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-        def get_tpseries(self, exch, token, interval="5", bars=20):
+    def get_tpseries(self, exch, token, interval="5", bars=20):
         """
         Fetch TPSeries (chart candle) data for a given scrip.
 
@@ -158,7 +156,6 @@ class ProStocksAPI:
         Returns:
             List of dicts (candles) or error response
         """
-        import time
         end_time = int(time.time())  # Current UNIX timestamp
         start_time = end_time - (bars * int(interval) * 60)
 
@@ -173,7 +170,7 @@ class ProStocksAPI:
 
         url = f"{self.base_url}/TPSeries"
         return self._post_json(url, payload)
-        
+
     # === Internal Helper Method ===
 
     def _post_json(self, url, payload):
@@ -190,8 +187,9 @@ class ProStocksAPI:
             )
             print("✅ POST URL:", url)
             print("📦 Sent Payload:", jdata)
-            print("\U0001f4e8 Response:", response.text)
+            print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
