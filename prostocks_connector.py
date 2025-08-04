@@ -31,7 +31,6 @@ class ProStocksAPI:
             "Content-Type": "text/plain"
         }
 
-        # ✅ Add this block to fix your error
         self.credentials = {
             "uid": self.userid,
             "pwd": self.password_plain,
@@ -44,7 +43,6 @@ class ProStocksAPI:
         return hashlib.sha256(text.encode()).hexdigest()
 
     def send_otp(self):
-        """Trigger OTP by sending login request with empty factor2"""
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
@@ -71,7 +69,6 @@ class ProStocksAPI:
             return {"emsg": str(e)}
 
     def login(self, factor2_otp):
-        """Login to ProStocks API using OTP (factor2)"""
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
@@ -117,13 +114,13 @@ class ProStocksAPI:
         payload = {"uid": self.userid}
         return self._post_json(url, payload)
 
-        def get_watchlist_names(self):
+    def get_watchlist_names(self):
         """
         Return list of available watchlist IDs as strings.
         """
         resp = self.get_watchlists()
         if resp.get("stat") == "Ok":
-            return sorted(resp["values"], key=int)  # Example: ['1', '2', '3']
+            return sorted(resp["values"], key=int)
         return []
 
     def get_watchlist(self, wlname):
@@ -137,18 +134,12 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
-        """
-        scrips_list: list of strings like ["NSE|11872", "NSE|18124"]
-        """
         url = f"{self.base_url}/AddMultiScripsToMW"
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
     def delete_scrips_from_watchlist(self, wlname, scrips_list):
-        """
-        scrips_list: list of strings like ["NSE|11872", "NSE|18124"]
-        """
         url = f"{self.base_url}/DeleteMultiMWScrips"
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
@@ -157,12 +148,8 @@ class ProStocksAPI:
     # === Internal Helper Method ===
 
     def _post_json(self, url, payload):
-        """
-        Send a POST request with jData and jKey in raw text/plain body.
-        """
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
@@ -178,5 +165,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
