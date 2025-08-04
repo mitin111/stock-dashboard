@@ -143,34 +143,27 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # === TPSeries API ===
+    # === TPSeries API (LIVE Compatible) ===
 
     def get_tpseries(self, exch, token, interval="5", bars=20):
         url = f"{self.base_url}/TPSeries"
+        et = int(time.time())
+        st = et - (bars * int(interval) * 60)
+
         payload = {
             "uid": self.userid,
             "exch": exch,
             "token": token,
-            "interval": interval,
-            "bars": bars
+            "st": st,
+            "et": et,
+            "intrv": interval
         }
+
         return self._post_json(url, payload)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
-        """
-        Loops through all scrips in a watchlist and fetches TPSeries data.
-
-        Args:
-            wlname (str): Watchlist name (e.g., "1", "2")
-            interval (str): Candle interval in minutes (e.g., "1", "5")
-            bars (int): Number of candles to fetch
-
-        Returns:
-            Dict with symbol as key and list of TPSeries candles as value
-        """
         result = {}
 
-        # Step 1: Get all scrips from the watchlist
         watchlist_data = self.get_watchlist(wlname)
         if watchlist_data.get("stat") != "Ok":
             print("❌ Failed to fetch watchlist:", watchlist_data.get("emsg"))
@@ -198,7 +191,7 @@ class ProStocksAPI:
 
         return result
 
-    # === Internal Helper Method ===
+    # === Internal Helper ===
 
     def _post_json(self, url, payload):
         if not self.session_token:
@@ -218,4 +211,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
