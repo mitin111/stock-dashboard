@@ -143,33 +143,47 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    def get_tpseries(self, exch, token, interval="5", bars=20):
+        def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
         """
-        Fetch TPSeries (chart candle) data for a given scrip.
+        Loops through all scrips in a watchlist and fetches TPSeries data.
 
         Args:
-            exch (str): Exchange (e.g., "NSE")
-            token (str): Token ID of scrip
-            interval (str): Candle interval in minutes (e.g., "1", "5", etc.)
+            wlname (str): Watchlist name (e.g., "1", "2")
+            interval (str): Candle interval in minutes (e.g., "1", "5")
             bars (int): Number of candles to fetch
 
         Returns:
-            List of dicts (candles) or error response
+            Dict with symbol as key and list of TPSeries candles as value
         """
-        end_time = int(time.time())  # Current UNIX timestamp
-        start_time = end_time - (bars * int(interval) * 60)
+        result = {}
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": token,
-            "st": start_time,
-            "et": end_time,
-            "intrv": interval
-        }
+        # Step 1: Get all scrips from the watchlist
+        watchlist_data = self.get_watchlist(wlname)
+        if watchlist_data.get("stat") != "Ok":
+            print("❌ Failed to fetch watchlist:", watchlist_data.get("emsg"))
+            return {}
 
-        url = f"{self.base_url}/TPSeries"
-        return self._post_json(url, payload)
+        scrips = watchlist_data.get("values", [])
+        for scrip in scrips:
+            try:
+                symbol = scrip.get("tsym")
+                exch = scrip.get("exch")
+                token = scrip.get("token")
+
+                print(f"\n📊 Fetching TPSeries for {symbol} ({exch}, Token: {token})...")
+                tp_data = self.get_tpseries(exch, token, interval, bars)
+
+                if tp_data and tp_data[0].get("stat") == "Ok":
+                    result[symbol] = tp_data
+                    print(f"✅ {symbol}: {len(tp_data)} candles fetched.")
+                else:
+                    emsg = tp_data[0].get("emsg") if isinstance(tp_data, list) else tp_data.get("emsg", "Unknown error")
+                    print(f"⚠️ {symbol}: Failed to fetch data. Error: {emsg}")
+            except Exception as e:
+                print(f"⚠️ Error processing scrip {scrip.get('tsym', 'UNKNOWN')}: {e}")
+                continue
+
+        return result
 
     # === Internal Helper Method ===
 
@@ -191,5 +205,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
