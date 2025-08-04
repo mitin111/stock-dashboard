@@ -214,17 +214,14 @@ with tab5:
                     "intrv": saved_intrv
                 }
 
-                payload = {
-                    "jData": json.dumps(jdata, separators=(',', ':')),
-                    "jKey": ps_api.session_token
-                }
+                raw_data = f"jData={json.dumps(jdata, separators=(',', ':'))}&jKey={ps_api.session_token}"
+                headers = {"Content-Type": "text/plain"}
 
-                headers = {"Content-Type": "application/json"}
                 response = requests.post(
                     url=ps_api.base_url + "/TPSeries",
-                    json=payload,
+                    data=raw_data,
                     headers=headers
-                )
+               )
 
                 try:
                     result = response.json()
@@ -265,5 +262,6 @@ with tab5:
 
       
        
+
 
 
