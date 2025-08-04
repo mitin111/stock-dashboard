@@ -64,7 +64,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\ud83d\udce8 OTP Trigger Response:", response.text)
+            print("📨 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -90,8 +90,8 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\ud83d\udd01 Login Response Code:", response.status_code)
-            print("\ud83d\udce8 Login Response Body:", response.text)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
 
             if response.status_code == 200:
                 data = response.json()
@@ -99,7 +99,7 @@ class ProStocksAPI:
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
-                    print("\u2705 Login Success!")
+                    print("✅ Login Success!")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -211,4 +211,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
