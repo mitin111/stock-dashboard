@@ -64,7 +64,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 OTP Trigger Response:", response.text)
+            print("\ud83d\udce8 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -90,8 +90,8 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("🔁 Login Response Code:", response.status_code)
-            print("📨 Login Response Body:", response.text)
+            print("\ud83d\udd01 Login Response Code:", response.status_code)
+            print("\ud83d\udce8 Login Response Body:", response.text)
 
             if response.status_code == 200:
                 data = response.json()
@@ -99,7 +99,7 @@ class ProStocksAPI:
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
-                    print("✅ Login Success!")
+                    print("\u2705 Login Success!")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -166,7 +166,7 @@ class ProStocksAPI:
 
         watchlist_data = self.get_watchlist(wlname)
         if watchlist_data.get("stat") != "Ok":
-            print("❌ Failed to fetch watchlist:", watchlist_data.get("emsg"))
+            print("\u274c Failed to fetch watchlist:", watchlist_data.get("emsg"))
             return {}
 
         scrips = watchlist_data.get("values", [])
@@ -176,17 +176,17 @@ class ProStocksAPI:
                 exch = scrip.get("exch")
                 token = scrip.get("token")
 
-                print(f"\n📊 Fetching TPSeries for {symbol} ({exch}, Token: {token})...")
+                print(f"\n\ud83d\udcc8 Fetching TPSeries for {symbol} ({exch}, Token: {token})...")
                 tp_data = self.get_tpseries(exch, token, interval, bars)
 
                 if isinstance(tp_data, list) and tp_data[0].get("stat") == "Ok":
                     result[symbol] = tp_data
-                    print(f"✅ {symbol}: {len(tp_data)} candles fetched.")
+                    print(f"\u2705 {symbol}: {len(tp_data)} candles fetched.")
                 else:
                     emsg = tp_data[0].get("emsg") if isinstance(tp_data, list) else tp_data.get("emsg", "Unknown error")
-                    print(f"⚠️ {symbol}: Failed to fetch data. Error: {emsg}")
+                    print(f"\u26a0\ufe0f {symbol}: Failed to fetch data. Error: {emsg}")
             except Exception as e:
-                print(f"⚠️ Error processing scrip {scrip.get('tsym', 'UNKNOWN')}: {e}")
+                print(f"\u26a0\ufe0f Error processing scrip {scrip.get('tsym', 'UNKNOWN')}: {e}")
                 continue
 
         return result
@@ -199,15 +199,16 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("\u2705 POST URL:", url)
+            print("\ud83d\udce6 Sent Payload:", jdata)
             response = self.session.post(
                 url,
                 data=raw_data,
                 headers={"Content-Type": "text/plain"},
                 timeout=10
             )
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
-            print("📨 Response:", response.text)
+            print("\ud83d\udce8 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
