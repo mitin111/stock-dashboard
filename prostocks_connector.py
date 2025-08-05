@@ -165,35 +165,73 @@ class ProStocksAPI:
 
         return self._post_json(url, payload)
 
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=20):
-        result = {}
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+    results = []
+    MAX_CALLS_PER_MIN = 20  # Avoid rate limits
+    call_count = 0
 
-        watchlist_data = self.get_watchlist(wlname)
-        if watchlist_data.get("stat") != "Ok":
-            print("❌ Failed to fetch watchlist:", watchlist_data.get("emsg"))
-            return {}
+    symbols = self.get_watchlist(wlname)
+    if not symbols or "values" not in symbols:
+        st.error("❌ No symbols found in watchlist.")
+        return []
 
-        scrips = watchlist_data.get("values", [])
-        for scrip in scrips:
-            try:
-                symbol = scrip.get("tsym")
-                exch = scrip.get("exch")
-                token = scrip.get("token")
+    for idx, sym in enumerate(symbols["values"]):
+        exch = sym.get("exch", "").strip()
+        token = sym.get("token", "").strip()
+        symbol = sym.get("tsym", "").strip()
 
-                print(f"\n📈 Fetching TPSeries for {symbol} ({exch}, Token: {token})...")
-                tp_data = self.get_tpseries(exch, token, interval, bars)
+        # 🛡️ Defensive Checks
+        if not token or not str(token).isdigit():
+            print(f"⚠️ Skipping {symbol}: Invalid or missing token ({token})")
+            continue
+        if exch != "NSE":
+            print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
+            continue
 
-                if isinstance(tp_data, list) and tp_data[0].get("stat") == "Ok":
-                    result[symbol] = tp_data
-                    print(f"✅ {symbol}: {len(tp_data)} candles fetched.")
-                else:
-                    emsg = tp_data[0].get("emsg") if isinstance(tp_data, list) else tp_data.get("emsg", "Unknown error")
-                    print(f"⚠️ {symbol}: Failed to fetch data. Error: {emsg}")
-            except Exception as e:
-                print(f"⚠️ Error processing scrip {scrip.get('tsym', 'UNKNOWN')}: {e}")
-                continue
+        # ⏳ Time Calculations
+        try:
+            now = int(time.time())
+            interval_sec = int(interval) * 60
+            st_time = now - (bars * interval_sec)
+            et_time = now
+        except Exception as e:
+            print(f"⚠️ Time conversion error for {symbol}: {e}")
+            continue
 
-        return result
+        print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
+        print("📤 TPSeries Payload Preview:")
+        print(f"  UID    : {self.userid}")
+        print(f"  EXCH   : {exch}")
+        print(f"  TOKEN  : {token}")
+        print(f"  ST     : {st_time}")
+        print(f"  ET     : {et_time}")
+        print(f"  INTRV  : {interval}")
+
+        try:
+            response = self.get_tpseries(
+                exch=exch,
+                token=token,
+                interval=interval,
+                st=st_time,
+                et=et_time
+            )
+            if isinstance(response, list):
+                print(f"✅ {symbol}: {len(response)} candles fetched.")
+                results.append({
+                    "symbol": symbol,
+                    "data": response
+                })
+            else:
+                print(f"⚠️ {symbol}: Error Occurred : {response.get('stat')} \"{response.get('emsg')}\"")
+        except Exception as e:
+            print(f"❌ {symbol}: Exception: {e}")
+
+        call_count += 1
+        if call_count >= MAX_CALLS_PER_MIN:
+            print("⚠️ TPSeries limit reached. Skipping remaining.")
+            break
+
+    return results
 
     # === Internal Helper ===
 
@@ -216,3 +254,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
