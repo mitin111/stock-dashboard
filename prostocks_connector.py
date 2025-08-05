@@ -153,7 +153,7 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         st = et - (300 * int(interval) * 60)  # fallback to 300 candles if not passed
 
     url = f"{self.base_url}/TPSeries"
-    
+
     payload = {
         "uid": self.userid,
         "exch": exch,
@@ -180,14 +180,17 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         print("❌ Exception in get_tpseries():", e)
         return {"stat": "Not_Ok", "emsg": str(e)}
 
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+    """
+    Fetch TPSeries candles for all symbols in a watchlist.
+    """
     results = []
     MAX_CALLS_PER_MIN = 20  # Avoid rate limits
     call_count = 0
 
     symbols = self.get_watchlist(wlname)
     if not symbols or "values" not in symbols:
-        st.error("❌ No symbols found in watchlist.")
+        print("❌ No symbols found in watchlist.")
         return []
 
     for idx, sym in enumerate(symbols["values"]):
@@ -248,27 +251,23 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
 
     return results
 
-    # === Internal Helper ===
+# === Internal Helper ===
+def _post_json(self, url, payload):
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+    try:
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}&jKey={self.session_token}"
+        print("✅ POST URL:", url)
+        print("📦 Sent Payload:", jdata)
 
-    def _post_json(self, url, payload):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
-
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=10
-            )
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
+        response = self.session.post(
+            url,
+            data=raw_data,
+            headers={"Content-Type": "text/plain"},
+            timeout=10
+        )
+        print("📨 Response:", response.text)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"stat": "Not_Ok", "emsg": str(e)}
