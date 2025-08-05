@@ -255,6 +255,50 @@ class ProStocksAPI:
 
         return results
 
+    def get_tpseries_history(self, exch, token, interval="5", years=3):
+        """
+        Fetch TPSeries historical data chunked month-by-month for 'years' number of years.
+        Returns a combined list of all OHLC candles.
+        """
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+
+        start_date = datetime.now() - timedelta(days=365 * years)
+        end_date = datetime.now()
+        current = start_date
+        all_candles = []
+
+        while current < end_date:
+            from_ts = int(current.timestamp())
+            to_ts = int((current + timedelta(days=30)).timestamp())
+            to_ts = min(to_ts, int(time.time()))
+
+            print(f"📅 Fetching {current.strftime('%Y-%m')}...")
+
+            payload = {
+                "uid": self.userid,
+                "exch": exch,
+                "token": str(token),
+                "st": from_ts,
+                "et": to_ts,
+                "intrv": str(interval)
+            }
+
+            try:
+                response = self._post_json(f"{self.base_url}/TPSeries", payload)
+                if response.get("stat") == "Ok" and "values" in response:
+                    print(f"✅ {len(response['values'])} candles")
+                    all_candles.extend(response["values"])
+                else:
+                    print(f"❌ Failed: {response.get('emsg', 'Unknown error')}")
+            except Exception as e:
+                print(f"❌ Exception: {str(e)}")
+
+            current += timedelta(days=30)
+
+        print(f"\n📊 Total candles fetched: {len(all_candles)}")
+        return all_candles
+        
     # === Internal Helper ===
 
     def _post_json(self, url, payload):
@@ -276,6 +320,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
