@@ -164,8 +164,8 @@ class ProStocksAPI:
             "uid": self.userid,
             "exch": exch,
             "token": str(token),
-            "st": st,
-            "et": et,
+            "st": str(st),
+            "et": str(et),
             "intrv": str(interval)
         }
 
@@ -276,3 +276,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
