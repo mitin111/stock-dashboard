@@ -143,24 +143,29 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-             # === TPSeries API ===
+                # === TPSeries API ===
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
         Fetch TPSeries OHLC data for a symbol.
         """
+        # ✅ Improvement 2: Check if logged in
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+
+        # ✅ Default time range if not passed
         if st is None or et is None:
             et = int(time.time())
             st = et - (300 * int(interval) * 60)  # fallback to 300 candles if not passed
 
         url = f"{self.base_url}/TPSeries"
-        
+
         payload = {
             "uid": self.userid,
             "exch": exch,
-            "token": str(token),
+            "token": str(token),         # ✅ Improvement 1: Ensure token is a string
             "st": st,
             "et": et,
-            "intrv": interval
+            "intrv": str(interval)       # ✅ Improvement 1: Force interval to string
         }
 
         # ✅ Debug Logging for Payload
@@ -192,10 +197,10 @@ class ProStocksAPI:
 
         for idx, sym in enumerate(symbols["values"]):
             exch = sym.get("exch", "").strip()
-            token = sym.get("token", "").strip()
+            token = str(sym.get("token", "")).strip()  # ✅ Improvement 3: Force token to string early
             symbol = sym.get("tsym", "").strip()
 
-            if not token or not str(token).isdigit():
+            if not token or not token.isdigit():
                 print(f"⚠️ Skipping {symbol}: Invalid or missing token ({token})")
                 continue
             if exch != "NSE":
