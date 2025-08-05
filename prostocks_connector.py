@@ -145,25 +145,42 @@ class ProStocksAPI:
 
          # === TPSeries API ===
 
-    def get_tpseries(self, exch, token, interval="5", bars=300):
-        url = f"{self.base_url}/TPSeries"
+    # === TPSeries API ===
+def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+    """
+    Fetch TPSeries OHLC data for a symbol.
+    """
+    if st is None or et is None:
         et = int(time.time())
-        st = et - (bars * int(interval) * 60)
+        st = et - (300 * int(interval) * 60)  # fallback to 300 candles if not passed
 
-        print("🕒 Start Time:", time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st)))
-        print("🕒 End Time:", time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et)))
-        print("📊 Interval:", interval, "| Bars:", bars)
+    url = f"{self.base_url}/TPSeries"
+    
+    payload = {
+        "uid": self.userid,
+        "exch": exch,
+        "token": str(token),
+        "st": st,
+        "et": et,
+        "intrv": interval
+    }
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": str(token),
-            "st": st,
-            "et": et,
-            "intrv": interval
-        }
+    # ✅ Debug Logging for Payload
+    print("📤 Sending TPSeries Payload:")
+    print(f"  UID    : {payload['uid']}")
+    print(f"  EXCH   : {payload['exch']}")
+    print(f"  TOKEN  : {payload['token']}")
+    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
+    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
+    print(f"  INTRV  : {payload['intrv']}")
 
-        return self._post_json(url, payload)
+    try:
+        response = self._post_json(url, payload)
+        print("📨 TPSeries Response:", response)
+        return response
+    except Exception as e:
+        print("❌ Exception in get_tpseries():", e)
+        return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
     results = []
@@ -254,4 +271,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
