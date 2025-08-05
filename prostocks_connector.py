@@ -143,45 +143,45 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-                   # === TPSeries API ===
-    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-        """
-        Fetch TPSeries OHLC data for a symbol.
-        """
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+                  # === TPSeries API ===
+def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+    """
+    Fetch TPSeries OHLC data for a symbol.
+    """
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        if st is None or et is None:
-    et = int(time.time()) - 60  # buffer 1 minute to avoid future timestamps
-    st = et - (300 * int(interval) * 60)
+    if st is None or et is None:
+        et = int(time.time()) - 60  # buffer 1 minute to avoid future timestamp
+        st = et - (300 * int(interval) * 60)  # Default to 300 candles
 
-        url = f"{self.base_url}/TPSeries"
+    url = f"{self.base_url}/TPSeries"
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": str(token),
-            "st": st,
-            "et": et,
-            "intrv": str(interval)
-        }
+    payload = {
+        "uid": self.userid,
+        "exch": exch,
+        "token": str(token),
+        "st": st,
+        "et": et,
+        "intrv": str(interval)
+    }
 
-        # Debug logs
-        print("📤 Sending TPSeries Payload:")
-        print(f"  UID    : {payload['uid']}")
-        print(f"  EXCH   : {payload['exch']}")
-        print(f"  TOKEN  : {payload['token']}")
-        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
-        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
-        print(f"  INTRV  : {payload['intrv']}")
+    # Debug logs
+    print("📤 Sending TPSeries Payload:")
+    print(f"  UID    : {payload['uid']}")
+    print(f"  EXCH   : {payload['exch']}")
+    print(f"  TOKEN  : {payload['token']}")
+    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
+    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
+    print(f"  INTRV  : {payload['intrv']}")
 
-        try:
-            response = self._post_json(url, payload)
-            print("📨 TPSeries Response:", response)
-            return response
-        except Exception as e:
-            print("❌ Exception in get_tpseries():", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
+    try:
+        response = self._post_json(url, payload)
+        print("📨 TPSeries Response:", response)
+        return response
+    except Exception as e:
+        print("❌ Exception in get_tpseries():", e)
+        return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
         results = []
@@ -270,4 +270,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
