@@ -144,48 +144,47 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
                 # === TPSeries API ===
-    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-        """
-        Fetch TPSeries OHLC data for a symbol.
-        """
-        # ✅ Improvement 2: Check if logged in
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        # ✅ Default time range if not passed
-        if st is None or et is None:
-            et = int(time.time())
-            st = et - (300 * int(interval) * 60)  # fallback to 300 candles if not passed
+def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+    """
+    Fetch TPSeries OHLC data for a symbol.
+    """
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        url = f"{self.base_url}/TPSeries"
+    if st is None or et is None:
+        et = int(time.time())
+        st = et - (300 * int(interval) * 60)
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": str(token),         # ✅ Improvement 1: Ensure token is a string
-            "st": st,
-            "et": et,
-            "intrv": str(interval)       # ✅ Improvement 1: Force interval to string
-        }
+    url = f"{self.base_url}/TPSeries"
 
-        # ✅ Debug Logging for Payload
-        print("📤 Sending TPSeries Payload:")
-        print(f"  UID    : {payload['uid']}")
-        print(f"  EXCH   : {payload['exch']}")
-        print(f"  TOKEN  : {payload['token']}")
-        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
-        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
-        print(f"  INTRV  : {payload['intrv']}")
+    payload = {
+        "uid": self.userid,
+        "exch": exch,
+        "token": str(token),
+        "st": st,
+        "et": et,
+        "intrv": str(interval)
+    }
 
-        try:
-            response = self._post_json(url, payload)
-            print("📨 TPSeries Response:", response)
-            return response
-        except Exception as e:
-            print("❌ Exception in get_tpseries():", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
+    print("📤 Sending TPSeries Payload:")
+    print(f"  UID    : {payload['uid']}")
+    print(f"  EXCH   : {payload['exch']}")
+    print(f"  TOKEN  : {payload['token']}")
+    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
+    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
+    print(f"  INTRV  : {payload['intrv']}")
 
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+    try:
+        response = self._post_json(url, payload)
+        print("📨 TPSeries Response:", response)
+        return response
+    except Exception as e:
+        print("❌ Exception in get_tpseries():", e)
+        return {"stat": "Not_Ok", "emsg": str(e)}
+
+
+def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
     results = []
     MAX_CALLS_PER_MIN = 20
     call_count = 0
@@ -213,7 +212,6 @@ class ProStocksAPI:
             st_time = now - (bars * interval_sec)
             et_time = now
 
-            # ✅ Timestamp sanity check
             print(f"\n🕒 Timestamps for {symbol}:")
             print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st_time))}")
             print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et_time))}")
@@ -258,24 +256,25 @@ class ProStocksAPI:
 
     return results
 
-    # === Internal Helper ===
-    def _post_json(self, url, payload):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
 
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=10
-            )
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
+# === Internal Helper ===
 
+def _post_json(self, url, payload):
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+    try:
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}&jKey={self.session_token}"
+        print("✅ POST URL:", url)
+        print("📦 Sent Payload:", jdata)
+
+        response = self.session.post(
+            url,
+            data=raw_data,
+            headers={"Content-Type": "text/plain"},
+            timeout=10
+        )
+        print("📨 Response:", response.text)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"stat": "Not_Ok", "emsg": str(e)}
