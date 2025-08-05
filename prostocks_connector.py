@@ -143,138 +143,130 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-                # === TPSeries API ===
+                   # === TPSeries API ===
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        """
+        Fetch TPSeries OHLC data for a symbol.
+        """
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-    """
-    Fetch TPSeries OHLC data for a symbol.
-    """
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+        if st is None or et is None:
+            et = int(time.time())
+            st = et - (300 * int(interval) * 60)  # Default to 300 candles
 
-    if st is None or et is None:
-        et = int(time.time())
-        st = et - (300 * int(interval) * 60)
+        url = f"{self.base_url}/TPSeries"
 
-    url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": str(token),
+            "st": st,
+            "et": et,
+            "intrv": str(interval)
+        }
 
-    payload = {
-        "uid": self.userid,
-        "exch": exch,
-        "token": str(token),
-        "st": st,
-        "et": et,
-        "intrv": str(interval)
-    }
-
-    print("📤 Sending TPSeries Payload:")
-    print(f"  UID    : {payload['uid']}")
-    print(f"  EXCH   : {payload['exch']}")
-    print(f"  TOKEN  : {payload['token']}")
-    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
-    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
-    print(f"  INTRV  : {payload['intrv']}")
-
-    try:
-        response = self._post_json(url, payload)
-        print("📨 TPSeries Response:", response)
-        return response
-    except Exception as e:
-        print("❌ Exception in get_tpseries():", e)
-        return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
-    results = []
-    MAX_CALLS_PER_MIN = 20
-    call_count = 0
-
-    symbols = self.get_watchlist(wlname)
-    if not symbols or "values" not in symbols:
-        print("❌ No symbols found in watchlist.")
-        return []
-
-    for idx, sym in enumerate(symbols["values"]):
-        exch = sym.get("exch", "").strip()
-        token = str(sym.get("token", "")).strip()
-        symbol = sym.get("tsym", "").strip()
-
-        if not token or not token.isdigit():
-            print(f"⚠️ Skipping {symbol}: Invalid or missing token ({token})")
-            continue
-        if exch != "NSE":
-            print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
-            continue
+        # Debug logs
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
+        print(f"  INTRV  : {payload['intrv']}")
 
         try:
-            now = int(time.time())
-            interval_sec = int(interval) * 60
-            st_time = now - (bars * interval_sec)
-            et_time = now
-
-            print(f"\n🕒 Timestamps for {symbol}:")
-            print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st_time))}")
-            print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et_time))}")
-            print(f"  Δ = {(et_time - st_time) // 60} minutes")
-
+            response = self._post_json(url, payload)
+            print("📨 TPSeries Response:", response)
+            return response
         except Exception as e:
-            print(f"⚠️ Time conversion error for {symbol}: {e}")
-            continue
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
-        print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
-        print("📤 TPSeries Payload Preview:")
-        print(f"  UID    : {self.userid}")
-        print(f"  EXCH   : {exch}")
-        print(f"  TOKEN  : {token}")
-        print(f"  ST     : {st_time}")
-        print(f"  ET     : {et_time}")
-        print(f"  INTRV  : {interval}")
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+        results = []
+        MAX_CALLS_PER_MIN = 20
+        call_count = 0
 
+        symbols = self.get_watchlist(wlname)
+        if not symbols or "values" not in symbols:
+            print("❌ No symbols found in watchlist.")
+            return []
+
+        for idx, sym in enumerate(symbols["values"]):
+            exch = sym.get("exch", "").strip()
+            token = str(sym.get("token", "")).strip()
+            symbol = sym.get("tsym", "").strip()
+
+            if not token or not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid or missing token ({token})")
+                continue
+            if exch != "NSE":
+                print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
+                continue
+
+            try:
+                now = int(time.time())
+                interval_sec = int(interval) * 60
+                st_time = now - (bars * interval_sec)
+                et_time = now
+
+                print(f"\n🕒 Timestamps for {symbol}:")
+                print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st_time))}")
+                print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et_time))}")
+                print(f"  Δ = {(et_time - st_time) // 60} minutes")
+
+                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
+                print("📤 TPSeries Payload Preview:")
+                print(f"  UID    : {self.userid}")
+                print(f"  EXCH   : {exch}")
+                print(f"  TOKEN  : {token}")
+                print(f"  ST     : {st_time}")
+                print(f"  ET     : {et_time}")
+                print(f"  INTRV  : {interval}")
+
+                response = self.get_tpseries(
+                    exch=exch,
+                    token=token,
+                    interval=interval,
+                    st=st_time,
+                    et=et_time
+                )
+                if isinstance(response, list):
+                    print(f"✅ {symbol}: {len(response)} candles fetched.")
+                    results.append({
+                        "symbol": symbol,
+                        "data": response
+                    })
+                else:
+                    print(f"⚠️ {symbol}: Error Occurred : {response.get('stat')} \"{response.get('emsg')}\"")
+            except Exception as e:
+                print(f"❌ {symbol}: Exception: {e}")
+
+            call_count += 1
+            if call_count >= MAX_CALLS_PER_MIN:
+                print("⚠️ TPSeries limit reached. Skipping remaining.")
+                break
+
+        return results
+
+    # === Internal Helper ===
+    def _post_json(self, url, payload):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
         try:
-            response = self.get_tpseries(
-                exch=exch,
-                token=token,
-                interval=interval,
-                st=st_time,
-                et=et_time
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
+
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=10
             )
-            if isinstance(response, list):
-                print(f"✅ {symbol}: {len(response)} candles fetched.")
-                results.append({
-                    "symbol": symbol,
-                    "data": response
-                })
-            else:
-                print(f"⚠️ {symbol}: Error Occurred : {response.get('stat')} \"{response.get('emsg')}\"")
-        except Exception as e:
-            print(f"❌ {symbol}: Exception: {e}")
-
-        call_count += 1
-        if call_count >= MAX_CALLS_PER_MIN:
-            print("⚠️ TPSeries limit reached. Skipping remaining.")
-            break
-
-    return results
-
-
-# === Internal Helper ===
-
-def _post_json(self, url, payload):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-    try:
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}&jKey={self.session_token}"
-        print("✅ POST URL:", url)
-        print("📦 Sent Payload:", jdata)
-
-        response = self.session.post(
-            url,
-            data=raw_data,
-            headers={"Content-Type": "text/plain"},
-            timeout=10
-        )
-        print("📨 Response:", response.text)
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {"stat": "Not_Ok", "emsg": str(e)}
+            print("📨 Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
