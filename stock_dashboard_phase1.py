@@ -202,7 +202,7 @@ with tab5:
                 tsym = scrip["tsym"]
                 st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
-                candles = ps_api.get_tpseries(exch, token, interval=saved_intrv, bars=10)
+                candles = ps_api.get_tpseries(exch, token, interval=saved_intrv)
 
                 if isinstance(candles, list):
                     df_candle = pd.DataFrame(candles)
@@ -216,5 +216,6 @@ with tab5:
             st.success(f"✅ Completed TPSeries fetch for {call_count} scrips.")
     else:
         st.warning("❗ Please login first to use the Strategy Engine.")
+
 
 
