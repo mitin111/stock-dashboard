@@ -144,8 +144,6 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
          # === TPSeries API ===
-
-    # === TPSeries API ===
 def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     """
     Fetch TPSeries OHLC data for a symbol.
@@ -271,5 +269,6 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
