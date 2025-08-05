@@ -152,8 +152,8 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
         if st is None or et is None:
-            et = int(time.time())
-            st = et - (300 * int(interval) * 60)  # Default to 300 candles
+    et = int(time.time()) - 60  # buffer 1 minute to avoid future timestamps
+    st = et - (300 * int(interval) * 60)
 
         url = f"{self.base_url}/TPSeries"
 
@@ -270,3 +270,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
