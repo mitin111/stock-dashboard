@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class ProStocksAPI:
     def __init__(
         self,
@@ -143,45 +144,46 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-                  # === TPSeries API ===
-def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-    """
-    Fetch TPSeries OHLC data for a symbol.
-    """
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+    # === TPSeries APIs ===
 
-    if st is None or et is None:
-        et = int(time.time()) - 60  # buffer 1 minute to avoid future timestamp
-        st = et - (300 * int(interval) * 60)  # Default to 300 candles
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        """
+        Fetch TPSeries OHLC data for a symbol.
+        """
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-    url = f"{self.base_url}/TPSeries"
+        if st is None or et is None:
+            et = int(time.time()) - 60
+            st = et - (300 * int(interval) * 60)
 
-    payload = {
-        "uid": self.userid,
-        "exch": exch,
-        "token": str(token),
-        "st": st,
-        "et": et,
-        "intrv": str(interval)
-    }
+        url = f"{self.base_url}/TPSeries"
 
-    # Debug logs
-    print("📤 Sending TPSeries Payload:")
-    print(f"  UID    : {payload['uid']}")
-    print(f"  EXCH   : {payload['exch']}")
-    print(f"  TOKEN  : {payload['token']}")
-    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
-    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
-    print(f"  INTRV  : {payload['intrv']}")
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": str(token),
+            "st": st,
+            "et": et,
+            "intrv": str(interval)
+        }
 
-    try:
-        response = self._post_json(url, payload)
-        print("📨 TPSeries Response:", response)
-        return response
-    except Exception as e:
-        print("❌ Exception in get_tpseries():", e)
-        return {"stat": "Not_Ok", "emsg": str(e)}
+        # Debug logs
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
+        print(f"  INTRV  : {payload['intrv']}")
+
+        try:
+            response = self._post_json(url, payload)
+            print("📨 TPSeries Response:", response)
+            return response
+        except Exception as e:
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
         results = []
@@ -217,13 +219,6 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
                 print(f"  Δ = {(et_time - st_time) // 60} minutes")
 
                 print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
-                print("📤 TPSeries Payload Preview:")
-                print(f"  UID    : {self.userid}")
-                print(f"  EXCH   : {exch}")
-                print(f"  TOKEN  : {token}")
-                print(f"  ST     : {st_time}")
-                print(f"  ET     : {et_time}")
-                print(f"  INTRV  : {interval}")
 
                 response = self.get_tpseries(
                     exch=exch,
@@ -250,7 +245,8 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
 
         return results
 
-       # === Internal Helper ===
+    # === Internal Helper ===
+
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -270,7 +266,6 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
 
 
 
