@@ -210,8 +210,8 @@ class ProStocksAPI:
             try:
                 now = int(time.time())
                 interval_sec = int(interval) * 60
-                st_time = now - (bars * interval_sec)
-                et_time = now
+                et = now - (now % interval_sec)
+                st = et - (interval_sec * num_bars)
 
                 print(f"\n🕒 Timestamps for {symbol}:")
                 print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st_time))}")
@@ -266,6 +266,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
