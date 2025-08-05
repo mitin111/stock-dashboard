@@ -194,12 +194,16 @@ with tab5:
                                 continue
 
                             try:
-                                candles = ps_api.get_tpseries(exch, token, interval=selected_interval)
-                                if isinstance(candles, list):
-                                    df_candle = pd.DataFrame(candles)
+                                candles = ps_api.get_tpseries_history(exch, token, interval=selected_interval, years=3)
+                                if isinstance(candles, list) and candles:
+                                    df_candle = pd.DataFrame(candles, columns=["Time", "Open", "High", "Low", "Close", "Volume"])
+                                    file_name = f"{tsym}_{selected_interval}min_3yrs.csv"
+                                    df_candle.to_csv(file_name, index=False)
+                                    st.success(f"📁 Data saved to {file_name}")
                                     st.dataframe(df_candle.tail(3))
                                 else:
-                                    st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
+                                    st.warning(f"⚠️ {tsym}: No data or error.")
+
                             except Exception as e:
                                 st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
@@ -211,3 +215,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
