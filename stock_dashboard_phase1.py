@@ -161,61 +161,53 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 Strategy Engine")
+    elif selected_tab == "📊 Tab 5: Strategy Engine":
+    st.subheader("📉 TPSeries Data Preview")
 
-    # === Candle Interval Selector ===
-    intrv = st.selectbox("🕒 Choose Candle Interval", ["1", "3", "5", "10", "15", "30"], index=2)
-    if st.button("🕏 Save Interval"):
-        st.session_state["selected_intrv"] = intrv
-        st.success(f"Saved interval: {intrv} min")
-
-    saved_intrv = st.session_state.get("selected_intrv", "5")
-    st.markdown(f"✅ Current Interval: **{saved_intrv} min**")
-
-    if "ps_api" in st.session_state:
-        ps_api = st.session_state["ps_api"]
-
-        # === Load Watchlist ===
-        selected_wl = st.selectbox("📂 Choose Watchlist", ps_api.get_watchlist_names(), index=0)
-        wl_data = ps_api.get_watchlist(selected_wl)
-
-        if wl_data.get("stat") == "Ok":
-            scrips = wl_data["values"]
-            st.success(f"✅ Loaded {len(scrips)} scrips from watchlist: {selected_wl}")
-        else:
-            st.error("❌ Failed to load watchlist.")
-            scrips = []
-
-        # === TPSeries Strategy Loop with Rate Limiting ===
-        st.markdown("---")
-        st.subheader("📉 TPSeries Data Preview")
-
-        if st.button("🔁 Fetch TPSeries for All Symbols"):
-            import time
-            MAX_CALLS_PER_MIN = 100
-            delay_per_call = 60 / MAX_CALLS_PER_MIN
-            call_count = 0
-
-            for i, scrip in enumerate(scrips):
-                exch = scrip["exch"]
-                token = scrip["token"]
-                tsym = scrip["tsym"]
-                st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
-
-                candles = ps_api.get_tpseries(exch, token, interval=saved_intrv)
-
-                if isinstance(candles, list):
-                    df_candle = pd.DataFrame(candles)
-                    st.dataframe(df_candle.tail(3))
-                else:
-                    st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
-
-                call_count += 1
-                time.sleep(delay_per_call)
-
-            st.success(f"✅ Completed TPSeries fetch for {call_count} scrips.")
+    if not jkey:
+        st.warning("⚠️ Please login first using your API credentials.")
     else:
-        st.warning("❗ Please login first to use the Strategy Engine.")
+        selected_watchlist = st.selectbox("Select Watchlist", list(watchlists.keys()))
+        selected_interval = st.selectbox("Select Interval", ["1", "3", "5", "10", "15", "30", "60", "120", "240"])
+        saved_intrv = selected_interval.strip()
+
+        if st.button("🔁 Fetch TPSeries Data"):
+            with st.spinner("Fetching candle data for all scrips..."):
+                scrips = watchlists.get(selected_watchlist, [])
+                call_count = 0
+                delay_per_call = 1.1  # seconds
+
+                valid_intervals = ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
+
+                for i, scrip in enumerate(scrips):
+                    exch = scrip["exch"]
+                    token = scrip["token"]
+                    tsym = scrip["tsym"]
+                    st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
+
+                    # ✅ Validate interval BEFORE calling the API
+                    if saved_intrv not in valid_intervals:
+                        st.error(f"❌ Invalid interval: '{saved_intrv}' for {tsym}. Allowed: {valid_intervals}")
+                        continue
+
+                    try:
+                        candles = ps_api.get_tpseries(exch, token, interval=saved_intrv)
+                    except Exception as e:
+                        st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
+                        continue
+
+                    if isinstance(candles, list):
+                        df_candle = pd.DataFrame(candles)
+                        st.dataframe(df_candle.tail(3))
+                    else:
+                        st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
+
+                    call_count += 1
+                    time.sleep(delay_per_call)
+
+                st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
+
+
 
 
 
