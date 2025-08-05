@@ -250,7 +250,7 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
 
         return results
 
-    # === Internal Helper ===
+       # === Internal Helper ===
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -270,5 +270,7 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
+
 
 
