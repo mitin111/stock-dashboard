@@ -162,7 +162,48 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 Live chart")
+    st.subheader("📉 Live Candlestick Chart")
 
-   
+    # Select token to visualize (example: "NSE|11872")
+    selected_token = st.selectbox("Select Token", list(candles.keys()) if candles else [])
 
+    # Select timeframe (1min, 3min, 5min, etc.)
+    selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in TIMEFRAMES])
+
+    if selected_token and selected_tf:
+        tf_key = selected_tf.replace("min", "")  # Get numeric part (e.g., "5")
+        tf_candles = candles[selected_token].get(tf_key, {})
+        sorted_times = sorted(tf_candles.keys())
+
+        if sorted_times:
+            ohlcv_data = {
+                "datetime": [datetime.strptime(t, "%Y-%m-%d %H:%M") for t in sorted_times],
+                "open": [tf_candles[t]["O"] for t in sorted_times],
+                "high": [tf_candles[t]["H"] for t in sorted_times],
+                "low": [tf_candles[t]["L"] for t in sorted_times],
+                "close": [tf_candles[t]["C"] for t in sorted_times],
+                "volume": [tf_candles[t]["V"] for t in sorted_times],
+            }
+
+            df = pd.DataFrame(ohlcv_data)
+
+            fig = go.Figure(data=[go.Candlestick(
+                x=df["datetime"],
+                open=df["open"],
+                high=df["high"],
+                low=df["low"],
+                close=df["close"],
+                name="Price"
+            )])
+
+            fig.update_layout(
+                xaxis_rangeslider_visible=False,
+                title=f"{selected_tf} Chart for {selected_token}",
+                height=600
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Waiting for candles to build...")
+    else:
+        st.info("ℹ️ Waiting for tick data...")
