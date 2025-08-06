@@ -10,6 +10,7 @@ import time
 import json
 import requests
 from urllib.parse import urlencode
+import plotly.graph_objects as go
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -164,3 +165,4 @@ with tab5:
     st.subheader("📉 Live chart")
 
    
+
