@@ -166,16 +166,13 @@ with tab5:
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
-        candles = ps_api.get_all_candles()
+        candles = ps_api.get_candles()  # ✅ CORRECT METHOD NAME
 
-        # Select token to visualize (example: "NSE|11872")
         selected_token = st.selectbox("Select Token", list(candles.keys()) if candles else [])
-
-        # Select timeframe (1min, 3min, 5min, etc.)
         selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
 
         if selected_token and selected_tf:
-            tf_key = selected_tf  # Keep as "1min", "3min", etc.
+            tf_key = selected_tf  # e.g., "1min", "3min"
             tf_candles = candles[selected_token].get(tf_key, {})
             sorted_times = sorted(tf_candles.keys())
 
@@ -211,5 +208,3 @@ with tab5:
                 st.warning("Waiting for candles to build...")
         else:
             st.info("ℹ️ Waiting for tick data...")
-    else:
-        st.error("🔑 Please log in to start receiving live ticks.")
