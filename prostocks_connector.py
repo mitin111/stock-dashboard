@@ -108,7 +108,7 @@ class ProStocksAPI:
         self.tokens = tokens
         self.candles = {}  # Reset candles
 
-            def get_candles(self):
+    def get_candles(self):
         return self.candles
 
         def on_message(ws, message):
@@ -221,4 +221,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
