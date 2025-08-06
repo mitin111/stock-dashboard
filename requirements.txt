@@ -10,6 +10,8 @@ cryptography
 pyotp
 pyDes
 ta
+plotly
+
 
 
 
