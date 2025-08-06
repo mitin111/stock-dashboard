@@ -160,6 +160,7 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+# === Rerun logic ===
 query_params = st.query_params
 count = int(query_params.get("count", ["0"])[0])
 st.query_params = {"count": str(count + 1)}
@@ -184,16 +185,16 @@ with tab5:
                 wl_data = ps_api.get_watchlist(selected_wl)
                 scrips = wl_data.get("values", []) if wl_data.get("stat") == "Ok" else []
 
-                # Extract token list
+                # ✅ Extract token list directly from scrips
                 token_list = [f"{s['exch']}|{s['token']}" for s in scrips if "token" in s]
 
                 if token_list:
-                    # Start WebSocket Candle Builder only once
+                    # ✅ Start WebSocket Candle Builder once
                     if not ps_api.ws:
                         ps_api.start_candle_builder(token_list)
 
-                    tokens = ps_api.get_watchlist_tokens()
-                    selected_token = st.selectbox("Select Token", tokens)
+                    # ✅ Use current token_list instead of ps_api.get_watchlist_tokens()
+                    selected_token = st.selectbox("Select Token", token_list)
 
                     selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
 
@@ -229,12 +230,10 @@ with tab5:
                             )
                             st.plotly_chart(fig, use_container_width=True)
                         else:
-                            st.warning("Waiting for candles to build...")
+                            st.warning("⏳ Waiting for candles to build...")
                     else:
-                        st.info("ℹ️ Waiting for token selection...")
+                        st.info("ℹ️ Waiting for token and timeframe selection...")
                 else:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
-
-
