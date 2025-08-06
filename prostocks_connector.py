@@ -176,6 +176,10 @@ class ProStocksAPI:
     def get_watchlist_tokens(self):
         return list(self.candles.keys())
 
+    def get_all_candles(self):
+        """Return all live candle data."""
+        return self.candles
+
     # === Watchlist & Helpers ===
 
     def get_watchlists(self):
@@ -224,5 +228,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
