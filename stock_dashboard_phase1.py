@@ -167,67 +167,64 @@ with tab5:
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
 
-        # Step 1: Select Watchlist
-        wl_names = ps_api.get_watchlist_names()
-        selected_wl = st.selectbox("📁 Choose Watchlist", wl_names)
+        with st.expander("Live Candlestick Charts - Watchlist", expanded=True):
+            # Choose Watchlist
+            wl_names = ps_api.get_watchlist_names()
+            selected_wl = st.selectbox("📁 Choose Watchlist", wl_names)
 
-        if selected_wl:
-            # Step 2: Fetch scrips from selected watchlist
-            wl_data = ps_api.get_watchlist(selected_wl)
-            scrips = wl_data.get("values", []) if wl_data.get("stat") == "Ok" else []
+            if selected_wl:
+                wl_data = ps_api.get_watchlist(selected_wl)
+                scrips = wl_data.get("values", []) if wl_data.get("stat") == "Ok" else []
 
-            # Step 3: Extract tokens like NSE|11872
-            token_list = [f"{s['exch']}|{s['token']}" for s in scrips if "token" in s]
+                # Extract token list
+                token_list = [f"{s['exch']}|{s['token']}" for s in scrips if "token" in s]
 
-            if token_list:
-                # Step 4: Start WebSocket only once
-                if not ps_api.ws:
-                    ps_api.start_candle_builder(token_list)
+                if token_list:
+                    # Start WebSocket Candle Builder only once
+                    if not ps_api.ws:
+                        ps_api.start_candle_builder(token_list)
 
-                # Step 5: Dropdowns
-                tokens = ps_api.get_watchlist_tokens()
-                selected_token = st.selectbox("Select Token", tokens if tokens else [])
-                selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
+                    tokens = ps_api.get_watchlist_tokens()
+                    selected_token = st.selectbox("Select Token", tokens)
 
-                # Step 6: Display Candlestick Chart
-                if selected_token and selected_tf:
-                    candles = ps_api.get_all_candles()
-                    tf_candles = candles.get(selected_token, {}).get(selected_tf, {})
-                    sorted_times = sorted(tf_candles.keys())
+                    selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
 
-                    if sorted_times:
-                        ohlcv_data = {
-                            "datetime": [datetime.strptime(t, "%Y-%m-%d %H:%M") for t in sorted_times],
-                            "open": [tf_candles[t]["O"] for t in sorted_times],
-                            "high": [tf_candles[t]["H"] for t in sorted_times],
-                            "low": [tf_candles[t]["L"] for t in sorted_times],
-                            "close": [tf_candles[t]["C"] for t in sorted_times],
-                            "volume": [tf_candles[t]["V"] for t in sorted_times],
-                        }
+                    if selected_token and selected_tf:
+                        candles = ps_api.get_all_candles()
+                        tf_candles = candles.get(selected_token, {}).get(selected_tf, {})
+                        sorted_times = sorted(tf_candles.keys())
 
-                        df = pd.DataFrame(ohlcv_data)
-                        fig = go.Figure(data=[go.Candlestick(
-                            x=df["datetime"],
-                            open=df["open"],
-                            high=df["high"],
-                            low=df["low"],
-                            close=df["close"],
-                            name="Price"
-                        )])
+                        if sorted_times:
+                            ohlcv_data = {
+                                "datetime": [datetime.strptime(t, "%Y-%m-%d %H:%M") for t in sorted_times],
+                                "open": [tf_candles[t]["O"] for t in sorted_times],
+                                "high": [tf_candles[t]["H"] for t in sorted_times],
+                                "low": [tf_candles[t]["L"] for t in sorted_times],
+                                "close": [tf_candles[t]["C"] for t in sorted_times],
+                                "volume": [tf_candles[t]["V"] for t in sorted_times],
+                            }
 
-                        fig.update_layout(
-                            xaxis_rangeslider_visible=False,
-                            title=f"{selected_tf} Chart for {selected_token}",
-                            height=600
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+                            df = pd.DataFrame(ohlcv_data)
+                            fig = go.Figure(data=[go.Candlestick(
+                                x=df["datetime"],
+                                open=df["open"],
+                                high=df["high"],
+                                low=df["low"],
+                                close=df["close"],
+                                name="Price"
+                            )])
+
+                            fig.update_layout(
+                                xaxis_rangeslider_visible=False,
+                                title=f"{selected_tf} Chart for {selected_token}",
+                                height=600
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("Waiting for candles to build...")
                     else:
-                        st.warning("⏳ Waiting for candles to build...")
+                        st.info("ℹ️ Waiting for token selection...")
                 else:
-                    st.info("ℹ️ Waiting for token selection...")
-            else:
-                st.warning("⚠️ No tokens found in selected watchlist.")
-        else:
-            st.info("ℹ️ Please select a watchlist.")
+                    st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
