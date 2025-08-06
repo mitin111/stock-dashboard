@@ -166,22 +166,15 @@ with tab5:
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
+        candles = ps_api.get_all_candles()
 
-        # ✅ Get live candles dictionary from API
-        candles = ps_api.get_candles()
-
-        # ✅ Filter tokens to only show those from watchlist with candle data
-        watchlist_tokens = ps_api.get_watchlist_tokens()  # Make sure this method exists
-        available_tokens = [t for t in watchlist_tokens if t in candles]
-
-        selected_token = st.selectbox("Select Token", available_tokens)
-
-        # ✅ Only show 1min if you're only building 1min candles
-        selected_tf = st.selectbox("Select Timeframe", ["1min"])
+        tokens = ps_api.get_watchlist_tokens()
+        selected_token = st.selectbox("Select Token", tokens if tokens else [])
+        selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
 
         if selected_token and selected_tf:
             tf_key = selected_tf
-            tf_candles = candles[selected_token].get(tf_key, {})
+            tf_candles = candles.get(selected_token, {}).get(tf_key, {})
             sorted_times = sorted(tf_candles.keys())
 
             if sorted_times:
@@ -195,7 +188,6 @@ with tab5:
                 }
 
                 df = pd.DataFrame(ohlcv_data)
-
                 fig = go.Figure(data=[go.Candlestick(
                     x=df["datetime"],
                     open=df["open"],
@@ -210,14 +202,10 @@ with tab5:
                     title=f"{selected_tf} Chart for {selected_token}",
                     height=600
                 )
-
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("Waiting for candle data...")
+                st.warning("Waiting for candles to build...")
         else:
             st.info("ℹ️ Waiting for live tick data...")
-
     else:
-        st.error("Login first to access live chart.")
-
-
+        st.error("🔑 Session expired. Please login again.")
