@@ -112,7 +112,6 @@ class ProStocksAPI:
         return self.candles
 
         def get_watchlist_tokens(self):
-            # Return list of all tokens from all watchlists
             return list(self.candles.keys())
 
         def on_message(ws, message):
@@ -225,6 +224,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
