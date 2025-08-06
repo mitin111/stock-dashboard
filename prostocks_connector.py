@@ -32,7 +32,6 @@ class ProStocksAPI:
             "imei": self.imei
         }
 
-        # WebSocket Candle Builder
         self.ws = None
         self.subscribed_tokens = []
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
@@ -119,26 +118,27 @@ class ProStocksAPI:
                 ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
                 print(f"📥 Live tick from token: {token}")
 
-               for tf in self.TIMEFRAMES:
-                   try:
-                       minutes = int(tf.replace("min", ""))
-                       bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
-                       key = bucket.strftime("%Y-%m-%d %H:%M")
+                for tf in self.TIMEFRAMES:
+                    try:
+                        minutes = int(tf.replace("min", ""))
+                        bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
+                        key = bucket.strftime("%Y-%m-%d %H:%M")
 
-                       tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
-                       c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
-                       c["C"] = ltp
-                       c["H"] = max(c["H"], ltp)
-                       c["L"] = min(c["L"], ltp)
-                       c["V"] += vol
+                        tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
+                        c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
+                        c["C"] = ltp
+                        c["H"] = max(c["H"], ltp)
+                        c["L"] = min(c["L"], ltp)
+                        c["V"] += vol
 
-                       # ✅ ADD THESE DEBUG PRINTS:
-                       print(f"🕒 Timeframe: {tf}")
-                       print(f"🧩 Candle Key: {key}")
-                       print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
-    
-               except Exception as e:
-                   print(f"🔥 Error in candle build loop for TF {tf}: {e}")
+                        print(f"🕒 Timeframe: {tf}")
+                        print(f"🧩 Candle Key: {key}")
+                        print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
+                    except Exception as e:
+                        print(f"🔥 Error in candle build loop for TF {tf}: {e}")
+
+            except Exception as e:
+                print(f"❌ Error in on_message: {e}")
 
         def on_open(ws):
             print("✅ WebSocket connection opened.")
@@ -230,9 +230,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
-
-
-
