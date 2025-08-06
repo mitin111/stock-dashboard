@@ -117,20 +117,28 @@ class ProStocksAPI:
                 ltp = float(data['lp'])
                 vol = int(data.get('v', 0))
                 ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
+                print(f"📥 Live tick from token: {token}")
 
-                for tf in self.TIMEFRAMES:
-                    minutes = int(tf.replace("min", ""))
-                    bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
-                    key = bucket.strftime("%Y-%m-%d %H:%M")
+               for tf in self.TIMEFRAMES:
+                   try:
+                       minutes = int(tf.replace("min", ""))
+                       bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
+                       key = bucket.strftime("%Y-%m-%d %H:%M")
 
-                    tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
-                    c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
-                    c["C"] = ltp
-                    c["H"] = max(c["H"], ltp)
-                    c["L"] = min(c["L"], ltp)
-                    c["V"] += vol
-            except Exception as e:
-                print("🔥 Error in on_message:", str(e))
+                       tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
+                       c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
+                       c["C"] = ltp
+                       c["H"] = max(c["H"], ltp)
+                       c["L"] = min(c["L"], ltp)
+                       c["V"] += vol
+
+                       # ✅ ADD THESE DEBUG PRINTS:
+                       print(f"🕒 Timeframe: {tf}")
+                       print(f"🧩 Candle Key: {key}")
+                       print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
+    
+               except Exception as e:
+                   print(f"🔥 Error in candle build loop for TF {tf}: {e}")
 
         def on_open(ws):
             print("✅ WebSocket connection opened.")
@@ -222,6 +230,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
