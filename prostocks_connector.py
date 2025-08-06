@@ -34,9 +34,9 @@ class ProStocksAPI:
 
         # WebSocket Candle Builder
         self.ws = None
-        self.tokens = []  # e.g., ["NSE|11872"]
-        self.TIMEFRAMES = [1, 3, 5, 15, 30, 60]
-        self.candles = {}  # Format: candles[token][tf_key][timestamp] = {O, H, L, C, V}
+        self.subscribed_tokens = []
+        self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
+        self.candles = {}
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
@@ -99,80 +99,73 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-    # === WebSocket Helpers ===
-
-    def floor_time(self, dt, minutes):
-        return dt - timedelta(minutes=dt.minute % minutes, seconds=dt.second, microseconds=dt.microsecond)
-
     def start_candle_builder(self, token_list):
-    if self.ws:  # If already running, skip
-        return
+        if self.ws:
+            return
 
-    self.subscribed_tokens = token_list
-    self.candles = {}  # Reset live candles
-    self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-    self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
+        self.subscribed_tokens = token_list
+        self.candles = {}
+        self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
-    def on_message(ws, message):
-        try:
-            data = json.loads(message)
-            if data.get("t") != "tk":
-                return
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                if data.get("t") != "tk":
+                    return
 
-            token = f"{data['e']}|{data['tk']}"
-            ltp = float(data['lp'])
-            vol = int(data.get('v', 0))
-            ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
+                token = f"{data['e']}|{data['tk']}"
+                ltp = float(data['lp'])
+                vol = int(data.get('v', 0))
+                ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
 
-            for tf in self.TIMEFRAMES:
-                minutes = int(tf.replace("min", ""))
-                bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
-                key = bucket.strftime("%Y-%m-%d %H:%M")
+                for tf in self.TIMEFRAMES:
+                    minutes = int(tf.replace("min", ""))
+                    bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
+                    key = bucket.strftime("%Y-%m-%d %H:%M")
 
-                tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
-                c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
-                c["C"] = ltp
-                c["H"] = max(c["H"], ltp)
-                c["L"] = min(c["L"], ltp)
-                c["V"] += vol
-        except Exception as e:
-            print("🔥 Error in on_message:", str(e))
+                    tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
+                    c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
+                    c["C"] = ltp
+                    c["H"] = max(c["H"], ltp)
+                    c["L"] = min(c["L"], ltp)
+                    c["V"] += vol
+            except Exception as e:
+                print("🔥 Error in on_message:", str(e))
 
-    def on_open(ws):
-        print("✅ WebSocket connection opened.")
-        for token in token_list:
-            ws.send(json.dumps({"t": "t", "k": token}))
-            print(f"📡 Subscribed to tick: {token}")
+        def on_open(ws):
+            print("✅ WebSocket connection opened.")
+            for token in token_list:
+                ws.send(json.dumps({"t": "t", "k": token}))
+                print(f"📡 Subscribed to tick: {token}")
 
-        def run_ping():
-            while True:
-                try:
-                    ws.send(json.dumps({"t": "ping"}))
-                    time.sleep(15)
-                except:
-                    break
-        threading.Thread(target=run_ping, daemon=True).start()
+            def run_ping():
+                while True:
+                    try:
+                        ws.send(json.dumps({"t": "ping"}))
+                        time.sleep(15)
+                    except:
+                        break
+            threading.Thread(target=run_ping, daemon=True).start()
 
-    def on_close(ws, code, msg):
-        print(f"🔌 WebSocket closed: {msg}")
-        self.ws = None
-        time.sleep(2)
-        print("🔄 Reconnecting WebSocket...")
-        self.start_candle_builder(self.subscribed_tokens)
+        def on_close(ws, code, msg):
+            print(f"🔌 WebSocket closed: {msg}")
+            self.ws = None
+            time.sleep(2)
+            print("🔄 Reconnecting WebSocket...")
+            self.start_candle_builder(self.subscribed_tokens)
 
-    def on_error(ws, error):
-        print(f"❌ WebSocket Error: {error}")
+        def on_error(ws, error):
+            print(f"❌ WebSocket Error: {error}")
 
-    websocket.enableTrace(False)
-    self.ws = websocket.WebSocketApp(
-        self.ws_url,
-        on_message=on_message,
-        on_open=on_open,
-        on_error=on_error,
-        on_close=on_close
-    )
-
-    threading.Thread(target=self.ws.run_forever, daemon=True).start()
+        websocket.enableTrace(False)
+        self.ws = websocket.WebSocketApp(
+            self.ws_url,
+            on_message=on_message,
+            on_open=on_open,
+            on_error=on_error,
+            on_close=on_close
+        )
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def get_candles(self):
         return self.candles
@@ -181,10 +174,7 @@ class ProStocksAPI:
         return list(self.candles.keys())
 
     def get_all_candles(self):
-        """Return all live candle data."""
         return self.candles
-
-    # === Watchlist & Helpers ===
 
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
