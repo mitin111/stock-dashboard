@@ -5,7 +5,7 @@ import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime
 import websocket
 import threading
 
@@ -13,16 +13,7 @@ load_dotenv()
 
 
 class ProStocksAPI:
-    def __init__(
-        self,
-        userid=None,
-        password_plain=None,
-        vc=None,
-        api_key=None,
-        imei=None,
-        base_url=None,
-        apkversion="1.0.0"
-    ):
+    def __init__(self, userid=None, password_plain=None, vc=None, api_key=None, imei=None, base_url=None, apkversion="1.0.0"):
         self.userid = userid or os.getenv("PROSTOCKS_USER_ID")
         self.password_plain = password_plain or os.getenv("PROSTOCKS_PASSWORD")
         self.vc = vc or os.getenv("PROSTOCKS_VENDOR_CODE")
@@ -32,9 +23,7 @@ class ProStocksAPI:
         self.apkversion = apkversion
         self.session_token = None
         self.session = requests.Session()
-        self.headers = {
-            "Content-Type": "text/plain"
-        }
+        self.headers = {"Content-Type": "text/plain"}
 
         self.credentials = {
             "uid": self.userid,
@@ -44,15 +33,19 @@ class ProStocksAPI:
             "imei": self.imei
         }
 
+        # WebSocket Candle Builder Variables
+        self.ws = None
+        self.tokens = []  # Format: ["NSE|11872", "NSE|3045", ...]
+        self.TIMEFRAMES = [1, 3, 5, 15, 30, 60]
+        self.candles = {tf: {} for tf in self.TIMEFRAMES}
+
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
     def send_otp(self):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
-        appkey_raw = f"{self.userid}|{self.api_key}"
-        appkey_hash = self.sha256(appkey_raw)
-
+        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
         payload = {
             "uid": self.userid,
             "pwd": pwd_hash,
@@ -63,7 +56,6 @@ class ProStocksAPI:
             "apkversion": self.apkversion,
             "source": "API"
         }
-
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
@@ -76,9 +68,7 @@ class ProStocksAPI:
     def login(self, factor2_otp):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
-        appkey_raw = f"{self.userid}|{self.api_key}"
-        appkey_hash = self.sha256(appkey_raw)
-
+        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
         payload = {
             "uid": self.userid,
             "pwd": pwd_hash,
@@ -89,14 +79,12 @@ class ProStocksAPI:
             "apkversion": self.apkversion,
             "source": "API"
         }
-
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
             print("🔁 Login Response Code:", response.status_code)
             print("📨 Login Response Body:", response.text)
-
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
@@ -157,17 +145,76 @@ class ProStocksAPI:
             raw_data = f"jData={jdata}&jKey={self.session_token}"
             print("✅ POST URL:", url)
             print("📦 Sent Payload:", jdata)
-
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=10
-            )
+            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
             print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
+    # === Candle Builder Helpers ===
+
+    def _get_time_key(self, tf, now=None):
+        now = now or datetime.now()
+        minute = (now.minute // tf) * tf
+        return now.replace(minute=minute, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M")
+
+    def start_candle_builder(self, tokens):
+        self.tokens = tokens
+
+        def on_message(ws, message):
+            data = json.loads(message)
+            if data.get("tk") and data.get("lp"):
+                token = data["tk"]
+                ltp = float(data["lp"])
+                vol = int(data.get("v", 0))
+                now = datetime.now()
+
+                for tf in self.TIMEFRAMES:
+                    ts = self._get_time_key(tf, now)
+                    if token not in self.candles[tf]:
+                        self.candles[tf][token] = {}
+                    if ts not in self.candles[tf][token]:
+                        self.candles[tf][token][ts] = {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol}
+                    else:
+                        c = self.candles[tf][token][ts]
+                        c["H"] = max(c["H"], ltp)
+                        c["L"] = min(c["L"], ltp)
+                        c["C"] = ltp
+                        c["V"] += vol
+
+                    if tf == 1:
+                        print(f"[{tf}m] 🕒 {ts} | {token} | O:{c['O']} H:{c['H']} L:{c['L']} C:{c['C']} V:{c['V']}")
+
+        def on_open(ws):
+            print("✅ WebSocket opened")
+            ws.send(json.dumps({
+                "uid": self.userid,
+                "actid": self.userid,
+                "source": "API",
+                "susertoken": self.session_token
+            }))
+            time.sleep(1)
+            for t in self.tokens:
+                ws.send(json.dumps({"t": "t", "k": t}))
+                print(f"📡 Subscribed to tick: {t}")
+
+        def on_error(ws, error):
+            print("❌ WebSocket Error:", error)
+
+        def on_close(ws, code, msg):
+            print("🔌 WebSocket closed:", msg)
+
+        self.ws = websocket.WebSocketApp(
+            "wss://starapi.prostocks.com/NorenWSTP/",
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close,
+            on_open=on_open
+        )
+
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
+
+
 
 
 
