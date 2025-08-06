@@ -5,12 +5,11 @@ import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import websocket
 import threading
 
 load_dotenv()
-
 
 class ProStocksAPI:
     def __init__(self, userid=None, password_plain=None, vc=None, api_key=None, imei=None, base_url=None, apkversion="1.0.0"):
@@ -33,11 +32,11 @@ class ProStocksAPI:
             "imei": self.imei
         }
 
-        # WebSocket Candle Builder Variables
+        # WebSocket Candle Builder
         self.ws = None
-        self.tokens = []  # Format: ["NSE|11872", "NSE|3045", ...]
+        self.tokens = []  # e.g., ["NSE|11872"]
         self.TIMEFRAMES = [1, 3, 5, 15, 30, 60]
-        self.candles = {tf: {} for tf in self.TIMEFRAMES}
+        self.candles = {}  # Format: candles[token][tf_key][timestamp] = {O, H, L, C, V}
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
@@ -100,7 +99,78 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-    # === Watchlist APIs ===
+    # === WebSocket Helpers ===
+
+    def floor_time(self, dt, minutes):
+        return dt - timedelta(minutes=dt.minute % minutes, seconds=dt.second, microseconds=dt.microsecond)
+
+    def start_candle_builder(self, tokens):
+        self.tokens = tokens
+        self.candles = {}  # Reset candles
+
+        def on_message(ws, message):
+            data = json.loads(message)
+
+            if data.get("tk") and data.get("lp"):  # Tick with price
+                token = data["tk"]
+                ltp = float(data["lp"])
+                vol = int(data.get("v", 0))
+                now = datetime.now()
+
+                if token not in self.candles:
+                    self.candles[token] = {}
+
+                for tf in self.TIMEFRAMES:
+                    tf_key = f"{tf}min"
+                    tf_time = self.floor_time(now, tf).strftime("%Y-%m-%d %H:%M")
+
+                    if tf_key not in self.candles[token]:
+                        self.candles[token][tf_key] = {}
+
+                    if tf_time not in self.candles[token][tf_key]:
+                        self.candles[token][tf_key][tf_time] = {
+                            "O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol
+                        }
+                    else:
+                        c = self.candles[token][tf_key][tf_time]
+                        c["H"] = max(c["H"], ltp)
+                        c["L"] = min(c["L"], ltp)
+                        c["C"] = ltp
+                        c["V"] += vol
+
+                    if tf == 1:
+                        print(f"[{tf_key}] 🕒 {tf_time} | {token} | O:{c['O']} H:{c['H']} L:{c['L']} C:{c['C']} V:{c['V']}")
+
+        def on_open(ws):
+            print("✅ WebSocket opened")
+            ws.send(json.dumps({
+                "uid": self.userid,
+                "actid": self.userid,
+                "source": "API",
+                "susertoken": self.session_token
+            }))
+            time.sleep(1)
+            for t in self.tokens:
+                ws.send(json.dumps({"t": "t", "k": t}))
+                print(f"📡 Subscribed to tick: {t}")
+
+        def on_error(ws, error):
+            print("❌ WebSocket Error:", error)
+
+        def on_close(ws, code, msg):
+            print("🔌 WebSocket closed:", msg)
+
+        self.ws = websocket.WebSocketApp(
+            "wss://starapi.prostocks.com/NorenWSTP/",
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close,
+            on_open=on_open
+        )
+
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
+
+    # === Watchlist & Helpers ===
 
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
@@ -135,8 +205,6 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # === Internal Helper ===
-
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -150,71 +218,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-    # === Candle Builder Helpers ===
-
-    def _get_time_key(self, tf, now=None):
-        now = now or datetime.now()
-        minute = (now.minute // tf) * tf
-        return now.replace(minute=minute, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M")
-
-    def start_candle_builder(self, tokens):
-        self.tokens = tokens
-
-        def on_message(ws, message):
-            data = json.loads(message)
-            if data.get("tk") and data.get("lp"):
-                token = data["tk"]
-                ltp = float(data["lp"])
-                vol = int(data.get("v", 0))
-                now = datetime.now()
-
-                for tf in self.TIMEFRAMES:
-                    ts = self._get_time_key(tf, now)
-                    if token not in self.candles[tf]:
-                        self.candles[tf][token] = {}
-                    if ts not in self.candles[tf][token]:
-                        self.candles[tf][token][ts] = {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol}
-                    else:
-                        c = self.candles[tf][token][ts]
-                        c["H"] = max(c["H"], ltp)
-                        c["L"] = min(c["L"], ltp)
-                        c["C"] = ltp
-                        c["V"] += vol
-
-                    if tf == 1:
-                        print(f"[{tf}m] 🕒 {ts} | {token} | O:{c['O']} H:{c['H']} L:{c['L']} C:{c['C']} V:{c['V']}")
-
-        def on_open(ws):
-            print("✅ WebSocket opened")
-            ws.send(json.dumps({
-                "uid": self.userid,
-                "actid": self.userid,
-                "source": "API",
-                "susertoken": self.session_token
-            }))
-            time.sleep(1)
-            for t in self.tokens:
-                ws.send(json.dumps({"t": "t", "k": t}))
-                print(f"📡 Subscribed to tick: {t}")
-
-        def on_error(ws, error):
-            print("❌ WebSocket Error:", error)
-
-        def on_close(ws, code, msg):
-            print("🔌 WebSocket closed:", msg)
-
-        self.ws = websocket.WebSocketApp(
-            "wss://starapi.prostocks.com/NorenWSTP/",
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-            on_open=on_open
-        )
-
-        threading.Thread(target=self.ws.run_forever, daemon=True).start()
-
-
-
-
-
