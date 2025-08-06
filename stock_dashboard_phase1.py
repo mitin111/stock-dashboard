@@ -161,53 +161,6 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries Data Preview")
+    st.subheader("📉 Live chart")
 
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first using your API credentials.")
-    else:
-        ps_api = st.session_state["ps_api"]
-        wl_resp = ps_api.get_watchlists()
-        if wl_resp.get("stat") == "Ok":
-            raw_watchlists = wl_resp["values"]
-            watchlists = sorted(raw_watchlists, key=int)
-            selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-            selected_interval = st.selectbox("Select Interval", ["1", "3", "5", "10", "15", "30", "60", "120", "240"])
-
-            if st.button("🔁 Fetch TPSeries Data"):
-                with st.spinner("Fetching candle data for all scrips..."):
-                    wl_data = ps_api.get_watchlist(selected_watchlist)
-                    if wl_data.get("stat") == "Ok":
-                        scrips = wl_data.get("values", [])
-                        call_count = 0
-                        delay_per_call = 1.1
-                        valid_intervals = ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
-
-                        for i, scrip in enumerate(scrips):
-                            exch = scrip["exch"]
-                            token = scrip["token"]
-                            tsym = scrip["tsym"]
-                            st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
-
-                            if selected_interval not in valid_intervals:
-                                st.error(f"❌ Invalid interval: '{selected_interval}' for {tsym}. Allowed: {valid_intervals}")
-                                continue
-
-                            try:
-                                candles = ps_api.get_tpseries(exch, token, interval=selected_interval)
-                                if isinstance(candles, list):
-                                    df_candle = pd.DataFrame(candles)
-                                    st.dataframe(df_candle.tail(3))
-                                else:
-                                    st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
-                            except Exception as e:
-                                st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
-
-                            call_count += 1
-                            time.sleep(delay_per_call)
-
-                        st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
-                    else:
-                        st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
-        else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+   
