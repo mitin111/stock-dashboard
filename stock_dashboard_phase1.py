@@ -191,84 +191,83 @@ with tab5:
                 if token_list:
                     # ✅ Start WebSocket Candle Builder once
                     if not ps_api.ws:
+                        st.info("🔌 Starting WebSocket for selected tokens...")
                         ps_api.start_candle_builder(token_list)
 
-                    # ✅ Token and TF selection
+                    # ✅ Select token + timeframe
                     selected_token = st.selectbox("Select Token", token_list)
                     selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
 
-                    if selected_token and selected_tf:
-                        candles = ps_api.get_all_candles()
+                    # ✅ Debug logs
+                    st.write("📊 Selected Token:", selected_token)
+                    st.write("🕒 Selected Timeframe:", selected_tf)
 
-                        # ✅ Debug info
-                        st.write("📊 Selected Token:", selected_token)
-                        st.write("🕒 Selected Timeframe:", selected_tf)
-                        st.write("📘 All Candle Tokens:", list(candles.keys()))
+                    candles = ps_api.get_all_candles()
+                    st.write("📘 All Candle Tokens:", list(candles.keys()))
 
-                        tf_candles = candles.get(selected_token, {}).get(selected_tf, {})
-                        st.write("🕯️ Candle Count:", len(tf_candles))
-                        st.json(tf_candles)
+                    tf_data = candles.get(selected_token, {}).get(selected_tf, {})
+                    st.write("🕯️ Candle Count:", len(tf_data))
+                    st.json(tf_data)
 
-                        # ✅ Incomplete candle field check
-                        for k, v in tf_candles.items():
+                    # ✅ Extract & Plot
+                    if tf_data:
+                        sorted_times = sorted(tf_data.keys())
+
+                        # ✅ Incomplete candle checks
+                        for k, v in tf_data.items():
                             if not all(x in v for x in ["O", "H", "L", "C", "V"]):
                                 st.warning(f"Incomplete candle at {k}: {v}")
 
-                        sorted_times = sorted(tf_candles.keys())
+                        ohlcv_data = {
+                            "datetime": [],
+                            "open": [],
+                            "high": [],
+                            "low": [],
+                            "close": [],
+                            "volume": [],
+                        }
 
-                        if sorted_times:
-                            ohlcv_data = {
-                                "datetime": [],
-                                "open": [],
-                                "high": [],
-                                "low": [],
-                                "close": [],
-                                "volume": []
-                            }
+                        for t in sorted_times:
+                            try:
+                                dt = datetime.strptime(t, "%Y-%m-%d %H:%M")
+                            except Exception as e:
+                                st.error(f"Timestamp parse error: {t} - {e}")
+                                continue
 
-                            for t in sorted_times:
-                                try:
-                                    dt = datetime.strptime(t, "%Y-%m-%d %H:%M")
-                                    candle = tf_candles[t]
-                                    ohlcv_data["datetime"].append(dt)
-                                    ohlcv_data["open"].append(candle.get("O"))
-                                    ohlcv_data["high"].append(candle.get("H"))
-                                    ohlcv_data["low"].append(candle.get("L"))
-                                    ohlcv_data["close"].append(candle.get("C"))
-                                    ohlcv_data["volume"].append(candle.get("V"))
-                                except Exception as e:
-                                    st.error(f"⚠️ Error parsing candle at {t}: {e}")
-                                    continue
+                            c = tf_data[t]
+                            ohlcv_data["datetime"].append(dt)
+                            ohlcv_data["open"].append(c["O"])
+                            ohlcv_data["high"].append(c["H"])
+                            ohlcv_data["low"].append(c["L"])
+                            ohlcv_data["close"].append(c["C"])
+                            ohlcv_data["volume"].append(c["V"])
 
-                            df = pd.DataFrame(ohlcv_data)
+                        df = pd.DataFrame(ohlcv_data)
 
-                            # ✅ Empty dataframe check
-                            if df.empty:
-                                st.error("⚠️ No chart data to display. Check candle builder or selected token.")
-                                st.stop()
-                            else:
-                                st.write("✅ Chart Data Preview:")
-                                st.write(df.head())
-
-                                fig = go.Figure(data=[go.Candlestick(
-                                    x=df["datetime"],
-                                    open=df["open"],
-                                    high=df["high"],
-                                    low=df["low"],
-                                    close=df["close"],
-                                    name="Price"
-                                )])
-
-                                fig.update_layout(
-                                    xaxis_rangeslider_visible=False,
-                                    title=f"{selected_tf} Chart for {selected_token}",
-                                    height=600
-                                )
-                                st.plotly_chart(fig, use_container_width=True)
+                        if df.empty:
+                            st.error("⚠️ No chart data to display. Check candle builder or selected token.")
+                            st.stop()
                         else:
-                            st.warning("⏳ Waiting for candles to build...")
+                            st.write("✅ Chart Data Preview:")
+                            st.write(df.tail())
+
+                            fig = go.Figure(data=[go.Candlestick(
+                                x=df["datetime"],
+                                open=df["open"],
+                                high=df["high"],
+                                low=df["low"],
+                                close=df["close"],
+                                name="Price"
+                            )])
+
+                            fig.update_layout(
+                                xaxis_rangeslider_visible=False,
+                                title=f"{selected_tf} Chart for {selected_token}",
+                                height=600
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
                     else:
-                        st.info("ℹ️ Waiting for token and timeframe selection...")
+                        st.warning("⏳ Waiting for candles to build...")
                 else:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
