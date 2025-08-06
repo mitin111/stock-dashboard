@@ -162,19 +162,21 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 Live Candlestick Chart")
+    st.subheader("📉 Live Candlestick Charts - Watchlist")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
-        candles = ps_api.get_candles()  # ✅ CORRECT METHOD NAME
+        candles = ps_api.get_candles()
+        watchlist_tokens = list(candles.keys())  # You can replace this with your actual watchlist if needed
 
-        selected_token = st.selectbox("Select Token", list(candles.keys()) if candles else [])
         selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
+        tf_key = selected_tf  # Already like "1min", "5min", etc.
 
-        if selected_token and selected_tf:
-            tf_key = selected_tf  # e.g., "1min", "3min"
-            tf_candles = candles[selected_token].get(tf_key, {})
+        for token in watchlist_tokens:
+            tf_candles = candles[token].get(tf_key, {})
             sorted_times = sorted(tf_candles.keys())
+
+            st.markdown(f"### {token} - {selected_tf} Chart")
 
             if sorted_times:
                 ohlcv_data = {
@@ -199,12 +201,11 @@ with tab5:
 
                 fig.update_layout(
                     xaxis_rangeslider_visible=False,
-                    title=f"{selected_tf} Chart for {selected_token}",
-                    height=600
+                    height=400,
+                    title=f"{token} - {selected_tf}"
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("Waiting for candles to build...")
-        else:
-            st.info("ℹ️ Waiting for tick data...")
+                st.warning(f"Waiting for candles for {token}...")
+
