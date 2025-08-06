@@ -196,7 +196,7 @@ with tab5:
 
                     # ✅ Select token + timeframe
                     selected_token = st.selectbox("Select Token", token_list)
-                    selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
+                    selected_tf = st.selectbox("Select Timeframe", ps_api.TIMEFRAMES)
 
                     # ✅ Debug logs
                     st.write("📊 Selected Token:", selected_token)
@@ -272,3 +272,4 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
