@@ -160,9 +160,9 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
-count = st.experimental_get_query_params().get("count", ["0"])[0]
-count = int(count)
-st.experimental_set_query_params(count=str(count + 1))
+query_params = st.query_params
+count = int(query_params.get("count", ["0"])[0])
+st.query_params = {"count": str(count + 1)}
 
 if count % 10 == 0:
     time.sleep(1)
@@ -236,4 +236,5 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
 
