@@ -108,12 +108,6 @@ class ProStocksAPI:
         self.tokens = tokens
         self.candles = {}  # Reset candles
 
-    def get_candles(self):
-        return self.candles
-
-    def get_watchlist_tokens(self):
-        return list(self.candles.keys())
-
         def on_message(ws, message):
             data = json.loads(message)
 
@@ -176,6 +170,12 @@ class ProStocksAPI:
 
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
+    def get_candles(self):
+        return self.candles
+
+    def get_watchlist_tokens(self):
+        return list(self.candles.keys())
+
     # === Watchlist & Helpers ===
 
     def get_watchlists(self):
@@ -224,8 +224,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
 
 
