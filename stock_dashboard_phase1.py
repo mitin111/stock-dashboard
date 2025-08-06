@@ -160,6 +160,14 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+count = st.experimental_get_query_params().get("count", ["0"])[0]
+count = int(count)
+st.experimental_set_query_params(count=str(count + 1))
+
+if count % 10 == 0:
+    time.sleep(1)
+    st.rerun()
+
 # === Tab 5: Live Candlestick Charts - Watchlist ===
 with tab5:
     st.subheader("📉 Live Candlestick Charts - Watchlist")
@@ -228,3 +236,4 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
