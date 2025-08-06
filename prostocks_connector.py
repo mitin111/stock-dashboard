@@ -125,7 +125,9 @@ class ProStocksAPI:
             ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
 
             for tf in self.TIMEFRAMES:
-                key = f"{ts.strftime('%Y-%m-%d %H')}:{int(ts.minute)//int(tf.replace('min','')) * int(tf.replace('min','')):02d}"
+                minutes = int(tf.replace("min", ""))
+                bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
+                key = bucket.strftime("%Y-%m-%d %H:%M")
 
                 tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
                 c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
@@ -138,12 +140,10 @@ class ProStocksAPI:
 
     def on_open(ws):
         print("✅ WebSocket connection opened.")
-        # Send subscription message
         for token in token_list:
             ws.send(json.dumps({"t": "t", "k": token}))
             print(f"📡 Subscribed to tick: {token}")
 
-        # Keep-alive pings
         def run_ping():
             while True:
                 try:
@@ -232,6 +232,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
