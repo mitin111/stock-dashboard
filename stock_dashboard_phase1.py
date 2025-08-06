@@ -164,46 +164,52 @@ with tab4:
 with tab5:
     st.subheader("📉 Live Candlestick Chart")
 
-    # Select token to visualize (example: "NSE|11872")
-    selected_token = st.selectbox("Select Token", list(candles.keys()) if candles else [])
+    if "ps_api" in st.session_state:
+        ps_api = st.session_state["ps_api"]
+        candles = ps_api.get_all_candles()
 
-    # Select timeframe (1min, 3min, 5min, etc.)
-    selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in TIMEFRAMES])
+        # Select token to visualize (example: "NSE|11872")
+        selected_token = st.selectbox("Select Token", list(candles.keys()) if candles else [])
 
-    if selected_token and selected_tf:
-        tf_key = selected_tf.replace("min", "")  # Get numeric part (e.g., "5")
-        tf_candles = candles[selected_token].get(tf_key, {})
-        sorted_times = sorted(tf_candles.keys())
+        # Select timeframe (1min, 3min, 5min, etc.)
+        selected_tf = st.selectbox("Select Timeframe", [f"{tf}min" for tf in ps_api.TIMEFRAMES])
 
-        if sorted_times:
-            ohlcv_data = {
-                "datetime": [datetime.strptime(t, "%Y-%m-%d %H:%M") for t in sorted_times],
-                "open": [tf_candles[t]["O"] for t in sorted_times],
-                "high": [tf_candles[t]["H"] for t in sorted_times],
-                "low": [tf_candles[t]["L"] for t in sorted_times],
-                "close": [tf_candles[t]["C"] for t in sorted_times],
-                "volume": [tf_candles[t]["V"] for t in sorted_times],
-            }
+        if selected_token and selected_tf:
+            tf_key = selected_tf  # Keep as "1min", "3min", etc.
+            tf_candles = candles[selected_token].get(tf_key, {})
+            sorted_times = sorted(tf_candles.keys())
 
-            df = pd.DataFrame(ohlcv_data)
+            if sorted_times:
+                ohlcv_data = {
+                    "datetime": [datetime.strptime(t, "%Y-%m-%d %H:%M") for t in sorted_times],
+                    "open": [tf_candles[t]["O"] for t in sorted_times],
+                    "high": [tf_candles[t]["H"] for t in sorted_times],
+                    "low": [tf_candles[t]["L"] for t in sorted_times],
+                    "close": [tf_candles[t]["C"] for t in sorted_times],
+                    "volume": [tf_candles[t]["V"] for t in sorted_times],
+                }
 
-            fig = go.Figure(data=[go.Candlestick(
-                x=df["datetime"],
-                open=df["open"],
-                high=df["high"],
-                low=df["low"],
-                close=df["close"],
-                name="Price"
-            )])
+                df = pd.DataFrame(ohlcv_data)
 
-            fig.update_layout(
-                xaxis_rangeslider_visible=False,
-                title=f"{selected_tf} Chart for {selected_token}",
-                height=600
-            )
+                fig = go.Figure(data=[go.Candlestick(
+                    x=df["datetime"],
+                    open=df["open"],
+                    high=df["high"],
+                    low=df["low"],
+                    close=df["close"],
+                    name="Price"
+                )])
 
-            st.plotly_chart(fig, use_container_width=True)
+                fig.update_layout(
+                    xaxis_rangeslider_visible=False,
+                    title=f"{selected_tf} Chart for {selected_token}",
+                    height=600
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Waiting for candles to build...")
         else:
-            st.warning("Waiting for candles to build...")
+            st.info("ℹ️ Waiting for tick data...")
     else:
-        st.info("ℹ️ Waiting for tick data...")
+        st.error("🔑 Please log in to start receiving live ticks.")
