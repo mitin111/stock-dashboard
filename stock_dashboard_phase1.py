@@ -194,21 +194,31 @@ with tab5:
                         st.info("🔌 Starting WebSocket for selected tokens...")
                         ps_api.start_candle_builder(token_list)
 
-                    # ✅ Select token and timeframe
+                    # ✅ Select token
                     selected_token = st.selectbox("Select Token", token_list)
-                    selected_tf = st.selectbox("Select Timeframe", ps_api.TIMEFRAMES)
+                    token_id = selected_token.split("|")[1]  # ✅ Extract plain token (e.g., "11872")
+
+                    # ✅ Get candles and available timeframes
+                    candles = ps_api.get_all_candles()
+                    all_tfs = candles.get(token_id, {})
+
+                    st.write("📘 All Candle Tokens:", list(candles.keys()))
+                    st.write("🔍 Using Token Key:", token_id)
+
+                    # ✅ Check if any data exists
+                    if not all_tfs:
+                        st.warning("⏳ No candle data yet. Waiting for ticks...")
+                        st.stop()
+
+                    # ✅ Select available timeframe only
+                    available_tfs = list(all_tfs.keys())
+                    selected_tf = st.selectbox("Select Timeframe", available_tfs)
 
                     st.write("📊 Selected Token:", selected_token)
                     st.write("🕒 Selected Timeframe:", selected_tf)
 
-                    # ✅ Fix: Use only token ID (e.g. "3045") to access candles
-                    token_id = selected_token.split("|")[1]
-
-                    candles = ps_api.get_all_candles()
-                    st.write("📘 All Candle Tokens:", list(candles.keys()))
-                    st.write("🔍 Using Token Key:", token_id)
-
-                    tf_data = candles.get(token_id, {}).get(selected_tf, {})
+                    # ✅ Get the actual timeframe data
+                    tf_data = all_tfs.get(selected_tf, {})
                     st.write("🕯️ Candle Count:", len(tf_data))
                     st.json(tf_data)
 
@@ -272,6 +282,3 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
-
-
-
