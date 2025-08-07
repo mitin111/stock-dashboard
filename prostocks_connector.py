@@ -36,6 +36,7 @@ class ProStocksAPI:
         self.subscribed_tokens = []
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
         self.candles = {}
+        self.candle_tokens = set()
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
@@ -231,4 +232,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
