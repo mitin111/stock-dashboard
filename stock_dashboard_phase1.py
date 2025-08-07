@@ -177,7 +177,7 @@ with tab5:
         ps_api = st.session_state["ps_api"]
 
         with st.expander("Live Candlestick Charts - Watchlist", expanded=True):
-            # Choose Watchlist
+            # ✅ Step 1: Choose watchlist
             wl_names = ps_api.get_watchlist_names()
             selected_wl = st.selectbox("📁 Choose Watchlist", wl_names)
 
@@ -185,40 +185,33 @@ with tab5:
                 wl_data = ps_api.get_watchlist(selected_wl)
                 scrips = wl_data.get("values", []) if wl_data.get("stat") == "Ok" else []
 
-                # ✅ Extract token list from scrips
+                # ✅ Step 2: Build token list like ["NSE|11872"]
                 token_list = [f"{s['exch']}|{s['token']}" for s in scrips if "token" in s]
 
                 if token_list:
-                    # ✅ Start WebSocket Candle Builder
+                    # ✅ Step 3: Start WebSocket if not already started
                     if not ps_api.ws:
                         st.info("🔌 Starting WebSocket for selected tokens...")
                         ps_api.start_candle_builder(token_list)
 
-                    # ✅ Select token
+                    # ✅ Step 4: Select token + timeframe
                     selected_token = st.selectbox("Select Token", token_list)
-                    token_id = selected_token.split("|")[1]  # ✅ Extract plain token (e.g., "11872")
-
-                    # ✅ Get candles and available timeframes
-                    candles = ps_api.get_all_candles()
-                    all_tfs = candles.get(token_id, {})
-
-                    st.write("📘 All Candle Tokens:", list(candles.keys()))
-                    st.write("🔍 Using Token Key:", token_id)
-
-                    # ✅ Check if any data exists
-                    if not all_tfs:
-                        st.warning("⏳ No candle data yet. Waiting for ticks...")
-                        st.stop()
-
-                    # ✅ Select available timeframe only
-                    available_tfs = list(all_tfs.keys())
-                    selected_tf = st.selectbox("Select Timeframe", available_tfs)
+                    selected_tf = st.selectbox("Select Timeframe", ps_api.TIMEFRAMES)
 
                     st.write("📊 Selected Token:", selected_token)
                     st.write("🕒 Selected Timeframe:", selected_tf)
 
-                    # ✅ Get the actual timeframe data
-                    tf_data = all_tfs.get(selected_tf, {})
+                    # ✅ Step 5: Extract plain token (e.g. "11872")
+                    token_id = selected_token.split("|")[1]
+
+                    # ✅ Step 6: Get all candles from ps_api
+                    candles = ps_api.get_all_candles()
+
+                    st.write("🔍 Using Token Key:", token_id)
+                    st.write("📘 All Candle Tokens:", list(candles.keys()))
+
+                    # ✅ Step 7: Get candles for selected token + timeframe
+                    tf_data = candles.get(token_id, {}).get(selected_tf, {})
                     st.write("🕯️ Candle Count:", len(tf_data))
                     st.json(tf_data)
 
@@ -278,7 +271,10 @@ with tab5:
                             st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.warning("⏳ Waiting for candles to build...")
+
                 else:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
+
