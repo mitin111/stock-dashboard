@@ -143,7 +143,8 @@ class ProStocksAPI:
         def on_open(ws):
             print("✅ WebSocket connection opened.")
             for token in token_list:
-                ws.send(json.dumps({"t": "t", "k": token}))
+                token_id = token.split("|")[1] 
+                self.ws.send(json.dumps({"t": "t", "k": token_id}))
                 print(f"📡 Subscribed to tick: {token}")
 
             def run_ping():
@@ -230,3 +231,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
