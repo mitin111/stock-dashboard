@@ -100,13 +100,13 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     def add_token_for_candles(self, token):
-    """
-    Adds a token to the candle_tokens set for live candlestick chart building.
-    If it's the first token, it starts the candle builder.
-    """
-    if token not in self.candle_tokens:
-        self.candle_tokens.add(token)
-        self.start_candle_builder(list(self.candle_tokens))
+        """
+        Adds a token to the candle_tokens set for live candlestick chart building.
+        If it's the first token, it starts the candle builder.
+        """
+        if token not in self.candle_tokens:
+            self.candle_tokens.add(token)
+            self.start_candle_builder(list(self.candle_tokens))
 
     def start_candle_builder(self, token_list):
         if self.ws:
@@ -153,7 +153,7 @@ class ProStocksAPI:
         def on_open(ws):
             print("✅ WebSocket connection opened.")
             for token in token_list:
-                token_id = token.split("|")[1] 
+                token_id = token.split("|")[1]
                 self.ws.send(json.dumps({"t": "t", "k": token_id}))
                 print(f"📡 Subscribed to tick: {token}")
 
@@ -241,6 +241,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
