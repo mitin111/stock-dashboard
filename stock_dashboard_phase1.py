@@ -204,13 +204,21 @@ with tab5:
                     # ✅ Step 5: Extract plain token (e.g. "11872")
                     token_id = selected_token.split("|")[1]
 
-                    # ✅ Step 6: Get all candles from ps_api
+                    # ✅ Step 6: Auto-add token to candle builder
+                    if token_id and token_id not in ps_api.candle_tokens:
+                        ps_api.add_token_for_candles(token_id)
+
+                    # ✅ Optional Debugging Output
+                    st.write("✅ Subscribed Candle Tokens:", ps_api.candle_tokens)
+                    st.write("📦 Tick Buffer Size:", len(ps_api.tick_data.get(token_id, [])))
+                    st.write("📊 Built Candles:", len(ps_api.candles.get(token_id, {}).get(selected_tf, [])))
+
+                    # ✅ Step 7: Get all candles from ps_api
                     candles = ps_api.get_all_candles()
 
                     st.write("🔍 Using Token Key:", token_id)
                     st.write("📘 All Candle Tokens:", list(candles.keys()))
 
-                    # ✅ Step 7: Get candles for selected token + timeframe
                     tf_data = candles.get(token_id, {}).get(selected_tf, {})
                     st.write("🕯️ Candle Count:", len(tf_data))
                     st.json(tf_data)
@@ -271,10 +279,8 @@ with tab5:
                             st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.warning("⏳ Waiting for candles to build...")
-
                 else:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
-
 
