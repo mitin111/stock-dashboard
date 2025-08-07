@@ -203,6 +203,7 @@ with tab5:
 
                     # ✅ Fix: Use only token ID (e.g. "3045") to access candles
                     token_id = selected_token.split("|")[1]
+
                     candles = ps_api.get_all_candles()
                     st.write("📘 All Candle Tokens:", list(candles.keys()))
                     st.write("🔍 Using Token Key:", token_id)
@@ -271,5 +272,6 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
 
 
