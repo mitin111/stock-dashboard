@@ -11,6 +11,8 @@ import json
 import requests
 from urllib.parse import urlencode
 import plotly.graph_objects as go
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -286,4 +288,5 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
 
