@@ -6,6 +6,7 @@ schedule==1.2.1
 yfinance==0.2.40
 pandas==2.2.2
 numpy==1.26.4
+cython==3.0.10
 websocket-client==1.8.0
 cryptography==42.0.7
 pyotp==2.9.0
@@ -14,15 +15,3 @@ ta==0.11.0
 plotly==5.22.0
 watchdog==4.0.0
 setuptools==68.0.0
-wheel==0.42.0
-
-
-
-
-
-
-
-
-
-
-
