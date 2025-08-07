@@ -185,40 +185,34 @@ with tab5:
                 wl_data = ps_api.get_watchlist(selected_wl)
                 scrips = wl_data.get("values", []) if wl_data.get("stat") == "Ok" else []
 
-                # ✅ Extract token list directly from scrips
+                # ✅ Extract token list from scrips
                 token_list = [f"{s['exch']}|{s['token']}" for s in scrips if "token" in s]
 
                 if token_list:
-                    # ✅ Start WebSocket Candle Builder once
+                    # ✅ Start WebSocket Candle Builder
                     if not ps_api.ws:
                         st.info("🔌 Starting WebSocket for selected tokens...")
                         ps_api.start_candle_builder(token_list)
 
-                    # ✅ Select token + timeframe
+                    # ✅ Select token and timeframe
                     selected_token = st.selectbox("Select Token", token_list)
                     selected_tf = st.selectbox("Select Timeframe", ps_api.TIMEFRAMES)
 
-                    # ✅ Debug logs
                     st.write("📊 Selected Token:", selected_token)
                     st.write("🕒 Selected Timeframe:", selected_tf)
 
+                    # ✅ Fix: Use only token ID (e.g. "3045") to access candles
+                    token_id = selected_token.split("|")[1]
                     candles = ps_api.get_all_candles()
                     st.write("📘 All Candle Tokens:", list(candles.keys()))
+                    st.write("🔍 Using Token Key:", token_id)
 
-                    token = selected_token.split("|")[1]
-                    tf_data = candles.get(token, {}).get(selected_tf, {})
+                    tf_data = candles.get(token_id, {}).get(selected_tf, {})
                     st.write("🕯️ Candle Count:", len(tf_data))
                     st.json(tf_data)
 
-                    # ✅ Extract & Plot
                     if tf_data:
                         sorted_times = sorted(tf_data.keys())
-
-                        # ✅ Incomplete candle checks
-                        for k, v in tf_data.items():
-                            if not all(x in v for x in ["O", "H", "L", "C", "V"]):
-                                st.warning(f"Incomplete candle at {k}: {v}")
-
                         ohlcv_data = {
                             "datetime": [],
                             "open": [],
@@ -236,6 +230,10 @@ with tab5:
                                 continue
 
                             c = tf_data[t]
+                            if not all(k in c for k in ["O", "H", "L", "C", "V"]):
+                                st.warning(f"Incomplete candle at {t}: {c}")
+                                continue
+
                             ohlcv_data["datetime"].append(dt)
                             ohlcv_data["open"].append(c["O"])
                             ohlcv_data["high"].append(c["H"])
