@@ -99,6 +99,15 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
+    def add_token_for_candles(self, token):
+    """
+    Adds a token to the candle_tokens set for live candlestick chart building.
+    If it's the first token, it starts the candle builder.
+    """
+    if token not in self.candle_tokens:
+        self.candle_tokens.add(token)
+        self.start_candle_builder(list(self.candle_tokens))
+
     def start_candle_builder(self, token_list):
         if self.ws:
             return
@@ -232,5 +241,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
