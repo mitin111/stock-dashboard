@@ -1,4 +1,5 @@
 
+import requests
 import hashlib
 import json
 import os
@@ -239,4 +240,4 @@ class ProStocksAPI:
             print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
+            return {"stat": "Not_Ok", "emsg": str(e)} 
