@@ -205,7 +205,8 @@ with tab5:
                     candles = ps_api.get_all_candles()
                     st.write("📘 All Candle Tokens:", list(candles.keys()))
 
-                    tf_data = candles.get(selected_token, {}).get(selected_tf, {})
+                    token = selected_token.split("|")[1]
+                    tf_data = candles.get(token, {}).get(selected_tf, {})
                     st.write("🕯️ Candle Count:", len(tf_data))
                     st.json(tf_data)
 
@@ -272,4 +273,5 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
 
