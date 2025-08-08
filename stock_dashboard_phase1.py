@@ -203,6 +203,9 @@ with tab5:
                     selected_token = st.selectbox("Select Token", token_list)
                     selected_tf = st.selectbox("Select Timeframe", ps_api.TIMEFRAMES)
 
+                    st.session_state.selected_token = selected_token
+                    st.session_state.selected_tf = selected_tf
+
                     st.write("📊 Selected Token:", selected_token)
                     st.write("🕒 Selected Timeframe:", selected_tf)
 
@@ -225,7 +228,6 @@ with tab5:
                     st.write("🔍 Using Token Key:", token_id)
                     st.write("📘 All Candle Tokens:", list(candles.keys()))
                     st.write("🕯️ Candle Count:", len(tf_data))
-                    st.json(tf_data)
 
                     if tf_data:
                         sorted_times = sorted(tf_data.keys())
@@ -288,5 +290,3 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
-
-
