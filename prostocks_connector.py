@@ -137,10 +137,12 @@ class ProStocksAPI:
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
         def on_message(ws, message):
-            try:
-                data = json.loads(message)
-                if data.get("t") == "tk":
-                    self.on_tick(data)
+    print(f"📩 Raw tick: {message}")  # NEW: full raw message log
+    try:
+        data = json.loads(message)
+        self.on_tick(data)  # Pass all data to on_tick for handling
+    except Exception as e:
+        print(f"❌ Tick JSON error: {e}")
 
                     token = f"{data['e']}|{data['tk']}"
                     ltp = float(data['lp'])
@@ -169,14 +171,14 @@ class ProStocksAPI:
             except Exception as e:
                 print(f"❌ Error in on_message: {e}")
 
-        def on_open(ws):
-            self.ws_connected = True
-            print("✅ WebSocket connection opened.")
-            for token in token_list:
-                token_id = token.split("|")[1]
-                payload = json.dumps({"t": "t", "k": token_id})
-                ws.send(payload)
-                print(f"📡 Subscribed to token: {payload}")
+       def on_open(ws):
+    self.ws_connected = True
+    print("🔗 WebSocket connection opened")
+    for token in self.subscribed_tokens:
+        token_id = token.split("|")[1]
+        sub_msg = {"t": "t", "k": f"NSE|{token_id}"}
+        ws.send(json.dumps(sub_msg))
+        print(f"✅ Subscribed to token: NSE|{token_id}")
 
             def run_ping():
                 while True:
@@ -303,3 +305,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
