@@ -122,6 +122,8 @@ class ProStocksAPI:
                 if data.get("t") != "tk":
                     return
 
+                 self.on_tick(data)
+
                 token = f"{data['e']}|{data['tk']}"
                 ltp = float(data['lp'])
                 vol = int(data.get('v', 0))
@@ -241,3 +243,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)} 
+
