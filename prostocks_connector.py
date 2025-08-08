@@ -202,25 +202,27 @@ class ProStocksAPI:
             print(f"🔥 Error processing tick: {e}")
 
     def build_candles(self, token):
-        print(f"🛠️ Building candles for token: {token}")
-        if token not in self.tick_data:
-            print("⚠️ No tick data found for token")
+    print(f"🛠️ Building candles for token: {token}")
+    if token not in self.tick_data:
+        print("⚠️ No tick data found for token")
+        return []
+
+    try:
+        df = pd.DataFrame(self.tick_data[token], columns=["time", "price"])
+        if df.empty:
+            print("⚠️ Tick DataFrame is empty")
             return []
 
-        try:
-            df = pd.DataFrame(self.tick_data[token], columns=["time", "price"])
-            if df.empty:
-                print("⚠️ Tick DataFrame is empty")
-                return []
+        ohlc = df.groupby("time")["price"].agg(["first", "max", "min", "last"]).reset_index()
+        ohlc.columns = ["time", "open", "high", "low", "close"]
 
-            ohlc = df.groupby("time")["price"].agg(["first", "max", "min", "last"]).reset_index()
-ohlc.columns = ["time", "open", "high", "low", "close"]
-            print(f"📊 Built {len(ohlc)} candles")
-            self.candle_data[token] = ohlc.to_dict("records")
-            return self.candle_data[token]
-        except Exception as e:
-            print(f"🔥 Error building candles: {e}")
-            return []
+        print(f"📊 Built {len(ohlc)} candles")
+        self.candle_data[token] = ohlc.to_dict("records")
+        return self.candle_data[token]
+
+    except Exception as e:
+        print(f"🔥 Error building candles: {e}")
+        return []
 
     def get_candles(self):
         return self.candles
@@ -277,3 +279,4 @@ ohlc.columns = ["time", "open", "high", "low", "close"]
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
