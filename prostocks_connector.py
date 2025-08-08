@@ -34,7 +34,7 @@ class ProStocksAPI:
         }
 
         self.ws = None
-        self.ws_connected = False  # ✅ Step 1: Track WebSocket state
+        self.ws_connected = False
         self.subscribed_tokens = []
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
         self.candles = {}
@@ -119,6 +119,15 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
         self.start_candle_builder(list(self.candle_tokens))
+        self.start_candle_builder_loop()  # ✅ Loop to build candles every 10s
+
+    def start_candle_builder_loop(self):
+        def run():
+            while True:
+                for token in list(self.candle_tokens):
+                    self.build_candles(token)
+                time.sleep(10)
+        threading.Thread(target=run, daemon=True).start()
 
     def start_candle_builder(self, token_list):
         if self.ws:
@@ -161,7 +170,7 @@ class ProStocksAPI:
                 print(f"❌ Error in on_message: {e}")
 
         def on_open(ws):
-            self.ws_connected = True  # ✅ Step 2
+            self.ws_connected = True
             print("✅ WebSocket connection opened.")
             for token in token_list:
                 token_id = token.split("|")[1]
@@ -181,7 +190,7 @@ class ProStocksAPI:
 
         def on_close(ws, code, msg):
             print(f"🔌 WebSocket closed: {msg}")
-            self.ws_connected = False  # ✅ Step 4
+            self.ws_connected = False
             self.ws = None
             time.sleep(2)
             print("🔁 Reconnecting WebSocket...")
@@ -201,13 +210,14 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-        print(f"📥 Tick received: {data}")
+        print(f"🟢 Tick received: {data}")
         token = data.get("tk")
         if not token:
             print("⚠️ No token in tick data")
             return
 
         if token not in self.candle_tokens:
+            print(f"⚠️ Token {token} not in subscribed candle tokens: {self.candle_tokens}")
             return
 
         try:
@@ -242,13 +252,7 @@ class ProStocksAPI:
             return []
 
     def get_candles(self):
-        return self.candles
-
-    def get_watchlist_tokens(self):
-        return list(self.candles.keys())
-
-    def get_all_candles(self):
-        return self.candles
+        return self.candle_data
 
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
@@ -296,5 +300,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
