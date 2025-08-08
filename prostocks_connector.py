@@ -254,6 +254,9 @@ class ProStocksAPI:
     def get_candles(self):
         return self.candle_data
 
+    def get_all_candles(self):
+        return self.candles
+
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
@@ -300,3 +303,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
