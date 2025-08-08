@@ -37,6 +37,7 @@ class ProStocksAPI:
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
         self.candles = {}
         self.candle_tokens = set()
+        self.tick_data = {}  # Required attribute
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
@@ -59,7 +60,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 OTP Trigger Response:", response.text)
+            print("\U0001F4E8 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -82,15 +83,15 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("🔁 Login Response Code:", response.status_code)
-            print("📨 Login Response Body:", response.text)
+            print("\U0001F501 Login Response Code:", response.status_code)
+            print("\U0001F4E8 Login Response Body:", response.text)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
-                    print("✅ Login Success!")
+                    print("\u2705 Login Success!")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -100,10 +101,6 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     def add_token_for_candles(self, token):
-        """
-        Adds a token to the candle_tokens set for live candlestick chart building.
-        If it's the first token, it starts the candle builder.
-        """
         if token not in self.candle_tokens:
             self.candle_tokens.add(token)
             self.start_candle_builder(list(self.candle_tokens))
@@ -119,45 +116,42 @@ class ProStocksAPI:
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                if data.get("t") != "tk":
-                    return
+                if data.get("t") == "tk":
+                    self.on_tick(data)
 
-                 self.on_tick(data)
+                    token = f"{data['e']}|{data['tk']}"
+                    ltp = float(data['lp'])
+                    vol = int(data.get('v', 0))
+                    ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
+                    print(f"\U0001F4E5 Live tick from token: {token}")
 
-                token = f"{data['e']}|{data['tk']}"
-                ltp = float(data['lp'])
-                vol = int(data.get('v', 0))
-                ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
-                print(f"📥 Live tick from token: {token}")
+                    for tf in self.TIMEFRAMES:
+                        try:
+                            minutes = int(tf.replace("min", ""))
+                            bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
+                            key = bucket.strftime("%Y-%m-%d %H:%M")
 
-                for tf in self.TIMEFRAMES:
-                    try:
-                        minutes = int(tf.replace("min", ""))
-                        bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
-                        key = bucket.strftime("%Y-%m-%d %H:%M")
+                            tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
+                            c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
+                            c["C"] = ltp
+                            c["H"] = max(c["H"], ltp)
+                            c["L"] = min(c["L"], ltp)
+                            c["V"] += vol
 
-                        tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
-                        c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
-                        c["C"] = ltp
-                        c["H"] = max(c["H"], ltp)
-                        c["L"] = min(c["L"], ltp)
-                        c["V"] += vol
-
-                        print(f"🕒 Timeframe: {tf}")
-                        print(f"🧩 Candle Key: {key}")
-                        print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
-                    except Exception as e:
-                        print(f"🔥 Error in candle build loop for TF {tf}: {e}")
-
+                            print(f"\u23F0 Timeframe: {tf}")
+                            print(f"\U0001F489 Candle Key: {key}")
+                            print(f"\U0001F4CA Updated Candle: {self.candles[token][tf][key]}")
+                        except Exception as e:
+                            print(f"\uD83D\uDD25 Error in candle build loop for TF {tf}: {e}")
             except Exception as e:
-                print(f"❌ Error in on_message: {e}")
+                print(f"\u274C Error in on_message: {e}")
 
         def on_open(ws):
-            print("✅ WebSocket connection opened.")
+            print("\u2705 WebSocket connection opened.")
             for token in token_list:
                 token_id = token.split("|")[1]
                 self.ws.send(json.dumps({"t": "t", "k": token_id}))
-                print(f"📡 Subscribed to tick: {token}")
+                print(f"\U0001F4E1 Subscribed to tick: {token}")
 
             def run_ping():
                 while True:
@@ -169,14 +163,14 @@ class ProStocksAPI:
             threading.Thread(target=run_ping, daemon=True).start()
 
         def on_close(ws, code, msg):
-            print(f"🔌 WebSocket closed: {msg}")
+            print(f"\U0001F50C WebSocket closed: {msg}")
             self.ws = None
             time.sleep(2)
-            print("🔄 Reconnecting WebSocket...")
+            print("\U0001F501 Reconnecting WebSocket...")
             self.start_candle_builder(self.subscribed_tokens)
 
         def on_error(ws, error):
-            print(f"❌ WebSocket Error: {error}")
+            print(f"\u274C WebSocket Error: {error}")
 
         websocket.enableTrace(False)
         self.ws = websocket.WebSocketApp(
@@ -187,6 +181,24 @@ class ProStocksAPI:
             on_close=on_close
         )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
+
+    def on_tick(self, tick):
+        token = tick.get("tk")
+        if not token:
+            return
+
+        try:
+            token = str(token)
+            last_price = float(tick.get("lp", 0))
+            volume = int(tick.get("v", 0))
+        except Exception:
+            return
+
+        self.tick_data.setdefault(token, []).append({
+            "ltp": last_price,
+            "volume": volume,
+            "ts": datetime.now()
+        })
 
     def get_candles(self):
         return self.candles
@@ -236,11 +248,11 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
+            print("\u2705 POST URL:", url)
+            print("\U0001F4E6 Sent Payload:", jdata)
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 Response:", response.text)
+            print("\U0001F4E8 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)} 
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
