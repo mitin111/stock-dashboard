@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import websocket
 import threading
+import pandas as pd
 
 load_dotenv()
 
@@ -37,7 +38,8 @@ class ProStocksAPI:
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
         self.candles = {}
         self.candle_tokens = set()
-        self.tick_data = {}  # Required attribute
+        self.tick_data = {}
+        self.candle_data = {}
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
@@ -110,7 +112,6 @@ class ProStocksAPI:
             return
 
         self.subscribed_tokens = token_list
-        self.candles = {}
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
         def on_message(ws, message):
@@ -182,23 +183,43 @@ class ProStocksAPI:
         )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
-    def on_tick(self, tick):
-        token = tick.get("tk")
+    def on_tick(self, data):
+        print(f"\U0001F4E5 Tick received: {data}")
+        token = data.get("tk")
         if not token:
+            print("⚠️ No token in tick data")
+            return
+
+        if token not in self.candle_tokens:
             return
 
         try:
-            token = str(token)
-            last_price = float(tick.get("lp", 0))
-            volume = int(tick.get("v", 0))
-        except Exception:
-            return
+            ltp = float(data["lp"])
+            ts = datetime.now().replace(second=0, microsecond=0)
+            self.tick_data.setdefault(token, []).append((ts, ltp))
+            print(f"🧩 Appended Tick: {ts}, {ltp} for token {token}")
+        except Exception as e:
+            print(f"🔥 Error processing tick: {e}")
 
-        self.tick_data.setdefault(token, []).append({
-            "ltp": last_price,
-            "volume": volume,
-            "ts": datetime.now()
-        })
+    def build_candles(self, token):
+        print(f"🛠️ Building candles for token: {token}")
+        if token not in self.tick_data:
+            print("⚠️ No tick data found for token")
+            return []
+
+        try:
+            df = pd.DataFrame(self.tick_data[token], columns=["time", "price"])
+            if df.empty:
+                print("⚠️ Tick DataFrame is empty")
+                return []
+
+            ohlc = df.groupby("time").price.ohlc().reset_index()
+            print(f"📊 Built {len(ohlc)} candles")
+            self.candle_data[token] = ohlc.to_dict("records")
+            return self.candle_data[token]
+        except Exception as e:
+            print(f"🔥 Error building candles: {e}")
+            return []
 
     def get_candles(self):
         return self.candles
@@ -255,4 +276,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
