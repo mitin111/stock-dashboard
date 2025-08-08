@@ -176,7 +176,7 @@ with tab5:
     st.subheader("📉 Live Candlestick Charts - Watchlist")
 
     from streamlit_autorefresh import st_autorefresh
-    st_autorefresh(interval=15000, key="chart-refresh")  # Auto-refresh every 15s
+    st_autorefresh(interval=30000, key="chartrefresh")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
@@ -290,3 +290,4 @@ with tab5:
                     st.warning("⚠️ No tokens found in selected watchlist.")
     else:
         st.error("🔑 Session expired. Please login again.")
+
