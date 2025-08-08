@@ -272,4 +272,15 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+            
+    def get_watchlists(self):
+        url = f"{self.base_url}/MWList"
+        payload = {
+            "uid": self.userid
+        }
+        return self._post_json(url, payload)
+
+
+
+
 
