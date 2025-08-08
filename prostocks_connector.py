@@ -1,11 +1,13 @@
 
+# prostocks_candle_builder.py
+
 import requests
 import hashlib
 import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime
 import websocket
 import threading
 import pandas as pd
@@ -110,7 +112,7 @@ class ProStocksAPI:
         if self.ws_connected and self.ws:
             try:
                 token_id = token.split("|")[1]
-                payload = json.dumps({"t": "t", "k": token_id})
+                payload = json.dumps({"t": "t", "k": [token_id]})  # ✅ FIXED HERE
                 self.ws.send(payload)
                 print(f"✅ WebSocket subscription sent: {payload}")
             except Exception as e:
@@ -119,7 +121,7 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
         self.start_candle_builder(list(self.candle_tokens))
-        self.start_candle_builder_loop()  # ✅ Loop to build candles every 10s
+        self.start_candle_builder_loop()
 
     def start_candle_builder_loop(self):
         def run():
@@ -137,15 +139,16 @@ class ProStocksAPI:
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
         def on_message(ws, message):
+            print(f"📩 Raw WS Message: {message}")  # ✅ ADDED
             try:
                 data = json.loads(message)
                 if data.get("t") == "tk":
                     self.on_tick(data)
-
                     token = f"{data['e']}|{data['tk']}"
                     ltp = float(data['lp'])
                     vol = int(data.get('v', 0))
                     ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
+
                     print(f"📥 Live tick from token: {token}")
 
                     for tf in self.TIMEFRAMES:
@@ -174,7 +177,7 @@ class ProStocksAPI:
             print("✅ WebSocket connection opened.")
             for token in token_list:
                 token_id = token.split("|")[1]
-                payload = json.dumps({"t": "t", "k": token_id})
+                payload = json.dumps({"t": "t", "k": [token_id]})  # ✅ FIXED HERE
                 ws.send(payload)
                 print(f"📡 Subscribed to token: {payload}")
 
@@ -185,7 +188,6 @@ class ProStocksAPI:
                         time.sleep(15)
                     except:
                         break
-
             threading.Thread(target=run_ping, daemon=True).start()
 
         def on_close(ws, code, msg):
@@ -210,13 +212,13 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-        print(f"🟢 Tick received: {data}")
+        print(f"🟢 Tick received: {data}")  # ✅ ADDED
         token = data.get("tk")
         if not token:
             print("⚠️ No token in tick data")
             return
 
-        if token not in self.candle_tokens:
+        if token not in {t.split("|")[1] for t in self.candle_tokens}:
             print(f"⚠️ Token {token} not in subscribed candle tokens: {self.candle_tokens}")
             return
 
@@ -256,39 +258,6 @@ class ProStocksAPI:
 
     def get_all_candles(self):
         return self.candles
-
-    def get_watchlists(self):
-        url = f"{self.base_url}/MWList"
-        payload = {"uid": self.userid}
-        return self._post_json(url, payload)
-
-    def get_watchlist_names(self):
-        resp = self.get_watchlists()
-        if resp.get("stat") == "Ok":
-            return sorted(resp["values"], key=int)
-        return []
-
-    def get_watchlist(self, wlname):
-        url = f"{self.base_url}/MarketWatch"
-        payload = {"uid": self.userid, "wlname": wlname}
-        return self._post_json(url, payload)
-
-    def search_scrip(self, search_text, exch="NSE"):
-        url = f"{self.base_url}/SearchScrip"
-        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
-        return self._post_json(url, payload)
-
-    def add_scrips_to_watchlist(self, wlname, scrips_list):
-        url = f"{self.base_url}/AddMultiScripsToMW"
-        scrips_str = ",".join(scrips_list)
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
-        return self._post_json(url, payload)
-
-    def delete_scrips_from_watchlist(self, wlname, scrips_list):
-        url = f"{self.base_url}/DeleteMultiMWScrips"
-        scrips_str = ",".join(scrips_list)
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
-        return self._post_json(url, payload)
 
     def _post_json(self, url, payload):
         if not self.session_token:
