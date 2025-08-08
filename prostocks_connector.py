@@ -136,7 +136,7 @@ class ProStocksAPI:
         self.subscribed_tokens = token_list
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
-        def on_message(ws, message):
+       def on_message(ws, message):
     print(f"📩 Raw tick: {message}")  # NEW: full raw message log
     try:
         data = json.loads(message)
@@ -305,4 +305,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
