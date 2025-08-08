@@ -1,5 +1,4 @@
 
-
 import requests
 import hashlib
 import json
@@ -35,6 +34,7 @@ class ProStocksAPI:
         }
 
         self.ws = None
+        self.ws_connected = False  # ✅ Step 1: Track WebSocket state
         self.subscribed_tokens = []
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
         self.candles = {}
@@ -63,7 +63,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001F4E8 OTP Trigger Response:", response.text)
+            print("📨 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -86,15 +86,15 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001F501 Login Response Code:", response.status_code)
-            print("\U0001F4E8 Login Response Body:", response.text)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
-                    print("\u2705 Login Success!")
+                    print("✅ Login Success!")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -104,9 +104,21 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     def add_token_for_candles(self, token):
-        if token not in self.candle_tokens:
-            self.candle_tokens.add(token)
-            self.start_candle_builder(list(self.candle_tokens))
+        print(f"🪝 Adding token to candle builder: {token}")
+        self.candle_tokens.add(token)
+
+        if self.ws_connected and self.ws:
+            try:
+                token_id = token.split("|")[1]
+                payload = json.dumps({"t": "t", "k": token_id})
+                self.ws.send(payload)
+                print(f"✅ WebSocket subscription sent: {payload}")
+            except Exception as e:
+                print(f"❌ Error sending subscription: {e}")
+        else:
+            print("⚠️ WebSocket not connected yet, token will subscribe on connect")
+
+        self.start_candle_builder(list(self.candle_tokens))
 
     def start_candle_builder(self, token_list):
         if self.ws:
@@ -125,7 +137,7 @@ class ProStocksAPI:
                     ltp = float(data['lp'])
                     vol = int(data.get('v', 0))
                     ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
-                    print(f"\U0001F4E5 Live tick from token: {token}")
+                    print(f"📥 Live tick from token: {token}")
 
                     for tf in self.TIMEFRAMES:
                         try:
@@ -140,20 +152,22 @@ class ProStocksAPI:
                             c["L"] = min(c["L"], ltp)
                             c["V"] += vol
 
-                            print(f"\u23F0 Timeframe: {tf}")
-                            print(f"\U0001F489 Candle Key: {key}")
-                            print(f"\U0001F4CA Updated Candle: {self.candles[token][tf][key]}")
+                            print(f"⏰ Timeframe: {tf}")
+                            print(f"💉 Candle Key: {key}")
+                            print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
                         except Exception as e:
-                            print(f"\uD83D\uDD25 Error in candle build loop for TF {tf}: {e}")
+                            print(f"🔥 Error in candle build loop for TF {tf}: {e}")
             except Exception as e:
-                print(f"\u274C Error in on_message: {e}")
+                print(f"❌ Error in on_message: {e}")
 
         def on_open(ws):
-            print("\u2705 WebSocket connection opened.")
+            self.ws_connected = True  # ✅ Step 2
+            print("✅ WebSocket connection opened.")
             for token in token_list:
                 token_id = token.split("|")[1]
-                self.ws.send(json.dumps({"t": "t", "k": token_id}))
-                print(f"\U0001F4E1 Subscribed to tick: {token}")
+                payload = json.dumps({"t": "t", "k": token_id})
+                ws.send(payload)
+                print(f"📡 Subscribed to token: {payload}")
 
             def run_ping():
                 while True:
@@ -162,17 +176,19 @@ class ProStocksAPI:
                         time.sleep(15)
                     except:
                         break
+
             threading.Thread(target=run_ping, daemon=True).start()
 
         def on_close(ws, code, msg):
-            print(f"\U0001F50C WebSocket closed: {msg}")
+            print(f"🔌 WebSocket closed: {msg}")
+            self.ws_connected = False  # ✅ Step 4
             self.ws = None
             time.sleep(2)
-            print("\U0001F501 Reconnecting WebSocket...")
+            print("🔁 Reconnecting WebSocket...")
             self.start_candle_builder(self.subscribed_tokens)
 
         def on_error(ws, error):
-            print(f"\u274C WebSocket Error: {error}")
+            print(f"❌ WebSocket Error: {error}")
 
         websocket.enableTrace(False)
         self.ws = websocket.WebSocketApp(
@@ -185,7 +201,7 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-        print(f"\U0001F4E5 Tick received: {data}")
+        print(f"📥 Tick received: {data}")
         token = data.get("tk")
         if not token:
             print("⚠️ No token in tick data")
@@ -273,11 +289,12 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("\u2705 POST URL:", url)
-            print("\U0001F4E6 Sent Payload:", jdata)
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001F4E8 Response:", response.text)
+            print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
