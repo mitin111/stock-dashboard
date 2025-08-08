@@ -184,20 +184,27 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-    print(f"📥 Tick received: {data}")
-    token = data.get("tk")
-    if not token:
-        print("⚠️ No token in tick data")
-        return
+        print(f"📥 Tick received: {data}")
+        token = data.get("tk")
+        if not token:
+           print("⚠️ No token in tick data")
+           return
 
-    if token not in self.candle_tokens:
-        return
+        token = str(token)
+
+    if token not in self.tick_data:
+        self.tick_data[token] = []
 
     try:
-        ltp = float(data["lp"])
+        ltp = float(data.get("lp", 0))
+        volume = int(data.get("v", 0))
         ts = datetime.now().replace(second=0, microsecond=0)
-        self.tick_data.setdefault(token, []).append((ts, ltp))
-        print(f"🧩 Appended Tick: {ts}, {ltp} for token {token}")
+        self.tick_data[token].append({
+            "ltp": ltp,
+            "volume": volume,
+            "ts": ts
+        })
+        print(f"🧩 Appended Tick: {ts}, LTP: {ltp} for token {token}")
     except Exception as e:
         print(f"🔥 Error processing tick: {e}")
 
@@ -276,4 +283,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
