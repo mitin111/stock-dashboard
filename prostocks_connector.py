@@ -280,13 +280,14 @@ class ProStocksAPI:
         }
         return self._post_json(url, payload)
 
-   def get_watchlist(self, wlname):
-       url = f"{self.base_url}/MarketWatch"
-       payload = {
-           "uid": self.userid,
-           "wlname": wlname
-       }
-       return self._post_json(url, payload)
+      def get_watchlist(self, wlname):
+        url = f"{self.base_url}/MarketWatch"
+        payload = {
+            "uid": self.userid,
+            "wlname": wlname
+        }
+        return self._post_json(url, payload)
+
 
 
 
