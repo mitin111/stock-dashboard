@@ -1,13 +1,11 @@
 
-# prostocks_candle_builder.py
-
 import requests
 import hashlib
 import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import websocket
 import threading
 import pandas as pd
@@ -65,7 +63,7 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001f4e8 OTP Trigger Response:", response.text)
+            print("📨 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -88,15 +86,15 @@ class ProStocksAPI:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001f501 Login Response Code:", response.status_code)
-            print("\U0001f4e8 Login Response Body:", response.text)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
-                    print("\u2705 Login Success!")
+                    print("✅ Login Success!")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -106,22 +104,22 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     def add_token_for_candles(self, token):
-        print(f"\U0001fa9d Adding token to candle builder: {token}")
+        print(f"🪝 Adding token to candle builder: {token}")
         self.candle_tokens.add(token)
 
         if self.ws_connected and self.ws:
             try:
                 token_id = token.split("|")[1]
-                payload = json.dumps({"t": "t", "k": [token_id]})
+                payload = json.dumps({"t": "t", "k": token_id})
                 self.ws.send(payload)
-                print(f"\u2705 WebSocket subscription sent: {payload}")
+                print(f"✅ WebSocket subscription sent: {payload}")
             except Exception as e:
-                print(f"\u274c Error sending subscription: {e}")
+                print(f"❌ Error sending subscription: {e}")
         else:
-            print("\u26a0\ufe0f WebSocket not connected yet, token will subscribe on connect")
+            print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
         self.start_candle_builder(list(self.candle_tokens))
-        self.start_candle_builder_loop()
+        self.start_candle_builder_loop()  # ✅ Loop to build candles every 10s
 
     def start_candle_builder_loop(self):
         def run():
@@ -139,15 +137,16 @@ class ProStocksAPI:
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
         def on_message(ws, message):
-            print(f"\U0001f4e9 Raw WS Message: {message}")
             try:
                 data = json.loads(message)
                 if data.get("t") == "tk":
                     self.on_tick(data)
+
                     token = f"{data['e']}|{data['tk']}"
                     ltp = float(data['lp'])
                     vol = int(data.get('v', 0))
                     ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
+                    print(f"📥 Live tick from token: {token}")
 
                     for tf in self.TIMEFRAMES:
                         try:
@@ -161,19 +160,23 @@ class ProStocksAPI:
                             c["H"] = max(c["H"], ltp)
                             c["L"] = min(c["L"], ltp)
                             c["V"] += vol
+
+                            print(f"⏰ Timeframe: {tf}")
+                            print(f"💉 Candle Key: {key}")
+                            print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
                         except Exception as e:
-                            print(f"\ud83d\udd25 Error in candle build loop for TF {tf}: {e}")
+                            print(f"🔥 Error in candle build loop for TF {tf}: {e}")
             except Exception as e:
-                print(f"\u274c Error in on_message: {e}")
+                print(f"❌ Error in on_message: {e}")
 
         def on_open(ws):
             self.ws_connected = True
-            print("\u2705 WebSocket connection opened.")
+            print("✅ WebSocket connection opened.")
             for token in token_list:
                 token_id = token.split("|")[1]
-                payload = json.dumps({"t": "t", "k": [token_id]})
+                payload = json.dumps({"t": "t", "k": token_id})
                 ws.send(payload)
-                print(f"\U0001f4e1 Subscribed to token: {payload}")
+                print(f"📡 Subscribed to token: {payload}")
 
             def run_ping():
                 while True:
@@ -182,18 +185,19 @@ class ProStocksAPI:
                         time.sleep(15)
                     except:
                         break
+
             threading.Thread(target=run_ping, daemon=True).start()
 
         def on_close(ws, code, msg):
-            print(f"\ud83d\udd0c WebSocket closed: {msg}")
+            print(f"🔌 WebSocket closed: {msg}")
             self.ws_connected = False
             self.ws = None
             time.sleep(2)
-            print("\U0001f501 Reconnecting WebSocket...")
+            print("🔁 Reconnecting WebSocket...")
             self.start_candle_builder(self.subscribed_tokens)
 
         def on_error(ws, error):
-            print(f"\u274c WebSocket Error: {error}")
+            print(f"❌ WebSocket Error: {error}")
 
         websocket.enableTrace(False)
         self.ws = websocket.WebSocketApp(
@@ -206,38 +210,45 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-        print(f"\U0001f7e2 Tick received: {data}")
+        print(f"🟢 Tick received: {data}")
         token = data.get("tk")
         if not token:
+            print("⚠️ No token in tick data")
             return
 
-        if token not in {t.split("|")[1] for t in self.candle_tokens}:
+        if token not in self.candle_tokens:
+            print(f"⚠️ Token {token} not in subscribed candle tokens: {self.candle_tokens}")
             return
 
         try:
             ltp = float(data["lp"])
             ts = datetime.now().replace(second=0, microsecond=0)
             self.tick_data.setdefault(token, []).append((ts, ltp))
+            print(f"🧩 Appended Tick: {ts}, {ltp} for token {token}")
         except Exception as e:
-            print(f"\ud83d\udd25 Error processing tick: {e}")
+            print(f"🔥 Error processing tick: {e}")
 
     def build_candles(self, token):
+        print(f"🛠️ Building candles for token: {token}")
         if token not in self.tick_data:
+            print("⚠️ No tick data found for token")
             return []
 
         try:
             df = pd.DataFrame(self.tick_data[token], columns=["time", "price"])
             if df.empty:
+                print("⚠️ Tick DataFrame is empty")
                 return []
 
             ohlc = df.groupby("time")["price"].agg(["first", "max", "min", "last"]).reset_index()
             ohlc.columns = ["time", "open", "high", "low", "close"]
 
+            print(f"📊 Built {len(ohlc)} candles")
             self.candle_data[token] = ohlc.to_dict("records")
             return self.candle_data[token]
 
         except Exception as e:
-            print(f"\ud83d\udd25 Error building candles: {e}")
+            print(f"🔥 Error building candles: {e}")
             return []
 
     def get_candles(self):
@@ -246,31 +257,49 @@ class ProStocksAPI:
     def get_all_candles(self):
         return self.candles
 
+    def get_watchlists(self):
+        url = f"{self.base_url}/MWList"
+        payload = {"uid": self.userid}
+        return self._post_json(url, payload)
+
+    def get_watchlist_names(self):
+        resp = self.get_watchlists()
+        if resp.get("stat") == "Ok":
+            return sorted(resp["values"], key=int)
+        return []
+
+    def get_watchlist(self, wlname):
+        url = f"{self.base_url}/MarketWatch"
+        payload = {"uid": self.userid, "wlname": wlname}
+        return self._post_json(url, payload)
+
+    def search_scrip(self, search_text, exch="NSE"):
+        url = f"{self.base_url}/SearchScrip"
+        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
+        return self._post_json(url, payload)
+
+    def add_scrips_to_watchlist(self, wlname, scrips_list):
+        url = f"{self.base_url}/AddMultiScripsToMW"
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        return self._post_json(url, payload)
+
+    def delete_scrips_from_watchlist(self, wlname, scrips_list):
+        url = f"{self.base_url}/DeleteMultiMWScrips"
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        return self._post_json(url, payload)
+
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("\u2705 POST URL:", url)
-            print("\U0001f4e6 Sent Payload:", jdata)
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("\U0001f4e8 Response:", response.text)
+            print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-    def get_watchlists(self):
-        url = f"{self.base_url}/MWList"
-        payload = {
-            "uid": self.userid
-        }
-        return self._post_json(url, payload)
-
-    def get_watchlist(self, wlname):
-        url = f"{self.base_url}/MarketWatch"
-        payload = {
-            "uid": self.userid,
-            "wlname": wlname
-        }
-        return self._post_json(url, payload)
