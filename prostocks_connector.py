@@ -257,41 +257,41 @@ class ProStocksAPI:
 
     # ----------- Historical Data API -----------
     def get_historical_data(self, exch, token, interval="1", days=1):
-        """Fetch historical OHLC data from TPSeries endpoint."""
-        end_dt = datetime.now()
-        start_dt = end_dt - timedelta(days=days)
+    end_dt = datetime.now()
+    start_dt = end_dt - timedelta(days=days)
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": token,
-            "st": start_dt.strftime("%Y-%m-%d %H:%M"),
-            "et": end_dt.strftime("%Y-%m-%d %H:%M"),
-            "intrv": interval
-        }
-        try:
-            r = self.session.post(
-                self.base_url + "/TPSeries",
-                data={"jData": json.dumps(payload)}
-            )
-            r.raise_for_status()
-            data = r.json()
+    payload = {
+        "uid": self.userid,
+        "exch": exch,
+        "token": token,
+        "st": start_dt.strftime("%Y-%m-%d %H:%M"),
+        "et": end_dt.strftime("%Y-%m-%d %H:%M"),
+        "intrv": interval
+    }
+    try:
+        r = self.session.post(
+            self.base_url + "/TPSeries",
+            data={"jData": json.dumps(payload)}
+        )
+        r.raise_for_status()
+        print("🔍 Historical data raw response:", r.text)  # <-- Add this print
+        data = r.json()
 
-            candles = []
-            for c in data.get("values", []):
-                candles.append({
-                    "time": datetime.strptime(c["time"], "%Y-%m-%d %H:%M"),
-                    "open": float(c["o"]),
-                    "high": float(c["h"]),
-                    "low": float(c["l"]),
-                    "close": float(c["c"]),
-                    "volume": int(c["v"])
-                })
-            self.candles = candles
-            return candles
-        except Exception as e:
-            print(f"🔥 Error fetching historical data: {e}")
-            return []
+        candles = []
+        for c in data.get("values", []):
+            candles.append({
+                "time": datetime.strptime(c["time"], "%Y-%m-%d %H:%M"),
+                "open": float(c["o"]),
+                "high": float(c["h"]),
+                "low": float(c["l"]),
+                "close": float(c["c"]),
+                "volume": int(c["v"])
+            })
+        self.candles = candles
+        return candles
+    except Exception as e:
+        print(f"🔥 Error fetching historical data: {e}")
+        return []
 
     # ----------- Live WebSocket + Candle Builder (alternative) -----------
     def start_websocket(self, exch, token, interval=1, tick_callback=None):
@@ -453,5 +453,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
