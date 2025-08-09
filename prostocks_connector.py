@@ -111,27 +111,27 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     def add_token_for_candles(self, token):
-    print(f"🪝 Adding token to candle builder: {token}")
-    self.candle_tokens.add(token)
+        print(f"🪝 Adding token to candle builder: {token}")
+        self.candle_tokens.add(token)
 
-    if self.ws_connected and self.ws:
-        try:
-            # Handle token with or without '|' safely
-            token_parts = token.split("|")
-            if len(token_parts) > 1:
-                token_id = token_parts[1]
-            else:
-                token_id = token_parts[0]  # fallback to whole token if no '|'
-            payload = json.dumps({"t": "t", "k": token_id})
-            self.ws.send(payload)
-            print(f"✅ WebSocket subscription sent: {payload}")
-        except Exception as e:
-            print(f"❌ Error sending subscription: {e}")
-    else:
-        print("⚠️ WebSocket not connected yet, token will subscribe on connect")
+        if self.ws_connected and self.ws:
+            try:
+                # Handle token with or without '|' safely
+                token_parts = token.split("|")
+                if len(token_parts) > 1:
+                    token_id = token_parts[1]
+                else:
+                    token_id = token_parts[0]  # fallback to whole token if no '|'
+                payload = json.dumps({"t": "t", "k": token_id})
+                self.ws.send(payload)
+                print(f"✅ WebSocket subscription sent: {payload}")
+            except Exception as e:
+                print(f"❌ Error sending subscription: {e}")
+        else:
+            print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
-    self.start_candle_builder(list(self.candle_tokens))
-    self.start_candle_builder_loop()
+        self.start_candle_builder(list(self.candle_tokens))
+        self.start_candle_builder_loop()
 
     def start_candle_builder_loop(self):
         def run():
@@ -167,7 +167,8 @@ class ProStocksAPI:
             self.ws_connected = True
             print("🔗 WebSocket connection opened")
             for token in self.subscribed_tokens:
-                token_id = token.split("|")[1]
+                token_parts = token.split("|")
+                token_id = token_parts[1] if len(token_parts) > 1 else token_parts[0]
                 sub_msg = {"t": "t", "k": f"NSE|{token_id}"}
                 ws.send(json.dumps(sub_msg))
                 print(f"✅ Subscribed to token: NSE|{token_id}")
@@ -452,4 +453,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
