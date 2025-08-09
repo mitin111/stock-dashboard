@@ -5,12 +5,13 @@ import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime
 import websocket
 import threading
 import pandas as pd
 
 load_dotenv()
+
 
 class ProStocksAPI:
     def __init__(self, userid=None, password_plain=None, vc=None, api_key=None, imei=None, base_url=None, apkversion="1.0.0"):
@@ -33,6 +34,7 @@ class ProStocksAPI:
             "imei": self.imei
         }
 
+        # WebSocket vars
         self.ws = None
         self.ws_connected = False
         self.subscribed_tokens = []
@@ -119,7 +121,7 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
         self.start_candle_builder(list(self.candle_tokens))
-        self.start_candle_builder_loop()  # ✅ Loop to build candles every 10s
+        self.start_candle_builder_loop()
 
     def start_candle_builder_loop(self):
         def run():
@@ -127,6 +129,7 @@ class ProStocksAPI:
                 for token in list(self.candle_tokens):
                     self.build_candles(token)
                 time.sleep(10)
+
         threading.Thread(target=run, daemon=True).start()
 
     def start_candle_builder(self, token_list):
@@ -136,55 +139,29 @@ class ProStocksAPI:
         self.subscribed_tokens = token_list
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
-          def on_message(ws, message):
-              
-               data = json.loads(message)
-        if 't' in data:
-            if data['t'] == 'tk':
-                self.on_tick(data)
-            elif data['t'] == 'ck':
-                print(f"Connection Acknowledged: {data}")
-            elif data['t'] == 'om':
-                print(f"Order Update: {data}")
-        else:
-            print(f"Unknown message format: {data}")
-
-
-                    token = f"{data['e']}|{data['tk']}"
-                    ltp = float(data['lp'])
-                    vol = int(data.get('v', 0))
-                    ts = datetime.strptime(data['ft'], "%d-%m-%Y %H:%M:%S")
-                    print(f"📥 Live tick from token: {token}")
-
-                    for tf in self.TIMEFRAMES:
-                        try:
-                            minutes = int(tf.replace("min", ""))
-                            bucket = ts.replace(second=0, microsecond=0, minute=(ts.minute // minutes) * minutes)
-                            key = bucket.strftime("%Y-%m-%d %H:%M")
-
-                            tf_data = self.candles.setdefault(token, {}).setdefault(tf, {})
-                            c = tf_data.setdefault(key, {"O": ltp, "H": ltp, "L": ltp, "C": ltp, "V": vol})
-                            c["C"] = ltp
-                            c["H"] = max(c["H"], ltp)
-                            c["L"] = min(c["L"], ltp)
-                            c["V"] += vol
-
-                            print(f"⏰ Timeframe: {tf}")
-                            print(f"💉 Candle Key: {key}")
-                            print(f"📊 Updated Candle: {self.candles[token][tf][key]}")
-                        except Exception as e:
-                            print(f"🔥 Error in candle build loop for TF {tf}: {e}")
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                if 't' in data:
+                    if data['t'] == 'tk':
+                        self.on_tick(data)
+                    elif data['t'] == 'ck':
+                        print(f"Connection Acknowledged: {data}")
+                    elif data['t'] == 'om':
+                        print(f"Order Update: {data}")
+                else:
+                    print(f"Unknown message format: {data}")
             except Exception as e:
                 print(f"❌ Error in on_message: {e}")
 
-       def on_open(ws):
-    self.ws_connected = True
-    print("🔗 WebSocket connection opened")
-    for token in self.subscribed_tokens:
-        token_id = token.split("|")[1]
-        sub_msg = {"t": "t", "k": f"NSE|{token_id}"}
-        ws.send(json.dumps(sub_msg))
-        print(f"✅ Subscribed to token: NSE|{token_id}")
+        def on_open(ws):
+            self.ws_connected = True
+            print("🔗 WebSocket connection opened")
+            for token in self.subscribed_tokens:
+                token_id = token.split("|")[1]
+                sub_msg = {"t": "t", "k": f"NSE|{token_id}"}
+                ws.send(json.dumps(sub_msg))
+                print(f"✅ Subscribed to token: NSE|{token_id}")
 
             def run_ping():
                 while True:
@@ -311,6 +288,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
