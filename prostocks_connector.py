@@ -137,6 +137,7 @@ class ProStocksAPI:
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
           def on_message(ws, message):
+              
                data = json.loads(message)
         if 't' in data:
             if data['t'] == 'tk':
@@ -310,6 +311,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
