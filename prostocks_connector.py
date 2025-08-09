@@ -302,6 +302,7 @@ def __init__(self, uid, password, base_url, ws_url):
         self.interval_minutes = 1
 
     # ------------------ HISTORICAL DATA ------------------
+
     def get_historical_data(self, exch, token, interval="1", days=1):
         """Fetch historical OHLC data from TPSeries endpoint."""
         end_dt = datetime.now()
@@ -410,3 +411,4 @@ def __init__(self, uid, password, base_url, ws_url):
 
         # Run strategy on updated candles
         self.run_strategy()
+
