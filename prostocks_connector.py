@@ -142,17 +142,22 @@ class ProStocksAPI:
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                if 't' in data:
-                    if data['t'] == 'tk':
-                        self.on_tick(data)
-                    elif data['t'] == 'ck':
-                        print(f"Connection Acknowledged: {data}")
-                    elif data['t'] == 'om':
-                        print(f"Order Update: {data}")
-                else:
-                    print(f"Unknown message format: {data}")
-            except Exception as e:
-                print(f"❌ Error in on_message: {e}")
+
+                # Check if this is a tick update
+                if "t" in data and data["t"] == "tk":
+                    # Send tick data to handler
+                    self.on_tick(data)
+
+                    # If it's subscription confirmation
+                    elif "s" in data and data["s"] == "OK":
+                       print(f"Subscription successful: {data}")
+
+                    else:
+                        rint(f"Unknown WS message: {data}")
+
+             except Exception as e:
+                 print(f"Error in on_message: {e}")
+
 
         def on_open(ws):
             self.ws_connected = True
@@ -288,6 +293,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
