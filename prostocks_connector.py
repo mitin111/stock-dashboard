@@ -287,3 +287,126 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
+def __init__(self, uid, password, base_url, ws_url):
+        self.uid = uid
+        self.password = password
+        self.base_url = base_url
+        self.ws_url = ws_url
+        self.session = requests.Session()
+
+        self.ws = None
+        self.candles = []  # full candle history + forming candle
+        self.current_candle = None
+        self.tick_callback = None
+        self.interval_minutes = 1
+
+    # ------------------ HISTORICAL DATA ------------------
+    def get_historical_data(self, exch, token, interval="1", days=1):
+        """Fetch historical OHLC data from TPSeries endpoint."""
+        end_dt = datetime.now()
+        start_dt = end_dt - timedelta(days=days)
+
+        payload = {
+            "uid": self.uid,
+            "exch": exch,
+            "token": token,
+            "st": start_dt.strftime("%Y-%m-%d %H:%M"),
+            "et": end_dt.strftime("%Y-%m-%d %H:%M"),
+            "intrv": interval
+        }
+        r = self.session.post(
+            self.base_url + "/TPSeries",
+            data={"jData": json.dumps(payload)}
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        candles = []
+        for c in data.get("values", []):
+            candles.append({
+                "time": datetime.strptime(c["time"], "%Y-%m-%d %H:%M"),
+                "open": float(c["o"]),
+                "high": float(c["h"]),
+                "low": float(c["l"]),
+                "close": float(c["c"]),
+                "volume": int(c["v"])
+            })
+        self.candles = candles
+        return candles
+
+    # ------------------ LIVE WEBSOCKET ------------------
+    def start_websocket(self, exch, token, interval=1, tick_callback=None):
+        """Start WebSocket connection and stream live ticks."""
+        self.interval_minutes = interval
+        self.tick_callback = tick_callback
+
+        def on_open(ws):
+            # Authenticate
+            ws.send(json.dumps({
+                "t": "c",
+                "uid": self.uid,
+                "actid": self.uid,
+                "pwd": self.password,
+                "source": "API"
+            }))
+            time.sleep(1)
+            # Subscribe to token
+            ws.send(json.dumps({"t": "t", "k": f"{exch}|{token}"}))
+
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                if data.get("t") == "tk":
+                    ltp = float(data["lp"])
+                    volume = int(data.get("v", 0))
+                    ts = datetime.now()
+                    self._update_live_candle(ts, ltp, volume)
+
+                    if self.tick_callback:
+                        self.tick_callback(self.candles)  # full candle list for chart/strategy
+            except Exception as e:
+                print(f"Error in on_message: {e}")
+
+        self.ws = websocket.WebSocketApp(
+            self.ws_url,
+            on_open=on_open,
+            on_message=on_message
+        )
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
+
+    # ------------------ CANDLE BUILDER ------------------
+    def _update_live_candle(self, ts, price, volume):
+        """Merge live tick into the current forming candle."""
+        candle_start = ts.replace(second=0, microsecond=0)
+        minute_block = (candle_start.minute // self.interval_minutes) * self.interval_minutes
+        candle_start = candle_start.replace(minute=minute_block)
+
+        # Start a new candle
+        if not self.current_candle or self.current_candle["time"] != candle_start:
+            if self.current_candle:
+                # Push the completed candle to list
+                self.candles.append(self.current_candle)
+            self.current_candle = {
+                "time": candle_start,
+                "open": price,
+                "high": price,
+                "low": price,
+                "close": price,
+                "volume": volume
+            }
+        else:
+            # Update existing candle
+            self.current_candle["high"] = max(self.current_candle["high"], price)
+            self.current_candle["low"] = min(self.current_candle["low"], price)
+            self.current_candle["close"] = price
+            self.current_candle["volume"] += volume
+
+        # Always make sure last element is current candle
+        if self.candles and self.candles[-1]["time"] == self.current_candle["time"]:
+            self.candles[-1] = self.current_candle
+        else:
+            self.candles.append(self.current_candle)
+
+        # Run strategy on updated candles
+        self.run_strategy()
