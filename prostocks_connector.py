@@ -208,11 +208,11 @@ class ProStocksAPI:
         print("⚠️ Tick data missing token")
         return
 
-         if token_key not in self.candle_tokens:
+    if token_key not in self.candle_tokens:
         print(f"⚠️ Token {token_key} not subscribed for candles")
         return
 
-        try:
+    try:
         ltp = float(data["lp"])
         ts = datetime.now().replace(second=0, microsecond=0)
         self.tick_data.setdefault(token_key, []).append((ts, ltp))
@@ -448,6 +448,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
