@@ -199,26 +199,26 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-    token = data.get("tk")
-    print(f"🟢 Tick received for token: {token}")
+        token = data.get("tk")
+        print(f"🟢 Tick received for token: {token}")
 
-    # Normalize token: remove exchange prefix if present
-    token_key = token.split("|")[-1] if token else None
-    if not token_key:
-        print("⚠️ Tick data missing token")
-        return
+        # Normalize token: remove exchange prefix if present
+        token_key = token.split("|")[-1] if token else None
+        if not token_key:
+            print("⚠️ Tick data missing token")
+            return
 
-    if token_key not in self.candle_tokens:
-        print(f"⚠️ Token {token_key} not subscribed for candles")
-        return
+        if token_key not in self.candle_tokens:
+            print(f"⚠️ Token {token_key} not subscribed for candles")
+            return
 
-    try:
-        ltp = float(data["lp"])
-        ts = datetime.now().replace(second=0, microsecond=0)
-        self.tick_data.setdefault(token_key, []).append((ts, ltp))
-        print(f"🧩 Tick stored: {ts} {ltp} for token {token_key}")
-    except Exception as e:
-        print(f"🔥 Error processing tick: {e}")
+        try:
+            ltp = float(data["lp"])
+            ts = datetime.now().replace(second=0, microsecond=0)
+            self.tick_data.setdefault(token_key, []).append((ts, ltp))
+            print(f"🧩 Tick stored: {ts} {ltp} for token {token_key}")
+        except Exception as e:
+            print(f"🔥 Error processing tick: {e}")
 
     def build_candles(self, token):
         print(f"🛠️ Building candles for token: {token}")
@@ -369,7 +369,6 @@ class ProStocksAPI:
             self.live_candles.append(self.current_candle)
 
     # ------------------ YOUR EXISTING ORDER, WATCHLIST, HOLDING APIs ------------------
-    # Copy your full existing methods here unchanged. For example:
 
     def place_order(self, order_params):
         """
@@ -448,7 +447,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
-
