@@ -296,7 +296,7 @@ class ProStocksAPI:
         self.vendor_code = vendor_code
         self.api_secret = api_secret
         self.imei = imei
-        self.base_url = "https://online.prostocks.com/api"
+        self.base_url = "https://starapi.prostocks.com/NorenWClientTP"
         self.session = requests.Session()
         self.candles = []
         self.current_candle = None
@@ -390,3 +390,4 @@ class ProStocksAPI:
                 self.current_candle["low"] = min(self.current_candle["low"], tick["ltp"])
                 self.current_candle["close"] = tick["ltp"]
                 self.current_candle["volume"] += tick["volume"]
+
