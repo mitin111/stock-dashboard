@@ -199,23 +199,26 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def on_tick(self, data):
-        print(f"🟢 Tick received: {data}")
-        token = data.get("tk")
-        if not token:
-            print("⚠️ No token in tick data")
-            return
+    token = data.get("tk")
+    print(f"🟢 Tick received for token: {token}")
 
-        if token not in self.candle_tokens:
-            print(f"⚠️ Token {token} not in subscribed candle tokens: {self.candle_tokens}")
-            return
+    # Normalize token: remove exchange prefix if present
+    token_key = token.split("|")[-1] if token else None
+    if not token_key:
+        print("⚠️ Tick data missing token")
+        return
+
+         if token_key not in self.candle_tokens:
+        print(f"⚠️ Token {token_key} not subscribed for candles")
+        return
 
         try:
-            ltp = float(data["lp"])
-            ts = datetime.now().replace(second=0, microsecond=0)
-            self.tick_data.setdefault(token, []).append((ts, ltp))
-            print(f"🧩 Appended Tick: {ts}, {ltp} for token {token}")
-        except Exception as e:
-            print(f"🔥 Error processing tick: {e}")
+        ltp = float(data["lp"])
+        ts = datetime.now().replace(second=0, microsecond=0)
+        self.tick_data.setdefault(token_key, []).append((ts, ltp))
+        print(f"🧩 Tick stored: {ts} {ltp} for token {token_key}")
+    except Exception as e:
+        print(f"🔥 Error processing tick: {e}")
 
     def build_candles(self, token):
         print(f"🛠️ Building candles for token: {token}")
@@ -445,5 +448,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
