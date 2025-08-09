@@ -149,15 +149,13 @@ class ProStocksAPI:
                     self.on_tick(data)
 
                     # If it's subscription confirmation
-                    elif "s" in data and data["s"] == "OK":
-                       print(f"Subscription successful: {data}")
+        elif "s" in data and data["s"] == "OK":
+            print(f"Subscription successful: {data}")
+        else:
+            print(f"Unknown WS message: {data}")
 
-                    else:
-                        rint(f"Unknown WS message: {data}")
-
-             except Exception as e:
-                 print(f"Error in on_message: {e}")
-
+      except Exception as e:
+           print(f"Error in on_message: {e}")
 
         def on_open(ws):
             self.ws_connected = True
@@ -293,6 +291,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
