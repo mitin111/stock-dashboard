@@ -301,15 +301,15 @@ def __init__(self, uid, password, base_url, ws_url):
         self.tick_callback = None
         self.interval_minutes = 1
 
-    # ------------------ HISTORICAL DATA ------------------
-
+       # ------------------ HISTORICAL DATA ------------------
     def get_historical_data(self, exch, token, interval="1", days=1):
         """Fetch historical OHLC data from TPSeries endpoint."""
+        from datetime import timedelta  # make sure this is imported at top
         end_dt = datetime.now()
         start_dt = end_dt - timedelta(days=days)
 
         payload = {
-            "uid": self.uid,
+            "uid": self.userid,
             "exch": exch,
             "token": token,
             "st": start_dt.strftime("%Y-%m-%d %H:%M"),
@@ -335,7 +335,7 @@ def __init__(self, uid, password, base_url, ws_url):
             })
         self.candles = candles
         return candles
-
+        
     # ------------------ LIVE WEBSOCKET ------------------
     def start_websocket(self, exch, token, interval=1, tick_callback=None):
         """Start WebSocket connection and stream live ticks."""
@@ -411,4 +411,5 @@ def __init__(self, uid, password, base_url, ws_url):
 
         # Run strategy on updated candles
         self.run_strategy()
+
 
