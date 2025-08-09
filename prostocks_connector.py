@@ -136,13 +136,18 @@ class ProStocksAPI:
         self.subscribed_tokens = token_list
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
-       def on_message(ws, message):
-           print(f"📩 Raw tick: {message}")  # NEW: full raw message log
-       try:
-           data = json.loads(message)
-           self.on_tick(data)  # Pass all data to on_tick for handling
-       except Exception as e:
-           print(f"❌ Tick JSON error: {e}")
+          def on_message(ws, message):
+               data = json.loads(message)
+        if 't' in data:
+            if data['t'] == 'tk':
+                self.on_tick(data)
+            elif data['t'] == 'ck':
+                print(f"Connection Acknowledged: {data}")
+            elif data['t'] == 'om':
+                print(f"Order Update: {data}")
+        else:
+            print(f"Unknown message format: {data}")
+
 
                     token = f"{data['e']}|{data['tk']}"
                     ltp = float(data['lp'])
@@ -305,6 +310,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
