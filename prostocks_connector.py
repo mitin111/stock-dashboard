@@ -110,24 +110,27 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-   def add_token_for_candles(self, token):
-       print(f"🪝 Adding token to candle builder: {token}")
-       token_id = token.split("|")[-1]  # Always get token ID only
-       self.candle_tokens.add(token_id)  # Store token_id, not full token
+    def add_token_for_candles(self, token):
+        print(f"🪝 Adding token to candle builder: {token}")
+        token_id = token.split("|")[-1]  # Always get token ID only
+        self.candle_tokens.add(token_id)  # Store token_id, not full token
 
-   if self.ws_connected and self.ws:
-      try:
-          # Send full token with NSE| prefix when subscribing
-          payload = json.dumps({"t": "t", "k": f"NSE|{token_id}"})
-          self.ws.send(payload)
-          print(f"✅ WebSocket subscription sent: {payload}")
-    except Exception as e:
-        print(f"❌ Error sending subscription: {e}")
-  else:
-       print("⚠️ WebSocket not connected yet, token will subscribe on connect")
+        if self.ws_connected and self.ws:
+            try:
+                # Send full token with NSE| prefix when subscribing
+                payload = json.dumps({"t": "t", "k": f"NSE|{token_id}"})
+                self.ws.send(payload)
+                print(f"✅ WebSocket subscription sent: {payload}")
+            except Exception as e:
+                print(f"❌ Error sending subscription: {e}")
+        else:
+            print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
-  self.start_candle_builder(list(self.candle_tokens))
-  self.start_candle_builder_loop()
+        self.start_candle_builder(list(self.candle_tokens))
+        self.start_candle_builder_loop()
+
+    # ... rest of your methods ...
+
 
     def start_candle_builder_loop(self):
         def run():
@@ -448,6 +451,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
