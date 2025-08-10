@@ -12,49 +12,55 @@ import pandas as pd
 
 load_dotenv()
 
+
 class ProStocksAPI:
+    """ProStocks API wrapper with historical fetch + live websocket candle builder.
+
+    Key improvements in this merged version:
+    - fetch_historical_candles(): fetches TPSeries historical OHLC and stores in
+      self.candles[token_id][timeframe] as a dict keyed by "YYYY-MM-DD HH:MM"
+      with values {"O","H","L","C","V"} which matches dashboard expectations.
+    - add_token_for_candles(): fetches historical candles (for available TIMEFRAMES)
+      before subscribing to WebSocket so charts show past + live data.
+    - Robust websocket subscription (sends "NSE|<token>" form) and on_message/on_tick
+      stores tick as (ts, price, volume) and updates candle store for "1min".
+    """
+
     def __init__(self, userid=None, password_plain=None, vc=None, api_key=None, imei=None, base_url=None, apkversion="1.0.0"):
         self.userid = userid or os.getenv("PROSTOCKS_USER_ID")
         self.password_plain = password_plain or os.getenv("PROSTOCKS_PASSWORD")
         self.vc = vc or os.getenv("PROSTOCKS_VENDOR_CODE")
         self.api_key = api_key or os.getenv("PROSTOCKS_API_KEY")
         self.imei = imei or os.getenv("PROSTOCKS_MAC")
-        self.base_url = (base_url or os.getenv("PROSTOCKS_BASE_URL")).rstrip("/")
+        self.base_url = (base_url or os.getenv("PROSTOCKS_BASE_URL") or "https://starapi.prostocks.com/NorenWClientTP").rstrip("/")
         self.apkversion = apkversion
         self.session_token = None
         self.session = requests.Session()
         self.headers = {"Content-Type": "text/plain"}
 
-        self.credentials = {
-            "uid": self.userid,
-            "pwd": self.password_plain,
-            "vc": self.vc,
-            "api_key": self.api_key,
-            "imei": self.imei
-        }
-
-        # WebSocket vars
+        # WebSocket / candle state
         self.ws = None
         self.ws_connected = False
-        self.subscribed_tokens = []
+        self.subscribed_tokens = []               # list of strings like "NSE|11872"
         self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
-        self.candles = {}          # Dict[token] = list of candles
-        self.candle_tokens = set() # Set of tokens subscribed for candle building
-        self.tick_data = {}        # Dict[token] = list of (datetime, price)
-        self.candle_data = {}      # Dict[token] = cached candle dicts
 
-        # For live candle builder (WebSocket + manual)
+        # candles: { token_id: { timeframe: { "YYYY-MM-DD HH:MM": {O,H,L,C,V} } } }
+        self.candles = {}
+
+        # tick_data: { token_id: [ (datetime, price, volume) ] }
+        self.tick_data = {}
+
+        # live candle builder state (optional)
         self.current_candle = None
-        self.live_candles = []  # For live candle list (1-min interval)
-        self.interval_minutes = 1  # Candle interval for live update
-        self.tick_callback = None  # Optional callback for live ticks
+        self.interval_minutes = 1
 
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
+    # ---------------- Authentication / helper ----------------
     def send_otp(self):
         url = f"{self.base_url}/QuickAuth"
-        pwd_hash = self.sha256(self.password_plain)
+        pwd_hash = self.sha256(self.password_plain or "")
         appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
         payload = {
             "uid": self.userid,
@@ -64,7 +70,7 @@ class ProStocksAPI:
             "appkey": appkey_hash,
             "imei": self.imei,
             "apkversion": self.apkversion,
-            "source": "API"
+            "source": "API",
         }
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
@@ -77,7 +83,7 @@ class ProStocksAPI:
 
     def login(self, factor2_otp):
         url = f"{self.base_url}/QuickAuth"
-        pwd_hash = self.sha256(self.password_plain)
+        pwd_hash = self.sha256(self.password_plain or "")
         appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
         payload = {
             "uid": self.userid,
@@ -87,7 +93,7 @@ class ProStocksAPI:
             "appkey": appkey_hash,
             "imei": self.imei,
             "apkversion": self.apkversion,
-            "source": "API"
+            "source": "API",
         }
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
@@ -110,15 +116,96 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-    def add_token_for_candles(self, token):
-        print(f"🪝 Adding token to candle builder: {token}")
-        token_id = token.split("|")[-1]  # Always get token ID only
-        self.candle_tokens.add(token_id)  # Store token_id, not full token
+    # ---------------- Historical fetch ----------------
+    def _intrv_from_tf(self, timeframe):
+        # map dashboard timeframe to TPSeries intrv value
+        mapping = {"1min": "1", "3min": "3", "5min": "5", "15min": "15", "30min": "30", "60min": "60"}
+        return mapping.get(timeframe, "1")
 
+    def fetch_historical_candles(self, token, timeframe="1min", days=1):
+        """Fetch historical OHLC from TPSeries and store into self.candles[token_id][timeframe].
+
+        token can be "NSE|11872" or "11872".
+        """
+        try:
+            parts = token.split("|")
+            if len(parts) > 1:
+                exch, token_id = parts
+            else:
+                exch, token_id = "NSE", parts[0]
+
+            intrv = self._intrv_from_tf(timeframe)
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(days=days)
+
+            payload = {
+                "uid": self.userid,
+                "exch": exch,
+                "token": token_id,
+                "st": start_dt.strftime("%Y-%m-%d %H:%M"),
+                "et": end_dt.strftime("%Y-%m-%d %H:%M"),
+                "intrv": intrv,
+            }
+
+            url = self.base_url + "/TPSeries"
+            r = self.session.post(url, data={"jData": json.dumps(payload)}, timeout=10)
+            print(f"🔍 Historical data raw response for {exch}|{token_id} ({timeframe}):", r.text)
+            r.raise_for_status()
+            data = r.json()
+
+            values = data.get("values") or []
+
+            # ensure structure
+            self.candles.setdefault(token_id, {})
+            tf_store = {}
+            for c in values:
+                # expected keys: time, o, h, l, c, v
+                tstr = c.get("time")
+                try:
+                    # Normalise time string to 'YYYY-MM-DD HH:MM'
+                    dt = datetime.strptime(tstr, "%Y-%m-%d %H:%M")
+                    tf_store[dt.strftime("%Y-%m-%d %H:%M")] = {
+                        "O": float(c.get("o", 0)),
+                        "H": float(c.get("h", 0)),
+                        "L": float(c.get("l", 0)),
+                        "C": float(c.get("c", 0)),
+                        "V": int(c.get("v", 0))
+                    }
+                except Exception as ex:
+                    print(f"⚠️ Skipping invalid historical row: {c} -> {ex}")
+
+            self.candles[token_id][timeframe] = tf_store
+            print(f"📈 Loaded {len(tf_store)} historical candles for {exch}|{token_id} @ {timeframe}")
+            return tf_store
+
+        except Exception as e:
+            print(f"❌ Historical fetch failed for {token} {timeframe}: {e}")
+            return {}
+
+    # ---------------- Candle subscription & websocket ----------------
+    def add_token_for_candles(self, token_full):
+        """Add token (NSE|id or id) for both historical fetch and live subscription."""
+        if "|" in token_full:
+            exch, token_id = token_full.split("|", 1)
+        else:
+            exch, token_id = "NSE", token_full
+
+        print(f"🪝 Adding token to candle builder: {exch}|{token_id}")
+        # ensure candle containers exist
+        self.candles.setdefault(token_id, {})
+
+        # fetch historical for a few useful timeframes (so switching TF in dashboard is faster)
+        for tf in ["1min", "5min", "15min"]:
+            # do not block websocket thread for long — keep small days window for intraday
+            self.fetch_historical_candles(f"{exch}|{token_id}", timeframe=tf, days=1)
+
+        # store token id in set
+        self.candle_tokens.add(token_id)
+
+        # send ws subscription if connected
         if self.ws_connected and self.ws:
             try:
-                # Send full token with NSE| prefix when subscribing
-                payload = json.dumps({"t": "t", "k": f"NSE|{token_id}"})
+                payload = json.dumps({"t": "t", "k": f"{exch}|{token_id}"})
                 self.ws.send(payload)
                 print(f"✅ WebSocket subscription sent: {payload}")
             except Exception as e:
@@ -126,54 +213,70 @@ class ProStocksAPI:
         else:
             print("⚠️ WebSocket not connected yet, token will subscribe on connect")
 
-        self.start_candle_builder(list(self.candle_tokens))
+        # ensure builder loop running
+        self.start_candle_builder(list({f"{exch}|{tid}" for tid in self.candle_tokens}))
         self.start_candle_builder_loop()
 
     def start_candle_builder_loop(self):
         def run():
             while True:
-                for token in list(self.candle_tokens):
-                    self.build_candles(token)
-                time.sleep(10)
+                for token_id in list(self.candle_tokens):
+                    # update 1min aggregated candles from tick buffer
+                    try:
+                        self._aggregate_tick_data_to_tf(token_id, "1min")
+                    except Exception as ex:
+                        print("🔥 Error in candle builder loop:", ex)
+                time.sleep(2)
 
-        threading.Thread(target=run, daemon=True).start()
+        # only one background thread
+        if not getattr(self, "_candle_loop_started", False):
+            threading.Thread(target=run, daemon=True).start()
+            self._candle_loop_started = True
 
     def start_candle_builder(self, token_list):
-        if self.ws:
-            return  # already started
-
+        """Start websocket and subscribe to token_list (items like 'NSE|11872')."""
+        # update subscribed list
         self.subscribed_tokens = token_list
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-
-                if "t" in data and data["t"] == "tk":
+                # debug: print incoming tick messages (can be noisy)
+                # print("WS MSG:", data)
+                if data.get("t") == "tk":
                     self.on_tick(data)
-                elif "s" in data and data["s"] == "OK":
+                elif data.get("s") == "OK":
                     print(f"Subscription successful: {data}")
                 else:
-                    print(f"Unknown WS message: {data}")
-
+                    # other control messages
+                    pass
             except Exception as e:
                 print(f"Error in on_message: {e}")
 
         def on_open(ws):
             self.ws_connected = True
             print("🔗 WebSocket connection opened")
+            # subscribe to each token (server expects exch|token form)
             for token in self.subscribed_tokens:
-                token_id = token.split("|")[-1]  # safer to always take last part
-                sub_msg = {"t": "t", "k": f"NSE|{token_id}"}
-                ws.send(json.dumps(sub_msg))
-                print(f"✅ Subscribed to token: NSE|{token_id}")
+                try:
+                    parts = token.split("|")
+                    if len(parts) > 1:
+                        exch, token_id = parts
+                    else:
+                        exch, token_id = "NSE", parts[0]
+                    sub_msg = {"t": "t", "k": f"{exch}|{token_id}"}
+                    ws.send(json.dumps(sub_msg))
+                    print(f"✅ Subscribed to token: {exch}|{token_id}")
+                except Exception as e:
+                    print("❌ Sub error:", e)
 
             def run_ping():
                 while True:
                     try:
                         ws.send(json.dumps({"t": "ping"}))
                         time.sleep(15)
-                    except:
+                    except Exception:
                         break
 
             threading.Thread(target=run_ping, daemon=True).start()
@@ -184,7 +287,11 @@ class ProStocksAPI:
             self.ws = None
             time.sleep(2)
             print("🔁 Reconnecting WebSocket...")
-            self.start_candle_builder(self.subscribed_tokens)
+            # attempt reconnect
+            try:
+                self.start_candle_builder(self.subscribed_tokens)
+            except Exception as e:
+                print("Reconnect failed:", e)
 
         def on_error(ws, error):
             print(f"❌ WebSocket Error: {error}")
@@ -195,118 +302,89 @@ class ProStocksAPI:
             on_message=on_message,
             on_open=on_open,
             on_error=on_error,
-            on_close=on_close
+            on_close=on_close,
         )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
+    # ---------------- Tick handling & aggregation ----------------
     def on_tick(self, data):
-        token = data.get("tk")
+        """Handle incoming tick message from WS. Expected keys: 'tk' (token), 'lp' (last price), 'v' maybe volume."""
+        token = data.get("tk")  # often like "NSE|18124"
         print(f"🟢 Tick received for token: {token}")
-
-        # Normalize token: remove exchange prefix if present
-        token_key = token.split("|")[-1] if token else None
-        if not token_key:
-            print("⚠️ Tick data missing token")
+        if not token:
             return
 
-        if token_key not in self.candle_tokens:
-            print(f"⚠️ Token {token_key} not subscribed for candles")
+        token_id = token.split("|")[-1]
+        # ensure we store volume if available
+        try:
+            ltp = float(data.get("lp", 0))
+        except Exception:
+            ltp = 0.0
+        try:
+            vol = int(float(data.get("v", 0)))
+        except Exception:
+            vol = 0
+
+        ts = datetime.now().replace(second=0, microsecond=0)
+        self.tick_data.setdefault(token_id, []).append((ts, ltp, vol))
+        print(f"🧩 Tick stored: {ts} {ltp} vol={vol} for token {token_id}")
+
+        # update aggregated 1min candle immediately (fast feedback for dashboard)
+        try:
+            self._aggregate_tick_data_to_tf(token_id, "1min")
+        except Exception as e:
+            print("🔥 Error aggregating tick to candle:", e)
+
+    def _aggregate_tick_data_to_tf(self, token_id, timeframe="1min"):
+        """Aggregate tick_data[token_id] into timeframe and store in self.candles[token_id][timeframe].
+        Only aggregates the minutes present in tick buffer; keeps historical data too.
+        """
+        ticks = self.tick_data.get(token_id, [])
+        if not ticks:
             return
 
-        try:
-            ltp = float(data["lp"])
-            ts = datetime.now().replace(second=0, microsecond=0)
-            self.tick_data.setdefault(token_key, []).append((ts, ltp))
-            print(f"🧩 Tick stored: {ts} {ltp} for token {token_key}")
-        except Exception as e:
-            print(f"🔥 Error processing tick: {e}")
+        # create map minute -> list of (price, vol)
+        by_min = {}
+        for ts, price, vol in ticks:
+            key = ts.strftime("%Y-%m-%d %H:%M")
+            by_min.setdefault(key, []).append((price, vol))
 
-    def build_candles(self, token):
-        print(f"🛠️ Building candles for token: {token}")
-        if token not in self.tick_data:
-            print("⚠️ No tick data found for token")
-            return []
+        # ensure structure
+        self.candles.setdefault(token_id, {})
+        tf_store = self.candles[token_id].get(timeframe, {})
 
-        try:
-            df = pd.DataFrame(self.tick_data[token], columns=["time", "price"])
-            if df.empty:
-                print("⚠️ Tick DataFrame is empty")
-                return []
+        for key, arr in by_min.items():
+            prices = [p for p, v in arr if p is not None]
+            vols = [v for p, v in arr]
+            if not prices:
+                continue
+            O = prices[0]
+            H = max(prices)
+            L = min(prices)
+            C = prices[-1]
+            V = sum(vols)
+            tf_store[key] = {"O": O, "H": H, "L": L, "C": C, "V": V}
 
-            ohlc = df.groupby("time")["price"].agg(["first", "max", "min", "last"]).reset_index()
-            ohlc.columns = ["time", "open", "high", "low", "close"]
+        # save back
+        self.candles[token_id][timeframe] = tf_store
 
-            print(f"📊 Built {len(ohlc)} candles")
-            self.candle_data[token] = ohlc.to_dict("records")
-            return self.candle_data[token]
-
-        except Exception as e:
-            print(f"🔥 Error building candles: {e}")
-            return []
-
+    # ---------------- convenience getters ----------------
     def get_candles(self):
-        return self.candle_data
+        return self.candles
 
     def get_all_candles(self):
         return self.candles
 
-        # ----------- Historical Data API -----------
-    def get_historical_data(self, exch, token, interval="1", days=1):
-        end_dt = datetime.now()
-        start_dt = end_dt - timedelta(days=days)
-
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": token,
-            "st": start_dt.strftime("%Y-%m-%d %H:%M"),
-            "et": end_dt.strftime("%Y-%m-%d %H:%M"),
-            "intrv": interval
-        }
-        try:
-            r = self.session.post(
-                self.base_url + "/TPSeries",
-                data={"jData": json.dumps(payload)}
-            )
-            r.raise_for_status()
-            print("🔍 Historical data raw response:", r.text)  # <-- Add this print
-            data = r.json()
-
-            candles = []
-            for c in data.get("values", []):
-                candles.append({
-                    "time": datetime.strptime(c["time"], "%Y-%m-%d %H:%M"),
-                    "open": float(c["o"]),
-                    "high": float(c["h"]),
-                    "low": float(c["l"]),
-                    "close": float(c["c"]),
-                    "volume": int(c["v"])
-                })
-            self.candles = candles
-            return candles
-        except Exception as e:
-            print(f"🔥 Error fetching historical data: {e}")
-            return []
-
-    # ----------- Live WebSocket + Candle Builder (alternative) -----------
+    # ---------------- API helpers (existing) ----------------
     def start_websocket(self, exch, token, interval=1, tick_callback=None):
-        """
-        Start WebSocket connection and stream live ticks.
-        tick_callback: function called with updated candle list after every tick.
+        """Legacy helper that starts a websocket and builds live candles into self.live_candles.
+        Prefer using start_candle_builder() / add_token_for_candles() for the merged flow.
         """
         self.interval_minutes = interval
         self.tick_callback = tick_callback
 
         def on_open(ws):
-            # Authenticate (if needed) and subscribe
-            # Your WS auth might be different; adjust accordingly
-            ws.send(json.dumps({
-                "t": "c",
-                "uid": self.userid,
-                "actid": self.userid,
-                "pwd": self.password_plain,
-                "source": "API"
-            }))
+            ws.send(json.dumps({"t": "c", "uid": self.userid, "actid": self.userid, "pwd": self.password_plain, "source": "API"}))
             time.sleep(1)
             ws.send(json.dumps({"t": "t", "k": f"{exch}|{token}"}))
 
@@ -314,14 +392,15 @@ class ProStocksAPI:
             try:
                 data = json.loads(message)
                 if data.get("t") == "tk":
-                    ltp = float(data["lp"])
+                    ltp = float(data.get("lp", 0))
                     volume = int(data.get("v", 0))
                     ts = datetime.now()
+                    # legacy behavior: update a live candle list
                     self._update_live_candle(ts, ltp, volume)
                     if self.tick_callback:
                         self.tick_callback(self.live_candles)
             except Exception as e:
-                print(f"Error in on_message: {e}")
+                print(f"Error in on_message (legacy): {e}")
 
         def on_error(ws, error):
             print(f"❌ WebSocket Error: {error}")
@@ -339,9 +418,7 @@ class ProStocksAPI:
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def _update_live_candle(self, ts, price, volume):
-        """
-        Merge live tick into the current forming candle for the live_websocket method.
-        """
+        """Legacy in-memory 1-min candle builder for live_websocket path."""
         candle_start = ts.replace(second=0, microsecond=0)
         minute_block = (candle_start.minute // self.interval_minutes) * self.interval_minutes
         candle_start = candle_start.replace(minute=minute_block)
@@ -349,33 +426,20 @@ class ProStocksAPI:
         if not self.current_candle or self.current_candle["time"] != candle_start:
             if self.current_candle:
                 self.live_candles.append(self.current_candle)
-            self.current_candle = {
-                "time": candle_start,
-                "open": price,
-                "high": price,
-                "low": price,
-                "close": price,
-                "volume": volume
-            }
+            self.current_candle = {"time": candle_start, "open": price, "high": price, "low": price, "close": price, "volume": volume}
         else:
             self.current_candle["high"] = max(self.current_candle["high"], price)
             self.current_candle["low"] = min(self.current_candle["low"], price)
             self.current_candle["close"] = price
             self.current_candle["volume"] += volume
 
-        # Update or append current candle in live_candles list
         if self.live_candles and self.live_candles[-1]["time"] == self.current_candle["time"]:
             self.live_candles[-1] = self.current_candle
         else:
             self.live_candles.append(self.current_candle)
 
-    # ------------------ YOUR EXISTING ORDER, WATCHLIST, HOLDING APIs ------------------
-
+    # ---------------- existing order/watchlist helpers ----------------
     def place_order(self, order_params):
-        """
-        Place an order.
-        order_params: dict with required order fields.
-        """
         url = f"{self.base_url}/PlaceOrder"
         return self._post_json(url, order_params)
 
@@ -448,12 +512,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
-
-
-
-
-
-
