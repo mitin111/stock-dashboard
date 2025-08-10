@@ -167,8 +167,7 @@ class ProStocksAPI:
             self.ws_connected = True
             print("🔗 WebSocket connection opened")
             for token in self.subscribed_tokens:
-                token_parts = token.split("|")
-                token_id = token_parts[1] if len(token_parts) > 1 else token_parts[0]
+                token_id = token.split("|")[-1]  # safer to always take last part
                 sub_msg = {"t": "t", "k": f"NSE|{token_id}"}
                 ws.send(json.dumps(sub_msg))
                 print(f"✅ Subscribed to token: NSE|{token_id}")
@@ -453,6 +452,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
