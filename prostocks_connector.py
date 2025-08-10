@@ -129,9 +129,6 @@ class ProStocksAPI:
         self.start_candle_builder(list(self.candle_tokens))
         self.start_candle_builder_loop()
 
-    # ... rest of your methods ...
-
-
     def start_candle_builder_loop(self):
         def run():
             while True:
@@ -451,6 +448,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
