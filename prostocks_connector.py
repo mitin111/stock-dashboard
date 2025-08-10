@@ -32,13 +32,15 @@ class ProStocksAPI:
 
     def __init__(self, userid: Optional[str] = None, password_plain: Optional[str] = None,
                  vc: Optional[str] = None, api_key: Optional[str] = None, imei: Optional[str] = None,
-                 base_url: Optional[str] = None, ws_url: str = DEFAULT_WS_URL, csv_dir: Path = TICKS_DIR):
+                 base_url: Optional[str] = None, apkversion: str = "1.0.0",
+                 ws_url: str = DEFAULT_WS_URL, csv_dir: Path = TICKS_DIR):
         # Auth fields (optional)
         self.userid = userid
         self.password_plain = password_plain
         self.vc = vc
         self.api_key = api_key
         self.imei = imei
+        self.apkversion = apkversion  # <- keep incoming apkversion for compatibility
         self.base_url = (base_url or "https://starapi.prostocks.com/NorenWClientTP").rstrip("/")
 
         # WebSocket / subscription state
@@ -395,7 +397,7 @@ class ProStocksAPI:
             "vc": self.vc or "",
             "appkey": appkey_hash or "",
             "imei": self.imei or "",
-            "apkversion": "1.0.0",
+            "apkversion": self.apkversion or "1.0.0",
             "source": "API"
         }
         try:
@@ -424,3 +426,4 @@ if __name__ == "__main__":
     finally:
         api.shutdown()
         print("Stopped.")
+
