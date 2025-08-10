@@ -1,408 +1,426 @@
 
-import requests
-import hashlib
-import json
+# prostocks_connector.py
 import os
+import json
 import time
-from dotenv import load_dotenv
-from datetime import datetime, timedelta
-import websocket
 import threading
-import pandas as pd
+import csv
+from datetime import datetime
+from typing import List, Optional, Dict, Any
+import websocket
+import requests  # kept for auth / optional restful helpers
+from pathlib import Path
 
-load_dotenv()
+# -- Configuration defaults --
+DEFAULT_WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
+TICKS_DIR = Path("./ticks")
+TICKS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ProStocksAPI:
-    """ProStocks API wrapper with historical fetch + live websocket candle builder."""
+    """
+    ProStocksAPI - focused on live tick subscription + tick persistence (no TPSeries).
+    Features:
+      - start() / stop() websocket
+      - add_subscription("NSE|11872")
+      - remove_subscription("NSE|11872")
+      - on_tick stores tick in-memory (self.tick_data[token_id]) and appends to CSV ./ticks/ticks_<token_id>.csv
+      - load_historical_ticks(token_full) reads CSV into list[dict]
+      - get_historical_ticks(token_full, start, end) filters loaded CSV records between timestamps
+      - get_recent_ticks(token_full, n) returns last n ticks from in-memory buffer (or from CSV fallback)
+    """
 
-    def __init__(self, userid=None, password_plain=None, vc=None, api_key=None, imei=None, base_url=None, apkversion="1.0.0"):
-        self.userid = userid or os.getenv("PROSTOCKS_USER_ID")
-        self.password_plain = password_plain or os.getenv("PROSTOCKS_PASSWORD")
-        self.vc = vc or os.getenv("PROSTOCKS_VENDOR_CODE")
-        self.api_key = api_key or os.getenv("PROSTOCKS_API_KEY")
-        self.imei = imei or os.getenv("PROSTOCKS_MAC")
-        self.base_url = (base_url or os.getenv("PROSTOCKS_BASE_URL") or "https://starapi.prostocks.com/NorenWClientTP").rstrip("/")
-        self.apkversion = apkversion
-        self.session_token = None
-        self.session = requests.Session()
-        self.headers = {"Content-Type": "text/plain"}
+    def __init__(self, userid: Optional[str] = None, password_plain: Optional[str] = None,
+                 vc: Optional[str] = None, api_key: Optional[str] = None, imei: Optional[str] = None,
+                 base_url: Optional[str] = None, ws_url: str = DEFAULT_WS_URL, csv_dir: Path = TICKS_DIR):
+        # Auth fields (optional)
+        self.userid = userid
+        self.password_plain = password_plain
+        self.vc = vc
+        self.api_key = api_key
+        self.imei = imei
+        self.base_url = (base_url or "https://starapi.prostocks.com/NorenWClientTP").rstrip("/")
 
-        # WebSocket / candle state
-        self.ws = None
+        # WebSocket / subscription state
+        self.ws_url = ws_url
+        self.ws_app: Optional[websocket.WebSocketApp] = None
+        self.ws_thread: Optional[threading.Thread] = None
         self.ws_connected = False
-        self.subscribed_tokens = []
-        self.TIMEFRAMES = ["1min", "3min", "5min", "15min", "30min", "60min"]
+        self._stop_event = threading.Event()
 
-        # candles: { token_id: { timeframe: { "YYYY-MM-DD HH:MM": {O,H,L,C,V} } } }
-        self.candles = {}
+        # tokens are strings like "NSE|11872"
+        self.subscribed_tokens: List[str] = []  # current target subscriptions
+        self._subscriptions_lock = threading.Lock()
 
-        # tick_data: { token_id: [ (datetime, price, volume) ] }
-        self.tick_data = {}
+        # tick storage: { token_id: [ {"ts": datetime, "price": float, "volume": int, "raw": dict, "token_full": str} ] }
+        self.tick_data: Dict[str, List[Dict[str, Any]]] = {}
+        self._tick_lock = threading.Lock()
+        self.csv_dir = csv_dir
+        self.csv_dir.mkdir(parents=True, exist_ok=True)
 
-        # Token tracking for candle builder (FIX)
-        self.candle_tokens = set()
+        # config: how many ticks to keep in memory per token (bounded)
+        self.max_in_memory_ticks = 2000
 
-        # live candle builder state
-        self.current_candle = None
-        self.interval_minutes = 1
+        # ping interval (seconds)
+        self.ping_interval = 15
 
-    def sha256(self, text):
-        return hashlib.sha256(text.encode()).hexdigest()
+        # a small exponential backoff for reconnects
+        self._reconnect_backoff = 1.0
 
-    # ---------------- Authentication / helper ----------------
-    def send_otp(self):
-        url = f"{self.base_url}/QuickAuth"
-        pwd_hash = self.sha256(self.password_plain or "")
-        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
-        payload = {
-            "uid": self.userid,
-            "pwd": pwd_hash,
-            "factor2": "",
-            "vc": self.vc,
-            "appkey": appkey_hash,
-            "imei": self.imei,
-            "apkversion": self.apkversion,
-            "source": "API",
+    # ----------------- Utility helpers -----------------
+    @staticmethod
+    def _normalize_token(token_full: str):
+        """Return (exch, token_id, token_key) given token like 'NSE|11872' or '11872'"""
+        parts = token_full.split("|")
+        if len(parts) == 2:
+            exch, token_id = parts
+        else:
+            exch, token_id = "NSE", parts[0]
+        token_key = token_id  # canonical key to store ticks by
+        return exch, token_id, token_key
+
+    def _csv_path_for_token(self, token_id: str) -> Path:
+        return self.csv_dir / f"ticks_{token_id}.csv"
+
+    def _append_tick_to_csv(self, token_full: str, token_id: str, ts: datetime, price: float, volume: int, raw: dict):
+        """Append a single tick row to CSV (create header if missing)."""
+        csv_path = self._csv_path_for_token(token_id)
+        row = {
+            "ts_iso": ts.isoformat(),
+            "token_full": token_full,
+            "token_id": token_id,
+            "price": price,
+            "volume": volume,
+            "raw_json": json.dumps(raw, separators=(",", ":"), ensure_ascii=False)
         }
+        write_header = not csv_path.exists()
+        with open(csv_path, "a", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(row.keys()))
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+
+    # ----------------- Tick handling -----------------
+    def on_tick(self, raw_data: dict):
+        """
+        Called when a tick message is received from websocket.
+        Expected shape of raw_data varies; common keys:
+           - 'tk' (token like 'NSE|11872')
+           - 'lp' (last price)
+           - 'v'  (volume) maybe cumulative or tick volume
+        """
+        token_full = raw_data.get("tk") or raw_data.get("token") or ""
+        if not token_full:
+            # not a tick
+            return
+
+        exch, token_id, token_key = self._normalize_token(token_full)
+
+        # parse price & volume robustly
         try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"
-            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 OTP Trigger Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"emsg": str(e)}
-
-    def login(self, factor2_otp):
-        url = f"{self.base_url}/QuickAuth"
-        pwd_hash = self.sha256(self.password_plain or "")
-        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
-        payload = {
-            "uid": self.userid,
-            "pwd": pwd_hash,
-            "factor2": factor2_otp,
-            "vc": self.vc,
-            "appkey": appkey_hash,
-            "imei": self.imei,
-            "apkversion": self.apkversion,
-            "source": "API",
-        }
+            price = float(raw_data.get("lp", raw_data.get("tradeprice", 0) or 0.0))
+        except Exception:
+            price = 0.0
         try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"
-            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("🔁 Login Response Code:", response.status_code)
-            print("📨 Login Response Body:", response.text)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("stat") == "Ok":
-                    self.session_token = data["susertoken"]
-                    self.userid = data["uid"]
-                    self.headers["Authorization"] = self.session_token
-                    print("✅ Login Success!")
-                    return True, self.session_token
-                else:
-                    return False, data.get("emsg", "Unknown login error")
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
-        except requests.exceptions.RequestException as e:
-            return False, f"RequestException: {e}"
+            volume = int(float(raw_data.get("v", raw_data.get("volume", 0) or 0)))
+        except Exception:
+            volume = 0
 
-    # ---------------- Historical fetch ----------------
-    def _intrv_from_tf(self, timeframe):
-        mapping = {"1min": "1", "3min": "3", "5min": "5", "15min": "15", "30min": "30", "60min": "60"}
-        return mapping.get(timeframe, "1")
+        ts = datetime.utcnow()  # use UTC consistently in storage
+        tick_row = {"ts": ts, "price": price, "volume": volume, "raw": raw_data, "token_full": token_full}
 
-    def fetch_historical_candles(self, token, timeframe="1min", days=1):
+        # store in-memory
+        with self._tick_lock:
+            lst = self.tick_data.setdefault(token_key, [])
+            lst.append(tick_row)
+            # bound the in-memory buffer
+            if len(lst) > self.max_in_memory_ticks:
+                # drop oldest entries
+                del lst[0 : len(lst) - self.max_in_memory_ticks]
+
+        # persist to CSV immediately
         try:
-            parts = token.split("|")
-            if len(parts) > 1:
-                exch, token_id = parts
-            else:
-                exch, token_id = "NSE", parts[0]
-
-            intrv = self._intrv_from_tf(timeframe)
-            end_dt = datetime.now()
-            start_dt = end_dt - timedelta(days=days)
-
-            payload = {
-                "uid": self.userid,
-                "exch": exch,
-                "token": token_id,
-                "st": start_dt.strftime("%Y-%m-%d %H:%M"),
-                "et": end_dt.strftime("%Y-%m-%d %H:%M"),
-                "intrv": intrv,
-            }
-
-            url = self.base_url + "/TPSeries"
-            r = self.session.post(url, data={"jData": json.dumps(payload)}, timeout=10)
-            print(f"🔍 Historical data raw response for {exch}|{token_id} ({timeframe}):", r.text)
-            r.raise_for_status()
-            data = r.json()
-            values = data.get("values") or []
-
-            self.candles.setdefault(token_id, {})
-            tf_store = {}
-            for c in values:
-                tstr = c.get("time")
-                try:
-                    dt = datetime.strptime(tstr, "%Y-%m-%d %H:%M")
-                    tf_store[dt.strftime("%Y-%m-%d %H:%M")] = {
-                        "O": float(c.get("o", 0)),
-                        "H": float(c.get("h", 0)),
-                        "L": float(c.get("l", 0)),
-                        "C": float(c.get("c", 0)),
-                        "V": int(c.get("v", 0))
-                    }
-                except Exception as ex:
-                    print(f"⚠️ Skipping invalid historical row: {c} -> {ex}")
-
-            self.candles[token_id][timeframe] = tf_store
-            print(f"📈 Loaded {len(tf_store)} historical candles for {exch}|{token_id} @ {timeframe}")
-            return tf_store
-
+            self._append_tick_to_csv(token_full, token_key, ts, price, volume, raw_data)
         except Exception as e:
-            print(f"❌ Historical fetch failed for {token} {timeframe}: {e}")
-            return {}
+            # Do not raise — just log
+            print(f"⚠️ Failed appending tick to CSV for {token_key}: {e}")
 
-    # ---------------- Candle subscription & websocket ----------------
-    def add_token_for_candles(self, token_full):
-        if "|" in token_full:
-            exch, token_id = token_full.split("|", 1)
-        else:
-            exch, token_id = "NSE", token_full
+    # ----------------- Historical loader & getters -----------------
+    def load_historical_ticks(self, token_full: str, max_rows: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Load historical ticks from CSV for token_full. Returns list of dicts with keys:
+          ts (datetime), price (float), volume (int), raw (dict), token_full
+        """
+        _, token_id, token_key = self._normalize_token(token_full)
+        csv_path = self._csv_path_for_token(token_key)
+        if not csv_path.exists():
+            return []
 
-        print(f"🪝 Adding token to candle builder: {exch}|{token_id}")
-        self.candles.setdefault(token_id, {})
-
-        for tf in ["1min", "5min", "15min"]:
-            self.fetch_historical_candles(f"{exch}|{token_id}", timeframe=tf, days=1)
-
-        self.candle_tokens.add(token_id)
-
-        if self.ws_connected and self.ws:
-            try:
-                payload = json.dumps({"t": "t", "k": f"{exch}|{token_id}"})
-                self.ws.send(payload)
-                print(f"✅ WebSocket subscription sent: {payload}")
-            except Exception as e:
-                print(f"❌ Error sending subscription: {e}")
-        else:
-            print("⚠️ WebSocket not connected yet, token will subscribe on connect")
-
-        self.start_candle_builder(list({f"{exch}|{tid}" for tid in self.candle_tokens}))
-        self.start_candle_builder_loop()
-
-    def start_candle_builder_loop(self):
-        def run():
-            while True:
-                for token_id in list(self.candle_tokens):
+        rows = []
+        try:
+            with open(csv_path, "r", encoding="utf-8") as fh:
+                reader = csv.DictReader(fh)
+                for r in reader:
                     try:
-                        self._aggregate_tick_data_to_tf(token_id, "1min")
-                    except Exception as ex:
-                        print("🔥 Error in candle builder loop:", ex)
-                time.sleep(2)
+                        ts = datetime.fromisoformat(r["ts_iso"])
+                    except Exception:
+                        # fallback: try parsing common formats
+                        try:
+                            ts = datetime.strptime(r["ts_iso"], "%Y-%m-%dT%H:%M:%S.%f")
+                        except Exception:
+                            continue
+                    price = float(r.get("price", 0) or 0)
+                    volume = int(float(r.get("volume", 0) or 0))
+                    raw = {}
+                    try:
+                        raw = json.loads(r.get("raw_json") or "{}")
+                    except Exception:
+                        raw = {}
+                    rows.append({"ts": ts, "price": price, "volume": volume, "raw": raw, "token_full": r.get("token_full")})
+            # optionally limit to last max_rows
+            if max_rows:
+                rows = rows[-max_rows:]
+            return rows
+        except Exception as e:
+            print(f"❌ Error loading historical ticks for {token_key}: {e}")
+            return []
 
-        if not getattr(self, "_candle_loop_started", False):
-            threading.Thread(target=run, daemon=True).start()
-            self._candle_loop_started = True
+    def get_historical_ticks(self, token_full: str, start: Optional[datetime] = None, end: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """
+        Load ticks from CSV and filter between start and end datetimes (UTC).
+        If start or end is None, the range is unbounded on that side.
+        """
+        rows = self.load_historical_ticks(token_full)
+        if not rows:
+            return []
 
-    def start_candle_builder(self, token_list):
-        self.subscribed_tokens = token_list
-        self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+        if start:
+            rows = [r for r in rows if r["ts"] >= start]
+        if end:
+            rows = [r for r in rows if r["ts"] <= end]
+        return rows
 
-        def on_message(ws, message):
-            try:
-                data = json.loads(message)
-                if data.get("t") == "tk":
-                    self.on_tick(data)
-                elif data.get("s") == "OK":
-                    print(f"Subscription successful: {data}")
-            except Exception as e:
-                print(f"Error in on_message: {e}")
+    def get_recent_ticks(self, token_full: str, n: int = 100) -> List[Dict[str, Any]]:
+        """Return last n ticks from in-memory buffer; falls back to CSV when in-memory is empty."""
+        _, token_id, token_key = self._normalize_token(token_full)
+        with self._tick_lock:
+            buf = list(self.tick_data.get(token_key, []))
+        if buf:
+            return buf[-n:]
+        # fallback
+        return self.load_historical_ticks(token_full, max_rows=n)
 
-        def on_open(ws):
-            self.ws_connected = True
-            print("🔗 WebSocket connection opened")
+    # ----------------- WebSocket lifecycle -----------------
+    def _on_ws_message(self, ws, message):
+        # called from websocket thread
+        try:
+            data = json.loads(message)
+        except Exception:
+            # not JSON - ignore
+            return
+
+        # The ProStocks WS sends various messages. Ticks usually have t == "tk"
+        # but servers differ; handle generically.
+        if data.get("t") == "tk" or data.get("type") == "tick" or "lp" in data:
+            # tick-like message
+            self.on_tick(data)
+        else:
+            # other server messages (login ack / subscription ack / heartbeat)
+            # print/debug small events
+            # print("WS MSG:", data)
+            if data.get("s") == "OK":
+                # subscription ack
+                print(f"WS subscription ack: {data}")
+            # else ignore
+
+    def _on_ws_open(self, ws):
+        print("🔗 WebSocket opened")
+        self.ws_connected = True
+        self._reconnect_backoff = 1.0  # reset backoff after successful connect
+
+        # Send any required handshake if needed (some servers expect a login or c message).
+        # If your server requires it, uncomment and adapt:
+        # ws.send(json.dumps({"t":"c","uid": self.userid, "pwd": self.password_plain, "source":"API"}))
+        # Small delay to let server accept our login before subscribing
+        time.sleep(0.2)
+
+        # subscribe to existing tokens
+        with self._subscriptions_lock:
             for token in self.subscribed_tokens:
                 try:
-                    parts = token.split("|")
-                    if len(parts) > 1:
-                        exch, token_id = parts
-                    else:
-                        exch, token_id = "NSE", parts[0]
+                    exch, token_id, _ = self._normalize_token(token)
                     sub_msg = {"t": "t", "k": f"{exch}|{token_id}"}
                     ws.send(json.dumps(sub_msg))
-                    print(f"✅ Subscribed to token: {exch}|{token_id}")
+                    print(f"✅ Sent subscription: {sub_msg}")
                 except Exception as e:
-                    print("❌ Sub error:", e)
+                    print("❌ Failed send subscription:", e)
 
-            def run_ping():
-                while True:
-                    try:
-                        ws.send(json.dumps({"t": "ping"}))
-                        time.sleep(15)
-                    except Exception:
-                        break
+        # start ping thread for this ws (daemon)
+        def ping_loop():
+            while self.ws_connected and not self._stop_event.is_set():
+                try:
+                    ws.send(json.dumps({"t": "ping"}))
+                except Exception:
+                    break
+                time.sleep(self.ping_interval)
 
-            threading.Thread(target=run_ping, daemon=True).start()
+        threading.Thread(target=ping_loop, daemon=True).start()
 
-        def on_close(ws, code, msg):
-            print(f"🔌 WebSocket closed: {msg}")
-            self.ws_connected = False
-            self.ws = None
-            time.sleep(2)
-            print("🔁 Reconnecting WebSocket...")
-            try:
-                self.start_candle_builder(self.subscribed_tokens)
-            except Exception as e:
-                print("Reconnect failed:", e)
+    def _on_ws_close(self, ws, close_status_code, close_msg):
+        print(f"🔌 WebSocket closed: {close_status_code} - {close_msg}")
+        self.ws_connected = False
+        # attempt reconnect in background
+        if not self._stop_event.is_set():
+            threading.Thread(target=self._reconnect_loop, daemon=True).start()
 
-        def on_error(ws, error):
-            print(f"❌ WebSocket Error: {error}")
+    def _on_ws_error(self, ws, error):
+        print("❌ WebSocket error:", error)
 
-        websocket.enableTrace(False)
-        self.ws = websocket.WebSocketApp(
+    def _run_ws(self):
+        # create WebSocketApp and run forever (blocking)
+        self.ws_app = websocket.WebSocketApp(
             self.ws_url,
-            on_message=on_message,
-            on_open=on_open,
-            on_error=on_error,
-            on_close=on_close,
+            on_open=self._on_ws_open,
+            on_message=self._on_ws_message,
+            on_error=self._on_ws_error,
+            on_close=self._on_ws_close,
         )
-        threading.Thread(target=self.ws.run_forever, daemon=True).start()
-
-    # ---------------- Tick handling & aggregation ----------------
-    def on_tick(self, data):
-        token = data.get("tk")
-        print(f"🟢 Tick received for token: {token}")
-        if not token:
-            return
-
-        token_id = token.split("|")[-1]
+        # run_forever will block the thread until connection closes
         try:
-            ltp = float(data.get("lp", 0))
-        except Exception:
-            ltp = 0.0
-        try:
-            vol = int(float(data.get("v", 0)))
-        except Exception:
-            vol = 0
-
-        ts = datetime.now().replace(second=0, microsecond=0)
-        self.tick_data.setdefault(token_id, []).append((ts, ltp, vol))
-        print(f"🧩 Tick stored: {ts} {ltp} vol={vol} for token {token_id}")
-
-        try:
-            self._aggregate_tick_data_to_tf(token_id, "1min")
+            self.ws_app.run_forever(ping_interval=self.ping_interval, ping_timeout=10)
         except Exception as e:
-            print("🔥 Error aggregating tick to candle:", e)
+            print("❌ run_forever ended with exception:", e)
+        finally:
+            self.ws_connected = False
 
-    def _aggregate_tick_data_to_tf(self, token_id, timeframe="1min"):
-        ticks = self.tick_data.get(token_id, [])
-        if not ticks:
+    def start(self, background: bool = True):
+        """
+        Start websocket connection. If background=True (default) this spawns a daemon thread.
+        """
+        self._stop_event.clear()
+        # if thread already running, do nothing
+        if self.ws_thread and self.ws_thread.is_alive():
             return
 
-        by_min = {}
-        for ts, price, vol in ticks:
-            key = ts.strftime("%Y-%m-%d %H:%M")
-            by_min.setdefault(key, []).append((price, vol))
+        self.ws_thread = threading.Thread(target=self._run_ws, daemon=True)
+        self.ws_thread.start()
+        # allow quick initial backoff reset
+        self._reconnect_backoff = 1.0
 
-        self.candles.setdefault(token_id, {})
-        tf_store = self.candles[token_id].get(timeframe, {})
+    def stop(self):
+        """Stop the websocket and prevent reconnects."""
+        self._stop_event.set()
+        try:
+            if self.ws_app:
+                self.ws_app.close()
+        except Exception:
+            pass
+        self.ws_connected = False
 
-        for key, arr in by_min.items():
-            prices = [p for p, v in arr if p is not None]
-            vols = [v for p, v in arr]
-            if not prices:
-                continue
-            O = prices[0]
-            H = max(prices)
-            L = min(prices)
-            C = prices[-1]
-            V = sum(vols)
-            tf_store[key] = {"O": O, "H": H, "L": L, "C": C, "V": V}
+    def _reconnect_loop(self):
+        """Backoff reconnect loop; creates a new run_forever thread if still not stopped."""
+        # prevent multiple concurrent reconnect threads
+        if self._stop_event.is_set():
+            return
+        wait = self._reconnect_backoff
+        print(f"🔁 Reconnect in {wait:.1f}s...")
+        time.sleep(wait)
+        # exponential backoff up to 60s
+        self._reconnect_backoff = min(self._reconnect_backoff * 2.0, 60.0)
+        if self._stop_event.is_set():
+            return
+        # spawn a new ws run thread
+        try:
+            self.start(background=True)
+        except Exception as e:
+            print("❌ Reconnect start failed:", e)
 
-        self.candles[token_id][timeframe] = tf_store
+    # ----------------- Subscription management -----------------
+    def add_subscription(self, token_full: str):
+        """Register token for subscription and subscribe immediately if connected."""
+        with self._subscriptions_lock:
+            if token_full not in self.subscribed_tokens:
+                self.subscribed_tokens.append(token_full)
+        # ensure tick list exists in memory
+        _, _, token_key = self._normalize_token(token_full)
+        with self._tick_lock:
+            self.tick_data.setdefault(token_key, [])
+        # if connected, send subscription
+        if self.ws_connected and self.ws_app:
+            try:
+                exch, token_id, _ = self._normalize_token(token_full)
+                sub_msg = {"t": "t", "k": f"{exch}|{token_id}"}
+                self.ws_app.send(json.dumps(sub_msg))
+                print(f"✅ Subscribed (live) to {token_full}")
+            except Exception as e:
+                print("❌ Live subscribe failed:", e)
 
-    # ---------------- convenience getters ----------------
-    def get_candles(self):
-        return self.candles
+    def remove_subscription(self, token_full: str):
+        with self._subscriptions_lock:
+            try:
+                self.subscribed_tokens.remove(token_full)
+            except ValueError:
+                pass
+        # NOTE: most WS servers support unsubscribe; if supported, send unsub message here.
+        # Example (if server supports t: "u"): self.ws_app.send(json.dumps({"t":"u","k": token_full}))
 
-    def get_all_candles(self):
-        return self.candles
+    # ----------------- Misc helpers -----------------
+    def shutdown(self):
+        """Convenience: stop websocket and join thread (not blocking forever)."""
+        self.stop()
+        if self.ws_thread:
+            self.ws_thread.join(timeout=2.0)
 
-    # ---------------- existing order/watchlist helpers ----------------
-    def place_order(self, order_params):
-        url = f"{self.base_url}/PlaceOrder"
-        return self._post_json(url, order_params)
+    # ----------------- Optional REST helpers (login etc) -----------------
+    # Included for completeness — adapt if you need REST login for jKey/session_token.
+    def login_rest_quickauth(self, factor2_otp: str):
+        """
+        Example QuickAuth login (if you want to obtain a session token via HTTP).
+        The code below mirrors common QuickAuth usage; adjust to your API details as needed.
+        """
+        url = f"{self.base_url}/QuickAuth"
+        pwd_hash = None
+        if self.password_plain:
+            import hashlib
+            pwd_hash = hashlib.sha256(self.password_plain.encode()).hexdigest()
+        appkey_hash = None
+        if self.userid and self.api_key:
+            import hashlib
+            appkey_hash = hashlib.sha256(f"{self.userid}|{self.api_key}".encode()).hexdigest()
 
-    def modify_order(self, order_params):
-        url = f"{self.base_url}/ModifyOrder"
-        return self._post_json(url, order_params)
-
-    def cancel_order(self, order_params):
-        url = f"{self.base_url}/CancelOrder"
-        return self._post_json(url, order_params)
-
-    def order_book(self):
-        url = f"{self.base_url}/OrderBook"
-        payload = {"uid": self.userid}
-        return self._post_json(url, payload)
-
-    def trade_book(self):
-        url = f"{self.base_url}/TradeBook"
-        payload = {"uid": self.userid}
-        return self._post_json(url, payload)
-
-    def holdings(self):
-        url = f"{self.base_url}/Holding"
-        payload = {"uid": self.userid}
-        return self._post_json(url, payload)
-
-    def get_watchlists(self):
-        url = f"{self.base_url}/MWList"
-        payload = {"uid": self.userid}
-        return self._post_json(url, payload)
-
-    def get_watchlist_names(self):
-        resp = self.get_watchlists()
-        if resp.get("stat") == "Ok":
-            return sorted(resp["values"], key=int)
-        return []
-
-    def get_watchlist(self, wlname):
-        url = f"{self.base_url}/MarketWatch"
-        payload = {"uid": self.userid, "wlname": wlname}
-        return self._post_json(url, payload)
-
-    def search_scrip(self, search_text, exch="NSE"):
-        url = f"{self.base_url}/SearchScrip"
-        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
-        return self._post_json(url, payload)
-
-    def add_scrips_to_watchlist(self, wlname, scrips_list):
-        url = f"{self.base_url}/AddMultiScripsToMW"
-        scrips_str = ",".join(scrips_list)
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
-        return self._post_json(url, payload)
-
-    def delete_scrips_from_watchlist(self, wlname, scrips_list):
-        url = f"{self.base_url}/DeleteMultiMWScrips"
-        scrips_str = ",".join(scrips_list)
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
-        return self._post_json(url, payload)
-
-    def _post_json(self, url, payload):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+        payload = {
+            "uid": self.userid,
+            "pwd": pwd_hash or "",
+            "factor2": factor2_otp or "",
+            "vc": self.vc or "",
+            "appkey": appkey_hash or "",
+            "imei": self.imei or "",
+            "apkversion": "1.0.0",
+            "source": "API"
+        }
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
-            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
+            raw_data = f"jData={jdata}"
+            resp = requests.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=10)
+            return resp.json()
+        except Exception as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
+
+# ---------------- Example usage (comment out in production) ----------------
+if __name__ == "__main__":
+    # quick demo - connect, subscribe to token, run for some seconds then print recent ticks
+    api = ProStocksAPI()
+    api.start()  # starts WS run loop in background
+    api.add_subscription("NSE|11872")
+    print("Started WS and requested subscription; waiting for ticks...")
+    try:
+        # Let it run a while (replace with your app lifecycle)
+        time.sleep(15)
+        recent = api.get_recent_ticks("NSE|11872", n=20)
+        print("Recent ticks (in-memory or CSV fallback):")
+        for r in recent:
+            print(r["ts"].isoformat(), r["price"], r["volume"])
+    finally:
+        api.shutdown()
+        print("Stopped.")
