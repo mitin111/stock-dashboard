@@ -163,81 +163,65 @@ with tab4:
 with tab5:
     st.info("📉 Strategy engine section coming soon...")
 
-# === Tab 6: Live Candlestick ===
+# Tab 6: Watchlist Charts
 with tab6:
-    BASE_URL = "https://starapi.prostocks.com"
-    WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
-    st.subheader('📉 Live Candlestick Charts')
-    with st.sidebar:
-        st.header('Connection / Settings')
-        base_url_input = st.text_input('Base URL', value=BASE_URL)
-        ws_url_input = st.text_input('WebSocket URL', value=WS_URL)
-        jkey = st.text_input('jKey', value='', type='password')
-        uid = st.text_input('UID', value='')
-        exch = st.selectbox('Exchange', ['NSE', 'BSE', 'NFO'], index=0)
-        token = st.text_input('Token', value='22')
-        intrv = st.selectbox('Interval (minutes)', ['1','3','5','10','15','30','60'], index=2)
-        days_back = st.number_input('Days historical', min_value=1, max_value=365, value=60)
-        subscribe_checkbox = st.checkbox('Use WebSocket live ticks', value=True)
-        start_btn = st.button('Fetch & Start')
+    st.subheader("📊 Watchlist Charts (Auto)")
 
-    if 'candles_df' not in st.session_state:
-        st.session_state.candles_df = pd.DataFrame()
+    # 1. Get watchlist symbols
+    watchlist_name = "Watchlist 1"  # यहां अपने default watchlist का नाम डालें
+    watchlist_symbols = api.get_watchlist(watchlist_name)  # ये आपका ready function है
+    if not watchlist_symbols:
+        st.warning(f"No symbols found in {watchlist_name}")
+    else:
+        st.success(f"Found {len(watchlist_symbols)} symbols in {watchlist_name}")
 
-    if 'ws_client' not in st.session_state:
-        st.session_state.ws_client = None
+        # 2. Multi-chart grid layout
+        cols_per_row = 3
+        chart_count = 0
+        row = st.container()
 
-    if start_btn:
-        BASE_URL = base_url_input.strip()
-        WS_URL = ws_url_input.strip()
-        if not jkey or not uid:
-            st.error('Provide jKey and UID')
-        else:
-            st.info('Fetching historical data...')
-            et = int(time.time())
-            st_ts = et - int(days_back * 24 * 60 * 60)
+        for sym in watchlist_symbols:
             try:
-                data = fetch_tpseries(jkey, uid, exch, token, st_ts, et, intrv, base_url=BASE_URL)
+                # search_scrip → get exch & token
+                scrip_data = api.search_scrip(sym)
+                if not scrip_data or "token" not in scrip_data:
+                    st.error(f"Token not found for {sym}")
+                    continue
+
+                exch = scrip_data["exch"]
+                token = scrip_data["token"]
+
+                # fetch_tpseries → get OHLCV DataFrame
+                df = api.fetch_tpseries(token, interval=5, days=60)
+                if df.empty:
+                    st.warning(f"No data for {sym}")
+                    continue
+
+                # Create candlestick chart
+                fig = go.Figure(data=[
+                    go.Candlestick(
+                        x=df['time'],
+                        open=df['open'],
+                        high=df['high'],
+                        low=df['low'],
+                        close=df['close'],
+                        name=sym
+                    )
+                ])
+                fig.update_layout(
+                    title=sym,
+                    height=300,
+                    margin=dict(l=5, r=5, t=25, b=5),
+                    xaxis_rangeslider_visible=False
+                )
+
+                # Show in grid
+                if chart_count % cols_per_row == 0:
+                    row = st.container()
+                    cols = row.columns(cols_per_row)
+                cols[chart_count % cols_per_row].plotly_chart(fig, use_container_width=True)
+
+                chart_count += 1
+
             except Exception as e:
-                st.error(f'Failed: {e}')
-                data = None
-
-            if data:
-                rows = []
-                for item in data:
-                    if item.get('stat') != 'Ok':
-                        continue
-                    try:
-                        dt = datetime.strptime(item.get('time'), '%d-%m-%Y %H:%M:%S')
-                    except:
-                        try:
-                            dt = datetime.strptime(item.get('time'), '%d/%m/%Y %H:%M:%S')
-                        except:
-                            dt = None
-                    rows.append({
-                        'time': dt,
-                        'open': float(item.get('into', 0)),
-                        'high': float(item.get('inth', 0)),
-                        'low': float(item.get('intl', 0)),
-                        'close': float(item.get('intc', 0)),
-                        'volume': int(float(item.get('intv', 0)))
-                    })
-                df = pd.DataFrame(rows).dropna(subset=['time']).sort_values('time').reset_index(drop=True)
-                st.session_state.candles_df = df
-                st.success(f'{len(df)} rows fetched')
-
-    if not st.session_state.candles_df.empty:
-        df_chart = st.session_state.candles_df.copy()
-        df_chart['time_str'] = df_chart['time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        fig = go.Figure(data=[go.Candlestick(
-            x=df_chart['time_str'], open=df_chart['open'], high=df_chart['high'],
-            low=df_chart['low'], close=df_chart['close']
-        )])
-        fig.update_layout(xaxis_rangeslider_visible=False, height=600)
-        st.plotly_chart(fig, use_container_width=True)
-
-
-
-
-
-
+                st.error(f"Error processing {sym}: {str(e)}")
