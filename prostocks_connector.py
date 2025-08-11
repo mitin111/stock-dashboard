@@ -1,22 +1,30 @@
 
 # prostocks_connector.py
-import requests
+ import requests
 import hashlib
 import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
+import websocket
 import threading
-from websocket import WebSocketApp
 import pandas as pd
 
 load_dotenv()
 
 
 class ProStocksAPI:
-    def __init__(self, userid=None, password_plain=None, vc=None, api_key=None,
-                 imei=None, base_url=None, apkversion="1.0.0"):
+    def __init__(
+        self,
+        userid=None,
+        password_plain=None,
+        vc=None,
+        api_key=None,
+        imei=None,
+        base_url=None,
+        apkversion="1.0.0"
+    ):
         self.userid = userid or os.getenv("PROSTOCKS_USER_ID")
         self.password_plain = password_plain or os.getenv("PROSTOCKS_PASSWORD")
         self.vc = vc or os.getenv("PROSTOCKS_VENDOR_CODE")
@@ -26,7 +34,10 @@ class ProStocksAPI:
         self.apkversion = apkversion
         self.session_token = None
         self.session = requests.Session()
-        self.headers = {"Content-Type": "text/plain"}
+        self.headers = {
+            "Content-Type": "text/plain"
+        }
+
         self.credentials = {
             "uid": self.userid,
             "pwd": self.password_plain,
@@ -41,16 +52,25 @@ class ProStocksAPI:
     def send_otp(self):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
-        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+        appkey_raw = f"{self.userid}|{self.api_key}"
+        appkey_hash = self.sha256(appkey_raw)
+
         payload = {
-            "uid": self.userid, "pwd": pwd_hash, "factor2": "",
-            "vc": self.vc, "appkey": appkey_hash, "imei": self.imei,
-            "apkversion": self.apkversion, "source": "API"
+            "uid": self.userid,
+            "pwd": pwd_hash,
+            "factor2": "",
+            "vc": self.vc,
+            "appkey": appkey_hash,
+            "imei": self.imei,
+            "apkversion": self.apkversion,
+            "source": "API"
         }
+
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
+            print("📨 OTP Trigger Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
@@ -58,22 +78,34 @@ class ProStocksAPI:
     def login(self, factor2_otp):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
-        appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+        appkey_raw = f"{self.userid}|{self.api_key}"
+        appkey_hash = self.sha256(appkey_raw)
+
         payload = {
-            "uid": self.userid, "pwd": pwd_hash, "factor2": factor2_otp,
-            "vc": self.vc, "appkey": appkey_hash, "imei": self.imei,
-            "apkversion": self.apkversion, "source": "API"
+            "uid": self.userid,
+            "pwd": pwd_hash,
+            "factor2": factor2_otp,
+            "vc": self.vc,
+            "appkey": appkey_hash,
+            "imei": self.imei,
+            "apkversion": self.apkversion,
+            "source": "API"
         }
+
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
             response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
+
             if response.status_code == 200:
                 data = response.json()
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
                     self.headers["Authorization"] = self.session_token
+                    print("✅ Login Success!")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -82,11 +114,42 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
+    # === Watchlist APIs ===
+
     def get_watchlists(self):
-        return self._post_json(f"{self.base_url}/MWList", {"uid": self.userid})
+        url = f"{self.base_url}/MWList"
+        payload = {"uid": self.userid}
+        return self._post_json(url, payload)
+
+    def get_watchlist_names(self):
+        resp = self.get_watchlists()
+        if resp.get("stat") == "Ok":
+            return sorted(resp["values"], key=int)
+        return []
 
     def get_watchlist(self, wlname):
-        return self._post_json(f"{self.base_url}/MarketWatch", {"uid": self.userid, "wlname": wlname})
+        url = f"{self.base_url}/MarketWatch"
+        payload = {"uid": self.userid, "wlname": wlname}
+        return self._post_json(url, payload)
+
+    def search_scrip(self, search_text, exch="NSE"):
+        url = f"{self.base_url}/SearchScrip"
+        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
+        return self._post_json(url, payload)
+
+    def add_scrips_to_watchlist(self, wlname, scrips_list):
+        url = f"{self.base_url}/AddMultiScripsToMW"
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        return self._post_json(url, payload)
+
+    def delete_scrips_from_watchlist(self, wlname, scrips_list):
+        url = f"{self.base_url}/DeleteMultiMWScrips"
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        return self._post_json(url, payload)
+
+    # === Internal Helper ===
 
     def _post_json(self, url, payload):
         if not self.session_token:
@@ -94,96 +157,17 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-            response = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=10)
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
+
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=10
+            )
+            print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-
-# --- TPSeries Helper ---
-def fetch_tpseries(jkey, uid, exch, token, st_ts, et_ts, intrv='1', base_url="https://starapi.prostocks.com"):
-    TPSERIES_PATH = "/NorenWClientTP/TPSeries"
-    url = base_url.rstrip("/") + TPSERIES_PATH
-    jdata = {
-        "uid": uid, "exch": exch, "token": token,
-        "st": int(st_ts), "et": int(et_ts), "intrv": str(intrv)
-    }
-    payload = {'jData': json.dumps(jdata), 'jKey': jkey}
-    resp = requests.post(url, data=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    if isinstance(data, dict) and data.get('stat') == 'Not_Ok':
-        raise RuntimeError(f"TPSeries error: {data.get('emsg')}")
-    return data
-
-
-# --- Candle Utilities ---
-def make_empty_candle(ts):
-    return {'time': ts, 'open': None, 'high': None, 'low': None, 'close': None, 'volume': 0}
-
-def update_candle_with_tick(candle, price, volume=0):
-    if candle['open'] is None:
-        candle['open'] = price
-        candle['high'] = price
-        candle['low'] = price
-        candle['close'] = price
-    else:
-        candle['high'] = max(candle['high'], price)
-        candle['low'] = min(candle['low'], price)
-        candle['close'] = price
-    candle['volume'] += int(volume or 0)
-
-
-# --- WebSocket Client ---
-class TickWebsocket:
-    def __init__(self, ws_url, subscribe_tokens, on_tick_callback, headers=None):
-        self.ws_url = ws_url
-        self.subscribe_tokens = subscribe_tokens
-        self.on_tick = on_tick_callback
-        self.headers = headers or {}
-        self.ws = None
-        self.thread = None
-        self.running = False
-
-    def ws_on_open(self, ws):
-        sub_msg = json.dumps({"action": "subscribe", "symbols": self.subscribe_tokens})
-        ws.send(sub_msg)
-
-    def ws_on_message(self, ws, message):
-        try:
-            msg = json.loads(message)
-        except:
-            return
-        tick_price = None
-        tick_volume = 0
-        token = None
-        if isinstance(msg, dict):
-            if 'values' in msg and isinstance(msg['values'], list):
-                item = msg['values'][0]
-                tick_price = item.get('lp') or item.get('ltp')
-                tick_volume = item.get('v', 0)
-                token = item.get('token')
-        if tick_price is None:
-            return
-        try:
-            price = float(tick_price)
-        except:
-            return
-        vol = int(tick_volume) if tick_volume else 0
-        self.on_tick({'price': price, 'volume': vol, 'token': token, 'raw': msg, 'ts': time.time()})
-
-    def start(self):
-        self.running = True
-        self.ws = WebSocketApp(
-            self.ws_url,
-            header=[f"{k}: {v}" for k, v in self.headers.items()],
-            on_open=self.ws_on_open,
-            on_message=self.ws_on_message
-        )
-        self.thread = threading.Thread(target=self.ws.run_forever, daemon=True)
-        self.thread.start()
-
-    def stop(self):
-        self.running = False
-        if self.ws:
-            self.ws.close()
