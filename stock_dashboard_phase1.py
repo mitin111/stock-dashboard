@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 import plotly.graph_objects as go
 import logging
 logging.basicConfig(level=logging.DEBUG)
-from prostocks_connector import fetch_tpseries, make_empty_candle, update_candle_with_tick, TickWebsocket
+from prostocks_connector import ProStocksAPI, fetch_tpseries, make_empty_candle, update_candle
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -274,4 +274,5 @@ if st.button('Stop WebSocket'):
         st.session_state.ws_client = None
         st.success('Stopped.')
     
+
 
