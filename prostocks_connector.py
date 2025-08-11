@@ -171,4 +171,52 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
+def fetch_tpseries(api: ProStocksAPI, symbol: str, interval: str = "1m", days: int = 1):
+    """
+    Fetch historical TPSeries data for a given symbol.
+    """
+    url = f"{api.base_url}/TPSeries"
+    payload = {
+        "uid": api.userid,
+        "scrip": symbol,
+        "interval": interval,
+        "days": days
+    }
+    resp = api._post_json(url, payload)
+    if resp.get("stat") == "Ok":
+        df = pd.DataFrame(resp["values"])
+        df["datetime"] = pd.to_datetime(df["time"], format="%d-%m-%Y %H:%M:%S")
+        return df
+    return pd.DataFrame()
+
+def make_empty_candle(ts: pd.Timestamp):
+    """
+    Create an empty candle dict for a given timestamp.
+    """
+    return {
+        "time": ts,
+        "open": None,
+        "high": None,
+        "low": None,
+        "close": None,
+        "volume": 0
+    }
+
+def update_candle_with_tick(candle: dict, tick: dict):
+    """
+    Update an existing candle with a new tick.
+    """
+    price = float(tick.get("ltp", 0))
+    qty = int(tick.get("qty", 0))
+
+    if candle["open"] is None:
+        candle["open"] = candle["high"] = candle["low"] = candle["close"] = price
+    else:
+        candle["high"] = max(candle["high"], price)
+        candle["low"] = min(candle["low"], price)
+        candle["close"] = price
+
+    candle["volume"] += qty
+    return candle
+
 
