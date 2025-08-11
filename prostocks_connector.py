@@ -189,20 +189,7 @@ def fetch_tpseries(api: ProStocksAPI, symbol: str, interval: str = "1m", days: i
         return df
     return pd.DataFrame()
 
-def make_empty_candle(ts: pd.Timestamp):
-    """
-    Create an empty candle dict for a given timestamp.
-    """
-    return {
-        "time": ts,
-        "open": None,
-        "high": None,
-        "low": None,
-        "close": None,
-        "volume": 0
-    }
-
-def update_candle_with_tick(candle: dict, tick: dict):
+def update_candle(candle: dict, tick: dict):
     """
     Update an existing candle with a new tick.
     """
@@ -218,5 +205,3 @@ def update_candle_with_tick(candle: dict, tick: dict):
 
     candle["volume"] += qty
     return candle
-
-
