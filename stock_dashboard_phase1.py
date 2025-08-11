@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 from prostocks_connector import ProStocksAPI, fetch_tpseries, make_empty_candle, update_candle
 
 # === Page Layout ===
-st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
+st.set_page_config(page_title="Auto Intraday Trading + TPSeries", layout="wide")
 st.title("📈 Automated Intraday Trading System")
 
 # === Load Settings (once) ===
@@ -274,5 +274,6 @@ if st.button('Stop WebSocket'):
         st.session_state.ws_client = None
         st.success('Stopped.')
     
+
 
 
