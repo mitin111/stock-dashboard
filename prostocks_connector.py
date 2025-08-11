@@ -171,30 +171,21 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-def fetch_tpseries(api: ProStocksAPI, symbol: str, interval: str = "1m", days: int = 1):
-    """
-    Fetch historical TPSeries data for a given symbol.
-    """
-    url = f"{api.base_url}/TPSeries"
-    payload = {
-        "uid": api.userid,
-        "scrip": symbol,
-        "interval": interval,
-        "days": days
+def make_empty_candle(timestamp):
+    """Create a blank OHLCV candle for a given minute timestamp."""
+    return {
+        "time": timestamp,
+        "open": None,
+        "high": None,
+        "low": None,
+        "close": None,
+        "volume": 0
     }
-    resp = api._post_json(url, payload)
-    if resp.get("stat") == "Ok":
-        df = pd.DataFrame(resp["values"])
-        df["datetime"] = pd.to_datetime(df["time"], format="%d-%m-%Y %H:%M:%S")
-        return df
-    return pd.DataFrame()
 
-def update_candle(candle: dict, tick: dict):
-    """
-    Update an existing candle with a new tick.
-    """
-    price = float(tick.get("ltp", 0))
-    qty = int(tick.get("qty", 0))
+def update_candle(candle, tick):
+    """Update an existing candle with a new tick."""
+    price = float(tick["ltp"])
+    volume = int(tick.get("volume", 0))
 
     if candle["open"] is None:
         candle["open"] = candle["high"] = candle["low"] = candle["close"] = price
@@ -202,6 +193,27 @@ def update_candle(candle: dict, tick: dict):
         candle["high"] = max(candle["high"], price)
         candle["low"] = min(candle["low"], price)
         candle["close"] = price
+    candle["volume"] += volume
 
-    candle["volume"] += qty
     return candle
+
+def fetch_tpseries(api, symbol, interval, days):
+    """
+    Fetch historical OHLC data from ProStocks TPSeries API.
+    api     : ProStocksAPI instance
+    symbol  : str like 'NSE|26000'
+    interval: str like '1', '3', '5', '15', '30', '60'
+    days    : int number of days of history
+    """
+    jdata = {
+        "uid": api.userid,
+        "exch": symbol.split("|")[0],
+        "token": symbol.split("|")[1],
+        "interval": str(interval),
+        "days": str(days)
+    }
+    payload = f"jData={json.dumps(jdata)}&jKey={api.jkey}"
+    url = api.base_url + "/TPSeries"
+    r = requests.post(url, data=payload)
+    r.raise_for_status()
+    return r.json()
