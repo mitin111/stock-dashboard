@@ -1,6 +1,6 @@
 
 # prostocks_connector.py
- import requests
+import requests
 import hashlib
 import json
 import os
@@ -170,4 +170,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
