@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 import plotly.graph_objects as go
 import logging
 logging.basicConfig(level=logging.DEBUG)
+from prostocks_connector import fetch_tpseries, make_empty_candle, update_candle_with_tick, TickWebsocket
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -165,5 +166,112 @@ with tab4:
 # === Tab 5: Live Candlestick Charts - Watchlist ===
 with tab5:
     st.subheader("📉 Live Candlestick Charts - Watchlist")
+BASE_URL = "https://starapi.prostocks.com"
+WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
 
+st.set_page_config(page_title='ProStocks TPSeries + Live Candles', layout='wide')
+st.title('ProStocks: 60-day TPSeries + Live Candle Chart')
+
+with st.sidebar:
+    st.header('Connection / Settings')
+    base_url_input = st.text_input('Base URL', value=BASE_URL)
+    ws_url_input = st.text_input('WebSocket URL', value=WS_URL)
+    jkey = st.text_input('jKey', value='', type='password')
+    uid = st.text_input('UID', value='')
+    exch = st.selectbox('Exchange', ['NSE', 'BSE', 'NFO'], index=0)
+    token = st.text_input('Token', value='22')
+    intrv = st.selectbox('Interval (minutes)', ['1','3','5','10','15','30','60'], index=2)
+    days_back = st.number_input('Days historical', min_value=1, max_value=365, value=60)
+    subscribe_checkbox = st.checkbox('Use WebSocket live ticks', value=True)
+    start_btn = st.button('Fetch & Start')
+
+if 'candles_df' not in st.session_state:
+    st.session_state.candles_df = pd.DataFrame()
+
+if 'ws_client' not in st.session_state:
+    st.session_state.ws_client = None
+
+if start_btn:
+    BASE_URL = base_url_input.strip()
+    WS_URL = ws_url_input.strip()
+    if not jkey or not uid:
+        st.error('Provide jKey and UID')
+    else:
+        st.info('Fetching historical data...')
+        et = int(time.time())
+        st_ts = et - int(days_back * 24 * 60 * 60)
+        try:
+            data = fetch_tpseries(jkey, uid, exch, token, st_ts, et, intrv, base_url=BASE_URL)
+        except Exception as e:
+            st.error(f'Failed: {e}')
+            data = None
+
+        if data:
+            rows = []
+            for item in data:
+                if item.get('stat') != 'Ok':
+                    continue
+                try:
+                    dt = datetime.strptime(item.get('time'), '%d-%m-%Y %H:%M:%S')
+                except:
+                    try:
+                        dt = datetime.strptime(item.get('time'), '%d/%m/%Y %H:%M:%S')
+                    except:
+                        dt = None
+                rows.append({
+                    'time': dt,
+                    'open': float(item.get('into', 0)),
+                    'high': float(item.get('inth', 0)),
+                    'low': float(item.get('intl', 0)),
+                    'close': float(item.get('intc', 0)),
+                    'volume': int(float(item.get('intv', 0)))
+                })
+            df = pd.DataFrame(rows).dropna(subset=['time']).sort_values('time').reset_index(drop=True)
+            st.session_state.candles_df = df
+            st.success(f'{len(df)} rows fetched')
+
+        if subscribe_checkbox:
+            intrv_min = int(intrv)
+            def on_tick(tick):
+                price = tick['price']
+                ts = datetime.fromtimestamp(tick['ts'])
+                floored_min = (ts.minute // intrv_min) * intrv_min
+                candle_ts = ts.replace(second=0, microsecond=0, minute=floored_min)
+                if st.session_state.candles_df.empty:
+                    c = make_empty_candle(candle_ts)
+                    update_candle_with_tick(c, price, tick.get('volume', 0))
+                    st.session_state.candles_df = pd.DataFrame([c])
+                    return
+                last_time = st.session_state.candles_df['time'].iloc[-1]
+                if candle_ts > last_time:
+                    c = make_empty_candle(candle_ts)
+                    update_candle_with_tick(c, price, tick.get('volume', 0))
+                    st.session_state.candles_df = pd.concat([st.session_state.candles_df, pd.DataFrame([c])], ignore_index=True)
+                else:
+                    idx = len(st.session_state.candles_df) - 1
+                    candle = st.session_state.candles_df.loc[idx].to_dict()
+                    update_candle_with_tick(candle, price, tick.get('volume', 0))
+                    for k in ['open','high','low','close','volume']:
+                        st.session_state.candles_df.at[idx, k] = candle[k]
+
+            ws_client = TickWebsocket(WS_URL, [f"{exch}|{token}"], on_tick)
+            ws_client.start()
+            st.session_state.ws_client = ws_client
+
+if not st.session_state.candles_df.empty:
+    df_chart = st.session_state.candles_df.copy()
+    df_chart['time_str'] = df_chart['time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    fig = go.Figure(data=[go.Candlestick(
+        x=df_chart['time_str'], open=df_chart['open'], high=df_chart['high'],
+        low=df_chart['low'], close=df_chart['close']
+    )])
+    fig.update_layout(xaxis_rangeslider_visible=False, height=600)
+    st.plotly_chart(fig, use_container_width=True)
+
+if st.button('Stop WebSocket'):
+    if st.session_state.ws_client:
+        st.session_state.ws_client.stop()
+        st.session_state.ws_client = None
+        st.success('Stopped.')
     
+
