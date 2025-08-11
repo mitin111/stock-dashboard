@@ -164,72 +164,67 @@ with tab5:
     st.info("📉 Strategy engine section coming soon...")
 
 # Tab 6 – Auto Watchlist Multi-Chart View
-with tabs[5]:
+with tab6:
     st.subheader("📊 Watchlist Multi-Chart (Auto)")
 
-    if "api" not in st.session_state:
+    if "ps_api" not in st.session_state:
         st.error("⚠️ पहले Login करें ताकि Watchlist और Charts लोड हो सकें।")
     else:
-        api = st.session_state.api  # Login से मिला हुआ ProStocksAPI object
-        watchlist_name = "MyWatchlist"  # यहां अपना watchlist name डालें
+        api = st.session_state["ps_api"]  # Login से मिला हुआ ProStocksAPI object
 
         try:
-            # 1️⃣ Watchlist से symbols लाना
-            watchlist_symbols = api.get_watchlist(watchlist_name)
-            if not watchlist_symbols:
-                st.warning(f"⚠️ Watchlist '{watchlist_name}' खाली है।")
+            # सभी watchlists लाना
+            wl_resp = api.get_watchlists()
+            if wl_resp.get("stat") != "Ok":
+                st.error("❌ Watchlists load नहीं हो पाई।")
             else:
-                st.success(f"✅ Watchlist '{watchlist_name}' में {len(watchlist_symbols)} symbols मिले।")
+                watchlists = [w for w in wl_resp.get("values", [])]
+                selected_wl = st.selectbox("📂 Watchlist चुनें", watchlists)
 
-                charts = []
-                for sym in watchlist_symbols:
-                    try:
-                        # 2️⃣ Token और exchange खोजें
-                        scrip_data = api.search_scrip(sym)
-                        if not scrip_data:
-                            st.warning(f"❌ {sym} के लिए search_scrip() data नहीं मिला।")
-                            continue
+                wl_data = api.get_watchlist(selected_wl)
+                if wl_data.get("stat") != "Ok":
+                    st.warning("⚠️ Watchlist खाली है।")
+                else:
+                    symbols = [s['tsym'] for s in wl_data["values"]]
+                    st.success(f"✅ {len(symbols)} symbols मिले।")
 
-                        token = scrip_data.get("token")
-                        exch = scrip_data.get("exch")
-                        if not token or not exch:
-                            st.warning(f"❌ {sym} के लिए token/exch missing है।")
-                            continue
+                    charts = []
+                    for sym in symbols:
+                        try:
+                            scrip_data = api.search_scrip(sym)
+                            if not scrip_data.get("values"):
+                                continue
 
-                        # 3️⃣ OHLCV data लाएं
-                        ohlc_df = api.fetch_tpseries(
-                            token=token,
-                            interval=5,
-                            days=60
-                        )
+                            token = scrip_data["values"][0].get("token")
+                            exch = scrip_data["values"][0].get("exch")
+                            if not token or not exch:
+                                continue
 
-                        if ohlc_df.empty:
-                            st.warning(f"📭 {sym} के लिए कोई data नहीं मिला।")
-                            continue
+                            ohlc_df = fetch_tpseries(token, interval=5, days=60)
+                            if ohlc_df.empty:
+                                continue
 
-                        # 4️⃣ Plotly chart बनाएं
-                        fig = go.Figure(data=[
-                            go.Candlestick(
-                                x=ohlc_df['datetime'],
-                                open=ohlc_df['open'],
-                                high=ohlc_df['high'],
-                                low=ohlc_df['low'],
-                                close=ohlc_df['close']
+                            fig = go.Figure(data=[
+                                go.Candlestick(
+                                    x=ohlc_df['datetime'],
+                                    open=ohlc_df['open'],
+                                    high=ohlc_df['high'],
+                                    low=ohlc_df['low'],
+                                    close=ohlc_df['close']
+                                )
+                            ])
+                            fig.update_layout(
+                                title=f"{sym} – 5m Candlestick (60 days)",
+                                xaxis_rangeslider_visible=False,
+                                height=400
                             )
-                        ])
-                        fig.update_layout(
-                            title=f"{sym} – 5m Candlestick (60 days)",
-                            xaxis_rangeslider_visible=False,
-                            height=400
-                        )
-                        charts.append(fig)
+                            charts.append(fig)
 
-                    except Exception as e:
-                        st.error(f"{sym} chart error: {e}")
+                        except Exception as e:
+                            st.error(f"{sym} chart error: {e}")
 
-                # 5️⃣ सभी charts दिखाएं (fast scrolling)
-                for fig in charts:
-                    st.plotly_chart(fig, use_container_width=True)
+                    for fig in charts:
+                        st.plotly_chart(fig, use_container_width=True)
 
         except Exception as e:
             st.error(f"Watchlist load error: {e}")
