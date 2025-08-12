@@ -6,6 +6,7 @@ import os
 import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
+import pandas as pd
 
 load_dotenv()
 
@@ -147,7 +148,6 @@ class ProStocksAPI:
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        # ✅ Corrected timestamp calculation (UTC, 60 days back)
         if st is None or et is None:
             days_back = 60
             et_dt = datetime.now(timezone.utc)
@@ -182,6 +182,36 @@ class ProStocksAPI:
             print("❌ Exception in get_tpseries():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
 
+    def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=30):
+        """Fetch up to 60 days of historical data in smaller chunks and merge."""
+        all_chunks = []
+        end_dt = datetime.now(timezone.utc)
+
+        while True:
+            start_dt = end_dt - timedelta(days=chunk_days)
+            st = int(start_dt.timestamp())
+            et = int(end_dt.timestamp())
+
+            data = self.get_tpseries(exch, token, interval, st, et)
+            if not isinstance(data, list) or len(data) == 0:
+                break
+
+            df = pd.DataFrame(data)
+            all_chunks.append(df)
+
+            end_dt = start_dt - timedelta(seconds=1)
+
+            if (datetime.now(timezone.utc) - end_dt).days > 60:
+                break
+
+        if all_chunks:
+            final_df = pd.concat(all_chunks)
+            final_df.drop_duplicates(subset=["time"], inplace=True)
+            final_df.sort_values("time", inplace=True)
+            return final_df.reset_index(drop=True)
+
+        return None
+
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
         MAX_CALLS_PER_MIN = 20
@@ -205,32 +235,13 @@ class ProStocksAPI:
                 continue
 
             try:
-                days_back = 60
-                et_dt = datetime.now(timezone.utc)
-                st_dt = et_dt - timedelta(days=days_back)
-
-                st_time = int(st_dt.timestamp())
-                et_time = int(et_dt.timestamp())
-
-                print(f"\n🕒 Timestamps for {symbol}:")
-                print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st_time))} UTC")
-                print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et_time))} UTC")
-                print(f"  Δ = {(et_time - st_time) // 3600} hours")
-
                 print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
-
-                response = self.get_tpseries(
-                    exch=exch,
-                    token=token,
-                    interval=interval,
-                    st=st_time,
-                    et=et_time
-                )
-                if isinstance(response, list):
-                    print(f"✅ {symbol}: {len(response)} candles fetched.")
-                    results.append({"symbol": symbol, "data": response})
+                df = self.fetch_full_tpseries(exch, token, interval)
+                if df is not None:
+                    print(f"✅ {symbol}: {len(df)} candles fetched.")
+                    results.append({"symbol": symbol, "data": df})
                 else:
-                    print(f"⚠️ {symbol}: Error: {response.get('emsg')}")
+                    print(f"⚠️ {symbol}: No data fetched.")
             except Exception as e:
                 print(f"❌ {symbol}: Exception: {e}")
 
@@ -260,3 +271,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
