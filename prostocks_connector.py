@@ -1,5 +1,4 @@
 
-# prostocks_connector.py
 import requests
 import hashlib
 import json
@@ -7,11 +6,9 @@ import os
 import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-import websocket
-import threading
-import pandas as pd
 
 load_dotenv()
+
 
 class ProStocksAPI:
     def __init__(
@@ -114,6 +111,7 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     # === Watchlist APIs ===
+
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
@@ -128,21 +126,7 @@ class ProStocksAPI:
     def get_watchlist(self, wlname):
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
-        res = self._post_json(url, payload)
-
-        # अगर API ने सही response दिया
-        if not res or res.get("stat") != "Ok" or "values" not in res:
-            return []
-
-        watchlist_data = []
-        for s in res["values"]:
-            watchlist_data.append({
-                "exch": s.get("exch"),
-                "token": s.get("token"),
-                "tsym": s.get("tsym")
-            })
-
-        return watchlist_data
+        return self._post_json(url, payload)
 
     def search_scrip(self, search_text, exch="NSE"):
         url = f"{self.base_url}/SearchScrip"
@@ -161,29 +145,19 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # === Internal Helper ===
-    def _post_json(self, url, payload):
+    # === TPSeries APIs ===
+
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        """
+        Fetch TPSeries OHLC data for a symbol.
+        """
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=10
-            )
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
+        if st is None or et is None:
+            et = int(time.time()) - 60
+            st = et - (300 * int(interval) * 60)
 
-    # === TPSeries API ===
-    def get_tpseries(self, exch, token, st, et, interval):
         url = f"{self.base_url}/TPSeries"
 
         payload = {
@@ -205,65 +179,100 @@ class ProStocksAPI:
         print(f"  INTRV  : {payload['intrv']}")
 
         try:
-            res = self.session.post(url, data=payload)
-            res.raise_for_status()
-            data = res.json()
-            return data
+            response = self._post_json(url, payload)
+            print("📨 TPSeries Response:", response)
+            return response
         except Exception as e:
-            print(f"❌ Error fetching TPSeries: {e}")
-            return None
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+        results = []
+        MAX_CALLS_PER_MIN = 20
+        call_count = 0
 
-def fetch_tpseries(api: ProStocksAPI, exch, token, start_time, end_time, interval):
-    """
-    Wrapper to fetch TPSeries and return dataframe
-    start_time, end_time in epoch seconds
-    interval: 1, 5, 15, etc.
-    """
-    data = api.get_tpseries(exch, token, start_time, end_time, interval)
-    if not data or "data" not in data:
-        return pd.DataFrame()
+        symbols = self.get_watchlist(wlname)
+        if not symbols or "values" not in symbols:
+            print("❌ No symbols found in watchlist.")
+            return []
 
-    df = pd.DataFrame(data["data"])
-    if df.empty:
-        return df
+        for idx, sym in enumerate(symbols["values"]):
+            exch = sym.get("exch", "").strip()
+            token = str(sym.get("token", "")).strip()
+            symbol = sym.get("tsym", "").strip()
 
-    # Ensure correct types
-    df["time"] = pd.to_datetime(df["time"])
-    df[["into", "inth", "intl", "intc"]] = df[["into", "inth", "intl", "intc"]].astype(float)
-    df["volume"] = df["intv"].astype(int)
-    df.rename(columns={
-        "into": "open",
-        "inth": "high",
-        "intl": "low",
-        "intc": "close"
-    }, inplace=True)
+            if not token or not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid or missing token ({token})")
+                continue
+            if exch != "NSE":
+                print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
+                continue
 
-    return df[["time", "open", "high", "low", "close", "volume"]]
+            try:
+                interval_minutes = int(interval)
+                num_bars = int(bars)
 
-# === Candle Helpers ===
-def make_empty_candle(timestamp):
-    """Create a blank OHLCV candle for a given minute timestamp."""
-    return {
-        "time": timestamp,
-        "open": None,
-        "high": None,
-        "low": None,
-        "close": None,
-        "volume": 0
-    }
+                now_dt = datetime.now()
+                et_dt = now_dt - timedelta(
+                   minutes=now_dt.minute % interval_minutes,
+                   seconds=now_dt.second,
+                   microseconds=now_dt.microsecond
+               )
+                st_dt = et_dt - timedelta(minutes=interval_minutes * num_bars)
 
-def update_candle(candle, tick):
-    """Update an existing candle with a new tick."""
-    price = float(tick["ltp"])
-    volume = int(tick.get("volume", 0))
+                st_time = int(st_dt.timestamp())
+                et_time = int(et_dt.timestamp())
 
-    if candle["open"] is None:
-        candle["open"] = candle["high"] = candle["low"] = candle["close"] = price
-    else:
-        candle["high"] = max(candle["high"], price)
-        candle["low"] = min(candle["low"], price)
-        candle["close"] = price
-    candle["volume"] += volume
+                print(f"\n🕒 Timestamps for {symbol}:")
+                print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st_time))}")
+                print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et_time))}")
+                print(f"  Δ = {(et_time - st_time) // 60} minutes")
 
-    return candle
+                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
+
+                response = self.get_tpseries(
+                    exch=exch,
+                    token=token,
+                    interval=interval,
+                    st=st_time,
+                    et=et_time
+                )
+                if isinstance(response, list):
+                    print(f"✅ {symbol}: {len(response)} candles fetched.")
+                    results.append({
+                        "symbol": symbol,
+                        "data": response
+                    })
+                else:
+                    print(f"⚠️ {symbol}: Error Occurred : {response.get('stat')} \"{response.get('emsg')}\"")
+            except Exception as e:
+                print(f"❌ {symbol}: Exception: {e}")
+
+            call_count += 1
+            if call_count >= MAX_CALLS_PER_MIN:
+                print("⚠️ TPSeries limit reached. Skipping remaining.")
+                break
+
+        return results
+
+    # === Internal Helper ===
+
+    def _post_json(self, url, payload):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
+
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=10
+            )
+            print("📨 Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
