@@ -128,29 +128,6 @@ with tab3:
                 st.dataframe(df if not df.empty else pd.DataFrame())
             else:
                 st.warning(wl_data.get("emsg", "Failed to load watchlist."))
-
-            st.markdown("---")
-            st.subheader("🔍 Search & Modify Watchlist")
-            search_query = st.text_input("Search Symbol or Keyword")
-            if search_query:
-                sr = ps_api.search_scrip(search_query)
-                if sr.get("stat") == "Ok" and sr.get("values"):
-                    scrip_df = pd.DataFrame(sr["values"])
-                    scrip_df["display"] = scrip_df["tsym"] + " (" + scrip_df["exch"] + "|" + scrip_df["token"] + ")"
-                    selected_rows = st.multiselect("Select Scrips", scrip_df.index, format_func=lambda i: scrip_df.loc[i, "display"])
-                    selected_scrips = [f"{scrip_df.loc[i, 'exch']}|{scrip_df.loc[i, 'token']}" for i in selected_rows]
-
-                    col1, col2 = st.columns(2)
-                    if col1.button("➕ Add to Watchlist") and selected_scrips:
-                        resp = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
-                        st.success(f"✅ Added: {resp}")
-                        st.rerun()
-                    if col2.button("➖ Delete from Watchlist") and selected_scrips:
-                        resp = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
-                        st.success(f"✅ Deleted: {resp}")
-                        st.rerun()
-                else:
-                    st.info("No matching scrips found.")
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
     else:
@@ -160,6 +137,7 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+# === Function: TPSeries fetch in chunks ===
 def fetch_full_tpseries(api, exch, token, interval, days=60, chunk_days=5):
     final_df = pd.DataFrame()
 
@@ -178,23 +156,16 @@ def fetch_full_tpseries(api, exch, token, interval, days=60, chunk_days=5):
         if isinstance(resp, dict) and resp.get("stat") != "Ok":
             st.warning(f"⚠️ Error: {resp.get('emsg')}")
         elif isinstance(resp, dict) and "values" in resp:
-            chunk_df = pd.DataFrame(resp["values"], columns=[
-                "timestamp_epoch", "open", "high", "low", "close", "avg_price",
-                "volume", "oi", "total_buy_qty", "total_sell_qty"
-            ])
-            chunk_df["datetime"] = pd.to_datetime(chunk_df["timestamp_epoch"], unit="s", utc=True)
+            chunk_df = pd.DataFrame(resp["values"])
+            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True)
             chunk_df.set_index("datetime", inplace=True)
-            chunk_df = chunk_df.astype({
-                "open": float, "high": float, "low": float, "close": float, "avg_price": float,
-                "volume": int, "oi": int, "total_buy_qty": int, "total_sell_qty": int
-            })
             final_df = pd.concat([final_df, chunk_df])
 
         current_start = current_end + timedelta(minutes=1)
 
     final_df.sort_index(inplace=True)
     return final_df
-    
+
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries Data Preview")
@@ -226,17 +197,15 @@ with tab5:
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             if selected_interval not in valid_intervals:
-                                st.error(f"❌ Invalid interval: '{selected_interval}' for {tsym}. Allowed: {valid_intervals}")
+                                st.error(f"❌ Invalid interval: '{selected_interval}' for {tsym}")
                                 continue
 
                             try:
                                 df_candle = fetch_full_tpseries(ps_api, exch, token, interval=selected_interval, days=60, chunk_days=5)
                                 if not df_candle.empty:
-                                   st.dataframe(df_candle.tail(5))
+                                    st.dataframe(df_candle.tail(5))
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
-                                else:
-                                    st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
                             except Exception as e:
                                 st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
@@ -248,7 +217,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-
-
 
