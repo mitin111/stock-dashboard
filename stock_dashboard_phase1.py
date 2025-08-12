@@ -10,6 +10,7 @@ import time
 import json
 import requests
 from urllib.parse import urlencode
+from datetime import timezone
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -159,6 +160,41 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+def fetch_full_tpseries(api, exch, token, interval, days=60, chunk_days=5):
+    final_df = pd.DataFrame()
+
+    end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(days=days)
+    current_start = start_dt
+
+    while current_start < end_dt:
+        current_end = min(current_start + timedelta(days=chunk_days), end_dt)
+
+        st_epoch = int(current_start.timestamp())
+        et_epoch = int(current_end.timestamp())
+
+        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
+
+        if isinstance(resp, dict) and resp.get("stat") != "Ok":
+            st.warning(f"⚠️ Error: {resp.get('emsg')}")
+        elif isinstance(resp, dict) and "values" in resp:
+            chunk_df = pd.DataFrame(resp["values"], columns=[
+                "timestamp_epoch", "open", "high", "low", "close", "avg_price",
+                "volume", "oi", "total_buy_qty", "total_sell_qty"
+            ])
+            chunk_df["datetime"] = pd.to_datetime(chunk_df["timestamp_epoch"], unit="s", utc=True)
+            chunk_df.set_index("datetime", inplace=True)
+            chunk_df = chunk_df.astype({
+                "open": float, "high": float, "low": float, "close": float, "avg_price": float,
+                "volume": int, "oi": int, "total_buy_qty": int, "total_sell_qty": int
+            })
+            final_df = pd.concat([final_df, chunk_df])
+
+        current_start = current_end + timedelta(minutes=1)
+
+    final_df.sort_index(inplace=True)
+    return final_df
+    
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries Data Preview")
@@ -194,10 +230,11 @@ with tab5:
                                 continue
 
                             try:
-                                candles = ps_api.get_tpseries(exch, token, interval=selected_interval)
-                                if isinstance(candles, list):
-                                    df_candle = pd.DataFrame(candles)
-                                    st.dataframe(df_candle.tail(3))
+                                df_candle = fetch_full_tpseries(ps_api, exch, token, interval=selected_interval, days=60, chunk_days=5)
+                                if not df_candle.empty:
+                                   st.dataframe(df_candle.tail(5))
+                                else:
+                                    st.warning(f"⚠️ No data for {tsym}")
                                 else:
                                     st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
                             except Exception as e:
@@ -211,6 +248,7 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
