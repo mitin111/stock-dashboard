@@ -197,9 +197,9 @@ def update_candle(candle, tick):
 
     return candle
 
- def get_tpseries(self, exch, token, st, et, interval):
-        """Fetch historical candle data using TPSeries endpoint"""
+     def get_tpseries(self, exch, token, st, et, interval):
         url = f"{self.base_url}/TPSeries"
+
         payload = {
             "uid": self.userid,
             "exch": exch,
@@ -219,11 +219,10 @@ def update_candle(candle, tick):
         print(f"  INTRV  : {payload['intrv']}")
 
         try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=10)
-            resp.raise_for_status()
-            return resp.json()
+            res = self.session.post(url, data=payload)
+            res.raise_for_status()
+            data = res.json()
+            return data
         except Exception as e:
-            print(f"❌ TPSeries Error: {e}")
+            print(f"❌ Error fetching TPSeries: {e}")
             return None
