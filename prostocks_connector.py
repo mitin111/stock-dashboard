@@ -147,40 +147,44 @@ class ProStocksAPI:
 
     # === TPSeries APIs ===
 
-    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+   def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        if st is None or et is None:
-            et = int(time.time()) - 60
-            st = et - (300 * int(interval) * 60)
+    # ✅ Corrected timestamp calculation (UTC, 60 days back)
+    if st is None or et is None:
+        days_back = 60
+        et_dt = datetime.now(timezone.utc)
+        st_dt = et_dt - timedelta(days=days_back)
+        st = int(st_dt.timestamp())
+        et = int(et_dt.timestamp())
 
-        url = f"{self.base_url}/TPSeries"
+    url = f"{self.base_url}/TPSeries"
 
-        payload = {
-            "uid": self.userid,
-            "exch": exch,
-            "token": str(token),
-            "st": str(st),
-            "et": str(et),
-            "intrv": str(interval)
-        }
+    payload = {
+        "uid": self.userid,
+        "exch": exch,
+        "token": str(token),
+        "st": str(st),
+        "et": str(et),
+        "intrv": str(interval)
+    }
 
-        print("📤 Sending TPSeries Payload:")
-        print(f"  UID    : {payload['uid']}")
-        print(f"  EXCH   : {payload['exch']}")
-        print(f"  TOKEN  : {payload['token']}")
-        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
-        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
-        print(f"  INTRV  : {payload['intrv']}")
+    print("📤 Sending TPSeries Payload:")
+    print(f"  UID    : {payload['uid']}")
+    print(f"  EXCH   : {payload['exch']}")
+    print(f"  TOKEN  : {payload['token']}")
+    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
+    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
+    print(f"  INTRV  : {payload['intrv']}")
 
-        try:
-            response = self._post_json(url, payload)
-            print("📨 TPSeries Response:", response)
-            return response
-        except Exception as e:
-            print("❌ Exception in get_tpseries():", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
+    try:
+        response = self._post_json(url, payload)
+        print("📨 TPSeries Response:", response)
+        return response
+    except Exception as e:
+        print("❌ Exception in get_tpseries():", e)
+        return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -260,3 +264,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
