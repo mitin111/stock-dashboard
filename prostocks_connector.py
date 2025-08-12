@@ -13,7 +13,6 @@ import pandas as pd
 
 load_dotenv()
 
-
 class ProStocksAPI:
     def __init__(
         self,
@@ -115,7 +114,6 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     # === Watchlist APIs ===
-
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
@@ -150,7 +148,6 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     # === Internal Helper ===
-
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -171,33 +168,8 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-def make_empty_candle(timestamp):
-    """Create a blank OHLCV candle for a given minute timestamp."""
-    return {
-        "time": timestamp,
-        "open": None,
-        "high": None,
-        "low": None,
-        "close": None,
-        "volume": 0
-    }
-
-def update_candle(candle, tick):
-    """Update an existing candle with a new tick."""
-    price = float(tick["ltp"])
-    volume = int(tick.get("volume", 0))
-
-    if candle["open"] is None:
-        candle["open"] = candle["high"] = candle["low"] = candle["close"] = price
-    else:
-        candle["high"] = max(candle["high"], price)
-        candle["low"] = min(candle["low"], price)
-        candle["close"] = price
-    candle["volume"] += volume
-
-    return candle
-
-     def get_tpseries(self, exch, token, st, et, interval):
+    # === TPSeries API ===
+    def get_tpseries(self, exch, token, st, et, interval):
         url = f"{self.base_url}/TPSeries"
 
         payload = {
@@ -226,3 +198,31 @@ def update_candle(candle, tick):
         except Exception as e:
             print(f"❌ Error fetching TPSeries: {e}")
             return None
+
+
+# === Candle Helpers ===
+def make_empty_candle(timestamp):
+    """Create a blank OHLCV candle for a given minute timestamp."""
+    return {
+        "time": timestamp,
+        "open": None,
+        "high": None,
+        "low": None,
+        "close": None,
+        "volume": 0
+    }
+
+def update_candle(candle, tick):
+    """Update an existing candle with a new tick."""
+    price = float(tick["ltp"])
+    volume = int(tick.get("volume", 0))
+
+    if candle["open"] is None:
+        candle["open"] = candle["high"] = candle["low"] = candle["close"] = price
+    else:
+        candle["high"] = max(candle["high"], price)
+        candle["low"] = min(candle["low"], price)
+        candle["close"] = price
+    candle["volume"] += volume
+
+    return candle
