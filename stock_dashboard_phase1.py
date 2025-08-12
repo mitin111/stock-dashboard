@@ -167,10 +167,10 @@ with tab5:
 with tab6:
     st.subheader("📊 Multi-Chart View (Historical TPSeries Data)")
 
-    if 'api' not in st.session_state:
+    if 'ps_api' not in st.session_state:  # ✅ FIX - same as login
         st.error("⚠️ Please login first to use Multi-Chart tab.")
     else:
-        api = st.session_state['api']  # ✅ FIX for NameError
+        api = st.session_state['ps_api']  # ✅ FIX - same as login
 
         watchlist_name = st.text_input("Enter Watchlist Name", "WATCHLIST_1")
         if st.button("Load Watchlist & Charts"):
