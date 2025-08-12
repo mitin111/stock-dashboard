@@ -5,7 +5,7 @@ import json
 import os
 import time
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 load_dotenv()
 
@@ -148,9 +148,6 @@ class ProStocksAPI:
     # === TPSeries APIs ===
 
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-        """
-        Fetch TPSeries OHLC data for a symbol.
-        """
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
@@ -169,7 +166,6 @@ class ProStocksAPI:
             "intrv": str(interval)
         }
 
-        # Debug logs
         print("📤 Sending TPSeries Payload:")
         print(f"  UID    : {payload['uid']}")
         print(f"  EXCH   : {payload['exch']}")
@@ -186,7 +182,7 @@ class ProStocksAPI:
             print("❌ Exception in get_tpseries():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5", bars=50):
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
         MAX_CALLS_PER_MIN = 20
         call_count = 0
@@ -201,38 +197,25 @@ class ProStocksAPI:
             token = str(sym.get("token", "")).strip()
             symbol = sym.get("tsym", "").strip()
 
-            if not token or not token.isdigit():
-                print(f"⚠️ Skipping {symbol}: Invalid or missing token ({token})")
+            if not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid token")
                 continue
             if exch != "NSE":
                 print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
                 continue
 
             try:
-                days_back = 60  # number of days history
-
-               # End time = current UTC time
-               et_dt = datetime.now(timezone.utc)
-
-               # Start time = 60 days before end time
-               st_dt = et_dt - timedelta(days=days_back)
-
-               # Convert to UNIX timestamps (seconds)
-               st_time = int(st_dt.timestamp())
-               et_time = int(et_dt.timestamp())
-
-              print(f"\n🕒 Timestamps for {symbol}:")
-              print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st_time))} UTC")
-              print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et_time))} UTC")
-              print(f"  Δ = {(et_time - st_time) // 3600} hours")
+                days_back = 60
+                et_dt = datetime.now(timezone.utc)
+                st_dt = et_dt - timedelta(days=days_back)
 
                 st_time = int(st_dt.timestamp())
                 et_time = int(et_dt.timestamp())
 
                 print(f"\n🕒 Timestamps for {symbol}:")
-                print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st_time))}")
-                print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et_time))}")
-                print(f"  Δ = {(et_time - st_time) // 60} minutes")
+                print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st_time))} UTC")
+                print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et_time))} UTC")
+                print(f"  Δ = {(et_time - st_time) // 3600} hours")
 
                 print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
 
@@ -245,12 +228,9 @@ class ProStocksAPI:
                 )
                 if isinstance(response, list):
                     print(f"✅ {symbol}: {len(response)} candles fetched.")
-                    results.append({
-                        "symbol": symbol,
-                        "data": response
-                    })
+                    results.append({"symbol": symbol, "data": response})
                 else:
-                    print(f"⚠️ {symbol}: Error Occurred : {response.get('stat')} \"{response.get('emsg')}\"")
+                    print(f"⚠️ {symbol}: Error: {response.get('emsg')}")
             except Exception as e:
                 print(f"❌ {symbol}: Exception: {e}")
 
@@ -260,8 +240,6 @@ class ProStocksAPI:
                 break
 
         return results
-
-    # === Internal Helper ===
 
     def _post_json(self, url, payload):
         if not self.session_token:
@@ -282,4 +260,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
