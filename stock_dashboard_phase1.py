@@ -9,6 +9,7 @@ from datetime import datetime
 import time
 import plotly.graph_objects as go
 import logging
+
 logging.basicConfig(level=logging.DEBUG)
 
 # === Page Config ===
@@ -53,7 +54,7 @@ with st.sidebar:
                 if success:
                     st.session_state["ps_api"] = ps_api
                     st.success("✅ Login successful!")
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
             except Exception as e:
@@ -63,7 +64,7 @@ if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
         st.success("✅ Logged out successfully")
-        st.rerun()
+        st.experimental_rerun()
 
 # === Tabs ===
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -121,14 +122,16 @@ with tab3:
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
             wl_data = ps_api.get_watchlist(selected_wl)
-if isinstance(wl_data, list) and wl_data:
-    df = pd.DataFrame(wl_data)
-    st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
-    st.dataframe(df if not df.empty else pd.DataFrame())
-elif isinstance(wl_data, dict) and wl_data.get("emsg"):
-    st.warning(wl_data.get("emsg"))
-else:
-    st.warning("Failed to load watchlist.")
+
+            if isinstance(wl_data, list) and wl_data:
+                df = pd.DataFrame(wl_data)
+                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
+                st.dataframe(df if not df.empty else pd.DataFrame())
+            elif isinstance(wl_data, dict) and wl_data.get("emsg"):
+                st.warning(wl_data.get("emsg"))
+            else:
+                st.warning("Failed to load watchlist.")
+
             st.markdown("---")
             st.subheader("🔍 Search & Modify Watchlist")
             search_query = st.text_input("Search Symbol or Keyword")
@@ -164,14 +167,14 @@ with tab4:
 with tab5:
     st.info("📉 Strategy engine section coming soon...")
 
-# Tab 6 – Auto Watchlist Multi-Chart View
+# === Tab 6: Auto Watchlist Multi-Chart View ===
 with tab6:
     st.subheader("📊 Multi-Chart View (Historical TPSeries Data)")
 
-    if 'ps_api' not in st.session_state:  # ✅ FIX - same as login
+    if 'ps_api' not in st.session_state:
         st.error("⚠️ Please login first to use Multi-Chart tab.")
     else:
-        api = st.session_state['ps_api']  # ✅ FIX - same as login
+        api = st.session_state['ps_api']
 
         watchlist_name = st.text_input("Enter Watchlist Name", "WATCHLIST_1")
         if st.button("Load Watchlist & Charts"):
@@ -193,7 +196,7 @@ with tab6:
                     token = sym['token']
                     data = api.get_tpseries(exch, token, st_unix, et_unix, interval)
                     if not data or 'candles' not in data:
-                        st.warning(f"No data for {sym['symbol']}")
+                        st.warning(f"No data for {sym.get('symbol', 'Unknown')}")
                         continue
 
                     df = pd.DataFrame(data['candles'], columns=["datetime", "open", "high", "low", "close", "volume"])
@@ -202,7 +205,8 @@ with tab6:
                         open=df['open'], high=df['high'],
                         low=df['low'], close=df['close']
                     )])
-                    fig.update_layout(title=f"{sym['symbol']} - {interval}min")
+                    fig.update_layout(title=f"{sym.get('symbol', 'Unknown')} - {interval}min")
                     st.plotly_chart(fig, use_container_width=True)
+
 
 
