@@ -222,7 +222,8 @@ class ProStocksAPI:
             time.sleep(0.25)
 
         if not all_chunks:
-            return None
+            return pd.DataFrame()  # empty DF instead of None
+
 
         df = pd.concat(all_chunks, ignore_index=True)
         if "time" in df.columns:
@@ -290,5 +291,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
