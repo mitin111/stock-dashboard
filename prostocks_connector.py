@@ -30,9 +30,7 @@ class ProStocksAPI:
         self.apkversion = apkversion
         self.session_token = None
         self.session = requests.Session()
-        self.headers = {
-            "Content-Type": "text/plain"
-        }
+        self.headers = {"Content-Type": "text/plain"}
 
         self.credentials = {
             "uid": self.userid,
@@ -111,7 +109,6 @@ class ProStocksAPI:
             return False, f"RequestException: {e}"
 
     # === Watchlist APIs ===
-
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
@@ -145,46 +142,45 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # === TPSeries APIs ===
+    # === TPSeries API ===
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-   def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+        # ✅ Corrected timestamp calculation (UTC, 60 days back)
+        if st is None or et is None:
+            days_back = 60
+            et_dt = datetime.now(timezone.utc)
+            st_dt = et_dt - timedelta(days=days_back)
+            st = int(st_dt.timestamp())
+            et = int(et_dt.timestamp())
 
-    # ✅ Corrected timestamp calculation (UTC, 60 days back)
-    if st is None or et is None:
-        days_back = 60
-        et_dt = datetime.now(timezone.utc)
-        st_dt = et_dt - timedelta(days=days_back)
-        st = int(st_dt.timestamp())
-        et = int(et_dt.timestamp())
+        url = f"{self.base_url}/TPSeries"
 
-    url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": str(token),
+            "st": str(st),
+            "et": str(et),
+            "intrv": str(interval)
+        }
 
-    payload = {
-        "uid": self.userid,
-        "exch": exch,
-        "token": str(token),
-        "st": str(st),
-        "et": str(et),
-        "intrv": str(interval)
-    }
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
+        print(f"  INTRV  : {payload['intrv']}")
 
-    print("📤 Sending TPSeries Payload:")
-    print(f"  UID    : {payload['uid']}")
-    print(f"  EXCH   : {payload['exch']}")
-    print(f"  TOKEN  : {payload['token']}")
-    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
-    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
-    print(f"  INTRV  : {payload['intrv']}")
-
-    try:
-        response = self._post_json(url, payload)
-        print("📨 TPSeries Response:", response)
-        return response
-    except Exception as e:
-        print("❌ Exception in get_tpseries():", e)
-        return {"stat": "Not_Ok", "emsg": str(e)}
+        try:
+            response = self._post_json(url, payload)
+            print("📨 TPSeries Response:", response)
+            return response
+        except Exception as e:
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -264,4 +260,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
