@@ -197,23 +197,33 @@ def update_candle(candle, tick):
 
     return candle
 
-def fetch_tpseries(api, symbol, interval, days):
-    """
-    Fetch historical OHLC data from ProStocks TPSeries API.
-    api     : ProStocksAPI instance
-    symbol  : str like 'NSE|26000'
-    interval: str like '1', '3', '5', '15', '30', '60'
-    days    : int number of days of history
-    """
-    jdata = {
-        "uid": api.userid,
-        "exch": symbol.split("|")[0],
-        "token": symbol.split("|")[1],
-        "interval": str(interval),
-        "days": str(days)
-    }
-    payload = f"jData={json.dumps(jdata)}&jKey={api.jkey}"
-    url = api.base_url + "/TPSeries"
-    r = requests.post(url, data=payload)
-    r.raise_for_status()
-    return r.json()
+ def get_tpseries(self, exch, token, st, et, interval):
+        """Fetch historical candle data using TPSeries endpoint"""
+        url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": str(token),
+            "st": str(st),
+            "et": str(et),
+            "intrv": str(interval)
+        }
+
+        # Debug logs
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st))}")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))}")
+        print(f"  INTRV  : {payload['intrv']}")
+
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"❌ TPSeries Error: {e}")
+            return None
