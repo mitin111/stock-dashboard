@@ -209,16 +209,22 @@ class ProStocksAPI:
                 continue
 
             try:
-                interval_minutes = int(interval)
-                num_bars = int(bars)
+                days_back = 60  # number of days history
 
-                now_dt = datetime.now()
-                et_dt = now_dt - timedelta(
-                   minutes=now_dt.minute % interval_minutes,
-                   seconds=now_dt.second,
-                   microseconds=now_dt.microsecond
-               )
-                st_dt = et_dt - timedelta(minutes=interval_minutes * num_bars)
+               # End time = current UTC time
+               et_dt = datetime.now(timezone.utc)
+
+               # Start time = 60 days before end time
+               st_dt = et_dt - timedelta(days=days_back)
+
+               # Convert to UNIX timestamps (seconds)
+               st_time = int(st_dt.timestamp())
+               et_time = int(et_dt.timestamp())
+
+              print(f"\n🕒 Timestamps for {symbol}:")
+              print(f"  ST = {st_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st_time))} UTC")
+              print(f"  ET = {et_time} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et_time))} UTC")
+              print(f"  Δ = {(et_time - st_time) // 3600} hours")
 
                 st_time = int(st_dt.timestamp())
                 et_time = int(et_dt.timestamp())
@@ -276,3 +282,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
