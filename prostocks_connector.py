@@ -126,9 +126,23 @@ class ProStocksAPI:
         return []
 
     def get_watchlist(self, wlname):
-        url = f"{self.base_url}/MarketWatch"
-        payload = {"uid": self.userid, "wlname": wlname}
-        return self._post_json(url, payload)
+    url = f"{self.base_url}/MarketWatch"
+    payload = {"uid": self.userid, "wlname": wlname}
+    res = self._post_json(url, payload)
+
+    # अगर API ने सही response दिया
+    if not res or res.get("stat") != "Ok" or "values" not in res:
+        return []
+
+    watchlist_data = []
+    for s in res["values"]:
+        watchlist_data.append({
+            "exch": s.get("exch"),
+            "token": s.get("token"),
+            "tsym": s.get("tsym")
+        })
+
+    return watchlist_data
 
     def search_scrip(self, search_text, exch="NSE"):
         url = f"{self.base_url}/SearchScrip"
@@ -252,4 +266,5 @@ def update_candle(candle, tick):
     candle["volume"] += volume
 
     return candle
+
 
