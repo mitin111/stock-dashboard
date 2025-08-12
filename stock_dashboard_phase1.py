@@ -113,7 +113,7 @@ with tab3:
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
-        if wl_resp.get("stat") == "Ok":
+        if wl_resp and isinstance(wl_resp, dict) and wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             wl_labels = [f"Watchlist {wl}" for wl in watchlists]
@@ -121,19 +121,19 @@ with tab3:
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
             wl_data = ps_api.get_watchlist(selected_wl)
-            if wl_data.get("stat") == "Ok":
+            if wl_data and isinstance(wl_data, dict) and wl_data.get("stat") == "Ok":
                 df = pd.DataFrame(wl_data["values"])
                 st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                 st.dataframe(df if not df.empty else pd.DataFrame())
             else:
-                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+                st.warning(wl_data.get("emsg", "Failed to load watchlist.") if wl_data else "Failed to load watchlist.")
 
             st.markdown("---")
             st.subheader("🔍 Search & Modify Watchlist")
             search_query = st.text_input("Search Symbol or Keyword")
             if search_query:
                 sr = ps_api.search_scrip(search_query)
-                if sr.get("stat") == "Ok" and sr.get("values"):
+                if sr and sr.get("stat") == "Ok" and sr.get("values"):
                     scrip_df = pd.DataFrame(sr["values"])
                     scrip_df["display"] = scrip_df["tsym"] + " (" + scrip_df["exch"] + "|" + scrip_df["token"] + ")"
                     selected_rows = st.multiselect("Select Scrips", scrip_df.index, format_func=lambda i: scrip_df.loc[i, "display"])
@@ -143,15 +143,15 @@ with tab3:
                     if col1.button("➕ Add to Watchlist") and selected_scrips:
                         resp = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
                         st.success(f"✅ Added: {resp}")
-                        st.rerun()
+                        st.experimental_rerun()
                     if col2.button("➖ Delete from Watchlist") and selected_scrips:
                         resp = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
                         st.success(f"✅ Deleted: {resp}")
-                        st.rerun()
+                        st.experimental_rerun()
                 else:
                     st.info("No matching scrips found.")
         else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists.") if wl_resp else "Could not fetch watchlists.")
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
 
@@ -203,3 +203,4 @@ with tab6:
                     )])
                     fig.update_layout(title=f"{sym['symbol']} - {interval}min")
                     st.plotly_chart(fig, use_container_width=True)
+
