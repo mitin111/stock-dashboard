@@ -208,7 +208,7 @@ with tab5:
                                 continue
 
                             try:
-                                df_candle = fetch_full_tpseries(ps_api, exch, token, interval=selected_interval, days=60, chunk_days=5)
+                                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
                                 if not df_candle.empty:
                                     st.dataframe(df_candle.tail(5))
                                 else:
@@ -224,5 +224,6 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
