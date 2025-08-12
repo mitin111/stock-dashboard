@@ -1,19 +1,18 @@
 
-# === stock_dashboard_phase1.py ===
-
+# main_app.py
 import streamlit as st
 import pandas as pd
-from prostocks_connector import ProStocksAPI, fetch_tpseries, make_empty_candle, update_candle
+from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
-from datetime import datetime
+from datetime import datetime, timedelta
+import calendar
 import time
-import plotly.graph_objects as go
-import logging
+import json
+import requests
+from urllib.parse import urlencode
 
-logging.basicConfig(level=logging.DEBUG)
-
-# === Page Config ===
-st.set_page_config(page_title="Auto Intraday Trading + TPSeries", layout="wide")
+# === Page Layout ===
+st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
 
 # === Load Settings (once) ===
@@ -54,7 +53,7 @@ with st.sidebar:
                 if success:
                     st.session_state["ps_api"] = ps_api
                     st.success("✅ Login successful!")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
             except Exception as e:
@@ -64,16 +63,15 @@ if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
         st.success("✅ Logged out successfully")
-        st.experimental_rerun()
+        st.rerun()
 
 # === Tabs ===
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚙️ Trade Controls",
     "📊 Dashboard",
     "📈 Market Data",
     "📀 Indicator Settings",
-    "📉 Strategy Engine",
-    "📉 Live Candlestick"
+    "📉 Strategy Engine"
 ])
 
 # === Tab 1: Trade Controls ===
@@ -111,10 +109,11 @@ with tab2:
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
+
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
-        if wl_resp and isinstance(wl_resp, dict) and wl_resp.get("stat") == "Ok":
+        if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             wl_labels = [f"Watchlist {wl}" for wl in watchlists]
@@ -122,22 +121,19 @@ with tab3:
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
             wl_data = ps_api.get_watchlist(selected_wl)
-
-            if isinstance(wl_data, list) and wl_data:
-                df = pd.DataFrame(wl_data)
+            if wl_data.get("stat") == "Ok":
+                df = pd.DataFrame(wl_data["values"])
                 st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                 st.dataframe(df if not df.empty else pd.DataFrame())
-            elif isinstance(wl_data, dict) and wl_data.get("emsg"):
-                st.warning(wl_data.get("emsg"))
             else:
-                st.warning("Failed to load watchlist.")
+                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
 
             st.markdown("---")
             st.subheader("🔍 Search & Modify Watchlist")
             search_query = st.text_input("Search Symbol or Keyword")
             if search_query:
                 sr = ps_api.search_scrip(search_query)
-                if sr and sr.get("stat") == "Ok" and sr.get("values"):
+                if sr.get("stat") == "Ok" and sr.get("values"):
                     scrip_df = pd.DataFrame(sr["values"])
                     scrip_df["display"] = scrip_df["tsym"] + " (" + scrip_df["exch"] + "|" + scrip_df["token"] + ")"
                     selected_rows = st.multiselect("Select Scrips", scrip_df.index, format_func=lambda i: scrip_df.loc[i, "display"])
@@ -147,15 +143,15 @@ with tab3:
                     if col1.button("➕ Add to Watchlist") and selected_scrips:
                         resp = ps_api.add_scrips_to_watchlist(selected_wl, selected_scrips)
                         st.success(f"✅ Added: {resp}")
-                        st.experimental_rerun()
+                        st.rerun()
                     if col2.button("➖ Delete from Watchlist") and selected_scrips:
                         resp = ps_api.delete_scrips_from_watchlist(selected_wl, selected_scrips)
                         st.success(f"✅ Deleted: {resp}")
-                        st.experimental_rerun()
+                        st.rerun()
                 else:
                     st.info("No matching scrips found.")
         else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists.") if wl_resp else "Could not fetch watchlists.")
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
 
@@ -165,49 +161,56 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.info("📉 Strategy engine section coming soon...")
+    st.subheader("📉 TPSeries Data Preview")
 
-# === Tab 6: Auto Watchlist Multi-Chart View ===
-with tab6:
-    st.subheader("📊 Multi-Chart View (Historical TPSeries Data)")
-
-    if 'ps_api' not in st.session_state:
-        st.error("⚠️ Please login first to use Multi-Chart tab.")
+    if "ps_api" not in st.session_state:
+        st.warning("⚠️ Please login first using your API credentials.")
     else:
-        api = st.session_state['ps_api']
+        ps_api = st.session_state["ps_api"]
+        wl_resp = ps_api.get_watchlists()
+        if wl_resp.get("stat") == "Ok":
+            raw_watchlists = wl_resp["values"]
+            watchlists = sorted(raw_watchlists, key=int)
+            selected_watchlist = st.selectbox("Select Watchlist", watchlists)
+            selected_interval = st.selectbox("Select Interval", ["1", "3", "5", "10", "15", "30", "60", "120", "240"])
 
-        watchlist_name = st.text_input("Enter Watchlist Name", "WATCHLIST 1")
-        if st.button("Load Watchlist & Charts"):
-            watchlist_symbols = api.get_watchlist(watchlist_name)
-            if not watchlist_symbols:
-                st.warning("⚠️ No symbols found in watchlist.")
-            else:
-                st.write(f"✅ Found {len(watchlist_symbols)} symbols in {watchlist_name}")
+            if st.button("🔁 Fetch TPSeries Data"):
+                with st.spinner("Fetching candle data for all scrips..."):
+                    wl_data = ps_api.get_watchlist(selected_watchlist)
+                    if wl_data.get("stat") == "Ok":
+                        scrips = wl_data.get("values", [])
+                        call_count = 0
+                        delay_per_call = 1.1
+                        valid_intervals = ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
 
-                st_date = st.date_input("Start Date")
-                et_date = st.date_input("End Date")
-                interval = st.selectbox("Interval", ["1", "3", "5", "15", "30", "60"], index=2)
+                        for i, scrip in enumerate(scrips):
+                            exch = scrip["exch"]
+                            token = scrip["token"]
+                            tsym = scrip["tsym"]
+                            st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
-                st_unix = int(time.mktime(datetime.combine(st_date, datetime.min.time()).timetuple()))
-                et_unix = int(time.mktime(datetime.combine(et_date, datetime.max.time()).timetuple()))
+                            if selected_interval not in valid_intervals:
+                                st.error(f"❌ Invalid interval: '{selected_interval}' for {tsym}. Allowed: {valid_intervals}")
+                                continue
 
-                for sym in watchlist_symbols:
-                    exch = sym['exch']
-                    token = sym['token']
-                    data = api.get_tpseries(exch, token, st_unix, et_unix, interval)
-                    if not data or 'candles' not in data:
-                        st.warning(f"No data for {sym.get('symbol', 'Unknown')}")
-                        continue
+                            try:
+                                candles = ps_api.get_tpseries(exch, token, interval=selected_interval)
+                                if isinstance(candles, list):
+                                    df_candle = pd.DataFrame(candles)
+                                    st.dataframe(df_candle.tail(3))
+                                else:
+                                    st.warning(f"⚠️ {tsym}: {candles.get('emsg', 'Error fetching data')}")
+                            except Exception as e:
+                                st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
-                    df = pd.DataFrame(data['candles'], columns=["datetime", "open", "high", "low", "close", "volume"])
-                    fig = go.Figure(data=[go.Candlestick(
-                        x=pd.to_datetime(df['datetime']),
-                        open=df['open'], high=df['high'],
-                        low=df['low'], close=df['close']
-                    )])
-                    fig.update_layout(title=f"{sym.get('symbol', 'Unknown')} - {interval}min")
-                    st.plotly_chart(fig, use_container_width=True)
+                            call_count += 1
+                            time.sleep(delay_per_call)
 
+                        st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
+                    else:
+                        st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
+        else:
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
 
 
 
