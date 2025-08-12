@@ -199,6 +199,32 @@ class ProStocksAPI:
             print(f"❌ Error fetching TPSeries: {e}")
             return None
 
+def fetch_tpseries(api: ProStocksAPI, exch, token, start_time, end_time, interval):
+    """
+    Wrapper to fetch TPSeries and return dataframe
+    start_time, end_time in epoch seconds
+    interval: 1, 5, 15, etc.
+    """
+    data = api.get_tpseries(exch, token, start_time, end_time, interval)
+    if not data or "data" not in data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(data["data"])
+    if df.empty:
+        return df
+
+    # Ensure correct types
+    df["time"] = pd.to_datetime(df["time"])
+    df[["into", "inth", "intl", "intc"]] = df[["into", "inth", "intl", "intc"]].astype(float)
+    df["volume"] = df["intv"].astype(int)
+    df.rename(columns={
+        "into": "open",
+        "inth": "high",
+        "intl": "low",
+        "intc": "close"
+    }, inplace=True)
+
+    return df[["time", "open", "high", "low", "close", "volume"]]
 
 # === Candle Helpers ===
 def make_empty_candle(timestamp):
@@ -226,3 +252,4 @@ def update_candle(candle, tick):
     candle["volume"] += volume
 
     return candle
+
