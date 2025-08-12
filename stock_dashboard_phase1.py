@@ -121,13 +121,14 @@ with tab3:
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
             wl_data = ps_api.get_watchlist(selected_wl)
-            if wl_data and isinstance(wl_data, dict) and wl_data.get("stat") == "Ok":
-                df = pd.DataFrame(wl_data["values"])
-                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
-                st.dataframe(df if not df.empty else pd.DataFrame())
-            else:
-                st.warning(wl_data.get("emsg", "Failed to load watchlist.") if wl_data else "Failed to load watchlist.")
-
+if isinstance(wl_data, list) and wl_data:
+    df = pd.DataFrame(wl_data)
+    st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
+    st.dataframe(df if not df.empty else pd.DataFrame())
+elif isinstance(wl_data, dict) and wl_data.get("emsg"):
+    st.warning(wl_data.get("emsg"))
+else:
+    st.warning("Failed to load watchlist.")
             st.markdown("---")
             st.subheader("🔍 Search & Modify Watchlist")
             search_query = st.text_input("Search Symbol or Keyword")
@@ -203,4 +204,5 @@ with tab6:
                     )])
                     fig.update_layout(title=f"{sym['symbol']} - {interval}min")
                     st.plotly_chart(fig, use_container_width=True)
+
 
