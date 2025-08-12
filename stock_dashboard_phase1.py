@@ -176,7 +176,7 @@ with tab6:
     else:
         api = st.session_state['ps_api']
 
-        watchlist_name = st.text_input("Enter Watchlist Name", "WATCHLIST_1")
+        watchlist_name = st.text_input("Enter Watchlist Name", "WATCHLIST 1")
         if st.button("Load Watchlist & Charts"):
             watchlist_symbols = api.get_watchlist(watchlist_name)
             if not watchlist_symbols:
@@ -207,6 +207,7 @@ with tab6:
                     )])
                     fig.update_layout(title=f"{sym.get('symbol', 'Unknown')} - {interval}min")
                     st.plotly_chart(fig, use_container_width=True)
+
 
 
 
