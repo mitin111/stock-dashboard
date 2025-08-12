@@ -183,60 +183,57 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
-        """
-        Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
-        Returns a pandas.DataFrame or None.
-        """
-        all_chunks = []
-        end_dt = datetime.now(timezone.utc)
-        total_covered_days = 0
+    """
+    Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
+    Always uses UTC timestamps to match ProStocks server time.
+    """
+    all_chunks = []
+    end_dt = datetime.now(timezone.utc)  # ✅ हमेशा UTC
+    start_limit_dt = end_dt - timedelta(days=max_days)
 
-        while total_covered_days < max_days:
-            start_dt = end_dt - timedelta(days=chunk_days)
-            st = int(start_dt.timestamp())
-            et = int(end_dt.timestamp())
+    while end_dt > start_limit_dt:
+        start_dt = end_dt - timedelta(days=chunk_days)
+        if start_dt < start_limit_dt:
+            start_dt = start_limit_dt
 
-            print(f"⏳ chunk: {start_dt.isoformat()} → {end_dt.isoformat()}  ({st}→{et})")
-            resp = self.get_tpseries(exch, token, interval, st, et)
+        st = int(start_dt.timestamp())  # ✅ UTC seconds
+        et = int(end_dt.timestamp())
 
-            # if API returns dict with error
-            if isinstance(resp, dict):
-                emsg = resp.get("emsg") or resp.get("stat")
-                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
-                end_dt = start_dt - timedelta(seconds=1)
-                total_covered_days = (datetime.now(timezone.utc) - end_dt).days
-                time.sleep(0.25)
-                continue
+        print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
+        resp = self.get_tpseries(exch, token, interval, st, et)
 
-            # expected: list of candle dicts
-            if not isinstance(resp, list) or len(resp) == 0:
-                print("⚠️ Empty chunk (no candles). moving window back.")
-                end_dt = start_dt - timedelta(seconds=1)
-                total_covered_days = (datetime.now(timezone.utc) - end_dt).days
-                time.sleep(0.25)
-                continue
-
-            # convert chunk to DataFrame
-            df_chunk = pd.DataFrame(resp)
-            all_chunks.append(df_chunk)
-
-            # move window back
+        # अगर error dict आया
+        if isinstance(resp, dict):
+            emsg = resp.get("emsg") or resp.get("stat")
+            print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
             end_dt = start_dt - timedelta(seconds=1)
-            total_covered_days = (datetime.now(timezone.utc) - end_dt).days
             time.sleep(0.25)
+            continue
 
-        if not all_chunks:
-            return None
+        # अगर खाली आया
+        if not isinstance(resp, list) or len(resp) == 0:
+            print("⚠️ Empty chunk (no candles). Moving back…")
+            end_dt = start_dt - timedelta(seconds=1)
+            time.sleep(0.25)
+            continue
 
-        final_df = pd.concat(all_chunks, ignore_index=True)
-        if "time" in final_df.columns:
-            final_df.drop_duplicates(subset=["time"], inplace=True)
-            final_df.sort_values(by="time", inplace=True)
-        else:
-            final_df.drop_duplicates(inplace=True)
-            final_df.sort_index(inplace=True)
+        # chunk को DataFrame में बदलो
+        df_chunk = pd.DataFrame(resp)
+        all_chunks.append(df_chunk)
 
-        return final_df.reset_index(drop=True)
+        # अगले chunk के लिए पीछे जाओ
+        end_dt = start_dt - timedelta(seconds=1)
+        time.sleep(0.25)  # server को spam मत करो
+
+    if not all_chunks:
+        return None
+
+    df = pd.concat(all_chunks, ignore_index=True)
+    if "time" in df.columns:
+        df.drop_duplicates(subset=["time"], inplace=True)
+        df.sort_values(by="time", inplace=True)
+
+    return df.reset_index(drop=True)
         
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -297,5 +294,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
