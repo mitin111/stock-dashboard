@@ -165,66 +165,41 @@ with tab5:
 
 # Tab 6 – Auto Watchlist Multi-Chart View
 with tab6:
-    st.subheader("📊 Watchlist Multi-Chart (Auto)")
+    st.subheader("📊 Multi-Chart View (Historical TPSeries Data)")
 
-    if "ps_api" not in st.session_state:
-        st.error("⚠️ पहले Login करें ताकि Watchlist और Charts लोड हो सकें।")
+    if 'api' not in st.session_state:
+        st.error("⚠️ Please login first to use Multi-Chart tab.")
     else:
-        api = st.session_state["ps_api"]  # Login से मिला हुआ ProStocksAPI object
+        api = st.session_state['api']  # ✅ FIX for NameError
 
-        try:
-            # सभी watchlists लाना
-            wl_resp = api.get_watchlists()
-            if wl_resp.get("stat") != "Ok":
-                st.error("❌ Watchlists load नहीं हो पाई।")
+        watchlist_name = st.text_input("Enter Watchlist Name", "WATCHLIST_1")
+        if st.button("Load Watchlist & Charts"):
+            watchlist_symbols = api.get_watchlist(watchlist_name)
+            if not watchlist_symbols:
+                st.warning("⚠️ No symbols found in watchlist.")
             else:
-                watchlists = [w for w in wl_resp.get("values", [])]
-                selected_wl = st.selectbox("📂 Watchlist चुनें", watchlists)
+                st.write(f"✅ Found {len(watchlist_symbols)} symbols in {watchlist_name}")
 
-                wl_data = api.get_watchlist(selected_wl)
-                if wl_data.get("stat") != "Ok":
-                    st.warning("⚠️ Watchlist खाली है।")
-                else:
-                    symbols = [s['tsym'] for s in wl_data["values"]]
-                    st.success(f"✅ {len(symbols)} symbols मिले।")
+                st_date = st.date_input("Start Date")
+                et_date = st.date_input("End Date")
+                interval = st.selectbox("Interval", ["1", "3", "5", "15", "30", "60"], index=2)
 
-                    charts = []
-                    for sym in symbols:
-                        try:
-                            scrip_data = api.search_scrip(sym)
-                            if not scrip_data.get("values"):
-                                continue
+                st_unix = int(time.mktime(datetime.combine(st_date, datetime.min.time()).timetuple()))
+                et_unix = int(time.mktime(datetime.combine(et_date, datetime.max.time()).timetuple()))
 
-                            token = scrip_data["values"][0].get("token")
-                            exch = scrip_data["values"][0].get("exch")
-                            if not token or not exch:
-                                continue
+                for sym in watchlist_symbols:
+                    exch = sym['exch']
+                    token = sym['token']
+                    data = api.get_tpseries(exch, token, st_unix, et_unix, interval)
+                    if not data or 'candles' not in data:
+                        st.warning(f"No data for {sym['symbol']}")
+                        continue
 
-                            ohlc_df = fetch_tpseries(token, interval=5, days=60)
-                            if ohlc_df.empty:
-                                continue
-
-                            fig = go.Figure(data=[
-                                go.Candlestick(
-                                    x=ohlc_df['datetime'],
-                                    open=ohlc_df['open'],
-                                    high=ohlc_df['high'],
-                                    low=ohlc_df['low'],
-                                    close=ohlc_df['close']
-                                )
-                            ])
-                            fig.update_layout(
-                                title=f"{sym} – 5m Candlestick (60 days)",
-                                xaxis_rangeslider_visible=False,
-                                height=400
-                            )
-                            charts.append(fig)
-
-                        except Exception as e:
-                            st.error(f"{sym} chart error: {e}")
-
-                    for fig in charts:
-                        st.plotly_chart(fig, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"Watchlist load error: {e}")
+                    df = pd.DataFrame(data['candles'], columns=["datetime", "open", "high", "low", "close", "volume"])
+                    fig = go.Figure(data=[go.Candlestick(
+                        x=pd.to_datetime(df['datetime']),
+                        open=df['open'], high=df['high'],
+                        low=df['low'], close=df['close']
+                    )])
+                    fig.update_layout(title=f"{sym['symbol']} - {interval}min")
+                    st.plotly_chart(fig, use_container_width=True)
