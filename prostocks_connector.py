@@ -144,48 +144,43 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     # === TPSeries API ===
-    def get_tpseries(self, exchange, token, interval, start_time, end_time):
-        """
-        Fetch historical candle data (OHLCV) from ProStocks TPSeries API.
-        interval: in minutes (e.g., 1, 3, 5, 15, 30, 60)
-        start_time & end_time: UTC epoch seconds
-        """
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        endpoint = f"{self.base_url}/TPSeries"
+        if st is None or et is None:
+            days_back = 60
+            et_dt = datetime.now(timezone.utc)
+            st_dt = et_dt - timedelta(days=days_back)
+            st = int(st_dt.timestamp())
+            et = int(et_dt.timestamp())
 
-        jdata = {
+        url = f"{self.base_url}/TPSeries"
+
+        payload = {
             "uid": self.userid,
-            "exch": exchange,
+            "exch": exch,
             "token": str(token),
-            "st": str(start_time),
-            "et": str(end_time),
+            "st": str(st),
+            "et": str(et),
             "intrv": str(interval)
         }
 
-        raw_data = f"jData={json.dumps(jdata, separators=(',', ':'))}&jKey={self.session_token}"
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
+        print(f"  INTRV  : {payload['intrv']}")
 
         try:
-            resp = self.session.post(endpoint, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=10)
-            if resp.status_code != 200:
-                raise Exception(f"TPSeries API HTTP Error: {resp.status_code} → {resp.text}")
-
-            data = resp.json()
-            if data.get("stat") != "Ok":
-                raise Exception(f"TPSeries API Error: {data}")
-
-            # Convert to DataFrame
-            df = pd.DataFrame(data.get("values", []), columns=["time", "open", "high", "low", "close", "volume"])
-            df["time"] = pd.to_datetime(df["time"], unit="s")  # epoch to datetime
-            df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].astype(float)
-            df["volume"] = df["volume"].astype(int)
-
-            return df
-
+            response = self._post_json(url, payload)
+            print("📨 TPSeries Response:", response)
+            return response
         except Exception as e:
-            print(f"❌ get_tpseries Exception: {e}")
-            return pd.DataFrame()
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
         """
@@ -205,24 +200,35 @@ class ProStocksAPI:
             et = int(end_dt.timestamp())
 
             print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-            df = self.get_tpseries(exch, token, interval, st, et)
+            resp = self.get_tpseries(exch, token, interval, st, et)
 
-            if df.empty:
+            if isinstance(resp, dict):
+                emsg = resp.get("emsg") or resp.get("stat")
+                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            if not isinstance(resp, list) or len(resp) == 0:
                 print("⚠️ Empty chunk (no candles). Moving back…")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
-            all_chunks.append(df)
+            df_chunk = pd.DataFrame(resp)
+            all_chunks.append(df_chunk)
+
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
         if not all_chunks:
-            return pd.DataFrame()
+            return pd.DataFrame()  # empty DF instead of None
+
 
         df = pd.concat(all_chunks, ignore_index=True)
-        df.drop_duplicates(subset=["time"], inplace=True)
-        df.sort_values(by="time", inplace=True)
+        if "time" in df.columns:
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)  
         return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
@@ -250,7 +256,7 @@ class ProStocksAPI:
             try:
                 print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
                 df = self.fetch_full_tpseries(exch, token, interval)
-                if not df.empty:
+                if df is not None:
                     print(f"✅ {symbol}: {len(df)} candles fetched.")
                     results.append({"symbol": symbol, "data": df})
                 else:
