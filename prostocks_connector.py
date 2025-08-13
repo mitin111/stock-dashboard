@@ -144,43 +144,48 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     # === TPSeries API ===
-    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+       def get_tpseries(self, exchange, token, interval, start_time, end_time):
+        """
+        Fetch historical candle data (OHLCV) from ProStocks TPSeries API.
+        interval: in minutes (e.g., 1, 3, 5, 15, 30, 60)
+        start_time & end_time: UTC epoch seconds
+        """
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
 
-        if st is None or et is None:
-            days_back = 60
-            et_dt = datetime.now(timezone.utc)
-            st_dt = et_dt - timedelta(days=days_back)
-            st = int(st_dt.timestamp())
-            et = int(et_dt.timestamp())
+        endpoint = f"{self.base_url}/TPSeries"
 
-        url = f"{self.base_url}/TPSeries"
-
-        payload = {
+        jdata = {
             "uid": self.userid,
-            "exch": exch,
+            "exch": exchange,
             "token": str(token),
-            "st": str(st),
-            "et": str(et),
+            "st": str(start_time),
+            "et": str(end_time),
             "intrv": str(interval)
         }
 
-        print("📤 Sending TPSeries Payload:")
-        print(f"  UID    : {payload['uid']}")
-        print(f"  EXCH   : {payload['exch']}")
-        print(f"  TOKEN  : {payload['token']}")
-        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
-        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
-        print(f"  INTRV  : {payload['intrv']}")
+        raw_data = f"jData={json.dumps(jdata, separators=(',', ':'))}&jKey={self.session_token}"
 
         try:
-            response = self._post_json(url, payload)
-            print("📨 TPSeries Response:", response)
-            return response
+            resp = self.session.post(endpoint, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=10)
+            if resp.status_code != 200:
+                raise Exception(f"TPSeries API HTTP Error: {resp.status_code} → {resp.text}")
+
+            data = resp.json()
+            if data.get("stat") != "Ok":
+                raise Exception(f"TPSeries API Error: {data}")
+
+            # Convert to DataFrame
+            df = pd.DataFrame(data.get("values", []), columns=["time", "open", "high", "low", "close", "volume"])
+            df["time"] = pd.to_datetime(df["time"], unit="s")  # epoch to datetime
+            df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].astype(float)
+            df["volume"] = df["volume"].astype(int)
+
+            return df
+
         except Exception as e:
-            print("❌ Exception in get_tpseries():", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
+            print(f"❌ get_tpseries Exception: {e}")
+            return pd.DataFrame()
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
         """
@@ -290,6 +295,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
