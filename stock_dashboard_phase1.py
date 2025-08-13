@@ -186,7 +186,10 @@ with tab5:
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-            selected_interval = st.selectbox("Select Interval", ["1", "3", "5", "10", "15", "30", "60", "120", "240"])
+            selected_interval = st.selectbox(
+                "Select Interval",
+                ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
+            )
 
             if st.button("🔁 Fetch TPSeries Data"):
                 with st.spinner("Fetching candle data for all scrips..."):
@@ -204,29 +207,32 @@ with tab5:
 
                             try:
                                 df_candle = ps_api.fetch_full_tpseries(
-                                    exch, token, interval=selected_interval, chunk_days=5
+                                    exch, token,
+                                    interval=selected_interval,
+                                    chunk_days=5
                                 )
 
                                 if not df_candle.empty and 'time' in df_candle.columns:
                                     try:
-                                        # Force time to integer (epoch seconds)
-                                        df_candle['time'] = pd.to_numeric(df_candle['time'], errors='coerce')
-
-                                        # Drop rows where time couldn't be converted
-                                        df_candle = df_candle.dropna(subset=['time'])
-
-                                        # Sort by epoch time (guaranteed correct order)
-                                        df_candle = df_candle.sort_values(by='time', ascending=True).reset_index(drop=True)
-
-                                        # Convert epoch to IST datetime
-                                        ist_offset = timedelta(hours=5, minutes=30)
-                                        df_candle['datetime'] = (
-                                            pd.to_datetime(df_candle['time'], unit='s', utc=True, errors='coerce')
-                                            + ist_offset
+                                        # Convert string time (DD-MM-YYYY HH:MM:SS) to datetime
+                                        df_candle['datetime'] = pd.to_datetime(
+                                            df_candle['time'],
+                                            format='%d-%m-%Y %H:%M:%S',
+                                            errors='coerce'
                                         )
 
-                                        # Drop duplicate datetime rows if any
-                                        df_candle = df_candle.drop_duplicates(subset=['datetime'], keep='last')
+                                        # Drop invalid dates
+                                        df_candle = df_candle.dropna(subset=['datetime'])
+
+                                        # Remove duplicate timestamps if any
+                                        df_candle = df_candle.drop_duplicates(
+                                            subset=['datetime'], keep='last'
+                                        )
+
+                                        # Sort oldest to newest
+                                        df_candle = df_candle.sort_values(
+                                            by='datetime', ascending=True
+                                        ).reset_index(drop=True)
 
                                     except Exception as e:
                                         st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
@@ -246,3 +252,5 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
+
