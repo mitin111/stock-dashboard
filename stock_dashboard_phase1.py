@@ -195,17 +195,12 @@ with tab5:
                         scrips = wl_data.get("values", [])
                         call_count = 0
                         delay_per_call = 1.1
-                        valid_intervals = ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
 
                         for i, scrip in enumerate(scrips):
                             exch = scrip["exch"]
                             token = scrip["token"]
                             tsym = scrip["tsym"]
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
-
-                            if selected_interval not in valid_intervals:
-                                st.error(f"❌ Invalid interval: '{selected_interval}' for {tsym}")
-                                continue
 
                             try:
                                 df_candle = ps_api.fetch_full_tpseries(
@@ -214,21 +209,19 @@ with tab5:
 
                                 if not df_candle.empty and 'time' in df_candle.columns:
                                     try:
-                                        # Convert epoch → UTC → IST
+                                        # Convert epoch seconds → IST datetime
                                         ist_offset = timedelta(hours=5, minutes=30)
                                         df_candle['datetime'] = (
                                             pd.to_datetime(df_candle['time'], unit='s', errors='coerce', utc=True)
                                             + ist_offset
                                         )
 
-                                        # Drop invalid conversions
+                                        # Remove invalid and duplicate datetimes
                                         df_candle = df_candle.dropna(subset=['datetime'])
+                                        df_candle = df_candle.drop_duplicates(subset=['datetime'], keep='last')
 
-                                        # Sort chronologically by datetime
+                                        # Sort chronologically (oldest first)
                                         df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
-
-                                        # Optional: drop raw 'time' column if not needed
-                                        # df_candle.drop(columns=['time'], inplace=True, errors='ignore')
 
                                     except Exception as e:
                                         st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
