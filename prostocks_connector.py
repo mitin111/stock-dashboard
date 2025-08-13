@@ -144,7 +144,7 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     # === TPSeries API ===
-       def get_tpseries(self, exchange, token, interval, start_time, end_time):
+    def get_tpseries(self, exchange, token, interval, start_time, end_time):
         """
         Fetch historical candle data (OHLCV) from ProStocks TPSeries API.
         interval: in minutes (e.g., 1, 3, 5, 15, 30, 60)
@@ -205,35 +205,24 @@ class ProStocksAPI:
             et = int(end_dt.timestamp())
 
             print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-            resp = self.get_tpseries(exch, token, interval, st, et)
+            df = self.get_tpseries(exch, token, interval, st, et)
 
-            if isinstance(resp, dict):
-                emsg = resp.get("emsg") or resp.get("stat")
-                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
-                end_dt = start_dt - timedelta(seconds=1)
-                time.sleep(0.25)
-                continue
-
-            if not isinstance(resp, list) or len(resp) == 0:
+            if df.empty:
                 print("⚠️ Empty chunk (no candles). Moving back…")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
-            df_chunk = pd.DataFrame(resp)
-            all_chunks.append(df_chunk)
-
+            all_chunks.append(df)
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
         if not all_chunks:
-            return pd.DataFrame()  # empty DF instead of None
-
+            return pd.DataFrame()
 
         df = pd.concat(all_chunks, ignore_index=True)
-        if "time" in df.columns:
-            df.drop_duplicates(subset=["time"], inplace=True)
-            df.sort_values(by="time", inplace=True)  
+        df.drop_duplicates(subset=["time"], inplace=True)
+        df.sort_values(by="time", inplace=True)
         return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
@@ -261,7 +250,7 @@ class ProStocksAPI:
             try:
                 print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
                 df = self.fetch_full_tpseries(exch, token, interval)
-                if df is not None:
+                if not df.empty:
                     print(f"✅ {symbol}: {len(df)} candles fetched.")
                     results.append({"symbol": symbol, "data": df})
                 else:
@@ -295,9 +284,3 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
-
-
-
