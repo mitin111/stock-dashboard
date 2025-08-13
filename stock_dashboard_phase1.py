@@ -209,13 +209,17 @@ with tab5:
 
                             try:
                                 df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
-                                if not df_candle.empty:
-                                   if 'time' in df_candle.columns:
-                                       try:
-                                           df_candle['time'] = pd.to_datetime(df_candle['time'], unit='s', errors='coerce')
-                                       except Exception:
-                                          pass
-                                       df_candle = df_candle.sort_values(by="time").reset_index(drop=True)
+                                if 'time' in df_candle.columns:
+                                    try:
+                                        # Convert epoch to IST datetime
+                                        ist_offset = timedelta(hours=5, minutes=30)
+                                        df_candle['datetime'] = (
+                                           pd.to_datetime(df_candle['time'], unit='s', errors='coerce', utc=True) + ist_offset
+                                        )
+                                     except Exception:
+                                         pass
+                                     # Sort by datetime column
+                                     df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
 
                                    st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
@@ -231,6 +235,7 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
