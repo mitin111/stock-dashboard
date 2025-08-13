@@ -220,7 +220,7 @@ with tab5:
                                         pass
 
                                     # Sort by datetime column
-                                    df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
+                                    df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
 
                                     st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
@@ -236,3 +236,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
