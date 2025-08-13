@@ -216,20 +216,21 @@ with tab5:
                                 )
 
                                 if not df_candle.empty and 'time' in df_candle.columns:
-                                    # --- Suggested Fix Start ---
-                                    # Convert epoch to IST datetime
-                                    ist_offset = timedelta(hours=5, minutes=30)
-                                    df_candle['datetime'] = pd.to_datetime(
-                                        df_candle['time'], unit='s', errors='coerce', utc=True
-                                    ) + ist_offset
+                                   # Numeric coercion
+                                   df_candle['time'] = pd.to_numeric(df_candle['time'], errors='coerce')
 
-                                    # Sort by datetime ascending
-                                    df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
+                                   # UTC datetime
+                                   df_candle['datetime'] = pd.to_datetime(df_candle['time'], unit='s', utc=True)
 
-                                    # Display only relevant columns with datetime first
-                                    cols = ['datetime'] + [c for c in df_candle.columns if c != 'datetime']
-                                    st.dataframe(df_candle[cols], use_container_width=True, height=600)
-                                    # --- Suggested Fix End ---
+                                   # IST offset
+                                   df_candle['datetime'] = df_candle['datetime'] + timedelta(hours=5, minutes=30)
+
+                                   # Sort by datetime ascending
+                                   df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
+
+                                   # Display
+                                   cols = ['datetime'] + [c for c in df_candle.columns if c != 'datetime']
+                                   st.dataframe(df_candle[cols], use_container_width=True, height=600)
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
                             except Exception as e:
@@ -243,3 +244,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
