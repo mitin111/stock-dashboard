@@ -215,7 +215,7 @@ class ProStocksAPI:
 
             df_chunk.columns = [
                 'stat', 'time', 'into', 'high', 'low', 'close', 'avg_price',
-                'volume', 'oi', 'total_volume', 'oi_change'
+                'volume', 'oi', 'total_volume', 'oi_change', 'datetime'
             ]
 
             df_chunk['datetime'] = pd.to_datetime(
@@ -300,5 +300,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
