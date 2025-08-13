@@ -216,23 +216,20 @@ with tab5:
                                 )
 
                                 if not df_candle.empty and 'time' in df_candle.columns:
-                                    # Numeric coercion
-                                    df_candle['time'] = pd.to_numeric(df_candle['time'], errors='coerce')
-                                    df_candle = df_candle.dropna(subset=['time'])
+                                    # --- Suggested Fix Start ---
+                                    # Convert epoch to IST datetime
+                                    ist_offset = timedelta(hours=5, minutes=30)
+                                    df_candle['datetime'] = pd.to_datetime(
+                                        df_candle['time'], unit='s', errors='coerce', utc=True
+                                    ) + ist_offset
 
-                                    # UTC datetime
-                                    df_candle['datetime'] = pd.to_datetime(df_candle['time'], unit='s', utc=True)
+                                    # Sort by datetime ascending
+                                    df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
 
-                                    # IST offset
-                                    df_candle['datetime'] = df_candle['datetime'] + timedelta(hours=5, minutes=30)
-
-                                    # Drop duplicates, sort
-                                    df_candle = df_candle.drop_duplicates(subset=['datetime'])
-                                    df_candle = df_candle.sort_values(by='datetime').reset_index(drop=True)
-
-                                    # Display
+                                    # Display only relevant columns with datetime first
                                     cols = ['datetime'] + [c for c in df_candle.columns if c != 'datetime']
                                     st.dataframe(df_candle[cols], use_container_width=True, height=600)
+                                    # --- Suggested Fix End ---
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
                             except Exception as e:
@@ -246,3 +243,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
