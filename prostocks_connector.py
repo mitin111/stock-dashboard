@@ -227,11 +227,9 @@ class ProStocksAPI:
 
         df = pd.concat(all_chunks, ignore_index=True)
         if "time" in df.columns:
-            df['time'] = pd.to_numeric(df['time'], errors='coerce')
-            df.drop_duplicates(subset=['time'], inplace=True)
-            df.sort_values(by='time', inplace=True)
-        df = df.reset_index(drop=True)
-        return df
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)  
+        return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -292,6 +290,7 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
 
