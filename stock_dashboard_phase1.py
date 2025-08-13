@@ -209,19 +209,24 @@ with tab5:
 
                                 if not df_candle.empty and 'time' in df_candle.columns:
                                     try:
-                                        # Convert epoch seconds → IST datetime
+                                        # Force time to integer (epoch seconds)
+                                        df_candle['time'] = pd.to_numeric(df_candle['time'], errors='coerce')
+
+                                        # Drop rows where time couldn't be converted
+                                        df_candle = df_candle.dropna(subset=['time'])
+
+                                        # Sort by epoch time (guaranteed correct order)
+                                        df_candle = df_candle.sort_values(by='time', ascending=True).reset_index(drop=True)
+
+                                        # Convert epoch to IST datetime
                                         ist_offset = timedelta(hours=5, minutes=30)
                                         df_candle['datetime'] = (
-                                            pd.to_datetime(df_candle['time'], unit='s', errors='coerce', utc=True)
+                                            pd.to_datetime(df_candle['time'], unit='s', utc=True, errors='coerce')
                                             + ist_offset
                                         )
 
-                                        # Remove invalid and duplicate datetimes
-                                        df_candle = df_candle.dropna(subset=['datetime'])
+                                        # Drop duplicate datetime rows if any
                                         df_candle = df_candle.drop_duplicates(subset=['datetime'], keep='last')
-
-                                        # Sort chronologically (oldest first)
-                                        df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
 
                                     except Exception as e:
                                         st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
