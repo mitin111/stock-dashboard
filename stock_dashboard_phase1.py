@@ -209,21 +209,22 @@ with tab5:
 
                             try:
                                 df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
-                                if 'time' in df_candle.columns:
+                                if not df_candle.empty and 'time' in df_candle.columns:
                                     try:
                                         # Convert epoch to IST datetime
                                         ist_offset = timedelta(hours=5, minutes=30)
                                         df_candle['datetime'] = (
-                                           pd.to_datetime(df_candle['time'], unit='s', errors='coerce', utc=True) + ist_offset
+                                            pd.to_datetime(df_candle['time'], unit='s', errors='coerce', utc=True) + ist_offset
                                         )
-                                     except Exception:
-                                         pass
-                                     # Sort by datetime column
-                                     df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
+                                    except Exception:
+                                        pass
 
-                                   st.dataframe(df_candle, use_container_width=True, height=600)
+                                    # Sort by datetime column
+                                    df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
+
+                                    st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
-                                   st.warning(f"⚠️ No data for {tsym}")
+                                    st.warning(f"⚠️ No data for {tsym}")
                             except Exception as e:
                                 st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
@@ -235,9 +236,3 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-
-
-
-
-
