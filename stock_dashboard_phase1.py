@@ -210,7 +210,7 @@ with tab5:
                             try:
                                 df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
                                 if not df_candle.empty:
-                                    st.dataframe(df_candle.tail(5))
+                                    st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
                             except Exception as e:
@@ -224,6 +224,7 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
