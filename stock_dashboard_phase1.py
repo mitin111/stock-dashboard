@@ -186,9 +186,7 @@ with tab5:
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-            selected_interval = st.selectbox(
-                "Select Interval", ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
-            )
+            selected_interval = st.selectbox("Select Interval", ["1", "3", "5", "10", "15", "30", "60", "120", "240"])
 
             if st.button("🔁 Fetch TPSeries Data"):
                 with st.spinner("Fetching candle data for all scrips..."):
@@ -210,25 +208,21 @@ with tab5:
                                 continue
 
                             try:
-                                df_candle = ps_api.fetch_full_tpseries(
-                                    exch, token, interval=selected_interval, chunk_days=5
-                                )
-
+                                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
                                 if not df_candle.empty and 'time' in df_candle.columns:
-                                    # --- Suggested Fix Start ---
-                                    # Convert epoch to IST datetime
-                                    ist_offset = timedelta(hours=5, minutes=30)
-                                    df_candle['datetime'] = pd.to_datetime(
-                                        df_candle['time'], unit='s', errors='coerce', utc=True
-                                    ) + ist_offset
+                                    try:
+                                        # Convert epoch to IST datetime
+                                        ist_offset = timedelta(hours=5, minutes=30)
+                                        df_candle['datetime'] = (
+                                            pd.to_datetime(df_candle['time'], unit='s', errors='coerce', utc=True) + ist_offset
+                                        )
+                                    except Exception:
+                                        pass
 
-                                    # Sort by datetime ascending
-                                    df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
+                                    # Sort by datetime column
+                                    df_candle = df_candle.sort_values(by="datetime").reset_index(drop=True)
 
-                                    # Display only relevant columns with datetime first
-                                    cols = ['datetime'] + [c for c in df_candle.columns if c != 'datetime']
-                                    st.dataframe(df_candle[cols], use_container_width=True, height=600)
-                                    # --- Suggested Fix End ---
+                                    st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
                             except Exception as e:
