@@ -182,7 +182,6 @@ with tab5:
     else:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
-
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
@@ -243,4 +242,3 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
