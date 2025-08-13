@@ -173,84 +173,54 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df.sort_index(inplace=True)
     return final_df
 
-# === Tab 5: Strategy Engine ===
+# === Tab 5: Historical Candlestick Chart ===
 with tab5:
-    st.subheader("📉 TPSeries Data Preview")
+    st.subheader("📈 Historical Candlestick Chart (TPSeries)")
 
     if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first using your API credentials.")
+        st.warning("Please login first to fetch TPSeries data.")
     else:
-        ps_api = st.session_state["ps_api"]
-        wl_resp = ps_api.get_watchlists()
-        if wl_resp.get("stat") == "Ok":
-            raw_watchlists = wl_resp["values"]
-            watchlists = sorted(raw_watchlists, key=int)
-            selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-            selected_interval = st.selectbox(
-                "Select Interval",
-                ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
-            )
+        exch = st.selectbox("Select Exchange", ["NSE"])
+        token = st.text_input("Enter Token", "11872")  # Example: GRANULES-EQ
+        interval = st.selectbox("Interval (minutes)", [1, 3, 5, 15, 30, 60], index=0)
 
-            if st.button("🔁 Fetch TPSeries Data"):
-                with st.spinner("Fetching candle data for all scrips..."):
-                    wl_data = ps_api.get_watchlist(selected_watchlist)
-                    if wl_data.get("stat") == "Ok":
-                        scrips = wl_data.get("values", [])
-                        call_count = 0
-                        delay_per_call = 1.1
+        # Date range selection
+        import datetime
+        today = datetime.date.today()
+        start_date = st.date_input("Start Date", today - datetime.timedelta(days=5))
+        end_date = st.date_input("End Date", today)
 
-                        for i, scrip in enumerate(scrips):
-                            exch = scrip["exch"]
-                            token = scrip["token"]
-                            tsym = scrip["tsym"]
-                            st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
+        if st.button("Fetch Historical Data"):
+            try:
+                import time
+                start_epoch = int(time.mktime(datetime.datetime.combine(start_date, datetime.time.min).timetuple()))
+                end_epoch = int(time.mktime(datetime.datetime.combine(end_date, datetime.time.max).timetuple()))
 
-                            try:
-                                df_candle = ps_api.fetch_full_tpseries(
-                                    exch, token,
-                                    interval=selected_interval,
-                                    chunk_days=5
-                                )
+                df_candle = st.session_state.ps_api.get_tpseries(
+                    exch, token, interval, start_epoch, end_epoch
+                )
 
-                                if not df_candle.empty and 'time' in df_candle.columns:
-                                    try:
-                                        # Convert string time (DD-MM-YYYY HH:MM:SS) to datetime
-                                        df_candle['datetime'] = pd.to_datetime(
-                                            df_candle['time'],
-                                            format='%d-%m-%Y %H:%M:%S',
-                                            errors='coerce'
-                                        )
+                if df_candle.empty:
+                    st.warning("No data received from TPSeries API.")
+                else:
+                    st.write(f"Showing {len(df_candle)} candles.")
+                    st.dataframe(df_candle)
 
-                                        # Drop invalid dates
-                                        df_candle = df_candle.dropna(subset=['datetime'])
+                    # Plotly candlestick chart
+                    import plotly.graph_objects as go
+                    fig = go.Figure(data=[go.Candlestick(
+                        x=df_candle["time"],
+                        open=df_candle["open"],
+                        high=df_candle["high"],
+                        low=df_candle["low"],
+                        close=df_candle["close"]
+                    )])
+                    fig.update_layout(
+                        title=f"Historical Candles for Token {token} ({interval} min)",
+                        xaxis_rangeslider_visible=False,
+                        height=600
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
 
-                                        # Remove duplicate timestamps if any
-                                        df_candle = df_candle.drop_duplicates(
-                                            subset=['datetime'], keep='last'
-                                        )
-
-                                        # Sort oldest to newest
-                                        df_candle = df_candle.sort_values(
-                                            by='datetime', ascending=True
-                                        ).reset_index(drop=True)
-
-                                    except Exception as e:
-                                        st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
-
-                                    st.dataframe(df_candle, use_container_width=True, height=600)
-                                else:
-                                    st.warning(f"⚠️ No data for {tsym}")
-
-                            except Exception as e:
-                                st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
-
-                            call_count += 1
-                            time.sleep(delay_per_call)
-
-                        st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
-                    else:
-                        st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
-        else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-
+            except Exception as e:
+                st.error(f"Error fetching TPSeries data: {e}")
