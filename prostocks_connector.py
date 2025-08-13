@@ -216,6 +216,13 @@ class ProStocksAPI:
                 continue
 
             df_chunk = pd.DataFrame(resp)
+
+            # ✅ Yahin par rename karo
+            df_chunk.columns = [
+                'stat', 'time', 'into', 'high', 'low', 'close', 'avg_price',
+                'volume', 'oi', 'total_volume', 'oi_change', 'datetime'
+            ]
+
             all_chunks.append(df_chunk)
 
             end_dt = start_dt - timedelta(seconds=1)
@@ -290,3 +297,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
