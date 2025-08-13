@@ -218,15 +218,17 @@ with tab5:
                                 if not df_candle.empty and 'time' in df_candle.columns:
                                    # Numeric coercion
                                    df_candle['time'] = pd.to_numeric(df_candle['time'], errors='coerce')
-
+                                    df_candle = df_candle.dropna(subset=['time'])
+                                    
                                    # UTC datetime
                                    df_candle['datetime'] = pd.to_datetime(df_candle['time'], unit='s', utc=True)
 
                                    # IST offset
                                    df_candle['datetime'] = df_candle['datetime'] + timedelta(hours=5, minutes=30)
-
-                                   # Sort by datetime ascending
-                                   df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
+                                    
+                                  # Drop duplicates, sort
+                                   df_candle = df_candle.drop_duplicates(subset=['datetime'])
+                                   df_candle = df_candle.sort_values(by='datetime').reset_index(drop=True)
 
                                    # Display
                                    cols = ['datetime'] + [c for c in df_candle.columns if c != 'datetime']
@@ -244,4 +246,5 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
