@@ -216,12 +216,6 @@ class ProStocksAPI:
                 continue
 
             df_chunk = pd.DataFrame(resp)
-
-            df_chunk.columns = [
-                'stat', 'time', 'into', 'high', 'low', 'close', 'avg_price',
-                'volume', 'oi', 'total_volume', 'oi_change', 'datetime'
-            ]
-            
             all_chunks.append(df_chunk)
 
             end_dt = start_dt - timedelta(seconds=1)
@@ -234,16 +228,7 @@ class ProStocksAPI:
         df = pd.concat(all_chunks, ignore_index=True)
         if "time" in df.columns:
             df.drop_duplicates(subset=["time"], inplace=True)
-            df.sort_values(by="time", inplace=True)
-
-        df.columns = ["status", "date_str", "token", "open", "high", "low", "close", 
-                      "vwap", "volume", "oi", "oi_chg", "datetime_str"]
-
-        df["datetime"] = pd.to_datetime(df["datetime_str"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
-        df = df.dropna(subset=["datetime"])
-        df = df[["datetime", "open", "high", "low", "close", "volume"]]
-        df.sort_values("datetime", inplace=True)
-
+            df.sort_values(by="time", inplace=True)  
         return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
@@ -305,5 +290,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
 
