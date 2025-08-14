@@ -138,7 +138,17 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
-# === Function: TPSeries fetch in daily chunks (fix for single candle issue) ===
+# === Function: TPSeries fetch in daily chunks (fix for single candle issue + date validation) ===
+def safe_timestamp(dt):
+    from datetime import datetime
+    if isinstance(dt, datetime):
+        if dt.month < 1 or dt.month > 12:
+            raise ValueError(f"Invalid month in datetime: {dt}")
+        if dt.day < 1 or dt.day > 31:
+            raise ValueError(f"Invalid day in datetime: {dt}")
+        return int(dt.timestamp())
+    raise TypeError("Expected datetime object")
+
 def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df = pd.DataFrame()
 
@@ -153,9 +163,14 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
         day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
         day_end = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
 
-        # Convert to epoch seconds (UTC)
-        st_epoch = int((day_start - ist_offset).timestamp())
-        et_epoch = int((day_end - ist_offset).timestamp())
+        try:
+            # Validate and convert to epoch seconds (UTC)
+            st_epoch = safe_timestamp(day_start - ist_offset)
+            et_epoch = safe_timestamp(day_end - ist_offset)
+        except ValueError as ve:
+            print(f"⚠️ Skipping invalid date {current_day}: {ve}")
+            current_day += timedelta(days=1)
+            continue
 
         resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
 
@@ -164,9 +179,6 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
             chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
             chunk_df.set_index("datetime", inplace=True)
             final_df = pd.concat([final_df, chunk_df])
-        else:
-            # Weekend/holiday skip message
-            pass  
 
         current_day += timedelta(days=1)
         time.sleep(0.3)  # Avoid rate limit
@@ -292,3 +304,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
