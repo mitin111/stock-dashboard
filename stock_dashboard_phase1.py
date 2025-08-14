@@ -11,7 +11,6 @@ import json
 import requests
 from urllib.parse import urlencode
 from datetime import timezone
-import plotly.graph_objects as go
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -138,17 +137,7 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
-# === Function: TPSeries fetch in daily chunks (fix for single candle issue + date validation) ===
-def safe_timestamp(dt):
-    from datetime import datetime
-    if isinstance(dt, datetime):
-        if dt.month < 1 or dt.month > 12:
-            raise ValueError(f"Invalid month in datetime: {dt}")
-        if dt.day < 1 or dt.day > 31:
-            raise ValueError(f"Invalid day in datetime: {dt}")
-        return int(dt.timestamp())
-    raise TypeError("Expected datetime object")
-
+# === Function: TPSeries fetch in daily chunks (fix for single candle issue) ===
 def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df = pd.DataFrame()
 
@@ -163,25 +152,20 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
         day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
         day_end = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
 
-        try:
-            st_epoch = int((day_start - ist_offset).timestamp())
-            et_epoch = int((day_end - ist_offset).timestamp())
+        # Convert to epoch seconds (UTC)
+        st_epoch = int((day_start - ist_offset).timestamp())
+        et_epoch = int((day_end - ist_offset).timestamp())
 
-            try:
-                resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
-            except Exception as e:
-                print(f"⚠️ Skipping {token} for {current_day.date()} - API error: {e}")
-                current_day += timedelta(days=1)
-                continue
+        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
 
-            if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
-                chunk_df = pd.DataFrame(resp["values"])
-                chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
-                chunk_df.set_index("datetime", inplace=True)
-                final_df = pd.concat([final_df, chunk_df])
-
-        except Exception as e:
-            print(f"⚠️ Skipping {token} for {current_day.date()} - Conversion error: {e}")
+        if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
+            chunk_df = pd.DataFrame(resp["values"])
+            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
+            chunk_df.set_index("datetime", inplace=True)
+            final_df = pd.concat([final_df, chunk_df])
+        else:
+            # Weekend/holiday skip message
+            pass  
 
         current_day += timedelta(days=1)
         time.sleep(0.3)  # Avoid rate limit
@@ -198,11 +182,9 @@ with tab5:
     else:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
-
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
-
             selected_watchlist = st.selectbox("Select Watchlist", watchlists)
             selected_interval = st.selectbox(
                 "Select Interval",
@@ -230,69 +212,32 @@ with tab5:
                                     chunk_days=5
                                 )
 
-                                if not df_candle.empty:
+                                if not df_candle.empty and 'time' in df_candle.columns:
                                     try:
-                                        if 'time' in df_candle.columns:
-                                            # Try parsing with expected format first
-                                            df_candle['datetime'] = pd.to_datetime(
-                                                df_candle['time'],
-                                                format='%d-%m-%Y %H:%M:%S',
-                                                errors='coerce'
-                                            )
+                                        # Convert string time (DD-MM-YYYY HH:MM:SS) to datetime
+                                        df_candle['datetime'] = pd.to_datetime(
+                                            df_candle['time'],
+                                            format='%d-%m-%Y %H:%M:%S',
+                                            errors='coerce'
+                                        )
 
-                                            # If still NaT, try generic parsing
-                                            if df_candle['datetime'].isna().any():
-                                                df_candle['datetime'] = pd.to_datetime(
-                                                    df_candle['time'],
-                                                    errors='coerce',
-                                                    infer_datetime_format=True
-                                                )
-
-                                        elif 'datetime' in df_candle.columns:
-                                            df_candle['datetime'] = pd.to_datetime(
-                                                df_candle['datetime'],
-                                                errors='coerce',
-                                                infer_datetime_format=True
-                                            )
-
-                                        # Drop invalid and duplicates
+                                        # Drop invalid dates
                                         df_candle = df_candle.dropna(subset=['datetime'])
-                                        df_candle = df_candle.drop_duplicates(subset=['datetime'], keep='last')
-                                        df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
+
+                                        # Remove duplicate timestamps if any
+                                        df_candle = df_candle.drop_duplicates(
+                                            subset=['datetime'], keep='last'
+                                        )
+
+                                        # Sort oldest to newest
+                                        df_candle = df_candle.sort_values(
+                                            by='datetime', ascending=True
+                                        ).reset_index(drop=True)
 
                                     except Exception as e:
                                         st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
 
-                                    # Show data table
                                     st.dataframe(df_candle, use_container_width=True, height=600)
-
-                                    # Show candlestick chart
-                                    import plotly.graph_objects as go
-                                    fig = go.Figure(data=[go.Candlestick(
-                                        x=df_candle["datetime"],
-                                        open=df_candle["open"].astype(float),
-                                        high=df_candle["high"].astype(float),
-                                        low=df_candle["low"].astype(float),
-                                        close=df_candle["close"].astype(float),
-                                        increasing_line_color='green',
-                                        decreasing_line_color='red'
-                                    )])
-                                    fig.update_xaxes(
-                                        rangebreaks=[
-                                            dict(bounds=["sat", "mon"]),  # weekends
-                                            dict(bounds=[16, 9.15], pattern="hour")  # market off-hours
-                                        ]
-                                    )
-                                    fig.update_layout(
-                                        title=f"{tsym} {selected_interval}-min Candlestick Chart",
-                                        yaxis_title="Price",
-                                        xaxis_title="Date / Time",
-                                        xaxis_rangeslider_visible=False,
-                                        template="plotly_white",
-                                        height=600
-                                    )
-                                    st.plotly_chart(fig, use_container_width=True)
-
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
 
@@ -307,5 +252,3 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-
