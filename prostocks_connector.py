@@ -204,59 +204,59 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
-    all_chunks = []
-    end_dt = datetime.now(timezone.utc)
-    start_limit_dt = end_dt - timedelta(days=max_days)
+        all_chunks = []
+        end_dt = datetime.now(timezone.utc)
+        start_limit_dt = end_dt - timedelta(days=max_days)
 
-    while end_dt > start_limit_dt:
-        start_dt = end_dt - timedelta(days=chunk_days)
-        if start_dt < start_limit_dt:
-            start_dt = start_limit_dt
+        while end_dt > start_limit_dt:
+            start_dt = end_dt - timedelta(days=chunk_days)
+            if start_dt < start_limit_dt:
+                start_dt = start_limit_dt
 
-        st = int(start_dt.timestamp())
-        et = int(end_dt.timestamp())
+            st = int(start_dt.timestamp())
+            et = int(end_dt.timestamp())
 
-        print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-        resp = self.get_tpseries(exch, token, interval, st, et)
+            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
+            resp = self.get_tpseries(exch, token, interval, st, et)
 
-        if isinstance(resp, dict):
-            emsg = resp.get("emsg") or resp.get("stat")
-            print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
+            if isinstance(resp, dict):
+                emsg = resp.get("emsg") or resp.get("stat")
+                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            if not isinstance(resp, list) or len(resp) == 0:
+                print("⚠️ Empty chunk (no candles). Moving back…")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            df_chunk = pd.DataFrame(resp)
+
+            # Convert numeric columns
+            numeric_cols = ["ssboe", "into", "inth", "inti", "intc", "intvwap", "intv", "intol", "v", "oi"]
+            for col in numeric_cols:
+                if col in df_chunk.columns:
+                    df_chunk[col] = pd.to_numeric(df_chunk[col], errors="coerce")
+
+            # Convert timestamp to datetime
+            if "time" in df_chunk.columns:
+                df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], unit="s")
+
+            all_chunks.append(df_chunk)
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
-            continue
 
-        if not isinstance(resp, list) or len(resp) == 0:
-            print("⚠️ Empty chunk (no candles). Moving back…")
-            end_dt = start_dt - timedelta(seconds=1)
-            time.sleep(0.25)
-            continue
+        if not all_chunks:
+            return pd.DataFrame()
 
-        df_chunk = pd.DataFrame(resp)
+        df = pd.concat(all_chunks, ignore_index=True)
+        if "time" in df.columns:
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)
 
-        # Convert numeric columns
-        numeric_cols = ["ssboe", "into", "inth", "inti", "intc", "intvwap", "intv", "intol", "v", "oi"]
-        for col in numeric_cols:
-            if col in df_chunk.columns:
-                df_chunk[col] = pd.to_numeric(df_chunk[col], errors="coerce")
-
-        # Convert timestamp to datetime
-        if "time" in df_chunk.columns:
-            df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], unit="s")
-
-        all_chunks.append(df_chunk)
-        end_dt = start_dt - timedelta(seconds=1)
-        time.sleep(0.25)
-
-    if not all_chunks:
-        return pd.DataFrame()
-
-    df = pd.concat(all_chunks, ignore_index=True)
-    if "time" in df.columns:
-        df.drop_duplicates(subset=["time"], inplace=True)
-        df.sort_values(by="time", inplace=True)
-
-    return df.reset_index(drop=True)
+        return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -298,26 +298,22 @@ class ProStocksAPI:
 
         return results
 
+    def _post_json(self, url, payload):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
 
-def _post_json(self, url, payload):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-    try:
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}&jKey={self.session_token}"
-        print("✅ POST URL:", url)
-        print("📦 Sent Payload:", jdata)
-
-        response = self.session.post(
-            url,
-            data=raw_data,
-            headers={"Content-Type": "text/plain"},
-            timeout=10
-        )
-        print("📨 Response:", response.text)
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=10
+            )
+            print("📨 Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
