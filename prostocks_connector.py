@@ -239,7 +239,8 @@ class ProStocksAPI:
         df.columns = ["status", "date_str", "token", "open", "high", "low", "close", 
                       "vwap", "volume", "oi", "oi_chg", "datetime_str"]
 
-        df["datetime"] = pd.to_datetime(df["datetime_str"])
+        df["datetime"] = pd.to_datetime(df["datetime_str"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
+        df = df.dropna(subset=["datetime"])
         df = df[["datetime", "open", "high", "low", "close", "volume"]]
         df.sort_values("datetime", inplace=True)
 
@@ -304,4 +305,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
