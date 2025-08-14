@@ -44,7 +44,6 @@ class ProStocksAPI:
     def sha256(self, text):
         return hashlib.sha256(text.encode()).hexdigest()
 
-    # === Authentication ===
     def send_otp(self):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
@@ -110,27 +109,6 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-    # === Internal POST Helper ===
-    def _post_json(self, url, payload):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
-
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=10
-            )
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
-
     # === Watchlist APIs ===
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
@@ -165,7 +143,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-       # === TPSeries APIs ===
+    # === TPSeries API ===
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
@@ -178,6 +156,7 @@ class ProStocksAPI:
             et = int(et_dt.timestamp())
 
         url = f"{self.base_url}/TPSeries"
+
         payload = {
             "uid": self.userid,
             "exch": exch,
@@ -205,8 +184,8 @@ class ProStocksAPI:
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
         """
-        Fetch TPSeries in chunks and return as a DataFrame with all columns:
-        stat, time, ssboe, into, inth, intl, intc, intvwap, intv, intol, v, oi, datetime
+        Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
+        Always uses UTC timestamps to match ProStocks server time.
         """
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
@@ -223,7 +202,6 @@ class ProStocksAPI:
             print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exch, token, interval, st, et)
 
-            # Handle errors returned as dict
             if isinstance(resp, dict):
                 emsg = resp.get("emsg") or resp.get("stat")
                 print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
@@ -231,46 +209,26 @@ class ProStocksAPI:
                 time.sleep(0.25)
                 continue
 
-            # Handle empty list
             if not isinstance(resp, list) or len(resp) == 0:
                 print("⚠️ Empty chunk (no candles). Moving back…")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
-            # Convert chunk to DataFrame
             df_chunk = pd.DataFrame(resp)
-
-            # Ensure numeric columns are numeric
-            numeric_cols = ["into", "inth", "intl", "intc", "v", "intv", "intoi", "intol", "oi"]
-            for col in numeric_cols:
-                if col in df_chunk.columns:
-                    df_chunk[col] = pd.to_numeric(df_chunk[col], errors="coerce")
-
-            # Convert timestamp to datetime
-            if "time" in df_chunk.columns:
-                df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
-
-            # Keep all original columns plus datetime
-            expected_cols = ["stat", "time", "ssboe", "into", "inth", "intl", "intc", "intvwap",
-                             "intv", "intol", "v", "oi", "datetime"]
-            for col in expected_cols:
-                if col not in df_chunk.columns:
-                    df_chunk[col] = None  # add missing columns if any
-
-            df_chunk = df_chunk[expected_cols]
-
             all_chunks.append(df_chunk)
+
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
-        # Combine all chunks
         if not all_chunks:
-            return pd.DataFrame(columns=expected_cols)
+            return pd.DataFrame()  # empty DF instead of None
+
 
         df = pd.concat(all_chunks, ignore_index=True)
-        df.drop_duplicates(subset=["datetime"], inplace=True)
-        df.sort_values(by="datetime", inplace=True)
+        if "time" in df.columns:
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)  
         return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
@@ -313,26 +271,22 @@ class ProStocksAPI:
 
         return results
 
+    def _post_json(self, url, payload):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
 
-def _post_json(self, url, payload):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-    try:
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}&jKey={self.session_token}"
-        print("✅ POST URL:", url)
-        print("📦 Sent Payload:", jdata)
-
-        response = self.session.post(
-            url,
-            data=raw_data,
-            headers={"Content-Type": "text/plain"},
-            timeout=10
-        )
-        print("📨 Response:", response.text)
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=10
+            )
+            print("📨 Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
