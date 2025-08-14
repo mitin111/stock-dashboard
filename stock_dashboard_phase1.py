@@ -183,9 +183,11 @@ with tab5:
     else:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
+
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
+
             selected_watchlist = st.selectbox("Select Watchlist", watchlists)
             selected_interval = st.selectbox(
                 "Select Interval",
@@ -213,32 +215,40 @@ with tab5:
                                     chunk_days=5
                                 )
 
-                                if not df_candle.empty and 'time' in df_candle.columns:
+                                if not df_candle.empty:
                                     try:
-                                        # Convert string time (DD-MM-YYYY HH:MM:SS) to datetime
-                                        df_candle['datetime'] = pd.to_datetime(
-                                            df_candle['time'],
-                                            format='%d-%m-%Y %H:%M:%S',
-                                            errors='coerce'
-                                        )
+                                        if 'time' in df_candle.columns:
+                                            # Try parsing with expected format first
+                                            df_candle['datetime'] = pd.to_datetime(
+                                                df_candle['time'],
+                                                format='%d-%m-%Y %H:%M:%S',
+                                                errors='coerce'
+                                            )
 
-                                        # Drop invalid dates
+                                            # If still NaT, try generic parsing
+                                            if df_candle['datetime'].isna().any():
+                                                df_candle['datetime'] = pd.to_datetime(
+                                                    df_candle['time'],
+                                                    errors='coerce',
+                                                    infer_datetime_format=True
+                                                )
+
+                                        elif 'datetime' in df_candle.columns:
+                                            df_candle['datetime'] = pd.to_datetime(
+                                                df_candle['datetime'],
+                                                errors='coerce',
+                                                infer_datetime_format=True
+                                            )
+
+                                        # Drop invalid and duplicates
                                         df_candle = df_candle.dropna(subset=['datetime'])
-
-                                        # Remove duplicate timestamps if any
-                                        df_candle = df_candle.drop_duplicates(
-                                            subset=['datetime'], keep='last'
-                                        )
-
-                                        # Sort oldest to newest
-                                        df_candle = df_candle.sort_values(
-                                            by='datetime', ascending=True
-                                        ).reset_index(drop=True)
+                                        df_candle = df_candle.drop_duplicates(subset=['datetime'], keep='last')
+                                        df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
 
                                     except Exception as e:
                                         st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
 
-                                    # Show table
+                                    # Show data table
                                     st.dataframe(df_candle, use_container_width=True, height=600)
 
                                     # Show candlestick chart
@@ -252,24 +262,22 @@ with tab5:
                                         increasing_line_color='green',
                                         decreasing_line_color='red'
                                     )])
-                                    # Range breaks: weekends + non-market hours हटाना
                                     fig.update_xaxes(
-                                    rangebreaks=[
-                                    dict(bounds=["sat", "mon"]),            # weekends हटाना
-                                    dict(bounds=[16, 9.15], pattern="hour") # market बंद होने के घंटे हटाना
-                                       ]
+                                        rangebreaks=[
+                                            dict(bounds=["sat", "mon"]),  # weekends
+                                            dict(bounds=[16, 9.15], pattern="hour")  # market off-hours
+                                        ]
                                     )
-
                                     fig.update_layout(
-                                    title=f"{tsym} {selected_interval}-min Candlestick Chart",
-                                    yaxis_title="Price",
-                                    xaxis_title="Date / Time",
-                                    xaxis_rangeslider_visible=False,
-                                    template="plotly_white",  # light theme
-                                    height=600
+                                        title=f"{tsym} {selected_interval}-min Candlestick Chart",
+                                        yaxis_title="Price",
+                                        xaxis_title="Date / Time",
+                                        xaxis_rangeslider_visible=False,
+                                        template="plotly_white",
+                                        height=600
                                     )
-
                                     st.plotly_chart(fig, use_container_width=True)
+
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
 
@@ -284,4 +292,3 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
