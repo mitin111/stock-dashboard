@@ -242,7 +242,7 @@ class ProStocksAPI:
 
             # Convert timestamp to datetime
             if "time" in df_chunk.columns:
-                df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], unit="s")
+                df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
 
             all_chunks.append(df_chunk)
             end_dt = start_dt - timedelta(seconds=1)
@@ -317,3 +317,4 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
