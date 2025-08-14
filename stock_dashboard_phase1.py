@@ -213,18 +213,32 @@ with tab5:
                                 )
 
                                 if not df_candle.empty:
-                                    # Ensure datetime column exists
-                                    if "datetime" in df_candle.columns:
-                                        df_candle["datetime"] = pd.to_datetime(df_candle["datetime"])
+                                    # ✅ Date format fix for TPSeries
+                                    datetime_col = None
+                                    for col in ["datetime", "time", "date"]:
+                                        if col in df_candle.columns:
+                                            datetime_col = col
+                                            break
+
+                                    if datetime_col:
+                                        df_candle[datetime_col] = pd.to_datetime(
+                                            df_candle[datetime_col],
+                                            format="%d-%m-%Y %H:%M:%S",
+                                            errors="coerce",
+                                            dayfirst=True
+                                        )
+                                        df_candle = df_candle.dropna(subset=[datetime_col])
+                                        df_candle = df_candle.sort_values(datetime_col)
                                     else:
                                         st.warning(f"⚠️ Missing datetime column for {tsym}")
                                         continue
 
-                                    # === Plotly TradingView-style chart ===
+                                    # === TradingView-style chart ===
                                     fig = go.Figure()
 
+                                    # Price Candles
                                     fig.add_trace(go.Candlestick(
-                                        x=df_candle["datetime"],
+                                        x=df_candle[datetime_col],
                                         open=df_candle["open"],
                                         high=df_candle["high"],
                                         low=df_candle["low"],
@@ -234,18 +248,19 @@ with tab5:
                                         decreasing_line_color="#ef5350"
                                     ))
 
+                                    # Volume bars
                                     fig.add_trace(go.Bar(
-                                        x=df_candle["datetime"],
+                                        x=df_candle[datetime_col],
                                         y=df_candle["volume"],
                                         name="Volume",
-                                        marker_color="rgba(128, 128, 128, 0.5)",
+                                        marker_color="rgba(128, 128, 128, 0.4)",
                                         yaxis="y2"
                                     ))
 
+                                    # Layout like TradingView
                                     fig.update_layout(
-                                        title=f"{tsym} - TradingView-like Candlestick Chart",
+                                        title=f"{tsym} - TradingView-style Chart",
                                         xaxis_rangeslider_visible=False,
-                                        xaxis=dict(showgrid=True),
                                         yaxis=dict(title="Price"),
                                         yaxis2=dict(
                                             title="Volume",
@@ -260,7 +275,7 @@ with tab5:
 
                                     st.plotly_chart(fig, use_container_width=True)
 
-                                    # Also show table
+                                    # Show table below chart
                                     st.dataframe(df_candle, use_container_width=True, height=600)
 
                                 else:
