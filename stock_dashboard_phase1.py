@@ -245,7 +245,7 @@ with tab5:
                                     import plotly.graph_objects as go
                                     fig = go.Figure(data=[go.Candlestick(
                                         x=df_candle['datetime'],
-                                        open=df_candle['into'].astype(float),
+                                        open=df_candle['into'].astype(float) if 'into' in df_candle.columns else df_candle['open'].astype(float),
                                         high=df_candle['high'].astype(float),
                                         low=df_candle['low'].astype(float),
                                         close=df_candle['close'].astype(float),
