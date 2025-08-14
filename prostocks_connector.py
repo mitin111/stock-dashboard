@@ -7,6 +7,8 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
+import streamlit as st
+import plotly.graph_objects as go
 
 load_dotenv()
 
@@ -303,4 +305,5 @@ class ProStocksAPI:
                 break
 
         return results
+
 
