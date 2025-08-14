@@ -166,13 +166,27 @@ class ProStocksAPI:
             "intrv": str(interval)
         }
 
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
+        print(f"  INTRV  : {payload['intrv']}")
+
         try:
             response = self._post_json(url, payload)
+            print("📨 TPSeries Response:", response)
             return response
         except Exception as e:
+            print("❌ Exception in get_tpseries():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+        """
+        Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
+        Always uses UTC timestamps to match ProStocks server time.
+        """
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
         start_limit_dt = end_dt - timedelta(days=max_days)
@@ -185,44 +199,42 @@ class ProStocksAPI:
             st = int(start_dt.timestamp())
             et = int(end_dt.timestamp())
 
+            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exch, token, interval, st, et)
 
             if isinstance(resp, dict):
+                emsg = resp.get("emsg") or resp.get("stat")
+                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
             if not isinstance(resp, list) or len(resp) == 0:
+                print("⚠️ Empty chunk (no candles). Moving back…")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
             df_chunk = pd.DataFrame(resp)
-            expected_cols = ['stat','time','into','high','low','close','avg_price',
-                             'volume','oi','total_volume','oi_change']
-            for col in expected_cols:
-                if col not in df_chunk.columns:
-                    df_chunk[col] = None
 
-            df_chunk = df_chunk[expected_cols]
-            df_chunk['datetime'] = pd.to_datetime(df_chunk['time'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
-            df_chunk = df_chunk.dropna(subset=['datetime'])
-
-            for col in ['into','high','low','close','volume','oi','avg_price']:
-                df_chunk[col] = pd.to_numeric(df_chunk[col], errors='coerce')
-
-            df_chunk = df_chunk.sort_values('datetime').reset_index(drop=True)
+            df_chunk.columns = [
+                'stat', 'time', 'into', 'high', 'low', 'close', 'avg_price',
+                'volume', 'oi', 'total_volume', 'oi_change', 'datetime'
+            ]
+            
             all_chunks.append(df_chunk)
 
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
         if not all_chunks:
-            return pd.DataFrame()
+            return pd.DataFrame()  # empty DF instead of None
+
 
         df = pd.concat(all_chunks, ignore_index=True)
-        df.drop_duplicates(subset=["datetime"], inplace=True)
-        df.sort_values(by="datetime", inplace=True)
+        if "time" in df.columns:
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)  
         return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
@@ -232,6 +244,7 @@ class ProStocksAPI:
 
         symbols = self.get_watchlist(wlname)
         if not symbols or "values" not in symbols:
+            print("❌ No symbols found in watchlist.")
             return []
 
         for idx, sym in enumerate(symbols["values"]):
@@ -239,26 +252,39 @@ class ProStocksAPI:
             token = str(sym.get("token", "")).strip()
             symbol = sym.get("tsym", "").strip()
 
-            if not token.isdigit() or exch != "NSE":
+            if not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid token")
+                continue
+            if exch != "NSE":
+                print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
                 continue
 
-            df = self.fetch_full_tpseries(exch, token, interval)
-            if df is not None and not df.empty:
-                results.append({"symbol": symbol, "data": df})
+            try:
+                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
+                df = self.fetch_full_tpseries(exch, token, interval)
+                if df is not None:
+                    print(f"✅ {symbol}: {len(df)} candles fetched.")
+                    results.append({"symbol": symbol, "data": df})
+                else:
+                    print(f"⚠️ {symbol}: No data fetched.")
+            except Exception as e:
+                print(f"❌ {symbol}: Exception: {e}")
 
             call_count += 1
             if call_count >= MAX_CALLS_PER_MIN:
+                print("⚠️ TPSeries limit reached. Skipping remaining.")
                 break
 
         return results
 
-    # === Core POST helper ===
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
 
             response = self.session.post(
                 url,
@@ -266,6 +292,7 @@ class ProStocksAPI:
                 headers={"Content-Type": "text/plain"},
                 timeout=10
             )
+            print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
