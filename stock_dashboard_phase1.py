@@ -212,31 +212,7 @@ with tab5:
                                     chunk_days=5
                                 )
 
-                                if not df_candle.empty and 'time' in df_candle.columns:
-                                    try:
-                                        # Convert string time (DD-MM-YYYY HH:MM:SS) to datetime
-                                        df_candle['datetime'] = pd.to_datetime(
-                                            df_candle['time'],
-                                            format='%d-%m-%Y %H:%M:%S',
-                                            errors='coerce'
-                                        )
-
-                                        # Drop invalid dates
-                                        df_candle = df_candle.dropna(subset=['datetime'])
-
-                                        # Remove duplicate timestamps if any
-                                        df_candle = df_candle.drop_duplicates(
-                                            subset=['datetime'], keep='last'
-                                        )
-
-                                        # Sort oldest to newest
-                                        df_candle = df_candle.sort_values(
-                                            by='datetime', ascending=True
-                                        ).reset_index(drop=True)
-
-                                    except Exception as e:
-                                        st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
-
+                                if not df_candle.empty:
                                     st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
