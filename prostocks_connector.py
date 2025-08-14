@@ -304,23 +304,3 @@ class ProStocksAPI:
 
         return results
 
-def _post_json(self, url, payload):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-    try:
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}&jKey={self.session_token}"
-        print("✅ POST URL:", url)
-        print("📦 Sent Payload:", jdata)
-
-        response = self.session.post(
-            url,
-            data=raw_data,
-            headers={"Content-Type": "text/plain"},
-            timeout=10
-        )
-        print("📨 Response:", response.text)
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {"stat": "Not_Ok", "emsg": str(e)}
-
