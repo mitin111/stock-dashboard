@@ -244,24 +244,32 @@ with tab5:
                                     # Show candlestick chart
                                     import plotly.graph_objects as go
                                     fig = go.Figure(data=[go.Candlestick(
-                                        x=df_candle['datetime'],
-                                        open=df_candle['into'].astype(float) if 'into' in df_candle.columns else df_candle['open'].astype(float),
-                                        high=df_candle['high'].astype(float),
-                                        low=df_candle['low'].astype(float),
-                                        close=df_candle['close'].astype(float),
+                                        x=df_candle["datetime"],
+                                        open=df_candle["open"].astype(float),
+                                        high=df_candle["high"].astype(float),
+                                        low=df_candle["low"].astype(float),
+                                        close=df_candle["close"].astype(float),
                                         increasing_line_color='green',
                                         decreasing_line_color='red'
                                     )])
-                                    fig.update_layout(
-                                        title=f"{tsym} - {selected_interval} min Candlestick Chart",
-                                        xaxis_title="Date / Time",
-                                        yaxis_title="Price",
-                                        xaxis_rangeslider_visible=False,
-                                        template="plotly_dark",
-                                        height=600
+                                    # Range breaks: weekends + non-market hours हटाना
+                                    fig.update_xaxes(
+                                    rangebreaks=[
+                                    dict(bounds=["sat", "mon"]),            # weekends हटाना
+                                    dict(bounds=[16, 9.15], pattern="hour") # market बंद होने के घंटे हटाना
+                                       ]
                                     )
-                                    st.plotly_chart(fig, use_container_width=True)
 
+                                    fig.update_layout(
+                                    title=f"{tsym} {selected_interval}-min Candlestick Chart",
+                                    yaxis_title="Price",
+                                    xaxis_title="Date / Time",
+                                    xaxis_rangeslider_visible=False,
+                                    template="plotly_white",  # light theme
+                                    height=600
+                                    )
+
+                                    st.plotly_chart(fig, use_container_width=True)
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
 
@@ -276,3 +284,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
