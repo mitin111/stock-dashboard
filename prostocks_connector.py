@@ -165,7 +165,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # === TPSeries APIs ===
+       # === TPSeries APIs ===
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
@@ -204,75 +204,74 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
-    """
-    Fetch TPSeries in chunks and return as a DataFrame with all columns:
-    stat, time, ssboe, into, inth, intl, intc, intvwap, intv, intol, v, oi, datetime
-    """
-    all_chunks = []
-    end_dt = datetime.now(timezone.utc)
-    start_limit_dt = end_dt - timedelta(days=max_days)
+        """
+        Fetch TPSeries in chunks and return as a DataFrame with all columns:
+        stat, time, ssboe, into, inth, intl, intc, intvwap, intv, intol, v, oi, datetime
+        """
+        all_chunks = []
+        end_dt = datetime.now(timezone.utc)
+        start_limit_dt = end_dt - timedelta(days=max_days)
 
-    while end_dt > start_limit_dt:
-        start_dt = end_dt - timedelta(days=chunk_days)
-        if start_dt < start_limit_dt:
-            start_dt = start_limit_dt
+        while end_dt > start_limit_dt:
+            start_dt = end_dt - timedelta(days=chunk_days)
+            if start_dt < start_limit_dt:
+                start_dt = start_limit_dt
 
-        st = int(start_dt.timestamp())
-        et = int(end_dt.timestamp())
+            st = int(start_dt.timestamp())
+            et = int(end_dt.timestamp())
 
-        print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-        resp = self.get_tpseries(exch, token, interval, st, et)
+            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
+            resp = self.get_tpseries(exch, token, interval, st, et)
 
-        # Handle errors returned as dict
-        if isinstance(resp, dict):
-            emsg = resp.get("emsg") or resp.get("stat")
-            print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
+            # Handle errors returned as dict
+            if isinstance(resp, dict):
+                emsg = resp.get("emsg") or resp.get("stat")
+                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            # Handle empty list
+            if not isinstance(resp, list) or len(resp) == 0:
+                print("⚠️ Empty chunk (no candles). Moving back…")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            # Convert chunk to DataFrame
+            df_chunk = pd.DataFrame(resp)
+
+            # Ensure numeric columns are numeric
+            numeric_cols = ["into", "inth", "intl", "intc", "v", "intv", "intoi", "intol", "oi"]
+            for col in numeric_cols:
+                if col in df_chunk.columns:
+                    df_chunk[col] = pd.to_numeric(df_chunk[col], errors="coerce")
+
+            # Convert timestamp to datetime
+            if "time" in df_chunk.columns:
+                df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
+
+            # Keep all original columns plus datetime
+            expected_cols = ["stat", "time", "ssboe", "into", "inth", "intl", "intc", "intvwap",
+                             "intv", "intol", "v", "oi", "datetime"]
+            for col in expected_cols:
+                if col not in df_chunk.columns:
+                    df_chunk[col] = None  # add missing columns if any
+
+            df_chunk = df_chunk[expected_cols]
+
+            all_chunks.append(df_chunk)
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
-            continue
 
-        # Handle empty list
-        if not isinstance(resp, list) or len(resp) == 0:
-            print("⚠️ Empty chunk (no candles). Moving back…")
-            end_dt = start_dt - timedelta(seconds=1)
-            time.sleep(0.25)
-            continue
+        # Combine all chunks
+        if not all_chunks:
+            return pd.DataFrame(columns=expected_cols)
 
-        # Convert chunk to DataFrame
-        df_chunk = pd.DataFrame(resp)
-
-        # Ensure numeric columns are numeric
-        numeric_cols = ["into", "inth", "intl", "intc", "v", "intv", "intoi", "intol", "oi"]
-        for col in numeric_cols:
-            if col in df_chunk.columns:
-                df_chunk[col] = pd.to_numeric(df_chunk[col], errors="coerce")
-
-        # Convert timestamp to datetime
-        if "time" in df_chunk.columns:
-            df_chunk["datetime"] = pd.to_datetime(df_chunk["time"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
-
-        # Keep all original columns plus datetime
-        expected_cols = ["stat","time","ssboe","into","inth","intl","intc","intvwap",
-                         "intv","intol","v","oi","datetime"]
-        for col in expected_cols:
-            if col not in df_chunk.columns:
-                df_chunk[col] = None  # add missing columns if any
-
-        df_chunk = df_chunk[expected_cols]
-
-        all_chunks.append(df_chunk)
-        end_dt = start_dt - timedelta(seconds=1)
-        time.sleep(0.25)
-
-    # Combine all chunks
-    if not all_chunks:
-        # Return empty DataFrame with all columns if nothing fetched
-        return pd.DataFrame(columns=expected_cols)
-
-    df = pd.concat(all_chunks, ignore_index=True)
-    df.drop_duplicates(subset=["datetime"], inplace=True)
-    df.sort_values(by="datetime", inplace=True)
-    return df.reset_index(drop=True)
+        df = pd.concat(all_chunks, ignore_index=True)
+        df.drop_duplicates(subset=["datetime"], inplace=True)
+        df.sort_values(by="datetime", inplace=True)
+        return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -334,5 +333,6 @@ def _post_json(self, url, payload):
         return response.json()
     except requests.exceptions.RequestException as e:
         return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
