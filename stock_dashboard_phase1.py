@@ -164,21 +164,24 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
         day_end = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
 
         try:
-            # Validate and convert to epoch seconds (UTC)
-            st_epoch = safe_timestamp(day_start - ist_offset)
-            et_epoch = safe_timestamp(day_end - ist_offset)
-        except ValueError as ve:
-            print(f"⚠️ Skipping invalid date {current_day}: {ve}")
-            current_day += timedelta(days=1)
-            continue
+            st_epoch = int((day_start - ist_offset).timestamp())
+            et_epoch = int((day_end - ist_offset).timestamp())
 
-        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
+            try:
+                resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
+            except Exception as e:
+                print(f"⚠️ Skipping {token} for {current_day.date()} - API error: {e}")
+                current_day += timedelta(days=1)
+                continue
 
-        if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
-            chunk_df = pd.DataFrame(resp["values"])
-            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
-            chunk_df.set_index("datetime", inplace=True)
-            final_df = pd.concat([final_df, chunk_df])
+            if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
+                chunk_df = pd.DataFrame(resp["values"])
+                chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
+                chunk_df.set_index("datetime", inplace=True)
+                final_df = pd.concat([final_df, chunk_df])
+
+        except Exception as e:
+            print(f"⚠️ Skipping {token} for {current_day.date()} - Conversion error: {e}")
 
         current_day += timedelta(days=1)
         time.sleep(0.3)  # Avoid rate limit
@@ -304,4 +307,5 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
