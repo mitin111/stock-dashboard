@@ -182,7 +182,7 @@ class ProStocksAPI:
             print("❌ Exception in get_tpseries():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-    def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+   def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
     """
     Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
     Always uses UTC timestamps to match ProStocks server time.
@@ -291,5 +291,6 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 
