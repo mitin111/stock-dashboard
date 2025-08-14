@@ -166,7 +166,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-   # === TPSeries API ===
+  # === TPSeries API ===
 def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     if not self.session_token:
         return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
@@ -198,7 +198,6 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
 
     try:
         response = self._post_json(url, payload)
-        print("📨 TPSeries Response:", type(response), len(response) if isinstance(response, list) else response)
         return response
     except Exception as e:
         print("❌ Exception in get_tpseries():", e)
@@ -206,6 +205,10 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
 
 
 def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+    """
+    Fetch TPSeries data in multiple chunks and merge into a single DataFrame.
+    Useful for building TradingView-style charts.
+    """
     all_chunks = []
     end_dt = datetime.now(timezone.utc)
     start_limit_dt = end_dt - timedelta(days=max_days)
@@ -222,8 +225,7 @@ def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=
         resp = self.get_tpseries(exch, token, interval, st, et)
 
         if isinstance(resp, dict):  # API error
-            emsg = resp.get("emsg") or resp.get("stat")
-            print(f"⚠️ TPSeries chunk returned dict: {emsg}")
+            print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
             continue
@@ -245,16 +247,14 @@ def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=
 
     df = pd.concat(all_chunks, ignore_index=True)
 
-    # Deduplicate & sort
+    # Deduplicate & sort by time column if present
     if "time" in df.columns:
         df.drop_duplicates(subset=["time"], inplace=True)
         df.sort_values(by="time", inplace=True)
 
-    # Rename columns for candle chart
+    # Rename columns for easier chart plotting
     rename_map = {
-        "stat": "status",
         "time": "datetime",
-        "ssboe": "start_time_bo_exchange",
         "into": "open",
         "inth": "high",
         "inti": "low",
@@ -262,16 +262,14 @@ def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=
         "intvwap": "vwap",
         "intv": "volume",
         "intol": "open_interest_lot",
-        "v": "volume_flag",
         "oi": "open_interest"
     }
     df.rename(columns=rename_map, inplace=True)
 
-    # ✅ FIX: Convert datetime safely
+    # ✅ Safe datetime parsing (handles dayfirst)
     if "datetime" in df.columns:
         df["datetime"] = pd.to_datetime(
             df["datetime"],
-            format="%d-%m-%Y %H:%M:%S",
             errors="coerce",
             dayfirst=True
         )
@@ -307,7 +305,7 @@ def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         try:
             print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
             df = self.fetch_full_tpseries(exch, token, interval)
-            if df is not None and not df.empty:
+            if not df.empty:
                 print(f"✅ {symbol}: {len(df)} candles fetched.")
                 results.append({"symbol": symbol, "data": df})
             else:
