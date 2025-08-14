@@ -1,4 +1,5 @@
 
+# prostocks_connector.py
 import requests
 import hashlib
 import json
@@ -7,8 +8,6 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
-import streamlit as st
-import plotly.graph_objects as go
 
 load_dotenv()
 
@@ -43,9 +42,11 @@ class ProStocksAPI:
             "imei": self.imei
         }
 
-    def sha256(self, text):
+    # ---------------- Utils ----------------
+    def sha256(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
+    # ---------------- Auth ----------------
     def send_otp(self):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
@@ -111,7 +112,7 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
-    # === Internal helper ===
+    # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -125,14 +126,14 @@ class ProStocksAPI:
                 url,
                 data=raw_data,
                 headers={"Content-Type": "text/plain"},
-                timeout=10
+                timeout=15
             )
             print("📨 Response:", response.text)
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-    # === Watchlist APIs ===
+    # ------------- Watchlists -------------
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
@@ -166,156 +167,164 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-  # === TPSeries API ===
-def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+    # ------------- TPSeries -------------
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        """
+        Returns raw TPSeries from API.
+        For success, the API typically returns a list; on error it returns a dict with 'stat'/'emsg'.
+        'st' and 'et' must be epoch seconds (UTC).
+        """
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-    if st is None or et is None:
-        days_back = 60
-        et_dt = datetime.now(timezone.utc)
-        st_dt = et_dt - timedelta(days=days_back)
-        st = int(st_dt.timestamp())
-        et = int(et_dt.timestamp())
+        # Default window (last 60 days) if not provided
+        if st is None or et is None:
+            days_back = 60
+            et_dt = datetime.now(timezone.utc)
+            st_dt = et_dt - timedelta(days=days_back)
+            st = int(st_dt.timestamp())
+            et = int(et_dt.timestamp())
 
-    url = f"{self.base_url}/TPSeries"
-    payload = {
-        "uid": self.userid,
-        "exch": exch,
-        "token": str(token),
-        "st": str(st),
-        "et": str(et),
-        "intrv": str(interval)
-    }
+        url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exch,
+            "token": str(token),
+            "st": str(st),
+            "et": str(et),
+            "intrv": str(interval)
+        }
 
-    print("📤 Sending TPSeries Payload:")
-    print(f"  UID    : {payload['uid']}")
-    print(f"  EXCH   : {payload['exch']}")
-    print(f"  TOKEN  : {payload['token']}")
-    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} UTC")
-    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))} UTC")
-    print(f"  INTRV  : {payload['intrv']}")
-
-    try:
-        response = self._post_json(url, payload)
-        return response
-    except Exception as e:
-        print("❌ Exception in get_tpseries():", e)
-        return {"stat": "Not_Ok", "emsg": str(e)}
-
-
-def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
-    """
-    Fetch TPSeries data in multiple chunks and merge into a single DataFrame.
-    Useful for building TradingView-style charts.
-    """
-    all_chunks = []
-    end_dt = datetime.now(timezone.utc)
-    start_limit_dt = end_dt - timedelta(days=max_days)
-
-    while end_dt > start_limit_dt:
-        start_dt = end_dt - timedelta(days=chunk_days)
-        if start_dt < start_limit_dt:
-            start_dt = start_limit_dt
-
-        st = int(start_dt.timestamp())
-        et = int(end_dt.timestamp())
-
-        print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-        resp = self.get_tpseries(exch, token, interval, st, et)
-
-        if isinstance(resp, dict):  # API error
-            print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
-            end_dt = start_dt - timedelta(seconds=1)
-            time.sleep(0.25)
-            continue
-
-        if not isinstance(resp, list) or len(resp) == 0:  # Empty data
-            print("⚠️ Empty chunk. Moving back…")
-            end_dt = start_dt - timedelta(seconds=1)
-            time.sleep(0.25)
-            continue
-
-        df_chunk = pd.DataFrame(resp)
-        all_chunks.append(df_chunk)
-
-        end_dt = start_dt - timedelta(seconds=1)
-        time.sleep(0.25)
-
-    if not all_chunks:
-        return pd.DataFrame()
-
-    df = pd.concat(all_chunks, ignore_index=True)
-
-    # Deduplicate & sort by time column if present
-    if "time" in df.columns:
-        df.drop_duplicates(subset=["time"], inplace=True)
-        df.sort_values(by="time", inplace=True)
-
-    # Rename columns for easier chart plotting
-    rename_map = {
-        "time": "datetime",
-        "into": "open",
-        "inth": "high",
-        "inti": "low",
-        "intc": "close",
-        "intvwap": "vwap",
-        "intv": "volume",
-        "intol": "open_interest_lot",
-        "oi": "open_interest"
-    }
-    df.rename(columns=rename_map, inplace=True)
-
-    # ✅ Safe datetime parsing (handles dayfirst)
-    if "datetime" in df.columns:
-        df["datetime"] = pd.to_datetime(
-            df["datetime"],
-            errors="coerce",
-            dayfirst=True
-        )
-        df = df.dropna(subset=["datetime"])
-
-    # Final sort & reset
-    df.sort_values("datetime", inplace=True)
-    return df.reset_index(drop=True)
-
-
-def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
-    results = []
-    MAX_CALLS_PER_MIN = 20
-    call_count = 0
-
-    symbols = self.get_watchlist(wlname)
-    if not symbols or "values" not in symbols:
-        print("❌ No symbols found in watchlist.")
-        return []
-
-    for idx, sym in enumerate(symbols["values"]):
-        exch = sym.get("exch", "").strip()
-        token = str(sym.get("token", "")).strip()
-        symbol = sym.get("tsym", "").strip()
-
-        if not token.isdigit():
-            print(f"⚠️ Skipping {symbol}: Invalid token")
-            continue
-        if exch != "NSE":
-            print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
-            continue
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(st)))} UTC")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(et)))} UTC")
+        print(f"  INTRV  : {payload['intrv']}")
 
         try:
-            print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
-            df = self.fetch_full_tpseries(exch, token, interval)
-            if not df.empty:
-                print(f"✅ {symbol}: {len(df)} candles fetched.")
-                results.append({"symbol": symbol, "data": df})
-            else:
-                print(f"⚠️ {symbol}: No data fetched.")
+            response = self._post_json(url, payload)
+            return response
         except Exception as e:
-            print(f"❌ {symbol}: Exception: {e}")
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
-        call_count += 1
-        if call_count >= MAX_CALLS_PER_MIN:
-            print("⚠️ TPSeries limit reached. Skipping remaining.")
-            break
+    def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+        """
+        Chunked fetch of TPSeries over 'max_days' lookback combining results into a clean DataFrame
+        ready for candlestick charting (open, high, low, close, volume, datetime).
+        """
+        all_chunks = []
+        end_dt = datetime.now(timezone.utc)
+        start_limit_dt = end_dt - timedelta(days=max_days)
 
-    return results
+        while end_dt > start_limit_dt:
+            start_dt = end_dt - timedelta(days=chunk_days)
+            if start_dt < start_limit_dt:
+                start_dt = start_limit_dt
+
+            st = int(start_dt.timestamp())
+            et = int(end_dt.timestamp())
+
+            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
+            resp = self.get_tpseries(exch, token, interval, st, et)
+
+            # Error from API
+            if isinstance(resp, dict):
+                print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            # Empty chunk
+            if not isinstance(resp, list) or len(resp) == 0:
+                print("⚠️ Empty chunk. Moving back…")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            df_chunk = pd.DataFrame(resp)
+            all_chunks.append(df_chunk)
+
+            end_dt = start_dt - timedelta(seconds=1)
+            time.sleep(0.25)
+
+        if not all_chunks:
+            return pd.DataFrame()
+
+        # Combine
+        df = pd.concat(all_chunks, ignore_index=True)
+
+        # Deduplicate & sort by original 'time' if present
+        if "time" in df.columns:
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)
+
+        # Rename columns to standard OHLCV
+        rename_map = {
+            "time": "datetime",
+            "into": "open",
+            "inth": "high",
+            "inti": "low",
+            "intc": "close",
+            "intvwap": "vwap",
+            "intv": "volume",
+            "intol": "open_interest_lot",
+            "oi": "open_interest"
+        }
+        df.rename(columns=rename_map, inplace=True)
+
+        # Safe datetime parsing (handles '13-08-2025 09:15:00' etc.)
+        if "datetime" in df.columns:
+            df["datetime"] = pd.to_datetime(
+                df["datetime"],
+                errors="coerce",
+                dayfirst=True
+            )
+            df = df.dropna(subset=["datetime"])
+
+        # Final sort & reset
+        df.sort_values("datetime", inplace=True)
+        return df.reset_index(drop=True)
+
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+        results = []
+        MAX_CALLS_PER_MIN = 20
+        call_count = 0
+
+        symbols = self.get_watchlist(wlname)
+        if not symbols or "values" not in symbols:
+            print("❌ No symbols found in watchlist.")
+            return []
+
+        for idx, sym in enumerate(symbols["values"]):
+            exch = sym.get("exch", "").strip()
+            token = str(sym.get("token", "")).strip()
+            symbol = sym.get("tsym", "").strip()
+
+            if not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid token")
+                continue
+            # If you only want NSE, keep this check; else remove it.
+            # if exch != "NSE":
+            #     print(f"⚠️ Skipping {symbol}: Unsupported exchange ({exch})")
+            #     continue
+
+            try:
+                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
+                df = self.fetch_full_tpseries(exch, token, interval)
+                if not df.empty:
+                    print(f"✅ {symbol}: {len(df)} candles fetched.")
+                    results.append({"symbol": symbol, "data": df})
+                else:
+                    print(f"⚠️ {symbol}: No data fetched.")
+            except Exception as e:
+                print(f"❌ {symbol}: Exception: {e}")
+
+            call_count += 1
+            if call_count >= MAX_CALLS_PER_MIN:
+                print("⚠️ TPSeries limit reached. Skipping remaining.")
+                break
+
+        return results
