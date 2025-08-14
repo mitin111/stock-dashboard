@@ -214,38 +214,28 @@ with tab5:
 
                                 if not df_candle.empty and 'time' in df_candle.columns:
                                     try:
-                                        # ✅ New unified data conversion block
-                                        # 1️⃣ Datetime conversion
+                                        # Convert string time (DD-MM-YYYY HH:MM:SS) to datetime
                                         df_candle['datetime'] = pd.to_datetime(
                                             df_candle['time'],
                                             format='%d-%m-%Y %H:%M:%S',
                                             errors='coerce'
                                         )
+
+                                        # Drop invalid dates
                                         df_candle = df_candle.dropna(subset=['datetime'])
 
-                                        # 2️⃣ Float conversion for price columns
-                                        price_cols = ['into', 'inth', 'inti', 'intc', 'intvwap', 'intol']
-                                        for col in price_cols:
-                                            if col in df_candle.columns:
-                                                df_candle[col] = pd.to_numeric(df_candle[col], errors='coerce')
+                                        # Remove duplicate timestamps if any
+                                        df_candle = df_candle.drop_duplicates(
+                                            subset=['datetime'], keep='last'
+                                        )
 
-                                        # 3️⃣ Int conversion for volume columns
-                                        vol_cols = ['intv', 'v', 'oi']
-                                        for col in vol_cols:
-                                            if col in df_candle.columns:
-                                                df_candle[col] = pd.to_numeric(df_candle[col], errors='coerce').astype('Int64')
-
-                                        # 4️⃣ Convert stat & ssboe to int
-                                        for col in ['stat', 'ssboe']:
-                                            if col in df_candle.columns:
-                                                df_candle[col] = pd.to_numeric(df_candle[col], errors='coerce').astype('Int64')
-
-                                        # 5️⃣ Remove duplicates & sort
-                                        df_candle = df_candle.drop_duplicates(subset=['datetime'], keep='last')
-                                        df_candle = df_candle.sort_values(by='datetime', ascending=True).reset_index(drop=True)
+                                        # Sort oldest to newest
+                                        df_candle = df_candle.sort_values(
+                                            by='datetime', ascending=True
+                                        ).reset_index(drop=True)
 
                                     except Exception as e:
-                                        st.warning(f"⚠️ {tsym}: Data type conversion failed - {e}")
+                                        st.warning(f"⚠️ {tsym}: Datetime conversion failed - {e}")
 
                                     st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
