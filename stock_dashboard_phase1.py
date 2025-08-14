@@ -213,7 +213,56 @@ with tab5:
                                 )
 
                                 if not df_candle.empty:
+                                    # Ensure datetime column exists
+                                    if "datetime" in df_candle.columns:
+                                        df_candle["datetime"] = pd.to_datetime(df_candle["datetime"])
+                                    else:
+                                        st.warning(f"⚠️ Missing datetime column for {tsym}")
+                                        continue
+
+                                    # === Plotly TradingView-style chart ===
+                                    fig = go.Figure()
+
+                                    fig.add_trace(go.Candlestick(
+                                        x=df_candle["datetime"],
+                                        open=df_candle["open"],
+                                        high=df_candle["high"],
+                                        low=df_candle["low"],
+                                        close=df_candle["close"],
+                                        name="Price",
+                                        increasing_line_color="#26a69a",
+                                        decreasing_line_color="#ef5350"
+                                    ))
+
+                                    fig.add_trace(go.Bar(
+                                        x=df_candle["datetime"],
+                                        y=df_candle["volume"],
+                                        name="Volume",
+                                        marker_color="rgba(128, 128, 128, 0.5)",
+                                        yaxis="y2"
+                                    ))
+
+                                    fig.update_layout(
+                                        title=f"{tsym} - TradingView-like Candlestick Chart",
+                                        xaxis_rangeslider_visible=False,
+                                        xaxis=dict(showgrid=True),
+                                        yaxis=dict(title="Price"),
+                                        yaxis2=dict(
+                                            title="Volume",
+                                            overlaying="y",
+                                            side="right",
+                                            showgrid=False,
+                                            range=[0, df_candle["volume"].max() * 4]
+                                        ),
+                                        template="plotly_dark",
+                                        height=700
+                                    )
+
+                                    st.plotly_chart(fig, use_container_width=True)
+
+                                    # Also show table
                                     st.dataframe(df_candle, use_container_width=True, height=600)
+
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
 
