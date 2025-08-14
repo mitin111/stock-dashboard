@@ -11,46 +11,6 @@ import json
 import requests
 from urllib.parse import urlencode
 from datetime import timezone
-import plotly.graph_objects as go
-
-def plot_candlestick_from_api(raw_data, symbol):
-    import pandas as pd
-    df = pd.DataFrame(raw_data)
-
-    df.rename(columns={
-        "time": "datetime",
-        "into": "open",
-        "inth": "high",
-        "intl": "low",
-        "intc": "close",
-        "intv": "volume"
-    }, inplace=True)
-
-    df["datetime"] = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce")
-    for col in ["open", "high", "low", "close", "volume"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    df.dropna(subset=["datetime"], inplace=True)
-    df.sort_values("datetime", inplace=True)
-
-    fig = go.Figure(data=[go.Candlestick(
-        x=df["datetime"],
-        open=df["open"],
-        high=df["high"],
-        low=df["low"],
-        close=df["close"],
-        name=symbol
-    )])
-
-    fig.update_layout(
-        title=f"{symbol} - Live Candlestick Chart",
-        yaxis_title="Price",
-        xaxis_rangeslider_visible=False,
-        template="plotly_dark",
-        height=500
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -107,9 +67,13 @@ if "ps_api" in st.session_state:
         st.rerun()
 
 # === Tabs ===
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-    ["🏠 Home", "📋 Orders", "📈 Market Data", "⚙ Settings", "💹 Trades & Chart", "📊 Candlestick Charts"]
-)
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "⚙️ Trade Controls",
+    "📊 Dashboard",
+    "📈 Market Data",
+    "📀 Indicator Settings",
+    "📉 Strategy Engine"
+])
 
 # === Tab 1: Trade Controls ===
 with tab1:
@@ -288,22 +252,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-    # === Candlestick Chart (Tab 5) ===
-    st.subheader("📈 Candlestick Chart (Tab 5)")
-    if "ps_api" in st.session_state:
-        selected_symbol_tab5 = st.selectbox(
-            "Select Scrip for Chart", df["tsym"].unique(), key="tab5_symbol"
-        )
-        if st.button("Show Chart (Tab 5)"):
-            try:
-                raw_candle_data = ps_api.get_ohlcv(selected_symbol_tab5)
-                if raw_candle_data and isinstance(raw_candle_data, list):
-                    plot_candlestick_from_api(raw_candle_data, selected_symbol_tab5)
-                else:
-                    st.warning("No candle data received for this symbol.")
-            except Exception as e:
-                st.error(f"Error fetching candlestick data: {e}")
-    else:
-        st.warning("⚠️ Please login first using your API credentials.")
 
