@@ -183,53 +183,54 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
-        """
-        Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
-        Always uses UTC timestamps to match ProStocks server time.
-        """
-        all_chunks = []
-        end_dt = datetime.now(timezone.utc)
-        start_limit_dt = end_dt - timedelta(days=max_days)
+    """
+    Fetch up to `max_days` of TPSeries data in backwards chunks of `chunk_days`.
+    Always uses UTC timestamps to match ProStocks server time.
+    Raw data return karega (string type), cleaning dashboard me hogi.
+    """
+    all_chunks = []
+    end_dt = datetime.now(timezone.utc)
+    start_limit_dt = end_dt - timedelta(days=max_days)
 
-        while end_dt > start_limit_dt:
-            start_dt = end_dt - timedelta(days=chunk_days)
-            if start_dt < start_limit_dt:
-                start_dt = start_limit_dt
+    while end_dt > start_limit_dt:
+        start_dt = end_dt - timedelta(days=chunk_days)
+        if start_dt < start_limit_dt:
+            start_dt = start_limit_dt
 
-            st = int(start_dt.timestamp())
-            et = int(end_dt.timestamp())
+        st = int(start_dt.timestamp())
+        et = int(end_dt.timestamp())
 
-            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-            resp = self.get_tpseries(exch, token, interval, st, et)
+        print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
+        resp = self.get_tpseries(exch, token, interval, st, et)
 
-            if isinstance(resp, dict):
-                emsg = resp.get("emsg") or resp.get("stat")
-                print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
-                end_dt = start_dt - timedelta(seconds=1)
-                time.sleep(0.25)
-                continue
-
-            if not isinstance(resp, list) or len(resp) == 0:
-                print("⚠️ Empty chunk (no candles). Moving back…")
-                end_dt = start_dt - timedelta(seconds=1)
-                time.sleep(0.25)
-                continue
-
-            df_chunk = pd.DataFrame(resp)
-            all_chunks.append(df_chunk)
-
+        if isinstance(resp, dict):
+            emsg = resp.get("emsg") or resp.get("stat")
+            print(f"⚠️ TPSeries chunk returned dict (error?): {emsg}")
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
+            continue
 
-        if not all_chunks:
-            return pd.DataFrame()  # empty DF instead of None
+        if not isinstance(resp, list) or len(resp) == 0:
+            print("⚠️ Empty chunk (no candles). Moving back…")
+            end_dt = start_dt - timedelta(seconds=1)
+            time.sleep(0.25)
+            continue
 
+        df_chunk = pd.DataFrame(resp)  # No conversion here
+        all_chunks.append(df_chunk)
 
-        df = pd.concat(all_chunks, ignore_index=True)
-        if "time" in df.columns:
-            df.drop_duplicates(subset=["time"], inplace=True)
-            df.sort_values(by="time", inplace=True)  
-        return df.reset_index(drop=True)
+        end_dt = start_dt - timedelta(seconds=1)
+        time.sleep(0.25)
+
+    if not all_chunks:
+        return pd.DataFrame()  # empty DF instead of None
+
+    df = pd.concat(all_chunks, ignore_index=True)
+    if "time" in df.columns:
+        df.drop_duplicates(subset=["time"], inplace=True)
+        df.sort_values(by="time", inplace=True)
+
+    return df.reset_index(drop=True)  # raw, string type
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
         results = []
@@ -290,4 +291,5 @@ class ProStocksAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
