@@ -12,6 +12,7 @@ import requests
 from urllib.parse import urlencode
 from datetime import timezone
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -178,6 +179,57 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries Data Preview")
 
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    def plot_tpseries_candles(df, symbol):
+        fig = make_subplots(
+            rows=2, cols=1, 
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.7, 0.3],
+            subplot_titles=(f"{symbol} - TradingView-style Chart", "Volume"),
+            specs=[[{"type": "candlestick"}],
+                   [{"type": "bar"}]]
+        )
+
+        # Candlestick
+        fig.add_trace(go.Candlestick(
+            x=df['datetime'],
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            increasing_line_color='#26a69a',
+            decreasing_line_color='#ef5350',
+            name='Price'
+        ), row=1, col=1)
+
+        # Volume bars
+        fig.add_trace(go.Bar(
+            x=df['datetime'],
+            y=df['volume'],
+            name='Volume',
+            marker_color='rgba(128, 128, 128, 0.5)'
+        ), row=2, col=1)
+
+        # Layout settings
+        fig.update_layout(
+            template="plotly_dark",
+            xaxis_rangeslider_visible=False,
+            height=700,
+            margin=dict(l=50, r=50, t=50, b=50),
+            plot_bgcolor='black',
+            paper_bgcolor='black',
+            font=dict(color='white'),
+            hovermode="x unified"
+        )
+
+        fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
+        fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
+
+        return fig
+
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
@@ -214,7 +266,7 @@ with tab5:
                                 )
 
                                 if not df_candle.empty:
-                                    # ✅ Date format fix for TPSeries
+                                    # Convert datetime column
                                     datetime_col = None
                                     for col in ["datetime", "time", "date"]:
                                         if col in df_candle.columns:
@@ -222,61 +274,24 @@ with tab5:
                                             break
 
                                     if datetime_col:
-                                        df_candle[datetime_col] = pd.to_datetime(
-                                            df_candle[datetime_col],
+                                        df_candle.rename(columns={datetime_col: "datetime"}, inplace=True)
+                                        df_candle["datetime"] = pd.to_datetime(
+                                            df_candle["datetime"],
                                             format="%d-%m-%Y %H:%M:%S",
                                             errors="coerce",
                                             dayfirst=True
                                         )
-                                        df_candle = df_candle.dropna(subset=[datetime_col])
-                                        df_candle = df_candle.sort_values(datetime_col)
+                                        df_candle.dropna(subset=["datetime"], inplace=True)
+                                        df_candle.sort_values("datetime", inplace=True)
                                     else:
                                         st.warning(f"⚠️ Missing datetime column for {tsym}")
                                         continue
 
-                                    # === TradingView-style chart ===
-                                    fig = go.Figure()
-
-                                    # Price Candles
-                                    fig.add_trace(go.Candlestick(
-                                        x=df_candle[datetime_col],
-                                        open=df_candle["open"],
-                                        high=df_candle["high"],
-                                        low=df_candle["low"],
-                                        close=df_candle["close"],
-                                        name="Price",
-                                        increasing_line_color="#26a69a",
-                                        decreasing_line_color="#ef5350"
-                                    ))
-
-                                    # Volume bars
-                                    fig.add_trace(go.Bar(
-                                        x=df_candle[datetime_col],
-                                        y=df_candle["volume"],
-                                        name="Volume",
-                                        marker_color="rgba(128, 128, 128, 0.4)",
-                                        yaxis="y2"
-                                    ))
-
-                                    # Layout like TradingView
-                                    fig.update_layout(
-                                        title=f"{tsym} - TradingView-style Chart",
-                                        xaxis_rangeslider_visible=False,
-                                        yaxis=dict(title="Price"),
-                                        yaxis2=dict(
-                                            title="Volume",
-                                            overlaying="y",
-                                            side="right",
-                                            showgrid=False,
-                                            range=[0, df_candle["volume"].max() * 4]
-                                        ),
-                                        template="plotly_dark",
-                                        height=700
-                                    )
-
+                                    # Draw TradingView-style chart
+                                    fig = plot_tpseries_candles(df_candle, tsym)
                                     st.plotly_chart(fig, use_container_width=True)
 
-                                    # Show table below chart
+                                    # Show table
                                     st.dataframe(df_candle, use_container_width=True, height=600)
 
                                 else:
@@ -293,4 +308,3 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
