@@ -183,6 +183,16 @@ with tab5:
     from plotly.subplots import make_subplots
 
     def plot_tpseries_candles(df, symbol):
+        # === Remove duplicates & sort ===
+        df = df.drop_duplicates(subset=['datetime'])
+        df = df.sort_values("datetime")
+
+        # === Filter market hours (09:15 to 15:30) ===
+        df = df[
+            (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
+        ]
+
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
@@ -239,6 +249,14 @@ with tab5:
 
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
+
+        # === Hide weekends & after-hours gaps ===
+        fig.update_xaxes(
+            rangebreaks=[
+                dict(bounds=["sat", "mon"]),  # weekends
+                dict(bounds=[16, 9], pattern="hour")  # outside market hours
+            ]
+        )
 
         return fig
 
