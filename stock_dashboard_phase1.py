@@ -254,7 +254,7 @@ with tab5:
         fig.update_xaxes(
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),  # weekends
-                dict(bounds=[16, 9], pattern="hour")  # outside market hours
+                dict(bounds=[15.5, 9.25], pattern="hour")  # Hide after-market to pre-market
             ]
         )
 
@@ -344,3 +344,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
