@@ -182,7 +182,6 @@ with tab5:
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     import time
-    from prostocks_live_connector import LiveMarketConnector  # NEW: live connector class
 
     def plot_tpseries_candles(df, symbol):
         # === Remove duplicates & sort ===
@@ -343,6 +342,7 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
