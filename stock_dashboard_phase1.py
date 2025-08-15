@@ -181,6 +181,8 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
+    import time
+    from prostocks_live_connector import LiveMarketConnector  # NEW: live connector class
 
     def plot_tpseries_candles(df, symbol):
         # === Remove duplicates & sort ===
@@ -193,7 +195,6 @@ with tab5:
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
         ]
 
-        # Single panel chart (no volume)
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
 
         # Candlestick trace
@@ -208,10 +209,9 @@ with tab5:
             name='Price'
         ))
 
-        # Layout settings for scroll & zoom
         fig.update_layout(
-            xaxis_rangeslider_visible=False,  # hide slider
-            dragmode='pan',                  # enable scroll
+            xaxis_rangeslider_visible=False,
+            dragmode='pan',
             hovermode='x unified',
             showlegend=False,
             template="plotly_dark",
@@ -222,11 +222,9 @@ with tab5:
             font=dict(color='white'),
         )
 
-        # Grid lines
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
 
-        # Hide weekends & after-hours
         fig.update_xaxes(
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
@@ -234,7 +232,6 @@ with tab5:
             ]
         )
 
-        # "Go to Latest" button
         fig.update_layout(
             updatemenus=[dict(
                 type="buttons",
@@ -283,7 +280,6 @@ with tab5:
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
-                                # Store data in session_state
                                 session_key = f"tpseries_{tsym}"
                                 if session_key not in st.session_state:
                                     df_candle = ps_api.fetch_full_tpseries(
@@ -296,7 +292,6 @@ with tab5:
                                     df_candle = st.session_state[session_key]
 
                                 if not df_candle.empty:
-                                    # Convert datetime column
                                     datetime_col = None
                                     for col in ["datetime", "time", "date"]:
                                         if col in df_candle.columns:
@@ -313,16 +308,26 @@ with tab5:
                                         )
                                         df_candle.dropna(subset=["datetime"], inplace=True)
                                         df_candle.sort_values("datetime", inplace=True)
+
+                                        # === Step 2: Start WebSocket Live Feed ===
+                                        live_connector = LiveMarketConnector(ps_api)
+                                        live_connector.connect(exch, token)
+
+                                        # === Step 3: Live chart update loop ===
+                                        chart_placeholder = st.empty()
+                                        end_time = time.time() + 300  # 5 minutes
+                                        while time.time() < end_time:
+                                            ticks = live_connector.get_new_ticks()
+                                            for tick in ticks:
+                                                df_candle = live_connector.update_candles(df_candle, tick)
+
+                                            fig = plot_tpseries_candles(df_candle, tsym)
+                                            chart_placeholder.plotly_chart(fig, use_container_width=True)
+                                            time.sleep(1)
+
                                     else:
                                         st.warning(f"⚠️ Missing datetime column for {tsym}")
                                         continue
-
-                                    # Draw chart
-                                    fig = plot_tpseries_candles(df_candle, tsym)
-                                    st.plotly_chart(fig, use_container_width=True)
-
-                                    # Show table
-                                    st.dataframe(df_candle, use_container_width=True, height=600)
 
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
