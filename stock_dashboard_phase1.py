@@ -184,7 +184,7 @@ with tab5:
 
     def plot_tpseries_candles(df, symbol):
         fig = make_subplots(
-            rows=2, cols=1, 
+            rows=2, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
             row_heights=[0.7, 0.3],
@@ -193,7 +193,7 @@ with tab5:
                    [{"type": "bar"}]]
         )
 
-        # Candlestick
+        # Candlestick trace
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
             open=df['open'],
@@ -205,7 +205,7 @@ with tab5:
             name='Price'
         ), row=1, col=1)
 
-        # Volume bars
+        # Volume trace
         fig.add_trace(go.Bar(
             x=df['datetime'],
             y=df['volume'],
@@ -213,10 +213,22 @@ with tab5:
             marker_color='rgba(128, 128, 128, 0.5)'
         ), row=2, col=1)
 
-        # Layout settings
+        # Enable TradingView-like features
+        fig.update_xaxes(rangeslider_visible=True, row=1, col=1)
         fig.update_layout(
+            dragmode='pan',
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=3, label="3m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(step="all")
+                    ])
+                ),
+                type="date"
+            ),
             template="plotly_dark",
-            xaxis_rangeslider_visible=False,
             height=700,
             margin=dict(l=50, r=50, t=50, b=50),
             plot_bgcolor='black',
@@ -259,11 +271,17 @@ with tab5:
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
-                                df_candle = ps_api.fetch_full_tpseries(
-                                    exch, token,
-                                    interval=selected_interval,
-                                    chunk_days=5
-                                )
+                                # Store data in session_state for persistence
+                                session_key = f"tpseries_{tsym}"
+                                if session_key not in st.session_state:
+                                    df_candle = ps_api.fetch_full_tpseries(
+                                        exch, token,
+                                        interval=selected_interval,
+                                        chunk_days=5
+                                    )
+                                    st.session_state[session_key] = df_candle.copy()
+                                else:
+                                    df_candle = st.session_state[session_key]
 
                                 if not df_candle.empty:
                                     # Convert datetime column
