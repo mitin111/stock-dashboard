@@ -8,8 +8,7 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
-import websocket
-import threading
+
 load_dotenv()
 
 
@@ -168,94 +167,17 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-     # ==================== Live Market Connector ====================
-class LiveMarketConnector:
-    def __init__(self, ps_api):
-        """
-        ps_api: ProStocks API instance (already logged in) for reference
-        """
-        self.ps_api = ps_api
-        self.ticks = []
-        self.ws = None
-
-    def connect(self, exch, token):
-        """
-        Connect to ProStocks StarAPI WebSocket for live market data
-        exch: "NSE" / "BSE"
-        token: instrument token (string or int)
-        """
-        def on_message(ws, message):
-            try:
-                data = json.loads(message)
-                if isinstance(data, dict) and "lp" in data:  # last traded price
-                    tick_time = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-                    self.ticks.append({
-                        "datetime": tick_time,
-                        "close": float(data["lp"]),
-                        "volume": int(data.get("v", 0))
-                    })
-            except Exception as e:
-                print("WebSocket message error:", e)
-
-        def on_open(ws):
-            print("✅ WebSocket Connected")
-            sub_msg = json.dumps({"t": "t", "k": f"{exch}|{token}"})
-            ws.send(sub_msg)
-
-        self.ws = websocket.WebSocketApp(
-            "wss://starapi.prostocks.com/NorenWClientTP",
-            on_message=on_message,
-            on_open=on_open
-        )
-        threading.Thread(target=self.ws.run_forever, daemon=True).start()
-
-    def get_new_ticks(self):
-        """
-        Returns and clears the collected ticks
-        """
-        ticks_copy = self.ticks[:]
-        self.ticks.clear()
-        return ticks_copy
-
-    def update_candles(self, df, tick):
-        """
-        Merge incoming tick into DataFrame of candles
-        """
-        last_candle_time = df.iloc[-1]["datetime"]
-        if tick["datetime"].minute == last_candle_time.minute:
-            # Update last candle
-            df.at[df.index[-1], "close"] = tick["close"]
-            df.at[df.index[-1], "high"] = max(df.iloc[-1]["high"], tick["close"])
-            df.at[df.index[-1], "low"] = min(df.iloc[-1]["low"], tick["close"])
-            df.at[df.index[-1], "volume"] += tick["volume"]
-        else:
-            # Add new candle
-            df = pd.concat([df, pd.DataFrame([{
-                "datetime": tick["datetime"],
-                "open": tick["close"],
-                "high": tick["close"],
-                "low": tick["close"],
-                "close": tick["close"],
-                "volume": tick["volume"]
-            }])], ignore_index=True)
-        return df
-
-
-# ==================== TPSeries Methods ====================
-class ProStocksAPI:
-    def __init__(self, userid, base_url, session_token):
-        self.userid = userid
-        self.base_url = base_url
-        self.session_token = session_token
-
-    def _post_json(self, url, payload):
-        # Implement your POST request here
-        pass
-
+       # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        """
+        Returns raw TPSeries from API.
+        For success, the API typically returns a list; on error it returns a dict with 'stat'/'emsg'.
+        'st' and 'et' must be epoch seconds (UTC).
+        """
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
+        # Default window (last 60 days) if not provided
         if st is None or et is None:
             days_back = 60
             et_dt = datetime.now(timezone.utc)
@@ -273,7 +195,13 @@ class ProStocksAPI:
             "intrv": str(interval)
         }
 
-        print("📤 Sending TPSeries Payload:", payload)
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(st)))} UTC")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(et)))} UTC")
+        print(f"  INTRV  : {payload['intrv']}")
 
         try:
             response = self._post_json(url, payload)
@@ -283,6 +211,10 @@ class ProStocksAPI:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+        """
+        Chunked fetch of TPSeries over 'max_days' lookback combining results into a clean DataFrame
+        ready for candlestick charting (open, high, low, close, volume, datetime).
+        """
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
         start_limit_dt = end_dt - timedelta(days=max_days)
@@ -298,12 +230,14 @@ class ProStocksAPI:
             print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exch, token, interval, st, et)
 
+            # Error from API
             if isinstance(resp, dict):
                 print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
+            # Empty chunk
             if not isinstance(resp, list) or len(resp) == 0:
                 print("⚠️ Empty chunk. Moving back…")
                 end_dt = start_dt - timedelta(seconds=1)
@@ -319,17 +253,20 @@ class ProStocksAPI:
         if not all_chunks:
             return pd.DataFrame()
 
+        # Combine
         df = pd.concat(all_chunks, ignore_index=True)
 
+        # Deduplicate & sort by original 'time' if present
         if "time" in df.columns:
             df.drop_duplicates(subset=["time"], inplace=True)
             df.sort_values(by="time", inplace=True)
 
+        # ✅ Correct rename mapping
         rename_map = {
             "time": "datetime",
             "into": "open",
             "inth": "high",
-            "intl": "low",
+            "intl": "low",     # <-- FIXED: was 'inti' earlier
             "intc": "close",
             "intvwap": "vwap",
             "intv": "volume",
@@ -338,10 +275,16 @@ class ProStocksAPI:
         }
         df.rename(columns=rename_map, inplace=True)
 
+        # Safe datetime parsing
         if "datetime" in df.columns:
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
+            df["datetime"] = pd.to_datetime(
+                df["datetime"],
+                errors="coerce",
+                dayfirst=True
+            )
             df = df.dropna(subset=["datetime"])
 
+        # Final sort & reset
         df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
 
