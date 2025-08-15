@@ -8,7 +8,8 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
-
+import websocket
+import threading
 load_dotenv()
 
 
@@ -324,3 +325,60 @@ class ProStocksAPI:
                 break
 
         return results
+
+# Token mapping (example: TATAMOTORS-EQ NSE token)
+token = "NSE|11536"
+
+# Candle DataFrame (initially TPSeries data se load hoga)
+candles_df = pd.DataFrame(columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+
+def on_message(ws, message):
+    global candles_df
+    data = json.loads(message)
+
+    # Sirf tick messages process karo
+    if "tk" in data:  
+        tick_time = datetime.fromtimestamp(int(data["ft"]/1000))
+        price = float(data["lp"])
+        volume = int(data["v"])
+
+        # Last candle ka minute nikalo
+        candle_min = tick_time.replace(second=0, microsecond=0)
+
+        if len(candles_df) > 0 and candles_df.iloc[-1]["Datetime"] == candle_min:
+            # Update last candle
+            candles_df.at[candles_df.index[-1], "High"] = max(candles_df.iloc[-1]["High"], price)
+            candles_df.at[candles_df.index[-1], "Low"] = min(candles_df.iloc[-1]["Low"], price)
+            candles_df.at[candles_df.index[-1], "Close"] = price
+            candles_df.at[candles_df.index[-1], "Volume"] += volume
+        else:
+            # New candle
+            new_candle = pd.DataFrame([[candle_min, price, price, price, price, volume]],
+                                      columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+            candles_df = pd.concat([candles_df, new_candle], ignore_index=True)
+
+        print(candles_df.tail(2))  # Debugging ke liye
+
+def on_open(ws):
+    print("✅ WebSocket Connected")
+    sub_request = {
+        "t": "t",
+        "k": token
+    }
+    ws.send(json.dumps(sub_request))
+
+def on_close(ws, close_status_code, close_msg):
+    print("❌ WebSocket Disconnected")
+
+def start_websocket():
+    ws = websocket.WebSocketApp(
+        "wss://starapi.prostocks.com/NorenWSTP/",
+        on_open=on_open,
+        on_message=on_message,
+        on_close=on_close
+    )
+    ws.run_forever()
+
+# Background thread me websocket start karo
+ws_thread = threading.Thread(target=start_websocket)
+ws_thread.start()
