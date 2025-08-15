@@ -14,7 +14,6 @@ from datetime import timezone
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
@@ -344,5 +343,6 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
