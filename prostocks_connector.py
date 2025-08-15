@@ -326,59 +326,64 @@ class ProStocksAPI:
 
         return results
 
-# Token mapping (example: TATAMOTORS-EQ NSE token)
-token = "NSE|11536"
+class LiveMarketConnector:
+    def __init__(self, ps_api):
+        self.ps_api = ps_api
+        self.live_data = []
+        self.ws = None
+        self.running = False
 
-# Candle DataFrame (initially TPSeries data se load hoga)
-candles_df = pd.DataFrame(columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+    def _on_message(self, ws, message):
+        try:
+            data = json.loads(message)
+            if isinstance(data, list) and len(data) > 1:
+                tick = data[1]
+                exch, token, last_price, vol, ts = tick
+                ts = datetime.utcfromtimestamp(ts) + timedelta(hours=5, minutes=30)
+                self.live_data.append({
+                    "datetime": ts,
+                    "close": float(last_price),
+                    "volume": int(vol)
+                })
+        except Exception as e:
+            print("WebSocket Error:", e)
 
-def on_message(ws, message):
-    global candles_df
-    data = json.loads(message)
+    def _on_open(self, ws):
+        print("WebSocket Connected")
+        # Subscribe to the token
+        ws.send(json.dumps(["j", f"NSE|{self.token}"]))
 
-    # Sirf tick messages process karo
-    if "tk" in data:  
-        tick_time = datetime.fromtimestamp(int(data["ft"]/1000))
-        price = float(data["lp"])
-        volume = int(data["v"])
+    def connect(self, exch, token):
+        self.token = token
+        url = "wss://api.prostocks.com/socket.io/?EIO=3&transport=websocket"
+        self.ws = websocket.WebSocketApp(
+            url,
+            on_message=self._on_message,
+            on_open=self._on_open
+        )
+        self.running = True
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
-        # Last candle ka minute nikalo
-        candle_min = tick_time.replace(second=0, microsecond=0)
+    def get_new_ticks(self):
+        ticks = self.live_data.copy()
+        self.live_data.clear()
+        return ticks
 
-        if len(candles_df) > 0 and candles_df.iloc[-1]["Datetime"] == candle_min:
-            # Update last candle
-            candles_df.at[candles_df.index[-1], "High"] = max(candles_df.iloc[-1]["High"], price)
-            candles_df.at[candles_df.index[-1], "Low"] = min(candles_df.iloc[-1]["Low"], price)
-            candles_df.at[candles_df.index[-1], "Close"] = price
-            candles_df.at[candles_df.index[-1], "Volume"] += volume
+    @staticmethod
+    def update_candles(df, tick):
+        if tick["datetime"].minute == df.iloc[-1]["datetime"].minute:
+            df.at[df.index[-1], "close"] = tick["close"]
+            df.at[df.index[-1], "high"] = max(df.iloc[-1]["high"], tick["close"])
+            df.at[df.index[-1], "low"] = min(df.iloc[-1]["low"], tick["close"])
+            df.at[df.index[-1], "volume"] += tick["volume"]
         else:
-            # New candle
-            new_candle = pd.DataFrame([[candle_min, price, price, price, price, volume]],
-                                      columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-            candles_df = pd.concat([candles_df, new_candle], ignore_index=True)
-
-        print(candles_df.tail(2))  # Debugging ke liye
-
-def on_open(ws):
-    print("✅ WebSocket Connected")
-    sub_request = {
-        "t": "t",
-        "k": token
-    }
-    ws.send(json.dumps(sub_request))
-
-def on_close(ws, close_status_code, close_msg):
-    print("❌ WebSocket Disconnected")
-
-def start_websocket():
-    ws = websocket.WebSocketApp(
-        "wss://starapi.prostocks.com/NorenWSTP/",
-        on_open=on_open,
-        on_message=on_message,
-        on_close=on_close
-    )
-    ws.run_forever()
-
-# Background thread me websocket start karo
-ws_thread = threading.Thread(target=start_websocket)
-ws_thread.start()
+            new_row = pd.DataFrame([{
+                "datetime": tick["datetime"],
+                "open": tick["close"],
+                "high": tick["close"],
+                "low": tick["close"],
+                "close": tick["close"],
+                "volume": tick["volume"]
+            }])
+            df = pd.concat([df, new_row], ignore_index=True)
+        return df
