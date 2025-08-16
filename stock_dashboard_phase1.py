@@ -212,7 +212,7 @@ with tab5:
             hovermode='x unified',
             showlegend=False,
             template="plotly_dark",
-            height=700,
+            height=500,
             margin=dict(l=50, r=50, t=50, b=50),
             plot_bgcolor='black',
             paper_bgcolor='black',
@@ -229,7 +229,7 @@ with tab5:
             ]
         )
 
-        # ✅ Fixed updatemenus block
+        # ✅ Button to jump to latest candles
         fig.update_layout(
             updatemenus=[
                 dict(
@@ -267,8 +267,6 @@ with tab5:
                 ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
             )
 
-            chart_placeholder = st.empty()
-
             if st.button("🔁 Fetch TPSeries Data"):
                 with st.spinner("Fetching candle data..."):
                     wl_data = ps_api.get_watchlist(selected_watchlist)
@@ -277,53 +275,42 @@ with tab5:
                         if not scrips:
                             st.warning("⚠️ No scrips found in this watchlist.")
                         else:
-                            # Take first scrip for live chart demo
-                            scrip = scrips[0]
-                            exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
+                            st.session_state["watchlist_candles"] = {}
+                            for scrip in scrips:
+                                exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
 
-                            # Step 1: Historical fetch
-                            df_candle = ps_api.fetch_full_tpseries(
-                                exch, token,
-                                interval=selected_interval,
-                                chunk_days=5
-                            )
-                            if not df_candle.empty:
-                                # ✅ Fix: Rename columns properly
-                                df_candle.rename(
-                                    columns={
+                                df_candle = ps_api.fetch_full_tpseries(
+                                    exch, token,
+                                    interval=selected_interval,
+                                    chunk_days=5
+                                )
+                                if not df_candle.empty:
+                                    # ✅ Fix: Rename columns
+                                    df_candle.rename(columns={
                                         "datetime": "Datetime",
                                         "open": "Open",
                                         "high": "High",
                                         "low": "Low",
                                         "close": "Close",
                                         "volume": "Volume"
-                                    },
-                                    inplace=True
-                                )
-                                df_candle["Datetime"] = pd.to_datetime(df_candle["Datetime"])
+                                    }, inplace=True)
+                                    df_candle["Datetime"] = pd.to_datetime(df_candle["Datetime"])
 
-                                # Step 2: Save in session
-                                st.session_state["candles_df"] = df_candle.copy()
-                                st.session_state["live_symbol"] = f"{exch}|{token}"
-
-                                # ✅ Step 3: Start WebSocket for live ticks (correct call)
-                                ps_api.start_websocket_for_symbol(st.session_state["live_symbol"])
-                                st.success(f"✅ TPSeries fetched & live updates started for {tsym}")
-
-                            else:
-                                st.warning(f"⚠️ No candle data available for {tsym}")
+                                    st.session_state["watchlist_candles"][tsym] = df_candle
+                                    st.success(f"✅ TPSeries fetched for {tsym}")
+                                else:
+                                    st.warning(f"⚠️ No candle data for {tsym}")
 
                     else:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist."))
 
-            # --- Auto-refresh chart ---
-            if "candles_df" in st.session_state and not st.session_state["candles_df"].empty:
-                fig = plot_tpseries_candles(
-                    st.session_state["candles_df"],
-                    st.session_state.get("live_symbol", "Unknown")
-                )
-                chart_placeholder.plotly_chart(fig, use_container_width=True)
-                st.dataframe(st.session_state["candles_df"].tail(50), use_container_width=True, height=400)
+            # --- Display charts for all symbols ---
+            if "watchlist_candles" in st.session_state:
+                for symbol, df in st.session_state["watchlist_candles"].items():
+                    st.markdown(f"### 📊 {symbol}")
+                    fig = plot_tpseries_candles(df, symbol)
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.dataframe(df.tail(20), use_container_width=True, height=250)
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
