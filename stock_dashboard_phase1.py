@@ -175,40 +175,6 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df.sort_index(inplace=True)
     return final_df
 
-
-# ================================
-# WebSocket Status Line
-# ================================
-import queue
-tick_queue = queue.Queue()
-status_placeholder = st.empty()
-
-if "last_tick_time" not in st.session_state:
-    st.session_state.last_tick_time = None
-if "ws_status" not in st.session_state:
-    st.session_state.ws_status = "🔴 Disconnected"
-
-def on_open(ws):
-    st.session_state.ws_status = "🟡 Connected (waiting for ticks)"
-    status_placeholder.info(st.session_state.ws_status)
-
-def on_close(ws, close_status_code, close_msg):
-    st.session_state.ws_status = "🔴 Disconnected"
-    status_placeholder.error(st.session_state.ws_status)
-
-def on_message(ws, message):
-    # Jab bhi tick aaye
-    st.session_state.last_tick_time = time.time()
-    st.session_state.ws_status = "🟢 Connected & Receiving Live Data"
-    status_placeholder.success(st.session_state.ws_status)
-
-def check_market_status():
-    if st.session_state.last_tick_time:
-        if time.time() - st.session_state.last_tick_time > 30:
-            st.session_state.ws_status = "🟡 Connected but Market Closed"
-            status_placeholder.warning(st.session_state.ws_status)
-
-
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries Data Preview + Live Update")
@@ -263,7 +229,7 @@ with tab5:
             ]
         )
 
-        # ✅ Go-to-latest button
+        # ✅ Fixed updatemenus block
         fig.update_layout(
             updatemenus=[
                 dict(
@@ -315,13 +281,12 @@ with tab5:
                             scrip = scrips[0]
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
 
-                            # ✅ Step 1: Fetch Historical Candles
-                            df_candle = fetch_full_tpseries(
-                                ps_api, exch, token,
+                            # Step 1: Historical fetch
+                            df_candle = ps_api.fetch_full_tpseries(
+                                exch, token,
                                 interval=selected_interval,
-                                days=5
+                                chunk_days=5
                             )
-
                             if not df_candle.empty:
                                 # ✅ Fix: Rename columns properly
                                 df_candle.rename(
@@ -341,14 +306,8 @@ with tab5:
                                 st.session_state["candles_df"] = df_candle.copy()
                                 st.session_state["live_symbol"] = f"{exch}|{token}"
 
-                                # ✅ Step 3: Start WebSocket for live ticks (queue-based)
-                                ps_api.start_websocket_for_symbol(
-                                    st.session_state["live_symbol"],
-                                    on_open=on_open,
-                                    on_close=on_close,
-                                    on_message=on_message,
-                                    tick_queue=tick_queue  # 👈 new param
-                                )
+                                # ✅ Step 3: Start WebSocket for live ticks (correct call)
+                                ps_api.start_websocket_for_symbol(st.session_state["live_symbol"])
                                 st.success(f"✅ TPSeries fetched & live updates started for {tsym}")
 
                             else:
@@ -357,27 +316,8 @@ with tab5:
                     else:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist."))
 
-            # --- Process Queue & Auto-refresh chart ---
+            # --- Auto-refresh chart ---
             if "candles_df" in st.session_state and not st.session_state["candles_df"].empty:
-                # 🔹 Process new ticks
-                while not tick_queue.empty():
-                    new_candle = tick_queue.get()
-                    df = st.session_state.get("candles_df", pd.DataFrame())
-
-                    if not df.empty and df.iloc[-1]["Datetime"] == new_candle["Datetime"]:
-                        df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], new_candle["High"])
-                        df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], new_candle["Low"])
-                        df.at[df.index[-1], "Close"] = new_candle["Close"]
-                        df.at[df.index[-1], "Volume"] += new_candle["Volume"]
-                    else:
-                        df = pd.concat([df, pd.DataFrame([new_candle])], ignore_index=True)
-
-                    st.session_state["candles_df"] = df
-
-                # 🔹 Status check
-                check_market_status()
-
-                # 🔹 Plot chart
                 fig = plot_tpseries_candles(
                     st.session_state["candles_df"],
                     st.session_state.get("live_symbol", "Unknown")
