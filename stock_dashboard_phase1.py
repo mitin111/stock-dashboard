@@ -229,17 +229,23 @@ with tab5:
             ]
         )
 
+        # ✅ Fixed updatemenus block
         fig.update_layout(
-            updatemenus=[dict(
-                type="buttons",
-                direction="left",
-                x=1,
-                y=1.15,
-                buttons=[dict(
-                    label="Go to Latest",
-                    method="relayout",
-                    args=[{"xaxis.range": [df['Datetime'].iloc[-50], df['Datetime'].iloc[-1]]}])
-            )],
+            updatemenus=[
+                dict(
+                    type="buttons",
+                    direction="left",
+                    x=1,
+                    y=1.15,
+                    buttons=[
+                        dict(
+                            label="Go to Latest",
+                            method="relayout",
+                            args=[{"xaxis.range": [df['Datetime'].iloc[-50], df['Datetime'].iloc[-1]]}]
+                        )
+                    ]
+                )
+            ],
             title=f"{symbol} - TradingView-style Chart"
         )
         return fig
@@ -289,7 +295,7 @@ with tab5:
                                 st.session_state["candles_df"] = df_candle.copy()
                                 st.session_state["live_symbol"] = f"{exch}|{token}"
 
-                                # ✅ Step 3: Start WebSocket for live ticks (correct call via ps_api)
+                                # ✅ Step 3: Start WebSocket for live ticks (correct call)
                                 ps_api.start_websocket_for_symbol(st.session_state["live_symbol"])
                                 st.success(f"✅ TPSeries fetched & live updates started for {tsym}")
 
