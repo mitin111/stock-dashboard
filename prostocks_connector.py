@@ -175,6 +175,8 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     For success, API typically returns a list; on error -> dict with 'stat'/'emsg'.
     'st' and 'et' must be epoch seconds (UTC).
     """
+    from datetime import datetime, timedelta, timezone
+
     if not self.session_token:
         return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
@@ -208,6 +210,9 @@ def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=
     """
     Chunked fetch of TPSeries over 'max_days' lookback combining results into a clean DataFrame.
     """
+    import pandas as pd, time
+    from datetime import datetime, timedelta, timezone
+
     all_chunks = []
     end_dt = datetime.now(timezone.utc)
     start_limit_dt = end_dt - timedelta(days=max_days)
@@ -321,11 +326,15 @@ def start_websocket_for_symbol(self, symbol, on_open=None, on_close=None, on_mes
     Pushes ticks/candles into tick_queue (if provided).
     Allows external callbacks (on_open, on_close, on_message).
     """
-    import websocket, threading
+    import websocket, threading, json
     from datetime import datetime
 
     def _on_message(ws, message):
-        tick = json.loads(message)
+        try:
+            tick = json.loads(message)
+        except Exception:
+            return
+
         if tick.get("t") != "tk":   # tick message type
             return
 
@@ -368,4 +377,3 @@ def start_websocket_for_symbol(self, symbol, on_open=None, on_close=None, on_mes
         on_close=_on_close
     )
     threading.Thread(target=ws.run_forever, daemon=True).start()
-
