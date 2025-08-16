@@ -315,6 +315,13 @@ with tab5:
                             scrip = scrips[0]
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
 
+                            # ✅ Step 1: Fetch Historical Candles
+                            df_candle = fetch_full_tpseries(
+                                ps_api, exch, token,
+                                interval=selected_interval,
+                                days=5
+                            )
+
                             if not df_candle.empty:
                                 # ✅ Fix: Rename columns properly
                                 df_candle.rename(
@@ -380,4 +387,3 @@ with tab5:
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
