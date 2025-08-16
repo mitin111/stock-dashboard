@@ -175,6 +175,38 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df.sort_index(inplace=True)
     return final_df
 
+
+# ================================
+# WebSocket Status Line
+# ================================
+status_placeholder = st.empty()
+
+if "last_tick_time" not in st.session_state:
+    st.session_state.last_tick_time = None
+if "ws_status" not in st.session_state:
+    st.session_state.ws_status = "🔴 Disconnected"
+
+def on_open(ws):
+    st.session_state.ws_status = "🟡 Connected (waiting for ticks)"
+    status_placeholder.info(st.session_state.ws_status)
+
+def on_close(ws, close_status_code, close_msg):
+    st.session_state.ws_status = "🔴 Disconnected"
+    status_placeholder.error(st.session_state.ws_status)
+
+def on_message(ws, message):
+    # Jab bhi tick aaye
+    st.session_state.last_tick_time = time.time()
+    st.session_state.ws_status = "🟢 Connected & Receiving Live Data"
+    status_placeholder.success(st.session_state.ws_status)
+
+def check_market_status():
+    if st.session_state.last_tick_time:
+        if time.time() - st.session_state.last_tick_time > 30:
+            st.session_state.ws_status = "🟡 Connected but Market Closed"
+            status_placeholder.warning(st.session_state.ws_status)
+
+
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries Data Preview + Live Update")
@@ -307,7 +339,12 @@ with tab5:
                                 st.session_state["live_symbol"] = f"{exch}|{token}"
 
                                 # ✅ Step 3: Start WebSocket for live ticks (correct call)
-                                ps_api.start_websocket_for_symbol(st.session_state["live_symbol"])
+                                ps_api.start_websocket_for_symbol(
+                                    st.session_state["live_symbol"],
+                                    on_open=on_open,
+                                    on_close=on_close,
+                                    on_message=on_message
+                                )
                                 st.success(f"✅ TPSeries fetched & live updates started for {tsym}")
 
                             else:
@@ -318,6 +355,7 @@ with tab5:
 
             # --- Auto-refresh chart ---
             if "candles_df" in st.session_state and not st.session_state["candles_df"].empty:
+                check_market_status()
                 fig = plot_tpseries_candles(
                     st.session_state["candles_df"],
                     st.session_state.get("live_symbol", "Unknown")
