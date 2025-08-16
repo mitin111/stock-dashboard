@@ -167,7 +167,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-          # ------------- TPSeries + WebSocket Live Candles -------------
+             # ------------- TPSeries + WebSocket Live Candles -------------
 
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
@@ -196,14 +196,6 @@ class ProStocksAPI:
             "intrv": str(interval)
         }
 
-        print("📤 Sending TPSeries Payload:")
-        print(f"  UID    : {payload['uid']}")
-        print(f"  EXCH   : {payload['exch']}")
-        print(f"  TOKEN  : {payload['token']}")
-        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(st)))} UTC")
-        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(et)))} UTC")
-        print(f"  INTRV  : {payload['intrv']}")
-
         try:
             response = self._post_json(url, payload)
             return response
@@ -213,8 +205,7 @@ class ProStocksAPI:
 
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
         """
-        Chunked fetch of TPSeries over 'max_days' lookback combining results into a clean DataFrame
-        ready for candlestick charting (open, high, low, close, volume, datetime).
+        Chunked fetch of TPSeries over 'max_days' lookback combining results into a clean DataFrame.
         """
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
@@ -228,7 +219,6 @@ class ProStocksAPI:
             st = int(start_dt.timestamp())
             et = int(end_dt.timestamp())
 
-            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exch, token, interval, st, et)
 
             # Error from API
@@ -238,7 +228,6 @@ class ProStocksAPI:
                 time.sleep(0.25)
                 continue
 
-            # Empty chunk
             if not isinstance(resp, list) or len(resp) == 0:
                 print("⚠️ Empty chunk. Moving back…")
                 end_dt = start_dt - timedelta(seconds=1)
@@ -247,22 +236,18 @@ class ProStocksAPI:
 
             df_chunk = pd.DataFrame(resp)
             all_chunks.append(df_chunk)
-
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
         if not all_chunks:
             return pd.DataFrame()
 
-        # Combine
         df = pd.concat(all_chunks, ignore_index=True)
 
-        # Deduplicate & sort by original 'time' if present
         if "time" in df.columns:
             df.drop_duplicates(subset=["time"], inplace=True)
             df.sort_values(by="time", inplace=True)
 
-        # ✅ Correct rename mapping
         rename_map = {
             "time": "datetime",
             "into": "open",
@@ -276,7 +261,6 @@ class ProStocksAPI:
         }
         df.rename(columns=rename_map, inplace=True)
 
-        # Safe datetime parsing
         if "datetime" in df.columns:
             df["datetime"] = pd.to_datetime(
                 df["datetime"],
@@ -285,7 +269,6 @@ class ProStocksAPI:
             )
             df = df.dropna(subset=["datetime"])
 
-        # Final sort & reset
         df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
 
@@ -326,18 +309,20 @@ class ProStocksAPI:
 
         return results
 
-    def start_websocket_for_symbol(self, symbol):
+    def start_websocket_for_symbol(self, symbol, on_open=None, on_close=None, on_message=None):
         """
-        Connects to WebSocket for given symbol and updates st.session_state["candles_df"] in real-time.
+        Connects to WebSocket for given symbol and streams live ticks.
+        Allows external callbacks (on_open, on_close, on_message).
         """
         import websocket, json, threading
         from datetime import datetime
 
-        def on_message(ws, message):
+        def _on_message(ws, message):
             tick = json.loads(message)
             if tick.get("t") != "tk":   # tick message type
                 return
 
+            # 🔹 Default internal candle update if no external handler
             ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
             minute = ts.replace(second=0, microsecond=0)
             price = float(tick["lp"])
@@ -346,13 +331,11 @@ class ProStocksAPI:
             df = st.session_state.get("candles_df", pd.DataFrame())
 
             if not df.empty and df.iloc[-1]["Datetime"] == minute:
-                # Update current candle
                 df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
                 df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
                 df.at[df.index[-1], "Close"] = price
                 df.at[df.index[-1], "Volume"] += vol
             else:
-                # New candle
                 new_candle = pd.DataFrame(
                     [[minute, price, price, price, price, vol]],
                     columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
@@ -361,13 +344,23 @@ class ProStocksAPI:
 
             st.session_state["candles_df"] = df
 
-        def on_open(ws):
+            if on_message:
+                on_message(ws, message)
+
+        def _on_open(ws):
             sub = json.dumps({"t": "t", "k": symbol})
             ws.send(sub)
+            if on_open:
+                on_open(ws)
+
+        def _on_close(ws, close_status_code, close_msg):
+            if on_close:
+                on_close(ws, close_status_code, close_msg)
 
         ws = websocket.WebSocketApp(
             "wss://starapi.prostocks.com/NorenWSTP/",
-            on_open=on_open,
-            on_message=on_message
+            on_open=_on_open,
+            on_message=_on_message,
+            on_close=_on_close
         )
         threading.Thread(target=ws.run_forever, daemon=True).start()
