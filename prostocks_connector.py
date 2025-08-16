@@ -167,7 +167,8 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-       # ------------- TPSeries -------------
+          # ------------- TPSeries + WebSocket Live Candles -------------
+
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
         Returns raw TPSeries from API.
@@ -266,7 +267,7 @@ class ProStocksAPI:
             "time": "datetime",
             "into": "open",
             "inth": "high",
-            "intl": "low",     # <-- FIXED: was 'inti' earlier
+            "intl": "low",
             "intc": "close",
             "intvwap": "vwap",
             "intv": "volume",
@@ -324,3 +325,49 @@ class ProStocksAPI:
                 break
 
         return results
+
+    def start_websocket_for_symbol(self, symbol):
+        """
+        Connects to WebSocket for given symbol and updates st.session_state["candles_df"] in real-time.
+        """
+        import websocket, json, threading
+        from datetime import datetime
+
+        def on_message(ws, message):
+            tick = json.loads(message)
+            if tick.get("t") != "tk":   # tick message type
+                return
+
+            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick["lp"])
+            vol = int(tick["v"])
+
+            df = st.session_state.get("candles_df", pd.DataFrame())
+
+            if not df.empty and df.iloc[-1]["Datetime"] == minute:
+                # Update current candle
+                df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
+                df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
+                df.at[df.index[-1], "Close"] = price
+                df.at[df.index[-1], "Volume"] += vol
+            else:
+                # New candle
+                new_candle = pd.DataFrame(
+                    [[minute, price, price, price, price, vol]],
+                    columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
+                )
+                df = pd.concat([df, new_candle], ignore_index=True)
+
+            st.session_state["candles_df"] = df
+
+        def on_open(ws):
+            sub = json.dumps({"t": "t", "k": symbol})
+            ws.send(sub)
+
+        ws = websocket.WebSocketApp(
+            "wss://starapi.prostocks.com/NorenWSTP/",
+            on_open=on_open,
+            on_message=on_message
+        )
+        threading.Thread(target=ws.run_forever, daemon=True).start()
