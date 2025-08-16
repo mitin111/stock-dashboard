@@ -288,7 +288,18 @@ with tab5:
                                 chunk_days=5
                             )
                             if not df_candle.empty:
-                                df_candle.rename(columns={"datetime": "Datetime"}, inplace=True)
+                                # ✅ Fix: Rename columns properly
+                                df_candle.rename(
+                                    columns={
+                                        "datetime": "Datetime",
+                                        "open": "Open",
+                                        "high": "High",
+                                        "low": "Low",
+                                        "close": "Close",
+                                        "volume": "Volume"
+                                    },
+                                    inplace=True
+                                )
                                 df_candle["Datetime"] = pd.to_datetime(df_candle["Datetime"])
 
                                 # Step 2: Save in session
