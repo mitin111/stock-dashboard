@@ -167,7 +167,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-           # ------------- TPSeries + WebSocket Live Candles -----------
+          # ------------- TPSeries + WebSocket Live Candles -------------
 
 def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     """
@@ -368,3 +368,4 @@ def start_websocket_for_symbol(self, symbol, on_open=None, on_close=None, on_mes
         on_close=_on_close
     )
     threading.Thread(target=ws.run_forever, daemon=True).start()
+
