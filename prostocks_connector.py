@@ -167,12 +167,12 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-            # ------------- TPSeries + WebSocket Live Candles -------------
+           # ------------- TPSeries + WebSocket Live Candles -----------
 
 def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     """
     Returns raw TPSeries from API.
-    For success, the API typically returns a list; on error it returns a dict with 'stat'/'emsg'.
+    For success, API typically returns a list; on error -> dict with 'stat'/'emsg'.
     'st' and 'et' must be epoch seconds (UTC).
     """
     if not self.session_token:
@@ -202,6 +202,7 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     except Exception as e:
         print("❌ Exception in get_tpseries():", e)
         return {"stat": "Not_Ok", "emsg": str(e)}
+
 
 def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
     """
@@ -272,7 +273,11 @@ def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=
     df.sort_values("datetime", inplace=True)
     return df.reset_index(drop=True)
 
+
 def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+    """
+    Fetch TPSeries for all symbols in a given watchlist.
+    """
     results = []
     MAX_CALLS_PER_MIN = 20
     call_count = 0
@@ -309,13 +314,14 @@ def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
 
     return results
 
+
 def start_websocket_for_symbol(self, symbol, on_open=None, on_close=None, on_message=None, tick_queue=None):
     """
     Connects to WebSocket for given symbol and streams live ticks.
     Pushes ticks/candles into tick_queue (if provided).
     Allows external callbacks (on_open, on_close, on_message).
     """
-    import websocket, json, threading
+    import websocket, threading
     from datetime import datetime
 
     def _on_message(ws, message):
@@ -337,11 +343,11 @@ def start_websocket_for_symbol(self, symbol, on_open=None, on_close=None, on_mes
             "Volume": vol
         }
 
-        # 🔹 Push to external queue instead of touching st.session_state
+        # 🔹 Push to external queue instead of touching Streamlit state
         if tick_queue is not None:
             tick_queue.put(candle)
 
-        # 🔹 Still allow external handler if user provided
+        # 🔹 External handler (if any)
         if on_message:
             on_message(ws, message)
 
