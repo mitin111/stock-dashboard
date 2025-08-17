@@ -179,42 +179,39 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries Data Preview + Live Update")
 
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-
     def normalize_candle_columns(df):
-    rename_map = {
-        "Open": "open",
-        "High": "high",
-        "Low": "low",
-        "Close": "close",
-        "Volume": "volume",
-        "Datetime": "datetime",
-        "datetime": "datetime",
-        "time": "datetime",
-        "ts": "datetime"
-    }
-    df = df.rename(columns={c: rename_map[c] for c in df.columns if c in rename_map})
-    return df
+        rename_map = {
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume",
+            "Datetime": "datetime",
+            "datetime": "datetime",
+            "time": "datetime",
+            "ts": "datetime"
+        }
+        df = df.rename(columns={c: rename_map[c] for c in df.columns if c in rename_map})
+        return df
 
+    def plot_tpseries_candles(df, symbol):
+        # === Normalize all columns ===
+        df = normalize_candle_columns(df)
 
-def plot_tpseries_candles(df, symbol):
-    # === Normalize all columns ===
-    df = normalize_candle_columns(df)
+        # Ensure datetime is proper datetime
+        df['datetime'] = pd.to_datetime(df['datetime'])
 
-    # Ensure datetime is proper datetime
-    df['datetime'] = pd.to_datetime(df['datetime'])
+        # === Remove duplicates & sort ===
+        df = df.drop_duplicates(subset=['datetime'])
+        df = df.sort_values("datetime")
 
-    # === Remove duplicates & sort ===
-    df = df.drop_duplicates(subset=['datetime'])
-    df = df.sort_values("datetime")
+        # === Filter market hours (09:15 to 15:30) ===
+        df = df[
+            (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
+        ]
 
-    # === Filter market hours (09:15 to 15:30) ===
-    df = df[
-        (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-        (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
-    ]
-        # Single panel chart (no volume)
+        # Single panel chart
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
 
         # Candlestick trace
@@ -231,8 +228,8 @@ def plot_tpseries_candles(df, symbol):
 
         # Layout settings for scroll & zoom
         fig.update_layout(
-            xaxis_rangeslider_visible=False,  # hide slider
-            dragmode='pan',                  # enable scroll
+            xaxis_rangeslider_visible=False,
+            dragmode='pan',
             hovermode='x unified',
             showlegend=False,
             template="plotly_dark",
@@ -305,18 +302,9 @@ def plot_tpseries_candles(df, symbol):
                 if st.button("📊 Show Live Chart"):
                     exch, token = symbol_options[selected_symbol]
 
-                    # Fetch initial candles
-                    df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5, max_days=60)
+                    # Fetch initial candles (use your custom function, not ps_api)
+                    df_candle = fetch_full_tpseries(ps_api, exch, token, interval=selected_interval, days=60)
                     if not df_candle.empty:
-                        df_candle.rename(columns={
-                            "datetime": "Datetime",
-                            "open": "Open",
-                            "high": "High",
-                            "low": "Low",
-                            "close": "Close",
-                            "volume": "Volume"
-                        }, inplace=True)
-                        df_candle["Datetime"] = pd.to_datetime(df_candle["Datetime"])
                         st.session_state["live_df"] = df_candle
 
                         chart_placeholder = st.empty()
@@ -331,11 +319,11 @@ def plot_tpseries_candles(df, symbol):
 
                                 # Update last candle
                                 if not df.empty:
-                                    df.loc[df.index[-1], "Close"] = price
-                                    if price > df.loc[df.index[-1], "High"]:
-                                        df.loc[df.index[-1], "High"] = price
-                                    if price < df.loc[df.index[-1], "Low"]:
-                                        df.loc[df.index[-1], "Low"] = price
+                                    df.loc[df.index[-1], "close"] = price
+                                    if price > df.loc[df.index[-1], "high"]:
+                                        df.loc[df.index[-1], "high"] = price
+                                    if price < df.loc[df.index[-1], "low"]:
+                                        df.loc[df.index[-1], "low"] = price
 
                                     # Redraw chart
                                     fig = plot_tpseries_candles(df, symbol)
@@ -346,7 +334,3 @@ def plot_tpseries_candles(df, symbol):
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
-
-
-
-
