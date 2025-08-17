@@ -183,33 +183,75 @@ with tab5:
     from plotly.subplots import make_subplots
 
     def plot_tpseries_candles(df, symbol):
-        df = df.drop_duplicates(subset=['Datetime'])
-        df = df.sort_values("Datetime")
+        # === Remove duplicates & sort ===
+        df = df.drop_duplicates(subset=['datetime'])
+        df = df.sort_values("datetime")
 
+        # === Filter market hours (09:15 to 15:30) ===
         df = df[
-            (df['Datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-            (df['Datetime'].dt.time <= pd.to_datetime("15:30").time())
+            (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
         ]
 
+        # Single panel chart (no volume)
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
+
+        # Candlestick trace
         fig.add_trace(go.Candlestick(
-            x=df['Datetime'],
-            open=df['Open'], high=df['High'],
-            low=df['Low'], close=df['Close'],
+            x=df['datetime'],
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name='Price'
         ))
 
+        # Layout settings for scroll & zoom
         fig.update_layout(
+            xaxis_rangeslider_visible=False,  # hide slider
+            dragmode='pan',                  # enable scroll
+            hovermode='x unified',
+            showlegend=False,
             template="plotly_dark",
-            xaxis_rangeslider_visible=False,
-            showlegend=False, height=500,
+            height=700,
             margin=dict(l=50, r=50, t=50, b=50),
-            plot_bgcolor='black', paper_bgcolor='black',
+            plot_bgcolor='black',
+            paper_bgcolor='black',
             font=dict(color='white'),
-            title=f"{symbol} - Live Candlestick Chart"
         )
+
+        # Grid lines
+        fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
+        fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
+
+        # Hide weekends & after-hours
+        fig.update_xaxes(
+            rangebreaks=[
+                dict(bounds=["sat", "mon"]),
+                dict(bounds=[15.5, 9.25], pattern="hour")
+            ]
+        )
+
+        # "Go to Latest" button
+        fig.update_layout(
+            updatemenus=[dict(
+                type="buttons",
+                direction="left",
+                x=1,
+                y=1.15,
+                buttons=[
+                    dict(
+                        label="Go to Latest",
+                        method="relayout",
+                        args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
+                    )
+                ]
+            )],
+            title=f"{symbol} - TradingView-style Chart"
+        )
+
         return fig
 
     if "ps_api" not in st.session_state:
@@ -283,4 +325,5 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
 
