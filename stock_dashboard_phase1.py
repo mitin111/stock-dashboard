@@ -183,6 +183,14 @@ with tab5:
     from plotly.subplots import make_subplots
 
     def plot_tpseries_candles(df, symbol):
+        # === Ensure consistent datetime column ===
+        if 'time' in df.columns:
+            df = df.rename(columns={'time': 'datetime'})
+        elif 'ts' in df.columns:
+            df = df.rename(columns={'ts': 'datetime'})
+        elif 'Datetime' in df.columns:  # agar pehle se capitalized hai
+            df = df.rename(columns={'Datetime': 'datetime'})
+
         # === Remove duplicates & sort ===
         df = df.drop_duplicates(subset=['datetime'])
         df = df.sort_values("datetime")
@@ -325,5 +333,6 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
 
 
