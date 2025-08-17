@@ -182,25 +182,38 @@ with tab5:
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
-    def plot_tpseries_candles(df, symbol):
-        # === Ensure consistent datetime column ===
-        if 'time' in df.columns:
-            df = df.rename(columns={'time': 'datetime'})
-        elif 'ts' in df.columns:
-            df = df.rename(columns={'ts': 'datetime'})
-        elif 'Datetime' in df.columns:  # agar pehle se capitalized hai
-            df = df.rename(columns={'Datetime': 'datetime'})
+    def normalize_candle_columns(df):
+    rename_map = {
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Close": "close",
+        "Volume": "volume",
+        "Datetime": "datetime",
+        "datetime": "datetime",
+        "time": "datetime",
+        "ts": "datetime"
+    }
+    df = df.rename(columns={c: rename_map[c] for c in df.columns if c in rename_map})
+    return df
 
-        # === Remove duplicates & sort ===
-        df = df.drop_duplicates(subset=['datetime'])
-        df = df.sort_values("datetime")
 
-        # === Filter market hours (09:15 to 15:30) ===
-        df = df[
-            (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
-        ]
+def plot_tpseries_candles(df, symbol):
+    # === Normalize all columns ===
+    df = normalize_candle_columns(df)
 
+    # Ensure datetime is proper datetime
+    df['datetime'] = pd.to_datetime(df['datetime'])
+
+    # === Remove duplicates & sort ===
+    df = df.drop_duplicates(subset=['datetime'])
+    df = df.sort_values("datetime")
+
+    # === Filter market hours (09:15 to 15:30) ===
+    df = df[
+        (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+        (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
+    ]
         # Single panel chart (no volume)
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
 
@@ -333,6 +346,7 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
 
 
 
