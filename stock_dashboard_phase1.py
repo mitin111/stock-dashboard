@@ -310,7 +310,6 @@ with tab5:
                     st.markdown(f"### 📊 {symbol}")
                     fig = plot_tpseries_candles(df, symbol)
                     st.plotly_chart(fig, use_container_width=True)
-                    st.dataframe(df.tail(20), use_container_width=True, height=250)
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
