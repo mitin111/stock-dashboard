@@ -179,26 +179,27 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries Data Preview + Live Update")
 
-      def normalize_tpseries_data(raw_data):
-          if not raw_data or not isinstance(raw_data, list):
-             return None
-    
-          df = pd.DataFrame(raw_data)
+    # === Normalize TPSeries API response ===
+    def normalize_tpseries_data(raw_data):
+        if not raw_data or not isinstance(raw_data, list):
+            return pd.DataFrame()
 
-          # Filter only valid rows
-          df = df[df['stat'] == 'Ok']
+        df = pd.DataFrame(raw_data)
 
-         # Rename columns as per standard
-         df = df.rename(columns={
-              'time': 'datetime',
-              'into': 'open',
-              'inth': 'high',
-              'intl': 'low',
-              'intc': 'close',
-              'intv': 'volume'
+        # Filter only valid rows
+        df = df[df['stat'] == 'Ok']
+
+        # Rename columns as per standard
+        df = df.rename(columns={
+            'time': 'datetime',
+            'into': 'open',
+            'inth': 'high',
+            'intl': 'low',
+            'intc': 'close',
+            'intv': 'volume'
         })
 
-         # Convert datetime
+        # Convert datetime
         df['datetime'] = pd.to_datetime(df['datetime'], format="%d-%m-%Y %H:%M:%S")
 
         # Ensure numeric values
@@ -210,19 +211,16 @@ with tab5:
 
         return df
 
-
+    # === Candlestick plotting ===
     def plot_tpseries_candles(df, symbol):
-        # === Normalize all columns ===
-        df = normalize_candle_columns(df)
-
-        # Ensure datetime is proper datetime
+        # Ensure datetime type
         df['datetime'] = pd.to_datetime(df['datetime'])
 
-        # === Remove duplicates & sort ===
+        # Remove duplicates & sort
         df = df.drop_duplicates(subset=['datetime'])
         df = df.sort_values("datetime")
 
-        # === Filter market hours (09:15 to 15:30) ===
+        # Filter market hours (09:15 to 15:30)
         df = df[
             (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
@@ -243,7 +241,7 @@ with tab5:
             name='Price'
         ))
 
-        # Layout settings for scroll & zoom
+        # Layout settings
         fig.update_layout(
             xaxis_rangeslider_visible=False,
             dragmode='pan',
@@ -289,6 +287,7 @@ with tab5:
 
         return fig
 
+    # === Main logic ===
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
@@ -319,8 +318,10 @@ with tab5:
                 if st.button("📊 Show Live Chart"):
                     exch, token = symbol_options[selected_symbol]
 
-                    # Fetch initial candles (use your custom function, not ps_api)
-                    df_candle = fetch_full_tpseries(ps_api, exch, token, interval=selected_interval, days=60)
+                    # Fetch initial candles via TPSeries
+                    raw_candles = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5, max_days=60)
+                    df_candle = normalize_tpseries_data(raw_candles)
+
                     if not df_candle.empty:
                         st.session_state["live_df"] = df_candle
 
@@ -332,7 +333,6 @@ with tab5:
                         def on_tick(tick, df=df_candle, symbol=selected_symbol):
                             try:
                                 price = float(tick["lp"])
-                                now = datetime.now()
 
                                 # Update last candle
                                 if not df.empty:
@@ -351,4 +351,5 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
 
