@@ -179,20 +179,37 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries Data Preview + Live Update")
 
-    def normalize_candle_columns(df):
-        rename_map = {
-            "Open": "open",
-            "High": "high",
-            "Low": "low",
-            "Close": "close",
-            "Volume": "volume",
-            "Datetime": "datetime",
-            "datetime": "datetime",
-            "time": "datetime",
-            "ts": "datetime"
-        }
-        df = df.rename(columns={c: rename_map[c] for c in df.columns if c in rename_map})
+      def normalize_tpseries_data(raw_data):
+          if not raw_data or not isinstance(raw_data, list):
+             return None
+    
+          df = pd.DataFrame(raw_data)
+
+          # Filter only valid rows
+          df = df[df['stat'] == 'Ok']
+
+         # Rename columns as per standard
+         df = df.rename(columns={
+              'time': 'datetime',
+              'into': 'open',
+              'inth': 'high',
+              'intl': 'low',
+              'intc': 'close',
+              'intv': 'volume'
+        })
+
+         # Convert datetime
+        df['datetime'] = pd.to_datetime(df['datetime'], format="%d-%m-%Y %H:%M:%S")
+
+        # Ensure numeric values
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        df = df.dropna()
+        df = df.sort_values('datetime').reset_index(drop=True)
+
         return df
+
 
     def plot_tpseries_candles(df, symbol):
         # === Normalize all columns ===
@@ -334,3 +351,4 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
