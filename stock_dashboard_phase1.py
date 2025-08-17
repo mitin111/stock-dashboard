@@ -243,7 +243,7 @@ with tab5:
                     exch, token = symbol_options[selected_symbol]
 
                     # Fetch initial candles
-                    df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, days=5)
+                    df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5, max_days=60)
                     if not df_candle.empty:
                         df_candle.rename(columns={
                             "datetime": "Datetime",
@@ -283,3 +283,4 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
