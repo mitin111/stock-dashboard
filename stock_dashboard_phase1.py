@@ -181,37 +181,37 @@ with tab5:
 
     # === Normalize TPSeries API response ===
     def normalize_tpseries_data(raw_data):
-    # Pehle check karo None ya empty list
-    if raw_data is None or (isinstance(raw_data, list) and len(raw_data) == 0):
-        return pd.DataFrame()
+        # Pehle check karo None ya empty list
+        if raw_data is None or (isinstance(raw_data, list) and len(raw_data) == 0):
+            return pd.DataFrame()
 
-    # Agar response ek DataFrame hi hai, sidha return kar do
-    if isinstance(raw_data, pd.DataFrame):
-        return raw_data
+        # Agar response ek DataFrame hi hai, sidha return kar do
+        if isinstance(raw_data, pd.DataFrame):
+            return raw_data
 
-    # Ab normal JSON list ko DataFrame me convert karte hain
-    try:
-        df = pd.DataFrame(raw_data)
-    except Exception:
-        return pd.DataFrame()
+        # Ab normal JSON list ko DataFrame me convert karte hain
+        try:
+            df = pd.DataFrame(raw_data)
+        except Exception:
+            return pd.DataFrame()
 
-    # Required columns normalize karo
-    if all(col in df.columns for col in ["time", "into", "inth", "intl", "intc", "v"]):
-        df = df.rename(
-            columns={
-                "time": "datetime",
-                "into": "open",
-                "inth": "high",
-                "intl": "low",
-                "intc": "close",
-                "v": "volume",
-            }
-        )
-        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-        df = df.dropna(subset=["datetime"])
-        df = df.sort_values("datetime").reset_index(drop=True)
+        # Required columns normalize karo
+        if all(col in df.columns for col in ["time", "into", "inth", "intl", "intc", "v"]):
+            df = df.rename(
+                columns={
+                    "time": "datetime",
+                    "into": "open",
+                    "inth": "high",
+                    "intl": "low",
+                    "intc": "close",
+                    "v": "volume",
+                }
+            )
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+            df = df.dropna(subset=["datetime"])
+            df = df.sort_values("datetime").reset_index(drop=True)
 
-    return df
+        return df
 
     # === Candlestick plotting ===
     def plot_tpseries_candles(df, symbol):
@@ -321,7 +321,12 @@ with tab5:
                     exch, token = symbol_options[selected_symbol]
 
                     # Fetch initial candles via TPSeries
-                    raw_candles = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5, max_days=60)
+                    raw_candles = ps_api.fetch_full_tpseries(
+                        exch, token,
+                        interval=selected_interval,
+                        chunk_days=5,
+                        max_days=60
+                    )
                     df_candle = normalize_tpseries_data(raw_candles)
 
                     if not df_candle.empty:
@@ -353,6 +358,3 @@ with tab5:
                         ps_api.on_tick = on_tick
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
-
-
-
