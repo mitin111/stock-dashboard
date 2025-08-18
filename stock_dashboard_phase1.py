@@ -188,7 +188,14 @@ with tab5:
         st.session_state.ws_status = "⏳ Connecting..."
     status_placeholder.info(st.session_state.ws_status)
 
-# --- Callbacks ---
+    # Auto refresh for UI polling
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=3000, key="ws_refresh")
+
+    # Har refresh pe latest session_state dikhana
+    status_placeholder.info(st.session_state.ws_status)
+
+# --- WebSocket Callbacks ---
 def on_open(ws):
     st.session_state.ws_status = "✅ Connected"
 
@@ -199,12 +206,13 @@ def on_error(ws, error):
     st.session_state.ws_status = f"⚠️ Error: {error}"
 
 def on_message(ws, message):
-    data = json.loads(message)
-    # handle ticks here
-
+   st.session_state.last_tick = message  # sirf save karna hai
 
 # --- Start WebSocket (background thread) ---
 def start_ws():
+    import websocket
+    import threading
+
     ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
     ws = websocket.WebSocketApp(
         ws_url,
@@ -217,6 +225,7 @@ def start_ws():
     wst.start()
     return ws
 
+# sirf ek hi baar run karna
 if "ws" not in st.session_state:
     st.session_state.ws = start_ws()
 
@@ -383,6 +392,7 @@ def get_col(df, *names):
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
