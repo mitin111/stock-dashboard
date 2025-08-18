@@ -317,25 +317,6 @@ else:
             symbol_options = {s["tsym"]: (s["exch"], s["token"]) for s in scrips}
             selected_symbol = st.selectbox("Select Symbol", list(symbol_options.keys()))
 
-            if st.button("📊 Show Live Chart"):
-                exch, token = symbol_options[selected_symbol]
-
-                # Fetch initial candles via TPSeries
-                raw_candles = ps_api.fetch_full_tpseries(
-                    exch, token,
-                    interval=selected_interval,
-                    chunk_days=5,
-                    max_days=60
-                )
-                df_candle = normalize_tpseries_data(raw_candles)
-
-                if not df_candle.empty:
-                    st.session_state["live_df"] = df_candle
-
-                    chart_placeholder = st.empty()
-                    fig = plot_tpseries_candles(df_candle, selected_symbol)
-                    chart_placeholder.plotly_chart(fig, use_container_width=True)
-
 if st.button("📊 Show Live Chart"):
     exch, token = symbol_options[selected_symbol]
 
@@ -406,5 +387,6 @@ if st.button("📊 Show Live Chart"):
         )
     else:
         st.warning("⚠️ No candle data found for this symbol")
+
 
 
