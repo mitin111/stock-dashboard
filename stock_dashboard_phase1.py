@@ -181,21 +181,17 @@ with tab5:
 
     # === Normalize TPSeries API response ===
     def normalize_tpseries_data(raw_data):
-        # Pehle check karo None ya empty list
         if raw_data is None or (isinstance(raw_data, list) and len(raw_data) == 0):
             return pd.DataFrame()
 
-        # Agar response ek DataFrame hi hai, sidha return kar do
         if isinstance(raw_data, pd.DataFrame):
             return raw_data
 
-        # Ab normal JSON list ko DataFrame me convert karte hain
         try:
             df = pd.DataFrame(raw_data)
         except Exception:
             return pd.DataFrame()
 
-        # Required columns normalize karo
         if all(col in df.columns for col in ["time", "into", "inth", "intl", "intc", "v"]):
             df = df.rename(
                 columns={
@@ -215,23 +211,17 @@ with tab5:
 
     # === Candlestick plotting ===
     def plot_tpseries_candles(df, symbol):
-        # Ensure datetime type
         df['datetime'] = pd.to_datetime(df['datetime'])
-
-        # Remove duplicates & sort
         df = df.drop_duplicates(subset=['datetime'])
         df = df.sort_values("datetime")
 
-        # Filter market hours (09:15 to 15:30)
+        # Market hours filter
         df = df[
             (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
         ]
 
-        # Single panel chart
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-
-        # Candlestick trace
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
             open=df['open'],
@@ -243,7 +233,6 @@ with tab5:
             name='Price'
         ))
 
-        # Layout settings
         fig.update_layout(
             xaxis_rangeslider_visible=False,
             dragmode='pan',
@@ -257,11 +246,9 @@ with tab5:
             font=dict(color='white'),
         )
 
-        # Grid lines
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
 
-        # Hide weekends & after-hours
         fig.update_xaxes(
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
@@ -269,7 +256,6 @@ with tab5:
             ]
         )
 
-        # "Go to Latest" button
         fig.update_layout(
             updatemenus=[dict(
                 type="buttons",
@@ -286,101 +272,92 @@ with tab5:
             )],
             title=f"{symbol} - TradingView-style Chart"
         )
-
         return fig
 
     # === Main logic ===
-if "ps_api" not in st.session_state:
-    st.warning("⚠️ Please login first using your API credentials.")
-else:
-    ps_api = st.session_state["ps_api"]
-
-    wl_resp = ps_api.get_watchlists()
-    if wl_resp.get("stat") == "Ok":
-        watchlists = sorted(wl_resp["values"], key=int)
-        selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-        selected_interval = st.selectbox(
-            "Select Interval",
-            ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
-        )
-
-        # Step 1: Load watchlist
-        if st.button("🔁 Load Watchlist"):
-            wl_data = ps_api.get_watchlist(selected_watchlist)
-            if wl_data.get("stat") == "Ok":
-                st.session_state["watchlist_scrips"] = wl_data.get("values", [])
-                st.success("✅ Watchlist loaded!")
-
-        # Step 2: Pick one symbol for live chart
-        if "watchlist_scrips" in st.session_state:
-            scrips = st.session_state["watchlist_scrips"]
-            symbol_options = {s["tsym"]: (s["exch"], s["token"]) for s in scrips}
-            selected_symbol = st.selectbox("Select Symbol", list(symbol_options.keys()))
-
-if st.button("📊 Show Live Chart"):
-    exch, token = symbol_options[selected_symbol]
-
-    # Fetch initial candles via TPSeries
-    raw_candles = ps_api.fetch_full_tpseries(
-        exch, token,
-        interval=selected_interval,
-        chunk_days=5,
-        max_days=60
-    )
-    df_candle = normalize_tpseries_data(raw_candles)
-
-    if not df_candle.empty:
-        st.session_state["live_df"] = df_candle
-
-        chart_placeholder = st.empty()
-        fig = plot_tpseries_candles(df_candle, selected_symbol)
-        chart_placeholder.plotly_chart(fig, use_container_width=True)
-
-        # --- Live update from ticks ---
-        def on_tick(tick, df=df_candle, symbol=selected_symbol):
-            try:
-                price = float(tick["lp"])
-                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)  # tick ka time
-                minute = ts.replace(second=0, microsecond=0)  # 1-min bucket
-
-                if df.empty:
-                    new_candle = pd.DataFrame(
-                        [[minute, price, price, price, price, 1]],
-                        columns=["datetime", "open", "high", "low", "close", "volume"]
-                    )
-                    df = pd.concat([df, new_candle], ignore_index=True)
-                else:
-                    last_candle_time = df.iloc[-1]["datetime"]
-
-                    if last_candle_time == minute:
-                        # update current candle
-                        df.loc[df.index[-1], "close"] = price
-                        df.loc[df.index[-1], "high"] = max(df.loc[df.index[-1], "high"], price)
-                        df.loc[df.index[-1], "low"] = min(df.loc[df.index[-1], "low"], price)
-                        df.loc[df.index[-1], "volume"] += 1
-                    else:
-                        # ✅ new minute → new candle
-                        new_candle = pd.DataFrame(
-                            [[minute, price, price, price, price, 1]],
-                            columns=["datetime", "open", "high", "low", "close", "volume"]
-                        )
-                        df = pd.concat([df, new_candle], ignore_index=True)
-
-                st.session_state["live_df"] = df
-
-                # redraw chart
-                fig = plot_tpseries_candles(df, symbol)
-                chart_placeholder.plotly_chart(fig, use_container_width=True)
-
-            except Exception as e:
-                print(f"Tick update error: {e}")
-
-        # ✅ Ab yaha WebSocket shuru karo
-        ps_api.start_websocket_for_symbol(f"{exch}|{token}")
-        
+    if "ps_api" not in st.session_state:
+        st.warning("⚠️ Please login first using your API credentials.")
     else:
-        st.warning("⚠️ No candle data found for this symbol")
+        ps_api = st.session_state["ps_api"]
 
+        wl_resp = ps_api.get_watchlists()
+        if wl_resp.get("stat") == "Ok":
+            watchlists = sorted(wl_resp["values"], key=int)
+            selected_watchlist = st.selectbox("Select Watchlist", watchlists)
+            selected_interval = st.selectbox(
+                "Select Interval",
+                ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
+            )
 
+            # Step 1: Load watchlist
+            if st.button("🔁 Load Watchlist"):
+                wl_data = ps_api.get_watchlist(selected_watchlist)
+                if wl_data.get("stat") == "Ok":
+                    st.session_state["watchlist_scrips"] = wl_data.get("values", [])
+                    st.success("✅ Watchlist loaded!")
 
+            # Step 2: Pick one symbol for live chart
+            if "watchlist_scrips" in st.session_state:
+                scrips = st.session_state["watchlist_scrips"]
+                symbol_options = {s["tsym"]: (s["exch"], s["token"]) for s in scrips}
+                selected_symbol = st.selectbox("Select Symbol", list(symbol_options.keys()))
 
+                if st.button("📊 Show Live Chart"):
+                    exch, token = symbol_options[selected_symbol]
+
+                    raw_candles = ps_api.fetch_full_tpseries(
+                        exch, token,
+                        interval=selected_interval,
+                        chunk_days=5,
+                        max_days=60
+                    )
+                    df_candle = normalize_tpseries_data(raw_candles)
+
+                    if not df_candle.empty:
+                        st.session_state["live_df"] = df_candle
+
+                        chart_placeholder = st.empty()
+                        fig = plot_tpseries_candles(df_candle, selected_symbol)
+                        chart_placeholder.plotly_chart(fig, use_container_width=True)
+
+                        # --- Tick update callback ---
+                        def on_tick(tick, symbol=selected_symbol):
+                            try:
+                                price = float(tick["lp"])
+                                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+                                minute = ts.replace(second=0, microsecond=0)
+
+                                df = st.session_state.get("live_df", pd.DataFrame())
+
+                                if df.empty:
+                                    new_candle = pd.DataFrame(
+                                        [[minute, price, price, price, price, 1]],
+                                        columns=["datetime", "open", "high", "low", "close", "volume"]
+                                    )
+                                    df = pd.concat([df, new_candle], ignore_index=True)
+                                else:
+                                    last_candle_time = df.iloc[-1]["datetime"]
+                                    if last_candle_time == minute:
+                                        df.loc[df.index[-1], "close"] = price
+                                        df.loc[df.index[-1], "high"] = max(df.loc[df.index[-1], "high"], price)
+                                        df.loc[df.index[-1], "low"] = min(df.loc[df.index[-1], "low"], price)
+                                        df.loc[df.index[-1], "volume"] += 1
+                                    else:
+                                        new_candle = pd.DataFrame(
+                                            [[minute, price, price, price, price, 1]],
+                                            columns=["datetime", "open", "high", "low", "close", "volume"]
+                                        )
+                                        df = pd.concat([df, new_candle], ignore_index=True)
+
+                                st.session_state["live_df"] = df
+                                fig = plot_tpseries_candles(df, symbol)
+                                chart_placeholder.plotly_chart(fig, use_container_width=True)
+
+                            except Exception as e:
+                                print(f"Tick update error: {e}")
+
+                        # ✅ Start WebSocket with callback
+                        ps_api.start_websocket_for_symbol(f"{exch}|{token}", on_tick_callback=on_tick)
+
+                    else:
+                        st.warning("⚠️ No candle data found for this symbol")
