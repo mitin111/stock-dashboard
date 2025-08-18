@@ -182,12 +182,11 @@ with tab5:
     st.subheader("📉 TPSeries Data Preview")
 
     # --- WebSocket Status Placeholder ---
-status_placeholder = st.empty()
+    status_placeholder = st.empty()
 
-if "ws_status" not in st.session_state:
-    st.session_state.ws_status = "⏳ Connecting..."
-status_placeholder.info(st.session_state.ws_status)
-
+    if "ws_status" not in st.session_state:
+        st.session_state.ws_status = "⏳ Connecting..."
+    status_placeholder.info(st.session_state.ws_status)
 
 # --- Callbacks ---
 def on_open(ws):
@@ -224,45 +223,34 @@ if "ws" not in st.session_state:
 # --- UI Polling (main thread refresh) ---
 status_placeholder.info(st.session_state.ws_status)
 
-    # --- Baaki tumhara ensure_datetime / plot_tpseries_candles / fetch code same rehne do ---
 
-    def ensure_datetime(df):
-        """
-        Make sure df has a 'datetime' column in pandas datetime dtype.
-        Works whether source had 'time' as string or epoch.
-        """
-        if "datetime" not in df.columns:
-            for cand_col in ["time", "date", "datetime"]:
-                if cand_col in df.columns:
-                    df = df.rename(columns={cand_col: "datetime"})
-                    break
-
-        if "datetime" not in df.columns:
-            return df  # give up; caller will warn
-
-        # If already datetime dtype, keep
-        if pd.api.types.is_datetime64_any_dtype(df["datetime"]):
-            return df
-
-        # Try string format "DD-MM-YYYY HH:MM:SS"
-        dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
-
-        # Fallback: epoch seconds
-        if dt.isna().any():
-            num = pd.to_numeric(df["datetime"], errors="coerce")
-            mask = dt.isna() & num.notna()
-            if mask.any():
-                dt.loc[mask] = pd.to_datetime(num.loc[mask], unit="s", errors="coerce")
-
-        df["datetime"] = dt
-        df = df.dropna(subset=["datetime"])
+# ✅ Yeh helper functions tab5 ke bahar define karo (bilkul left aligned)
+def ensure_datetime(df):
+    if "datetime" not in df.columns:
+        for cand_col in ["time", "date", "datetime"]:
+            if cand_col in df.columns:
+                df = df.rename(columns={cand_col: "datetime"})
+                break
+    if "datetime" not in df.columns:
         return df
+    if pd.api.types.is_datetime64_any_dtype(df["datetime"]):
+        return df
+    dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
+    if dt.isna().any():
+        num = pd.to_numeric(df["datetime"], errors="coerce")
+        mask = dt.isna() & num.notna()
+        if mask.any():
+            dt.loc[mask] = pd.to_datetime(num.loc[mask], unit="s", errors="coerce")
+    df["datetime"] = dt
+    df = df.dropna(subset=["datetime"])
+    return df
 
-    def get_col(df, *names):
-        for n in names:
-            if n in df.columns:
-                return df[n]
-        return None
+
+def get_col(df, *names):
+    for n in names:
+        if n in df.columns:
+            return df[n]
+    return None
 
     def plot_tpseries_candles(df, symbol):
         # Clean
@@ -395,6 +383,7 @@ status_placeholder.info(st.session_state.ws_status)
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
