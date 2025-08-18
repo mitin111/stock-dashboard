@@ -182,6 +182,11 @@ with tab5:
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
+    status_placeholder = st.empty()
+    if "ws_status" not in st.session_state:
+        st.session_state.ws_status = "⏳ Connecting..."
+        status_placeholder.info(st.session_state.ws_status)
+
     def ensure_datetime(df):
         """
         Make sure df has a 'datetime' column in pandas datetime dtype.
@@ -351,4 +356,5 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
