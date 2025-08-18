@@ -214,6 +214,12 @@ with tab5:
         df = df.dropna(subset=["datetime"])
         return df
 
+    def get_col(df, *names):
+        for n in names:
+            if n in df.columns:
+                return df[n]
+        return None
+
     def plot_tpseries_candles(df, symbol):
         # Clean
         df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
@@ -226,10 +232,10 @@ with tab5:
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
-            open=df.get('open') or df.get('Open'),
-            high=df.get('high') or df.get('High'),
-            low=df.get('low') or df.get('Low'),
-            close=df.get('close') or df.get('Close'),
+            open=get_col(df, 'open', 'Open'),
+            high=get_col(df, 'high', 'High'),
+            low=get_col(df, 'low', 'Low'),
+            close=get_col(df, 'close', 'Close'),
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name='Price'
@@ -345,3 +351,4 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
