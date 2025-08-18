@@ -305,11 +305,15 @@ with tab5:
                 if st.button("📊 Show Live Chart"):
                     exch, token = symbol_options[selected_symbol]
 
-                    raw_candles = ps_api.fetch_full_tpseries(
-                        exch, token,
+                    end_time = datetime.now()
+                    start_time = end_time - timedelta(days=5)
+                    
+                    raw_candles = ps_api.get_tpseries(
+                        exchange=exch,
+                        token=token,
                         interval=selected_interval,
-                        chunk_days=5,
-                        max_days=60
+                        start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
+                        end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
                     )
                     df_candle = normalize_tpseries_data(raw_candles)
 
@@ -361,3 +365,4 @@ with tab5:
 
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
