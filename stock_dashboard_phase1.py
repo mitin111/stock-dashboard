@@ -197,7 +197,9 @@ with tab5:
         st_autorefresh(interval=3000, key="ws_refresh")
 
         df = api.build_live_candles(interval="1min")  # live candles banao
-        df = ensure_datetime(df)
+        if "time" in df.columns:
+            df["time"] = pd.to_datetime(df["time"], unit="s", errors="coerce")
+            df = df.dropna(subset=["time"])
 
         if not df.empty:
             symbol = "TATAMOTORS-EQ"
@@ -366,6 +368,7 @@ def get_col(df, *names):
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
