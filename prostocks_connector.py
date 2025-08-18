@@ -374,3 +374,51 @@ class ProStocksAPI:
             )
 
         return self._live_candles.sort_values("Datetime")
+
+# ---------------- Chart Helper ----------------
+    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+        """
+        df_hist = historical dataframe (from fetch_tpseries_for_watchlist ya fetch_full_tpseries)
+        interval = "1min" | "5min" etc.
+        refresh = seconds (kitne second me chart auto-update hoga)
+        """
+        import plotly.graph_objects as go
+        import time
+
+        fig = go.Figure()
+
+        def update_chart():
+            df_live = self.build_live_candles(interval)
+            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
+                subset=["datetime", "Datetime"], keep="last"
+            )
+
+            # normalize column name
+            if "Datetime" in df_all.columns:
+                df_all["datetime"] = df_all["Datetime"]
+
+            fig.data = []
+            fig.add_trace(go.Candlestick(
+                x=df_all["datetime"],
+                open=df_all["open"] if "open" in df_all else df_all["Open"],
+                high=df_all["high"] if "high" in df_all else df_all["High"],
+                low=df_all["low"] if "low" in df_all else df_all["Low"],
+                close=df_all["close"] if "close" in df_all else df_all["Close"],
+                name="Candles"
+            ))
+            fig.update_layout(
+                title="Historical + Live Candles",
+                xaxis_rangeslider_visible=False,
+                template="plotly_dark",
+                height=600,
+            )
+            fig.show()
+
+        print("📊 Live chart running... (close chart window to stop)")
+        try:
+            while True:
+                update_chart()
+                time.sleep(refresh)
+        except KeyboardInterrupt:
+            print("🛑 Chart stopped")
+
