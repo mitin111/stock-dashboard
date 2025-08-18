@@ -417,41 +417,48 @@ class ProStocksAPI:
 
             print("✅ Candle updated:", df.tail(1).to_dict("records"))
 
-        def on_open(ws):
-            print("✅ WebSocket connected")
-            sub = json.dumps({"t": "t", "k": symbol})
-            ws.send(sub)
-            print(f"📡 Subscribed to {symbol}")
-            
-            # 🟢 Streamlit status update
-            try:
-                import streamlit as st
-                st.session_state.ws_status = "✅ WebSocket Connected"
-                if "status_placeholder" in st.session_state:
-                    st.session_state.status_placeholder.success(st.session_state.ws_status)
-            except Exception: 
-                pass
+        # prostocks_connector.py
+import websocket, threading, json, time
+import pandas as pd
+from datetime import datetime, timedelta, timezone
 
-        def on_close(ws, code, msg):
-            print("🔌 WebSocket closed:", code, msg)
+class ProStocksAPI:
+    def __init__(self):
+        self.ws = None
+        self.live_ticks = []
+        self.is_ws_connected = False
+        self._live_candles = pd.DataFrame()
 
-            # 🔴 Streamlit status update
-            try:
-                import streamlit as st
-                st.session_state.ws_status = "❌ WebSocket Disconnected"
-                if "status_placeholder" in st.session_state:
-                    st.session_state.status_placeholder.error(st.session_state.ws_status)
-            except Exception:
-                pass
+    # ------------------ WebSocket Basic ------------------
+    def on_open(self, ws):
+        print("✅ WebSocket Connected")
+        self.is_ws_connected = True
 
-        self.ws = websocket.WebSocketApp(
-            "wss://starapi.prostocks.com/NorenWSTP/",
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close
-        )
-        threading.Thread(target=self.ws.run_forever, daemon=True).start()
+    def on_message(self, ws, message):
+        data = json.loads(message)
+        self.live_ticks.append(data)
+
+    def on_close(self, ws, code, msg):
+        print("❌ WebSocket Closed")
+        self.is_ws_connected = False
+
+    # ------------------ TPSeries + Live Candles ------------------
+    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        # <-- aapka pura get_tpseries ka code yahan daalna hai -->
+        pass
+
+    def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+        # <-- aapka pura fetch_full_tpseries wala code yahan daalna hai -->
+        pass
+
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+        # <-- aapka pura fetch_tpseries_for_watchlist wala code yahan daalna hai -->
+        pass
+
+    # ------------------ WebSocket with Symbol ------------------
+    def start_websocket_for_symbol(self, symbol):
+        # <-- aapka pura start_websocket_for_symbol wala code yahan daalna hai -->
+        pass
 
     def stop_websocket(self):
         try:
@@ -460,4 +467,3 @@ class ProStocksAPI:
                 print("🛑 WebSocket stopped")
         except Exception as e:
             print("❌ stop_websocket error:", e)
-
