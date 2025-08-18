@@ -327,47 +327,62 @@ class ProStocksAPI:
         return results
 
     def start_websocket_for_symbol(self, symbol):
-        """
-        Connects to WebSocket for given symbol and updates st.session_state["candles_df"] in real-time.
-        """
-        import websocket, json, threading
-        from datetime import datetime
+    import websocket, json, threading
+    from datetime import datetime
 
-        def on_message(ws, message):
+    def on_message(ws, message):
+        print("📩 Tick message raw:", message)   # 👈 Debug log
+        try:
             tick = json.loads(message)
-            if tick.get("t") != "tk":   # tick message type
-                return
+        except Exception as e:
+            print("❌ JSON decode error:", e)
+            return
 
-            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick["lp"])
-            vol = int(tick["v"])
+        if tick.get("t") != "tk":   # sirf tick messages process karo
+            print("⚠️ Non-tick message:", tick)
+            return
 
-            df = st.session_state.get("candles_df", pd.DataFrame())
+        ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+        minute = ts.replace(second=0, microsecond=0)
+        price = float(tick["lp"])
+        vol = int(tick.get("v", 1))
 
-            if not df.empty and df.iloc[-1]["Datetime"] == minute:
-                # Update current candle
-                df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
-                df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
-                df.at[df.index[-1], "Close"] = price
-                df.at[df.index[-1], "Volume"] += vol
-            else:
-                # New candle
-                new_candle = pd.DataFrame(
-                    [[minute, price, price, price, price, vol]],
-                    columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
-                )
-                df = pd.concat([df, new_candle], ignore_index=True)
+        df = st.session_state.get("candles_df", pd.DataFrame())
 
-            st.session_state["candles_df"] = df
+        if not df.empty and df.iloc[-1]["Datetime"] == minute:
+            # Update current candle
+            df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
+            df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
+            df.at[df.index[-1], "Close"] = price
+            df.at[df.index[-1], "Volume"] += vol
+        else:
+            # New candle
+            new_candle = pd.DataFrame(
+                [[minute, price, price, price, price, vol]],
+                columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
+            )
+            df = pd.concat([df, new_candle], ignore_index=True)
 
-        def on_open(ws):
-            sub = json.dumps({"t": "t", "k": symbol})
-            ws.send(sub)
+        st.session_state["candles_df"] = df
+        print("✅ Candle updated:", df.tail(1).to_dict("records"))
 
-        ws = websocket.WebSocketApp(
-            "wss://starapi.prostocks.com/NorenWSTP/",
-            on_open=on_open,
-            on_message=on_message
-        )
-        threading.Thread(target=ws.run_forever, daemon=True).start()
+    def on_open(ws):
+        print("✅ WebSocket connected!")  # 👈 Debug log
+        sub = json.dumps({"t": "t", "k": symbol})
+        ws.send(sub)
+        print(f"📡 Subscribed to {symbol}")  # 👈 Debug log
+
+    def on_error(ws, error):
+        print("❌ WebSocket error:", error)
+
+    def on_close(ws, code, msg):
+        print("🔌 WebSocket closed:", code, msg)
+
+    self.ws = websocket.WebSocketApp(
+        "wss://starapi.prostocks.com/NorenWSTP/",
+        on_open=on_open,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close
+    )
+    threading.Thread(target=self.ws.run_forever, daemon=True).start()
