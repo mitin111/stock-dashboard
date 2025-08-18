@@ -188,17 +188,22 @@ with tab5:
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first.")
     else:
-        api = st.session_state.ps_api  # you should have logged in earlier
+        api = st.session_state.ps_api
 
         if "ws_started" not in st.session_state:
-            api.start_websocket_for_symbol("TATAMOTORS-EQ")  # example
+            api.start_websocket_for_symbol("TATAMOTORS-EQ")  # Example
             st.session_state.ws_started = True
 
         st_autorefresh(interval=3000, key="ws_refresh")
 
-        df = api.build_live_candles()
+        df = api.build_live_candles(interval="1min")  # live candles banao
+        df = ensure_datetime(df)
+
         if not df.empty:
-            st.dataframe(df.tail(20), use_container_width=True, height=400)
+            symbol = "TATAMOTORS-EQ"
+            fig = plot_tpseries_candles(df, symbol)
+            st.plotly_chart(fig, use_container_width=True)  # ✅ chart dikhana
+            st.dataframe(df.tail(20), use_container_width=True, height=300)  # optional table
         else:
             st.info("⏳ Waiting for live ticks...")
 
@@ -361,6 +366,7 @@ def get_col(df, *names):
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
