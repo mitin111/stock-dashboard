@@ -179,59 +179,32 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries Data Preview")
+    st.subheader("📡 Live WebSocket Candles")
 
-    # --- WebSocket Status Placeholder ---
-    status_placeholder = st.empty()
+    # ProStocks API init
+    from prostocks_connector import ProStocksAPI
+    if "ps_api" not in st.session_state:
+        st.warning("⚠️ Please login first using your API credentials.")
+    else:
+        api = st.session_state["ps_api"]
 
-    if "ws_status" not in st.session_state:
-        st.session_state.ws_status = "⏳ Connecting..."
-    status_placeholder.info(st.session_state.ws_status)
+        # WebSocket sirf ek hi baar start karo
+        if "ws_started" not in st.session_state:
+            api.start_websocket_for_symbol("TATAMOTORS-EQ")  # Example scrip
+            st.session_state.ws_started = True
 
-    # Auto refresh for UI polling
-    from streamlit_autorefresh import st_autorefresh
-    st_autorefresh(interval=3000, key="ws_refresh")
+        placeholder = st.empty()
 
-    # Har refresh pe latest session_state dikhana
-    status_placeholder.info(st.session_state.ws_status)
+        # UI refresh har 3s
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=3000, key="ws_refresh")
 
-# --- WebSocket Callbacks ---
-def on_open(ws):
-    st.session_state.ws_status = "✅ Connected"
-
-def on_close(ws, close_status_code, close_msg):
-    st.session_state.ws_status = "❌ Disconnected"
-
-def on_error(ws, error):
-    st.session_state.ws_status = f"⚠️ Error: {error}"
-
-def on_message(ws, message):
-   st.session_state.last_tick = message  # sirf save karna hai
-
-# --- Start WebSocket (background thread) ---
-def start_ws():
-    import websocket
-    import threading
-
-    ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-    ws = websocket.WebSocketApp(
-        ws_url,
-        on_open=on_open,
-        on_close=on_close,
-        on_error=on_error,
-        on_message=on_message
-    )
-    wst = threading.Thread(target=ws.run_forever, daemon=True)
-    wst.start()
-    return ws
-
-# sirf ek hi baar run karna
-if "ws" not in st.session_state:
-    st.session_state.ws = start_ws()
-
-# --- UI Polling (main thread refresh) ---
-status_placeholder.info(st.session_state.ws_status)
-
+        # Buffer se dataframe banao
+        df = api.build_live_candles()
+        if not df.empty:
+            placeholder.dataframe(df.tail(5))
+        else:
+            st.info("⏳ Waiting for ticks...")
 
 # ✅ Yeh helper functions tab5 ke bahar define karo (bilkul left aligned)
 def ensure_datetime(df):
@@ -392,6 +365,7 @@ def get_col(df, *names):
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
