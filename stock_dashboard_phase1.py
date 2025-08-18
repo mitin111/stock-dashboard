@@ -181,35 +181,7 @@ from prostocks_connector import ProStocksAPI
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
-# --- Tab 5: Strategy Engine ---
-with tab5:
-    st.subheader("📡 Live WebSocket Candles")
-
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first.")
-    else:
-        api = st.session_state.ps_api
-
-        if "ws_started" not in st.session_state:
-            api.start_websocket_for_symbol("TATAMOTORS-EQ")  # Example
-            st.session_state.ws_started = True
-
-        st_autorefresh(interval=3000, key="ws_refresh")
-
-        df = api.build_live_candles(interval="1min")  # live candles banao
-        if "time" in df.columns:
-            df["time"] = pd.to_datetime(df["time"], unit="s", errors="coerce")
-            df = df.dropna(subset=["time"])
-
-        if not df.empty:
-            symbol = "TATAMOTORS-EQ"
-            fig = plot_tpseries_candles(df, symbol)
-            st.plotly_chart(fig, use_container_width=True)  # ✅ chart dikhana
-            st.dataframe(df.tail(20), use_container_width=True, height=300)  # optional table
-        else:
-            st.info("⏳ Waiting for live ticks...")
-
-# ✅ Yeh helper functions tab5 ke bahar define karo (bilkul left aligned)
+# --- Helper Functions (yeh tab5 ke bahar hi rakho, bilkul LEFT aligned) ---
 def ensure_datetime(df):
     if "datetime" not in df.columns:
         for cand_col in ["time", "date", "datetime"]:
@@ -220,6 +192,7 @@ def ensure_datetime(df):
         return df
     if pd.api.types.is_datetime64_any_dtype(df["datetime"]):
         return df
+
     dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
     if dt.isna().any():
         num = pd.to_numeric(df["datetime"], errors="coerce")
@@ -237,146 +210,139 @@ def get_col(df, *names):
             return df[n]
     return None
 
-    def plot_tpseries_candles(df, symbol):
-        # Clean
-        df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
-        # Filter market hours (09:15–15:30)
-        df = df[
-            (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
-        ]
 
-        fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-        fig.add_trace(go.Candlestick(
-            x=df['datetime'],
-            open=get_col(df, 'open', 'Open'),
-            high=get_col(df, 'high', 'High'),
-            low=get_col(df, 'low', 'Low'),
-            close=get_col(df, 'close', 'Close'),
-            increasing_line_color='#26a69a',
-            decreasing_line_color='#ef5350',
-            name='Price'
-        ))
+def plot_tpseries_candles(df, symbol):
+    df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
 
+    # Market hours filter
+    df = df[
+        (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+        (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
+    ]
+
+    fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
+    fig.add_trace(go.Candlestick(
+        x=df['datetime'],
+        open=get_col(df, 'open', 'Open'),
+        high=get_col(df, 'high', 'High'),
+        low=get_col(df, 'low', 'Low'),
+        close=get_col(df, 'close', 'Close'),
+        increasing_line_color='#26a69a',
+        decreasing_line_color='#ef5350',
+        name='Price'
+    ))
+
+    fig.update_layout(
+        xaxis_rangeslider_visible=False,
+        dragmode='pan',
+        hovermode='x unified',
+        showlegend=False,
+        template="plotly_dark",
+        height=700,
+        margin=dict(l=50, r=50, t=50, b=50),
+        plot_bgcolor='black',
+        paper_bgcolor='black',
+        font=dict(color='white'),
+        title=f"{symbol} - TradingView-style Chart"
+    )
+    fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray',
+                     rangebreaks=[dict(bounds=["sat", "mon"]),
+                                  dict(bounds=[15.5, 9.25], pattern="hour")])
+    fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
+
+    if len(df) > 50:
         fig.update_layout(
-            xaxis_rangeslider_visible=False,
-            dragmode='pan',
-            hovermode='x unified',
-            showlegend=False,
-            template="plotly_dark",
-            height=700,
-            margin=dict(l=50, r=50, t=50, b=50),
-            plot_bgcolor='black',
-            paper_bgcolor='black',
-            font=dict(color='white'),
-            title=f"{symbol} - TradingView-style Chart"
-        )
-        fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
-        fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-        fig.update_xaxes(
-            rangebreaks=[
-                dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour")
-            ]
-        )
-        if len(df) > 50:
-            fig.update_layout(
-                updatemenus=[dict(
-                    type="buttons",
-                    direction="left",
-                    x=1, y=1.15,
-                    buttons=[dict(
-                        label="Go to Latest",
-                        method="relayout",
-                        args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
-                    )]
+            updatemenus=[dict(
+                type="buttons",
+                direction="left",
+                x=1, y=1.15,
+                buttons=[dict(
+                    label="Go to Latest",
+                    method="relayout",
+                    args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
                 )]
-            )
-        return fig
+            )]
+        )
+    return fig
+
+
+# --- Tab 5: Strategy Engine ---
+with tab5:
+    st.subheader("📡 Live WebSocket Candles + TPSeries")
 
     if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first using your API credentials.")
+        st.warning("⚠️ Please login first.")
     else:
-        ps_api = st.session_state["ps_api"]
+        api = st.session_state.ps_api
 
-        wl_resp = ps_api.get_watchlists()
+        # --- Historical TPSeries Chart ---
+        st.subheader("📊 TPSeries Historical Chart")
+        wl_resp = api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
 
-            selected_watchlist = st.selectbox("Select Watchlist", watchlists)
+            selected_watchlist = st.selectbox("Select Watchlist", watchlists, key="wl_tab5")
             selected_interval = st.selectbox(
                 "Select Interval",
                 ["1", "3", "5", "10", "15", "30", "60", "120", "240"],
-                index=2  # default "5"
+                index=2,
+                key="int_tab5"
             )
 
-            if st.button("🔁 Fetch TPSeries Data"):
+            if st.button("🔁 Fetch TPSeries Data", key="fetch_tab5"):
                 with st.spinner("Fetching candle data for all scrips..."):
-                    wl_data = ps_api.get_watchlist(selected_watchlist)
+                    wl_data = api.get_watchlist(selected_watchlist)
                     if wl_data.get("stat") == "Ok":
-                        scrips = wl_data.get("values", [])
-                        call_count = 0
-                        delay_per_call = 1.1
-
-                        for i, scrip in enumerate(scrips):
-                            exch = scrip["exch"]
-                            token = scrip["token"]
-                            tsym = scrip["tsym"]
-                            st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
+                        for scrip in wl_data.get("values", []):
+                            exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
 
                             try:
-                                session_key = f"tpseries_{tsym}_{selected_interval}"
-                                if session_key not in st.session_state:
-                                    df_candle = ps_api.fetch_full_tpseries(
-                                        exch, token,
-                                        interval=selected_interval,
-                                        chunk_days=5
-                                    )
-                                    st.session_state[session_key] = df_candle.copy()
-                                else:
-                                    df_candle = st.session_state[session_key]
-
+                                df_candle = api.fetch_full_tpseries(
+                                    exch, token,
+                                    interval=selected_interval,
+                                    chunk_days=5
+                                )
                                 if not df_candle.empty:
                                     df_candle = ensure_datetime(df_candle)
-                                    if "datetime" not in df_candle.columns or df_candle.empty:
-                                        st.warning(f"⚠️ Missing/invalid datetime for {tsym}")
-                                        continue
 
-                                    # Ensure lower-case OHLC for plotting helper
-                                    rename_ohlc = {}
-                                    for a, b in [("Open","open"),("High","high"),("Low","low"),("Close","close"),("Volume","volume")]:
+                                    # Rename OHLC columns to lowercase
+                                    rename_map = {}
+                                    for a, b in [("Open","open"),("High","high"),
+                                                 ("Low","low"),("Close","close"),("Volume","volume")]:
                                         if a in df_candle.columns and b not in df_candle.columns:
-                                            rename_ohlc[a] = b
-                                    if rename_ohlc:
-                                        df_candle = df_candle.rename(columns=rename_ohlc)
+                                            rename_map[a] = b
+                                    if rename_map:
+                                        df_candle = df_candle.rename(columns=rename_map)
 
                                     fig = plot_tpseries_candles(df_candle, tsym)
                                     st.plotly_chart(fig, use_container_width=True)
-                                    st.dataframe(df_candle, use_container_width=True, height=600)
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
-
                             except Exception as e:
-                                st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
-
-                            call_count += 1
-                            time.sleep(delay_per_call)
-
-                        st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
+                                st.warning(f"⚠️ {tsym}: {e}")
                     else:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
 
+        # --- Live WebSocket Stream ---
+        st.subheader("📡 Live WebSocket Stream")
+        if "ws_started" not in st.session_state:
+            api.start_websocket_for_symbol("TATAMOTORS-EQ")
+            st.session_state.ws_started = True
 
+        st_autorefresh(interval=3000, key="ws_refresh")
 
+        df = api.build_live_candles(interval="1min")
+        if "time" in df.columns:
+            df["time"] = pd.to_datetime(df["time"], unit="s", errors="coerce")
+            df = df.dropna(subset=["time"])
 
-
-
-
-
-
-
-
-
+        if not df.empty:
+            symbol = "TATAMOTORS-EQ"
+            fig = plot_tpseries_candles(df, symbol)
+            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(df.tail(20), use_container_width=True, height=300)
+        else:
+            st.info("⏳ Waiting for live ticks...")
