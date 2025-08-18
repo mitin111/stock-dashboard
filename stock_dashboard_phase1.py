@@ -376,17 +376,11 @@ if st.button("📊 Show Live Chart"):
                 print(f"Tick update error: {e}")
 
         # ✅ Ab yaha WebSocket shuru karo
-        def on_open():
-            print("✅ WebSocket connected, subscribing...")
-            ps_api.subscribe(f"{exch}|{token}")
-
-        ps_api.start_websocket(
-            order_update_callback=lambda msg: print("Order:", msg),
-            subscribe_callback=on_tick,
-            socket_open_callback=on_open
-        )
+        ps_api.start_websocket_for_symbol(f"{exch}|{token}")
+        
     else:
         st.warning("⚠️ No candle data found for this symbol")
+
 
 
 
