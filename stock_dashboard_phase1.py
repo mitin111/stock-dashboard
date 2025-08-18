@@ -182,43 +182,47 @@ with tab5:
     st.subheader("📉 TPSeries Data Preview")
 
     # --- WebSocket Status Placeholder ---
-    status_placeholder = st.empty()
-    if "ws_status" not in st.session_state:
-        st.session_state.ws_status = "⏳ Connecting..."
-        status_placeholder.info(st.session_state.ws_status)
+status_placeholder = st.empty()
 
-    # --- WebSocket Callbacks ---
-    def on_open(ws):
-        st.session_state.ws_status = "✅ Connected"
-        status_placeholder.success(st.session_state.ws_status)
+if "ws_status" not in st.session_state:
+    st.session_state.ws_status = "⏳ Connecting..."
+status_placeholder.info(st.session_state.ws_status)
 
-    def on_close(ws, close_status_code, close_msg):
-        st.session_state.ws_status = "❌ Disconnected"
-        status_placeholder.error(st.session_state.ws_status)
 
-    def on_error(ws, error):
-        st.session_state.ws_status = f"⚠️ Error: {error}"
-        status_placeholder.error(st.session_state.ws_status)
+# --- Callbacks ---
+def on_open(ws):
+    st.session_state.ws_status = "✅ Connected"
 
-    def on_message(ws, message):
-        data = json.loads(message)
-        # tick handle karna hai
+def on_close(ws, close_status_code, close_msg):
+    st.session_state.ws_status = "❌ Disconnected"
 
-    def start_ws():
-        ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-        ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_close=on_close,
-            on_error=on_error,
-            on_message=on_message
-        )
-        wst = threading.Thread(target=ws.run_forever, daemon=True)
-        wst.start()
-        return ws
+def on_error(ws, error):
+    st.session_state.ws_status = f"⚠️ Error: {error}"
 
-    if "ws" not in st.session_state:
-        st.session_state.ws = start_ws()
+def on_message(ws, message):
+    data = json.loads(message)
+    # handle ticks here
+
+
+# --- Start WebSocket (background thread) ---
+def start_ws():
+    ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+    ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=on_open,
+        on_close=on_close,
+        on_error=on_error,
+        on_message=on_message
+    )
+    wst = threading.Thread(target=ws.run_forever, daemon=True)
+    wst.start()
+    return ws
+
+if "ws" not in st.session_state:
+    st.session_state.ws = start_ws()
+
+# --- UI Polling (main thread refresh) ---
+status_placeholder.info(st.session_state.ws_status)
 
     # --- Baaki tumhara ensure_datetime / plot_tpseries_candles / fetch code same rehne do ---
 
@@ -391,6 +395,7 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
