@@ -168,7 +168,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-        # ------------- TPSeries + WebSocket Live Candles -------------
+           # ------------- TPSeries + WebSocket Live Candles -------------
     def get_tpseries(self, exchange, token, interval="5", start_time=None, end_time=None):
         """
         Fetch raw TPSeries data (historical candles) from ProStocks API.
@@ -222,11 +222,20 @@ class ProStocksAPI:
             print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exchange, token, interval, start_time=st, end_time=et)
 
-            if isinstance(resp, dict):
-                print(f"⚠️ TPSeries error: {resp}")
+            if not resp:
+                print("⚠️ Empty response, skipping…")
                 end_dt = start_dt - timedelta(seconds=1)
-                time.sleep(0.25)
                 continue
+
+            # --- FIX HERE: Handle dict with 'candles' key ---
+            if isinstance(resp, dict):
+                if "candles" in resp and isinstance(resp["candles"], list):
+                    resp = resp["candles"]
+                else:
+                    print(f"⚠️ TPSeries error: {resp}")
+                    end_dt = start_dt - timedelta(seconds=1)
+                    time.sleep(0.25)
+                    continue
 
             if not isinstance(resp, list) or len(resp) == 0:
                 print("⚠️ Empty chunk. Skipping…")
@@ -259,8 +268,8 @@ class ProStocksAPI:
         df.rename(columns=rename_map, inplace=True)
 
         if "datetime" in df.columns:
-             df["datetime"] = pd.to_datetime(df["datetime"], unit="s", errors="coerce")
-             df.dropna(subset=["datetime"], inplace=True)
+            df["datetime"] = pd.to_datetime(df["datetime"], unit="s", errors="coerce")
+            df.dropna(subset=["datetime"], inplace=True)
             
         df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
@@ -364,4 +373,3 @@ class ProStocksAPI:
             on_close=on_close
         )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
-
