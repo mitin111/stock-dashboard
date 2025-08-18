@@ -321,7 +321,10 @@ with tab5:
                     
                     st.write("TPSeries raw response:", raw_candles)
                     
-                    df_candle = normalize_tpseries_data(raw_candles)
+                    if raw_candles and "values" in raw_candles:
+                        df_candle = normalize_tpseries_data(raw_candles["values"])
+                    else:
+                        df_candle = pd.DataFrame()
 
                     if not df_candle.empty:
                         st.session_state["live_df"] = df_candle
@@ -371,5 +374,6 @@ with tab5:
 
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
 
 
