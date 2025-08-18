@@ -259,9 +259,9 @@ class ProStocksAPI:
         df.rename(columns=rename_map, inplace=True)
 
         if "datetime" in df.columns:
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-            df.dropna(subset=["datetime"], inplace=True)
-
+             df["datetime"] = pd.to_datetime(df["datetime"], unit="s", errors="coerce")
+             df.dropna(subset=["datetime"], inplace=True)
+            
         df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
 
@@ -364,3 +364,4 @@ class ProStocksAPI:
             on_close=on_close
         )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
+
