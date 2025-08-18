@@ -429,41 +429,94 @@ class ProStocksAPI:
         self.is_ws_connected = False
         self._live_candles = pd.DataFrame()
 
+  # prostocks_connector.py
+import websocket, threading, json, time
+import pandas as pd
+from datetime import datetime, timedelta, timezone
+from collections import deque
+
+class ProStocksAPI:
+    def __init__(self):
+        self.ws = None
+        self.is_ws_connected = False
+        self._tick_buffer = deque(maxlen=500)   # background → main thread bridge
+        self._live_candles = pd.DataFrame()
+
     # ------------------ WebSocket Basic ------------------
-    def on_open(self, ws):
+    def _on_open(self, ws):
         print("✅ WebSocket Connected")
         self.is_ws_connected = True
 
-    def on_message(self, ws, message):
-        data = json.loads(message)
-        self.live_ticks.append(data)
+    def _on_message(self, ws, message):
+        try:
+            tick = json.loads(message)
+            self._tick_buffer.append(tick)   # ✅ just buffer, no Streamlit calls here
+        except Exception as e:
+            print("❌ Tick parse error:", e)
 
-    def on_close(self, ws, code, msg):
+    def _on_close(self, ws, code, msg):
         print("❌ WebSocket Closed")
         self.is_ws_connected = False
 
-    # ------------------ TPSeries + Live Candles ------------------
-    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-        # <-- aapka pura get_tpseries ka code yahan daalna hai -->
-        pass
-
-    def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
-        # <-- aapka pura fetch_full_tpseries wala code yahan daalna hai -->
-        pass
-
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
-        # <-- aapka pura fetch_tpseries_for_watchlist wala code yahan daalna hai -->
-        pass
-
-    # ------------------ WebSocket with Symbol ------------------
+    # ------------------ Start/Stop WebSocket ------------------
     def start_websocket_for_symbol(self, symbol):
-        # <-- aapka pura start_websocket_for_symbol wala code yahan daalna hai -->
-        pass
+        """
+        Start WebSocket in a background thread. 
+        Streamlit should poll ticks via get_latest_ticks().
+        """
+        def run_ws():
+            self.ws = websocket.WebSocketApp(
+                "wss://starapi.prostocks.com/NorenWSTP/",
+                on_open=self._on_open,
+                on_message=self._on_message,
+                on_close=self._on_close
+            )
+            self.ws.run_forever()
+
+        threading.Thread(target=run_ws, daemon=True).start()
+        print(f"🚀 WebSocket started for {symbol}")
 
     def stop_websocket(self):
         try:
-            if getattr(self, "ws", None):
+            if self.ws:
                 self.ws.close()
                 print("🛑 WebSocket stopped")
         except Exception as e:
             print("❌ stop_websocket error:", e)
+
+    # ------------------ Data Access ------------------
+    def get_latest_ticks(self, n=20):
+        """
+        Safely fetch last N ticks for Streamlit.
+        """
+        return list(self._tick_buffer)[-n:]
+
+    def build_live_candles(self, interval="1min"):
+        """
+        Convert buffered ticks into candles (main thread safe).
+        Call this from Streamlit loop.
+        """
+        ticks = list(self._tick_buffer)
+        if not ticks:
+            return self._live_candles
+
+        rows = []
+        for tick in ticks:
+            if tick.get("t") != "tk":
+                continue
+            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick.get("lp", 0))
+            vol = int(tick.get("v", 1))
+            rows.append([minute, price, price, price, price, vol])
+
+        if not rows:
+            return self._live_candles
+
+        df_new = pd.DataFrame(rows, columns=["Datetime","Open","High","Low","Close","Volume"])
+        if self._live_candles.empty:
+            self._live_candles = df_new
+        else:
+            self._live_candles = pd.concat([self._live_candles, df_new]).drop_duplicates(subset=["Datetime"])
+
+        return self._live_candles.sort_values("Datetime")
