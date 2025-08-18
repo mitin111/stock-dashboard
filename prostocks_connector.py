@@ -167,18 +167,17 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-                # ------------- TPSeries + WebSocket Live Candles -------------
+               # ------------- TPSeries + WebSocket Live Candles -------------
 
 def get_tpseries(self, exch, token, interval="5", st=None, et=None):
     """
-    Returns raw TPSeries from API.
-    For success, the API typically returns a list; on error it returns a dict with 'stat'/'emsg'.
-    'st' and 'et' must be epoch seconds (UTC).
+    Fetch raw TPSeries data (historical candles) from ProStocks API.
+    'st' and 'et' should be epoch timestamps (UTC).
     """
     if not self.session_token:
         return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-    # Default window (last 60 days) if not provided
+    # Default last 60 days
     if st is None or et is None:
         days_back = 60
         et_dt = datetime.now(timezone.utc)
@@ -196,13 +195,7 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         "intrv": str(interval)
     }
 
-    print("📤 Sending TPSeries Payload:")
-    print(f"  UID    : {payload['uid']}")
-    print(f"  EXCH   : {payload['exch']}")
-    print(f"  TOKEN  : {payload['token']}")
-    print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(st)))} UTC")
-    print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(et)))} UTC")
-    print(f"  INTRV  : {payload['intrv']}")
+    print("📤 Sending TPSeries Payload:", payload)
 
     try:
         response = self._post_json(url, payload)
@@ -214,8 +207,8 @@ def get_tpseries(self, exch, token, interval="5", st=None, et=None):
 
 def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
     """
-    Chunked fetch of TPSeries over 'max_days' lookback combining results into a clean DataFrame
-    ready for candlestick charting (open, high, low, close, volume, datetime).
+    Fetch TPSeries in chunks (default: last 60 days).
+    Returns cleaned DataFrame with OHLCV + datetime.
     """
     all_chunks = []
     end_dt = datetime.now(timezone.utc)
@@ -232,73 +225,66 @@ def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=
         print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
         resp = self.get_tpseries(exch, token, interval, st, et)
 
-        # Error from API
+        # API returned error
         if isinstance(resp, dict):
-            print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
+            print(f"⚠️ TPSeries error: {resp}")
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
             continue
 
-        # Empty chunk
+        # Empty response
         if not isinstance(resp, list) or len(resp) == 0:
-            print("⚠️ Empty chunk. Moving back…")
+            print("⚠️ Empty chunk. Skipping…")
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
             continue
 
         df_chunk = pd.DataFrame(resp)
         all_chunks.append(df_chunk)
-
         end_dt = start_dt - timedelta(seconds=1)
         time.sleep(0.25)
 
     if not all_chunks:
         return pd.DataFrame()
 
-    # Combine
     df = pd.concat(all_chunks, ignore_index=True)
 
-    # Deduplicate & sort by original 'time' if present
+    # Deduplicate
     if "time" in df.columns:
         df.drop_duplicates(subset=["time"], inplace=True)
         df.sort_values(by="time", inplace=True)
 
-    # ✅ Correct rename mapping
+    # Rename columns to OHLCV
     rename_map = {
         "time": "datetime",
         "into": "open",
         "inth": "high",
         "intl": "low",
         "intc": "close",
-        "intvwap": "vwap",
-        "intv": "volume",
-        "intol": "open_interest_lot",
-        "oi": "open_interest"
+        "intv": "volume"
     }
     df.rename(columns=rename_map, inplace=True)
 
-    # Safe datetime parsing
+    # Parse datetime
     if "datetime" in df.columns:
-        df["datetime"] = pd.to_datetime(
-            df["datetime"],
-            errors="coerce",
-            dayfirst=True
-        )
-        df = df.dropna(subset=["datetime"])
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+        df.dropna(subset=["datetime"], inplace=True)
 
-    # Final sort & reset
     df.sort_values("datetime", inplace=True)
     return df.reset_index(drop=True)
 
 
 def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+    """
+    Fetch TPSeries for all symbols in a watchlist.
+    """
     results = []
     MAX_CALLS_PER_MIN = 20
     call_count = 0
 
     symbols = self.get_watchlist(wlname)
     if not symbols or "values" not in symbols:
-        print("❌ No symbols found in watchlist.")
+        print("❌ No symbols in watchlist.")
         return []
 
     for idx, sym in enumerate(symbols["values"]):
@@ -314,36 +300,38 @@ def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
             print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
             df = self.fetch_full_tpseries(exch, token, interval)
             if not df.empty:
-                print(f"✅ {symbol}: {len(df)} candles fetched.")
+                print(f"✅ {symbol}: {len(df)} candles fetched")
                 results.append({"symbol": symbol, "data": df})
             else:
-                print(f"⚠️ {symbol}: No data fetched.")
+                print(f"⚠️ {symbol}: No data fetched")
         except Exception as e:
-            print(f"❌ {symbol}: Exception: {e}") 
+            print(f"❌ {symbol}: Exception {e}")
 
         call_count += 1
         if call_count >= MAX_CALLS_PER_MIN:
-            print("⚠️ TPSeries limit reached. Skipping remaining.")
+            print("⚠️ TPSeries API limit reached. Stopping.")
             break
 
     return results
 
 
 def start_websocket_for_symbol(self, symbol):
+    """
+    Start websocket for live candles (OHLCV updates).
+    """
     import websocket, json, threading
     from datetime import datetime
 
     def on_message(ws, message):
-        print("📩 Tick message raw:", message)   # 👈 Debug log
+        print("📩 Tick:", message)
         try:
             tick = json.loads(message)
         except Exception as e:
             print("❌ JSON decode error:", e)
             return
 
-        if tick.get("t") != "tk":   # sirf tick messages process karo
-            print("⚠️ Non-tick message:", tick)
-            return
+        if tick.get("t") != "tk":
+            return  # ignore non-tick messages
 
         ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
         minute = ts.replace(second=0, microsecond=0)
@@ -353,13 +341,13 @@ def start_websocket_for_symbol(self, symbol):
         df = st.session_state.get("candles_df", pd.DataFrame())
 
         if not df.empty and df.iloc[-1]["Datetime"] == minute:
-            # Update current candle
+            # Update existing candle
             df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
             df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
             df.at[df.index[-1], "Close"] = price
             df.at[df.index[-1], "Volume"] += vol
         else:
-            # New candle
+            # Create new candle
             new_candle = pd.DataFrame(
                 [[minute, price, price, price, price, vol]],
                 columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
@@ -370,10 +358,10 @@ def start_websocket_for_symbol(self, symbol):
         print("✅ Candle updated:", df.tail(1).to_dict("records"))
 
     def on_open(ws):
-        print("✅ WebSocket connected!")  # 👈 Debug log
+        print("✅ WebSocket connected")
         sub = json.dumps({"t": "t", "k": symbol})
         ws.send(sub)
-        print(f"📡 Subscribed to {symbol}")  # 👈 Debug log
+        print(f"📡 Subscribed to {symbol}")
 
     def on_error(ws, error):
         print("❌ WebSocket error:", error)
