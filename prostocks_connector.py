@@ -422,12 +422,27 @@ class ProStocksAPI:
             sub = json.dumps({"t": "t", "k": symbol})
             ws.send(sub)
             print(f"📡 Subscribed to {symbol}")
-
-        def on_error(ws, error):
-            print("❌ WebSocket error:", error)
+            
+            # 🟢 Streamlit status update
+            try:
+                import streamlit as st
+                st.session_state.ws_status = "✅ WebSocket Connected"
+                if "status_placeholder" in st.session_state:
+                    st.session_state.status_placeholder.success(st.session_state.ws_status)
+            except Exception: 
+                pass
 
         def on_close(ws, code, msg):
             print("🔌 WebSocket closed:", code, msg)
+
+            # 🔴 Streamlit status update
+            try:
+                import streamlit as st
+                st.session_state.ws_status = "❌ WebSocket Disconnected"
+                if "status_placeholder" in st.session_state:
+                    st.session_state.status_placeholder.error(st.session_state.ws_status)
+            except Exception:
+                pass
 
         self.ws = websocket.WebSocketApp(
             "wss://starapi.prostocks.com/NorenWSTP/",
@@ -445,3 +460,4 @@ class ProStocksAPI:
                 print("🛑 WebSocket stopped")
         except Exception as e:
             print("❌ stop_websocket error:", e)
+
