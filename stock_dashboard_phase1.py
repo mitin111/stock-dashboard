@@ -175,47 +175,49 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df.sort_index(inplace=True)
     return final_df
 
-# --- Tab 5: Strategy Engine ---
+# === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries Data Preview + Live Update")
+    st.subheader("📉 TPSeries Data Preview")
 
-    # === Normalize TPSeries API response ===
-    def normalize_tpseries_data(raw_data):
-        if raw_data is None or (isinstance(raw_data, list) and len(raw_data) == 0):
-            return pd.DataFrame()
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 
-        if isinstance(raw_data, pd.DataFrame):
-            return raw_data
+    def ensure_datetime(df):
+        """
+        Make sure df has a 'datetime' column in pandas datetime dtype.
+        Works whether source had 'time' as string or epoch.
+        """
+        if "datetime" not in df.columns:
+            for cand_col in ["time", "date", "datetime"]:
+                if cand_col in df.columns:
+                    df = df.rename(columns={cand_col: "datetime"})
+                    break
 
-        try:
-            df = pd.DataFrame(raw_data)
-        except Exception:
-            return pd.DataFrame()
+        if "datetime" not in df.columns:
+            return df  # give up; caller will warn
 
-        if all(col in df.columns for col in ["time", "into", "inth", "intl", "intc", "v"]):
-            df = df.rename(
-                columns={
-                    "time": "datetime",
-                    "into": "open",
-                    "inth": "high",
-                    "intl": "low",
-                    "intc": "close",
-                    "v": "volume",
-                }
-            )
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-            df = df.dropna(subset=["datetime"])
-            df = df.sort_values("datetime").reset_index(drop=True)
+        # If already datetime dtype, keep
+        if pd.api.types.is_datetime64_any_dtype(df["datetime"]):
+            return df
 
+        # Try string format "DD-MM-YYYY HH:MM:SS"
+        dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
+
+        # Fallback: epoch seconds
+        if dt.isna().any():
+            num = pd.to_numeric(df["datetime"], errors="coerce")
+            mask = dt.isna() & num.notna()
+            if mask.any():
+                dt.loc[mask] = pd.to_datetime(num.loc[mask], unit="s", errors="coerce")
+
+        df["datetime"] = dt
+        df = df.dropna(subset=["datetime"])
         return df
 
-    # === Candlestick plotting ===
     def plot_tpseries_candles(df, symbol):
-        df['datetime'] = pd.to_datetime(df['datetime'])
-        df = df.drop_duplicates(subset=['datetime'])
-        df = df.sort_values("datetime")
-
-        # Market hours filter
+        # Clean
+        df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
+        # Filter market hours (09:15–15:30)
         df = df[
             (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
@@ -224,10 +226,10 @@ with tab5:
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
+            open=df.get('open') or df.get('Open'),
+            high=df.get('high') or df.get('High'),
+            low=df.get('low') or df.get('Low'),
+            close=df.get('close') or df.get('Close'),
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name='Price'
@@ -244,37 +246,31 @@ with tab5:
             plot_bgcolor='black',
             paper_bgcolor='black',
             font=dict(color='white'),
+            title=f"{symbol} - TradingView-style Chart"
         )
-
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-
         fig.update_xaxes(
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
                 dict(bounds=[15.5, 9.25], pattern="hour")
             ]
         )
-
-        fig.update_layout(
-            updatemenus=[dict(
-                type="buttons",
-                direction="left",
-                x=1,
-                y=1.15,
-                buttons=[
-                    dict(
+        if len(df) > 50:
+            fig.update_layout(
+                updatemenus=[dict(
+                    type="buttons",
+                    direction="left",
+                    x=1, y=1.15,
+                    buttons=[dict(
                         label="Go to Latest",
                         method="relayout",
                         args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
-                    )
-                ]
-            )],
-            title=f"{symbol} - TradingView-style Chart"
-        )
+                    )]
+                )]
+            )
         return fig
 
-    # === Main logic ===
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
@@ -282,98 +278,70 @@ with tab5:
 
         wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
-            watchlists = sorted(wl_resp["values"], key=int)
+            raw_watchlists = wl_resp["values"]
+            watchlists = sorted(raw_watchlists, key=int)
+
             selected_watchlist = st.selectbox("Select Watchlist", watchlists)
             selected_interval = st.selectbox(
                 "Select Interval",
-                ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
+                ["1", "3", "5", "10", "15", "30", "60", "120", "240"],
+                index=2  # default "5"
             )
 
-            # Step 1: Load watchlist
-            if st.button("🔁 Load Watchlist"):
-                wl_data = ps_api.get_watchlist(selected_watchlist)
-                if wl_data.get("stat") == "Ok":
-                    st.session_state["watchlist_scrips"] = wl_data.get("values", [])
-                    st.success("✅ Watchlist loaded!")
+            if st.button("🔁 Fetch TPSeries Data"):
+                with st.spinner("Fetching candle data for all scrips..."):
+                    wl_data = ps_api.get_watchlist(selected_watchlist)
+                    if wl_data.get("stat") == "Ok":
+                        scrips = wl_data.get("values", [])
+                        call_count = 0
+                        delay_per_call = 1.1
 
-            # Step 2: Pick one symbol for live chart
-            if "watchlist_scrips" in st.session_state:
-                scrips = st.session_state["watchlist_scrips"]
-                symbol_options = {s["tsym"]: (s["exch"], s["token"]) for s in scrips}
-                selected_symbol = st.selectbox("Select Symbol", list(symbol_options.keys()))
+                        for i, scrip in enumerate(scrips):
+                            exch = scrip["exch"]
+                            token = scrip["token"]
+                            tsym = scrip["tsym"]
+                            st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
-                if st.button("📊 Show Live Chart"):
-                    exch, token = symbol_options[selected_symbol]
-
-                    end_time = datetime.now()
-                    start_time = end_time - timedelta(days=5)
-                    
-                    st_epoch = int(start_time.timestamp())
-                    et_epoch = int(end_time.timestamp())
-                    
-                    raw_candles = ps_api.get_tpseries(
-                        exch,
-                        token,
-                        selected_interval,
-                        st_epoch,
-                         et_epoch
-                    )
-                    
-                    st.write("TPSeries raw response:", raw_candles)
-                    
-                    if raw_candles and "values" in raw_candles:
-                        df_candle = normalize_tpseries_data(raw_candles["values"])
-                    else:
-                        df_candle = pd.DataFrame()
-
-                    if not df_candle.empty:
-                        st.session_state["live_df"] = df_candle
-
-                        chart_placeholder = st.empty()
-                        fig = plot_tpseries_candles(df_candle, selected_symbol)
-                        chart_placeholder.plotly_chart(fig, use_container_width=True)
-
-                        # --- Tick update callback ---
-                        def on_tick(tick, symbol=selected_symbol):
                             try:
-                                price = float(tick["lp"])
-                                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-                                minute = ts.replace(second=0, microsecond=0)
-
-                                df = st.session_state.get("live_df", pd.DataFrame())
-
-                                if df.empty:
-                                    new_candle = pd.DataFrame(
-                                        [[minute, price, price, price, price, 1]],
-                                        columns=["datetime", "open", "high", "low", "close", "volume"]
+                                session_key = f"tpseries_{tsym}_{selected_interval}"
+                                if session_key not in st.session_state:
+                                    df_candle = ps_api.fetch_full_tpseries(
+                                        exch, token,
+                                        interval=selected_interval,
+                                        chunk_days=5
                                     )
-                                    df = pd.concat([df, new_candle], ignore_index=True)
+                                    st.session_state[session_key] = df_candle.copy()
                                 else:
-                                    last_candle_time = df.iloc[-1]["datetime"]
-                                    if last_candle_time == minute:
-                                        df.loc[df.index[-1], "close"] = price
-                                        df.loc[df.index[-1], "high"] = max(df.loc[df.index[-1], "high"], price)
-                                        df.loc[df.index[-1], "low"] = min(df.loc[df.index[-1], "low"], price)
-                                        df.loc[df.index[-1], "volume"] += 1
-                                    else:
-                                        new_candle = pd.DataFrame(
-                                            [[minute, price, price, price, price, 1]],
-                                            columns=["datetime", "open", "high", "low", "close", "volume"]
-                                        )
-                                        df = pd.concat([df, new_candle], ignore_index=True)
+                                    df_candle = st.session_state[session_key]
 
-                                st.session_state["live_df"] = df
-                                fig = plot_tpseries_candles(df, symbol)
-                                chart_placeholder.plotly_chart(fig, use_container_width=True)
+                                if not df_candle.empty:
+                                    df_candle = ensure_datetime(df_candle)
+                                    if "datetime" not in df_candle.columns or df_candle.empty:
+                                        st.warning(f"⚠️ Missing/invalid datetime for {tsym}")
+                                        continue
+
+                                    # Ensure lower-case OHLC for plotting helper
+                                    rename_ohlc = {}
+                                    for a, b in [("Open","open"),("High","high"),("Low","low"),("Close","close"),("Volume","volume")]:
+                                        if a in df_candle.columns and b not in df_candle.columns:
+                                            rename_ohlc[a] = b
+                                    if rename_ohlc:
+                                        df_candle = df_candle.rename(columns=rename_ohlc)
+
+                                    fig = plot_tpseries_candles(df_candle, tsym)
+                                    st.plotly_chart(fig, use_container_width=True)
+                                    st.dataframe(df_candle, use_container_width=True, height=600)
+                                else:
+                                    st.warning(f"⚠️ No data for {tsym}")
 
                             except Exception as e:
-                                print(f"Tick update error: {e}")
+                                st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
-                        # ✅ Start WebSocket with callback
-                        ps_api.start_websocket_for_symbol(f"{exch}|{token}", on_tick_callback=on_tick)
+                            call_count += 1
+                            time.sleep(delay_per_call)
 
+                        st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
                     else:
-                        st.warning("⚠️ No candle data found for this symbol")
-
-
-
+                        st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
+        else:
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
