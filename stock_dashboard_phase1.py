@@ -181,6 +181,7 @@ from prostocks_connector import ProStocksAPI
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+# --- Tab 5: Strategy Engine ---
 with tab5:
     st.subheader("📡 Live WebSocket Candles")
 
@@ -360,6 +361,7 @@ def get_col(df, *names):
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
