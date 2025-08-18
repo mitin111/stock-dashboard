@@ -179,13 +179,46 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries Data Preview")
 
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-
+    # --- WebSocket Status Placeholder ---
     status_placeholder = st.empty()
     if "ws_status" not in st.session_state:
         st.session_state.ws_status = "⏳ Connecting..."
         status_placeholder.info(st.session_state.ws_status)
+
+    # --- WebSocket Callbacks ---
+    def on_open(ws):
+        st.session_state.ws_status = "✅ Connected"
+        status_placeholder.success(st.session_state.ws_status)
+
+    def on_close(ws, close_status_code, close_msg):
+        st.session_state.ws_status = "❌ Disconnected"
+        status_placeholder.error(st.session_state.ws_status)
+
+    def on_error(ws, error):
+        st.session_state.ws_status = f"⚠️ Error: {error}"
+        status_placeholder.error(st.session_state.ws_status)
+
+    def on_message(ws, message):
+        data = json.loads(message)
+        # tick handle karna hai
+
+    def start_ws():
+        ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+        ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_close=on_close,
+            on_error=on_error,
+            on_message=on_message
+        )
+        wst = threading.Thread(target=ws.run_forever, daemon=True)
+        wst.start()
+        return ws
+
+    if "ws" not in st.session_state:
+        st.session_state.ws = start_ws()
+
+    # --- Baaki tumhara ensure_datetime / plot_tpseries_candles / fetch code same rehne do ---
 
     def ensure_datetime(df):
         """
@@ -356,5 +389,6 @@ with tab5:
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
