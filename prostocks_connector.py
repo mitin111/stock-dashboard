@@ -168,219 +168,215 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-         # ------------- TPSeries + WebSocket Live Candles -------------
+             # ------------- TPSeries + WebSocket Live Candles -------------
 
-def normalize_tpseries_data(raw_data):
-    """
-    Convert TPSeries raw response (list of lists) to OHLCV DataFrame
-    Format: [epoch, open, high, low, close, volume]
-    """
-    if not raw_data or not isinstance(raw_data, list):
-        return pd.DataFrame()
+    def normalize_tpseries_data(self, raw_data):
+        """
+        Convert TPSeries raw response (list of lists) to OHLCV DataFrame
+        Format: [epoch, open, high, low, close, volume]
+        """
+        if not raw_data or not isinstance(raw_data, list):
+            return pd.DataFrame()
 
-    try:
-        df = pd.DataFrame(raw_data, columns=["datetime", "open", "high", "low", "close", "volume"])
-        df["datetime"] = pd.to_datetime(df["datetime"], unit="s", errors="coerce")
-        df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].apply(
-            pd.to_numeric, errors="coerce"
-        )
-        df.dropna(inplace=True)
-        df.sort_values("datetime", inplace=True)
-        df.reset_index(drop=True, inplace=True)
-        return df
-    except Exception as e:
-        print("❌ normalize_tpseries_data error:", e)
-        return pd.DataFrame()
+        try:
+            df = pd.DataFrame(raw_data, columns=["datetime", "open", "high", "low", "close", "volume"])
+            df["datetime"] = pd.to_datetime(df["datetime"], unit="s", errors="coerce")
+            df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].apply(
+                pd.to_numeric, errors="coerce"
+            )
+            df.dropna(inplace=True)
+            df.sort_values("datetime", inplace=True)
+            df.reset_index(drop=True, inplace=True)
+            return df
+        except Exception as e:
+            print("❌ normalize_tpseries_data error:", e)
+            return pd.DataFrame()
 
+    def get_tpseries(self, exchange, token, interval="5", start_time=None, end_time=None):
+        """
+        Fetch raw TPSeries data (historical candles) from ProStocks API.
+        'start_time' and 'end_time' should be epoch timestamps (UTC).
+        """
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-def get_tpseries(self, exchange, token, interval="5", start_time=None, end_time=None):
-    """
-    Fetch raw TPSeries data (historical candles) from ProStocks API.
-    'start_time' and 'end_time' should be epoch timestamps (UTC).
-    """
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+        # Default → last 60 days
+        if start_time is None or end_time is None:
+            days_back = 60
+            end_dt = datetime.now(timezone.utc)
+            start_dt = end_dt - timedelta(days=days_back)
+            start_time = int(start_dt.timestamp())
+            end_time = int(end_dt.timestamp())
 
-    # Default → last 60 days
-    if start_time is None or end_time is None:
-        days_back = 60
+        url = f"{self.base_url}/TPSeries"
+        payload = {
+            "uid": self.userid,
+            "exch": exchange,
+            "token": str(token),
+            "st": str(start_time),
+            "et": str(end_time),
+            "intrv": str(interval)
+        }
+
+        print("📤 Sending TPSeries Payload:", payload)
+        try:
+            return self._post_json(url, payload)
+        except Exception as e:
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
+
+    def fetch_full_tpseries(self, exchange, token, interval="5", chunk_days=5, max_days=60):
+        """
+        Fetch full historical TPSeries data in chunks.
+        Returns a Pandas DataFrame.
+        """
+        all_chunks = []
         end_dt = datetime.now(timezone.utc)
-        start_dt = end_dt - timedelta(days=days_back)
-        start_time = int(start_dt.timestamp())
-        end_time = int(end_dt.timestamp())
+        start_limit_dt = end_dt - timedelta(days=max_days)
 
-    url = f"{self.base_url}/TPSeries"
-    payload = {
-        "uid": self.userid,
-        "exch": exchange,
-        "token": str(token),
-        "st": str(start_time),
-        "et": str(end_time),
-        "intrv": str(interval)
-    }
+        while end_dt > start_limit_dt:
+            start_dt = end_dt - timedelta(days=chunk_days)
+            if start_dt < start_limit_dt:
+                start_dt = start_limit_dt
 
-    print("📤 Sending TPSeries Payload:", payload)
-    try:
-        return self._post_json(url, payload)
-    except Exception as e:
-        print("❌ Exception in get_tpseries():", e)
-        return {"stat": "Not_Ok", "emsg": str(e)}
+            st = int(start_dt.timestamp())
+            et = int(end_dt.timestamp())
 
+            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
+            resp = self.get_tpseries(exchange, token, interval, start_time=st, end_time=et)
 
-def fetch_full_tpseries(self, exchange, token, interval="5", chunk_days=5, max_days=60):
-    """
-    Fetch full historical TPSeries data in chunks.
-    Returns a Pandas DataFrame.
-    """
-    all_chunks = []
-    end_dt = datetime.now(timezone.utc)
-    start_limit_dt = end_dt - timedelta(days=max_days)
+            if not resp:
+                print("⚠️ Empty response, skipping…")
+                end_dt = start_dt - timedelta(seconds=1)
+                continue
 
-    while end_dt > start_limit_dt:
-        start_dt = end_dt - timedelta(days=chunk_days)
-        if start_dt < start_limit_dt:
-            start_dt = start_limit_dt
+            # --- Handle dict with 'candles' key ---
+            if isinstance(resp, dict):
+                if "candles" in resp and isinstance(resp["candles"], list):
+                    resp = resp["candles"]
+                else:
+                    print(f"⚠️ TPSeries error: {resp}")
+                    end_dt = start_dt - timedelta(seconds=1)
+                    time.sleep(0.25)
+                    continue
 
-        st = int(start_dt.timestamp())
-        et = int(end_dt.timestamp())
-
-        print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-        resp = self.get_tpseries(exchange, token, interval, start_time=st, end_time=et)
-
-        if not resp:
-            print("⚠️ Empty response, skipping…")
-            end_dt = start_dt - timedelta(seconds=1)
-            continue
-
-        # --- Handle dict with 'candles' key ---
-        if isinstance(resp, dict):
-            if "candles" in resp and isinstance(resp["candles"], list):
-                resp = resp["candles"]
-            else:
-                print(f"⚠️ TPSeries error: {resp}")
+            if not isinstance(resp, list) or len(resp) == 0:
+                print("⚠️ Empty chunk. Skipping…")
                 end_dt = start_dt - timedelta(seconds=1)
                 time.sleep(0.25)
                 continue
 
-        if not isinstance(resp, list) or len(resp) == 0:
-            print("⚠️ Empty chunk. Skipping…")
+            df_chunk = self.normalize_tpseries_data(resp)
+            if not df_chunk.empty:
+                all_chunks.append(df_chunk)
+
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
-            continue
 
-        df_chunk = normalize_tpseries_data(resp)
-        if not df_chunk.empty:
-            all_chunks.append(df_chunk)
+        if not all_chunks:
+            return pd.DataFrame()
 
-        end_dt = start_dt - timedelta(seconds=1)
-        time.sleep(0.25)
+        df = pd.concat(all_chunks, ignore_index=True)
+        df.drop_duplicates(subset=["datetime"], inplace=True)
+        df.sort_values("datetime", inplace=True)
+        return df.reset_index(drop=True)
 
-    if not all_chunks:
-        return pd.DataFrame()
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+        """
+        Fetch TPSeries data for all symbols in a given watchlist.
+        """
+        results = []
+        MAX_CALLS_PER_MIN = 20
+        call_count = 0
 
-    df = pd.concat(all_chunks, ignore_index=True)
-    df.drop_duplicates(subset=["datetime"], inplace=True)
-    df.sort_values("datetime", inplace=True)
-    return df.reset_index(drop=True)
+        symbols = self.get_watchlist(wlname)
+        if not symbols or "values" not in symbols:
+            print("❌ No symbols in watchlist.")
+            return []
 
+        for idx, sym in enumerate(symbols["values"]):
+            exchange = sym.get("exch", "").strip()
+            token = str(sym.get("token", "")).strip()
+            symbol = sym.get("tsym", "").strip()
 
-def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
-    """
-    Fetch TPSeries data for all symbols in a given watchlist.
-    """
-    results = []
-    MAX_CALLS_PER_MIN = 20
-    call_count = 0
+            if not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid token")
+                continue
 
-    symbols = self.get_watchlist(wlname)
-    if not symbols or "values" not in symbols:
-        print("❌ No symbols in watchlist.")
-        return []
+            try:
+                print(f"\n📦 {idx+1}. {symbol} → {exchange}|{token}")
+                df = self.fetch_full_tpseries(exchange, token, interval)
+                if not df.empty:
+                    print(f"✅ {symbol}: {len(df)} candles fetched")
+                    results.append({"symbol": symbol, "data": df})
+                else:
+                    print(f"⚠️ {symbol}: No data fetched")
+            except Exception as e:
+                print(f"❌ {symbol}: Exception {e}")
 
-    for idx, sym in enumerate(symbols["values"]):
-        exchange = sym.get("exch", "").strip()
-        token = str(sym.get("token", "")).strip()
-        symbol = sym.get("tsym", "").strip()
+            call_count += 1
+            if call_count >= MAX_CALLS_PER_MIN:
+                print("⚠️ TPSeries API limit reached. Stopping.")
+                break
 
-        if not token.isdigit():
-            print(f"⚠️ Skipping {symbol}: Invalid token")
-            continue
+        return results
 
-        try:
-            print(f"\n📦 {idx+1}. {symbol} → {exchange}|{token}")
-            df = self.fetch_full_tpseries(exchange, token, interval)
-            if not df.empty:
-                print(f"✅ {symbol}: {len(df)} candles fetched")
-                results.append({"symbol": symbol, "data": df})
+    def start_websocket_for_symbol(self, symbol):
+        """
+        Start WebSocket to stream live ticks and build candles.
+        """
+        import websocket, threading
+
+        def on_message(ws, message):
+            print("📩 Tick:", message)
+            try:
+                tick = json.loads(message)
+            except Exception as e:
+                print("❌ JSON decode error:", e)
+                return
+
+            if tick.get("t") != "tk":
+                return
+
+            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick["lp"])
+            vol = int(tick.get("v", 1))
+
+            df = st.session_state.get("candles_df", pd.DataFrame())
+
+            if not df.empty and df.iloc[-1]["Datetime"] == minute:
+                df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
+                df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
+                df.at[df.index[-1], "Close"] = price
+                df.at[df.index[-1], "Volume"] += vol
             else:
-                print(f"⚠️ {symbol}: No data fetched")
-        except Exception as e:
-            print(f"❌ {symbol}: Exception {e}")
+                new_candle = pd.DataFrame(
+                    [[minute, price, price, price, price, vol]],
+                    columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
+                )
+                df = pd.concat([df, new_candle], ignore_index=True)
 
-        call_count += 1
-        if call_count >= MAX_CALLS_PER_MIN:
-            print("⚠️ TPSeries API limit reached. Stopping.")
-            break
+            st.session_state["candles_df"] = df
+            print("✅ Candle updated:", df.tail(1).to_dict("records"))
 
-    return results
+        def on_open(ws):
+            print("✅ WebSocket connected")
+            sub = json.dumps({"t": "t", "k": symbol})
+            ws.send(sub)
+            print(f"📡 Subscribed to {symbol}")
 
+        def on_error(ws, error):
+            print("❌ WebSocket error:", error)
 
-def start_websocket_for_symbol(self, symbol):
-    """
-    Start WebSocket to stream live ticks and build candles.
-    """
-    import websocket, threading
+        def on_close(ws, code, msg):
+            print("🔌 WebSocket closed:", code, msg)
 
-    def on_message(ws, message):
-        print("📩 Tick:", message)
-        try:
-            tick = json.loads(message)
-        except Exception as e:
-            print("❌ JSON decode error:", e)
-            return
-
-        if tick.get("t") != "tk":
-            return
-
-        ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-        minute = ts.replace(second=0, microsecond=0)
-        price = float(tick["lp"])
-        vol = int(tick.get("v", 1))
-
-        df = st.session_state.get("candles_df", pd.DataFrame())
-
-        if not df.empty and df.iloc[-1]["Datetime"] == minute:
-            df.at[df.index[-1], "High"] = max(df.iloc[-1]["High"], price)
-            df.at[df.index[-1], "Low"] = min(df.iloc[-1]["Low"], price)
-            df.at[df.index[-1], "Close"] = price
-            df.at[df.index[-1], "Volume"] += vol
-        else:
-            new_candle = pd.DataFrame(
-                [[minute, price, price, price, price, vol]],
-                columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
-            )
-            df = pd.concat([df, new_candle], ignore_index=True)
-
-        st.session_state["candles_df"] = df
-        print("✅ Candle updated:", df.tail(1).to_dict("records"))
-
-    def on_open(ws):
-        print("✅ WebSocket connected")
-        sub = json.dumps({"t": "t", "k": symbol})
-        ws.send(sub)
-        print(f"📡 Subscribed to {symbol}")
-
-    def on_error(ws, error):
-        print("❌ WebSocket error:", error)
-
-    def on_close(ws, code, msg):
-        print("🔌 WebSocket closed:", code, msg)
-
-    self.ws = websocket.WebSocketApp(
-        "wss://starapi.prostocks.com/NorenWSTP/",
-        on_open=on_open,
-        on_message=on_message,
-        on_error=on_error,
-        on_close=on_close
-    )
-    threading.Thread(target=self.ws.run_forever, daemon=True).start()
+        self.ws = websocket.WebSocketApp(
+            "wss://starapi.prostocks.com/NorenWSTP/",
+            on_open=on_open,
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close
+        )
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
