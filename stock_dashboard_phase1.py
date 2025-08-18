@@ -177,34 +177,29 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df.sort_index(inplace=True)
     return final_df
 
-# === Tab 5: Strategy Engine ===
+from prostocks_connector import ProStocksAPI
+import streamlit as st
+from streamlit_autorefresh import st_autorefresh
+
 with tab5:
     st.subheader("📡 Live WebSocket Candles")
 
-    # ProStocks API init
-    from prostocks_connector import ProStocksAPI
     if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first using your API credentials.")
+        st.warning("⚠️ Please login first.")
     else:
-        api = st.session_state["ps_api"]
+        api = st.session_state.ps_api  # you should have logged in earlier
 
-        # WebSocket sirf ek hi baar start karo
         if "ws_started" not in st.session_state:
-            api.start_websocket_for_symbol("TATAMOTORS-EQ")  # Example scrip
+            api.start_websocket_for_symbol("TATAMOTORS-EQ")  # example
             st.session_state.ws_started = True
 
-        placeholder = st.empty()
-
-        # UI refresh har 3s
-        from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=3000, key="ws_refresh")
 
-        # Buffer se dataframe banao
         df = api.build_live_candles()
         if not df.empty:
-            placeholder.dataframe(df.tail(5))
+            st.dataframe(df.tail(20), use_container_width=True, height=400)
         else:
-            st.info("⏳ Waiting for ticks...")
+            st.info("⏳ Waiting for live ticks...")
 
 # ✅ Yeh helper functions tab5 ke bahar define karo (bilkul left aligned)
 def ensure_datetime(df):
@@ -365,6 +360,7 @@ def get_col(df, *names):
                         st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
 
