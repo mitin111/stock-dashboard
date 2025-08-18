@@ -340,21 +340,35 @@ with tab5:
                         def on_tick(tick, df=df_candle, symbol=selected_symbol):
                             try:
                                 price = float(tick["lp"])
+                                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)  # tick ka time
+                                minute = ts.replace(second=0, microsecond=0)  # 1-min bucket
 
-                                # Update last candle
-                                if not df.empty:
-                                    df.loc[df.index[-1], "close"] = price
-                                    if price > df.loc[df.index[-1], "high"]:
-                                        df.loc[df.index[-1], "high"] = price
-                                    if price < df.loc[df.index[-1], "low"]:
-                                        df.loc[df.index[-1], "low"] = price
+                                if df.empty:
+                                   # agar empty hai to first candle create
+                                   new_candle = pd.DataFrame([[minute, price, price, price, price, 1]],
+                                                             columns=["datetime", "open", "high", "low", "close", "volume"])
+                                   df = pd.concat([df, new_candle], ignore_index=True)
+                                 else:
+                                     last_candle_time = df.iloc[-1]["datetime"]
 
-                                    # Redraw chart
-                                    fig = plot_tpseries_candles(df, symbol)
-                                    chart_placeholder.plotly_chart(fig, use_container_width=True)
-                            except Exception as e:
-                                print(f"Tick update error: {e}")
+                                     if last_candle_time == minute:
+                                         # update existing candle
+                                         df.loc[df.index[-1], "close"] = price
+                                         df.loc[df.index[-1], "high"] = max(df.loc[df.index[-1], "high"], price)
+                                         df.loc[df.index[-1], "low"] = min(df.loc[df.index[-1], "low"], price)
+                                         df.loc[df.index[-1], "volume"] += 1
+                                      else:
+                                          # ✅ naya minute → new candle create
+                                          new_candle = pd.DataFrame([[minute, price, price, price, price, 1]],
+                                                                    columns=["datetime", "open", "high", "low", "close", "volume"])
+                                          df = pd.concat([df, new_candle], ignore_index=True)
 
-                        ps_api.on_tick = on_tick
-                    else:
-                        st.warning("⚠️ No candle data found for this symbol")
+                           # Save updated DataFrame back
+                           st.session_state["live_df"] = df
+
+                           # Redraw chart
+                           fig = plot_tpseries_candles(df, symbol)
+                           chart_placeholder.plotly_chart(fig, use_container_width=True)
+
+                      except Exception as e:
+                          print(f"Tick update error: {e}")
