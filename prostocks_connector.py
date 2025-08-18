@@ -168,25 +168,30 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # ------------- TPSeries + WebSocket Live Candles -------------
-    def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        # ------------- TPSeries + WebSocket Live Candles -------------
+    def get_tpseries(self, exchange, token, interval="5", start_time=None, end_time=None):
+        """
+        Fetch raw TPSeries data (historical candles) from ProStocks API.
+        'start_time' and 'end_time' should be epoch timestamps (UTC).
+        """
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
-        if st is None or et is None:
+        # Default → last 60 days
+        if start_time is None or end_time is None:
             days_back = 60
-            et_dt = datetime.now(timezone.utc)
-            st_dt = et_dt - timedelta(days=days_back)
-            st = int(st_dt.timestamp())
-            et = int(et_dt.timestamp())
+            end_dt = datetime.now(timezone.utc)
+            start_dt = end_dt - timedelta(days=days_back)
+            start_time = int(start_dt.timestamp())
+            end_time = int(end_dt.timestamp())
 
         url = f"{self.base_url}/TPSeries"
         payload = {
             "uid": self.userid,
-            "exch": exch,
+            "exch": exchange,
             "token": str(token),
-            "st": str(st),
-            "et": str(et),
+            "st": str(start_time),
+            "et": str(end_time),
             "intrv": str(interval)
         }
 
@@ -197,7 +202,11 @@ class ProStocksAPI:
             print("❌ Exception in get_tpseries():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-    def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
+    def fetch_full_tpseries(self, exchange, token, interval="5", chunk_days=5, max_days=60):
+        """
+        Fetch full historical TPSeries data in chunks.
+        Returns a Pandas DataFrame.
+        """
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
         start_limit_dt = end_dt - timedelta(days=max_days)
@@ -211,7 +220,7 @@ class ProStocksAPI:
             et = int(end_dt.timestamp())
 
             print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
-            resp = self.get_tpseries(exch, token, interval, st, et)
+            resp = self.get_tpseries(exchange, token, interval, start_time=st, end_time=et)
 
             if isinstance(resp, dict):
                 print(f"⚠️ TPSeries error: {resp}")
@@ -257,6 +266,9 @@ class ProStocksAPI:
         return df.reset_index(drop=True)
 
     def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+        """
+        Fetch TPSeries data for all symbols in a given watchlist.
+        """
         results = []
         MAX_CALLS_PER_MIN = 20
         call_count = 0
@@ -267,7 +279,7 @@ class ProStocksAPI:
             return []
 
         for idx, sym in enumerate(symbols["values"]):
-            exch = sym.get("exch", "").strip()
+            exchange = sym.get("exch", "").strip()
             token = str(sym.get("token", "")).strip()
             symbol = sym.get("tsym", "").strip()
 
@@ -276,8 +288,8 @@ class ProStocksAPI:
                 continue
 
             try:
-                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
-                df = self.fetch_full_tpseries(exch, token, interval)
+                print(f"\n📦 {idx+1}. {symbol} → {exchange}|{token}")
+                df = self.fetch_full_tpseries(exchange, token, interval)
                 if not df.empty:
                     print(f"✅ {symbol}: {len(df)} candles fetched")
                     results.append({"symbol": symbol, "data": df})
@@ -294,6 +306,9 @@ class ProStocksAPI:
         return results
 
     def start_websocket_for_symbol(self, symbol):
+        """
+        Start WebSocket to stream live ticks and build candles.
+        """
         import websocket, threading
 
         def on_message(ws, message):
