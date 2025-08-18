@@ -308,13 +308,19 @@ with tab5:
                     end_time = datetime.now()
                     start_time = end_time - timedelta(days=5)
                     
+                    st_epoch = int(start_time.timestamp())
+                    et_epoch = int(end_time.timestamp())
+                    
                     raw_candles = ps_api.get_tpseries(
-                        exchange=exch,
-                        token=token,
-                        interval=selected_interval,
-                        start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
-                        end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
+                        exch,
+                        token,
+                        selected_interval,
+                        st_epoch,
+                         et_epoch
                     )
+                    
+                    st.write("TPSeries raw response:", raw_candles)
+                    
                     df_candle = normalize_tpseries_data(raw_candles)
 
                     if not df_candle.empty:
@@ -365,4 +371,5 @@ with tab5:
 
                     else:
                         st.warning("⚠️ No candle data found for this symbol")
+
 
