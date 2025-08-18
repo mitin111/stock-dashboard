@@ -290,85 +290,93 @@ with tab5:
         return fig
 
     # === Main logic ===
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first using your API credentials.")
-    else:
-        ps_api = st.session_state["ps_api"]
+if "ps_api" not in st.session_state:
+    st.warning("⚠️ Please login first using your API credentials.")
+else:
+    ps_api = st.session_state["ps_api"]
 
-        wl_resp = ps_api.get_watchlists()
-        if wl_resp.get("stat") == "Ok":
-            watchlists = sorted(wl_resp["values"], key=int)
-            selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-            selected_interval = st.selectbox(
-                "Select Interval",
-                ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
-            )
+    wl_resp = ps_api.get_watchlists()
+    if wl_resp.get("stat") == "Ok":
+        watchlists = sorted(wl_resp["values"], key=int)
+        selected_watchlist = st.selectbox("Select Watchlist", watchlists)
+        selected_interval = st.selectbox(
+            "Select Interval",
+            ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
+        )
 
-            # Step 1: Load watchlist
-            if st.button("🔁 Load Watchlist"):
-                wl_data = ps_api.get_watchlist(selected_watchlist)
-                if wl_data.get("stat") == "Ok":
-                    st.session_state["watchlist_scrips"] = wl_data.get("values", [])
-                    st.success("✅ Watchlist loaded!")
+        # Step 1: Load watchlist
+        if st.button("🔁 Load Watchlist"):
+            wl_data = ps_api.get_watchlist(selected_watchlist)
+            if wl_data.get("stat") == "Ok":
+                st.session_state["watchlist_scrips"] = wl_data.get("values", [])
+                st.success("✅ Watchlist loaded!")
 
-            # Step 2: Pick one symbol for live chart
-            if "watchlist_scrips" in st.session_state:
-                scrips = st.session_state["watchlist_scrips"]
-                symbol_options = {s["tsym"]: (s["exch"], s["token"]) for s in scrips}
-                selected_symbol = st.selectbox("Select Symbol", list(symbol_options.keys()))
+        # Step 2: Pick one symbol for live chart
+        if "watchlist_scrips" in st.session_state:
+            scrips = st.session_state["watchlist_scrips"]
+            symbol_options = {s["tsym"]: (s["exch"], s["token"]) for s in scrips}
+            selected_symbol = st.selectbox("Select Symbol", list(symbol_options.keys()))
 
-                if st.button("📊 Show Live Chart"):
-                    exch, token = symbol_options[selected_symbol]
+            if st.button("📊 Show Live Chart"):
+                exch, token = symbol_options[selected_symbol]
 
-                    # Fetch initial candles via TPSeries
-                    raw_candles = ps_api.fetch_full_tpseries(
-                        exch, token,
-                        interval=selected_interval,
-                        chunk_days=5,
-                        max_days=60
-                    )
-                    df_candle = normalize_tpseries_data(raw_candles)
+                # Fetch initial candles via TPSeries
+                raw_candles = ps_api.fetch_full_tpseries(
+                    exch, token,
+                    interval=selected_interval,
+                    chunk_days=5,
+                    max_days=60
+                )
+                df_candle = normalize_tpseries_data(raw_candles)
 
-                    if not df_candle.empty:
-                        st.session_state["live_df"] = df_candle
+                if not df_candle.empty:
+                    st.session_state["live_df"] = df_candle
 
-                        chart_placeholder = st.empty()
-                        fig = plot_tpseries_candles(df_candle, selected_symbol)
-                        chart_placeholder.plotly_chart(fig, use_container_width=True)
+                    chart_placeholder = st.empty()
+                    fig = plot_tpseries_candles(df_candle, selected_symbol)
+                    chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-                        # --- Live update from ticks ---
-                        def on_tick(tick, df=df_candle, symbol=selected_symbol):
-                            try:
-                                price = float(tick["lp"])
-                                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)  # tick ka time
-                                minute = ts.replace(second=0, microsecond=0)  # 1-min bucket
+                    # --- Live update from ticks ---
+                    def on_tick(tick, df=df_candle, symbol=selected_symbol):
+                        try:
+                            price = float(tick["lp"])
+                            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)  # tick ka time
+                            minute = ts.replace(second=0, microsecond=0)  # 1-min bucket
 
-                                if df.empty:
-                                   # agar empty hai to first candle create
-                                   new_candle = pd.DataFrame([[minute, price, price, price, price, 1]],
-                                                             columns=["datetime", "open", "high", "low", "close", "volume"])
-                                   df = pd.concat([df, new_candle], ignore_index=True)
-                                 else:
-                                     last_candle_time = df.iloc[-1]["datetime"]
+                            if df.empty:
+                                # agar empty hai to first candle create
+                                new_candle = pd.DataFrame(
+                                    [[minute, price, price, price, price, 1]],
+                                    columns=["datetime", "open", "high", "low", "close", "volume"]
+                                )
+                                df = pd.concat([df, new_candle], ignore_index=True)
+                            else:
+                                last_candle_time = df.iloc[-1]["datetime"]
 
-                                     if last_candle_time == minute:
-                                         # update existing candle
-                                         df.loc[df.index[-1], "close"] = price
-                                         df.loc[df.index[-1], "high"] = max(df.loc[df.index[-1], "high"], price)
-                                         df.loc[df.index[-1], "low"] = min(df.loc[df.index[-1], "low"], price)
-                                         df.loc[df.index[-1], "volume"] += 1
-                                      else:
-                                          # ✅ naya minute → new candle create
-                                          new_candle = pd.DataFrame([[minute, price, price, price, price, 1]],
-                                                                    columns=["datetime", "open", "high", "low", "close", "volume"])
-                                          df = pd.concat([df, new_candle], ignore_index=True)
+                                if last_candle_time == minute:
+                                    # update existing candle
+                                    df.loc[df.index[-1], "close"] = price
+                                    df.loc[df.index[-1], "high"] = max(df.loc[df.index[-1], "high"], price)
+                                    df.loc[df.index[-1], "low"] = min(df.loc[df.index[-1], "low"], price)
+                                    df.loc[df.index[-1], "volume"] += 1
+                                else:
+                                    # ✅ naya minute → new candle create
+                                    new_candle = pd.DataFrame(
+                                        [[minute, price, price, price, price, 1]],
+                                        columns=["datetime", "open", "high", "low", "close", "volume"]
+                                    )
+                                    df = pd.concat([df, new_candle], ignore_index=True)
 
-                           # Save updated DataFrame back
-                           st.session_state["live_df"] = df
+                            # Save updated DataFrame back
+                            st.session_state["live_df"] = df
 
-                           # Redraw chart
-                           fig = plot_tpseries_candles(df, symbol)
-                           chart_placeholder.plotly_chart(fig, use_container_width=True)
+                            # Redraw chart
+                            fig = plot_tpseries_candles(df, symbol)
+                            chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-                      except Exception as e:
-                          print(f"Tick update error: {e}")
+                        except Exception as e:
+                            print(f"Tick update error: {e}")
+
+                    ps_api.on_tick = on_tick
+                else:
+                    st.warning("⚠️ No candle data found for this symbol")
