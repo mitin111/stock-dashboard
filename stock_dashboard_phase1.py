@@ -161,6 +161,9 @@ def get_col(df, *names):
     return None
 
 def plot_tpseries_candles(df, symbol):
+    if df.empty:
+        return None
+
     df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
     df = df[(df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())]
@@ -176,13 +179,51 @@ def plot_tpseries_candles(df, symbol):
         decreasing_line_color='#ef5350',
         name='Price'
     ))
+
+    # Layout settings for scroll & zoom
     fig.update_layout(
-        xaxis_rangeslider_visible=False,
+        xaxis_rangeslider_visible=False,  # hide slider
+        dragmode='pan',                  # enable scroll
+        hovermode='x unified',
+        showlegend=False,
         template="plotly_dark",
         height=700,
         margin=dict(l=50, r=50, t=50, b=50),
+        plot_bgcolor='black',
+        paper_bgcolor='black',
+        font=dict(color='white'),
+    )
+
+    # Grid lines
+    fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
+    fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
+
+    # Hide weekends & after-hours
+    fig.update_xaxes(
+        rangebreaks=[
+            dict(bounds=["sat", "mon"]),
+            dict(bounds=[15.5, 9.25], pattern="hour")
+        ]
+    )
+
+    # "Go to Latest" button
+    fig.update_layout(
+        updatemenus=[dict(
+            type="buttons",
+            direction="left",
+            x=1,
+            y=1.15,
+            buttons=[
+                dict(
+                    label="Go to Latest",
+                    method="relayout",
+                    args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
+                )
+            ]
+        )],
         title=f"{symbol} - TradingView-style Chart"
     )
+
     return fig
 
 # === TPSeries Fetch Function ===
@@ -332,4 +373,5 @@ with tab5:
             live_container.warning(f"Live update error: {st.session_state['live_error']}")
         else:
             live_container.info("⏳ Waiting for live ticks...")
+
 
