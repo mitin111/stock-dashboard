@@ -9,7 +9,6 @@ import time
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import threading
-from streamlit import st_autorefresh
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -252,7 +251,14 @@ with tab5:
        # --- Live WebSocket Stream (Dynamic Update) ---
 st.subheader("📡 Live WebSocket Stream")
 live_container = st.empty()
-st_autorefresh(interval=3000, key="ws_refresh")  # refresh UI every 3 sec
+
+# --- periodic refresh for older Streamlit ---
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = 0
+import time
+if time.time() - st.session_state.last_refresh > 3:
+    st.session_state.last_refresh = time.time()
+    st.experimental_rerun()
 
 # --- Start background data fetch only once ---
 if "live_update_thread_started" not in st.session_state:
@@ -287,4 +293,5 @@ elif "live_error" in st.session_state:
     live_container.warning(f"Live update error: {st.session_state['live_error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
