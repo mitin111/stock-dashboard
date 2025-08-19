@@ -341,7 +341,7 @@ class ProStocksAPI:
     def start_websocket_for_symbols(self, tokens):
         if not self.is_logged_in:
             raise Exception("⚠️ Please login first before starting WebSocket")
-        ws_url = f"wss://norenapi.prostocks.com/NorenWSTp/{self.userid}"
+        ws_url = f"wss://starapiuat.prostocks.com/NorenWSTP/"
         self.ws = websocket.WebSocketApp(
             ws_url,
             on_open=lambda ws: self.on_open_multi(ws, tokens),
@@ -439,3 +439,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
