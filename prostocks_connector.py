@@ -318,25 +318,23 @@ class ProStocksAPI:
                 print("📡 Subscribed:", tk)
 
     def _on_message(self, ws, message):
-    try:
-        import streamlit as st
-        import json
-        from datetime import datetime
-
-        tick = json.loads(message)
-        self._tick_buffer.append(tick)   # buffer for backend use
-
-        # ---- Streamlit live chart ke liye LTP extract ----
-        ltp = tick.get("lp") or tick.get("ltp")  # kuch API me "lp", kuch me "ltp" hota hai
-        if ltp:
-            ts = datetime.now()
-            if "live_ticks" not in st.session_state:
-                st.session_state["live_ticks"] = []
+        try:
+            import streamlit as st
+            import json
+            from datetime import datetime
+            tick = json.loads(message)
+            self._tick_buffer.append(tick)   # buffer for backend use
+            # ---- Streamlit live chart ke liye LTP extract ----
+    ltp = tick.get("lp") or tick.get("ltp")  # kuch API me "lp", kuch me "ltp" hota hai
+    if ltp:
+        ts = datetime.now()
+        if "live_ticks" not in st.session_state:
+            st.session_state["live_ticks"] = []
             st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
 
     except Exception as e:
         print("❌ Tick parse error:", e)
-
+    
     def _on_close(self, ws, code, msg):
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
@@ -457,6 +455,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
