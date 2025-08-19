@@ -263,6 +263,11 @@ with tab5:
             api.start_websocket_for_symbol("TATAMOTORS-EQ")
             st.session_state.ws_started = True
 
+        # --- Initialize thread-safe queue for live data ---
+        import queue
+        if "live_data_queue" not in st.session_state:
+            st.session_state["live_data_queue"] = queue.Queue()
+
         # --- Historical TPSeries Chart ---
         st.subheader("📊 TPSeries Historical Chart")
         wl_resp = api.get_watchlists()
@@ -338,6 +343,7 @@ with tab5:
         st.subheader("📡 Live WebSocket Stream")
         live_container = st.empty()
 
+        # --- Start live fetch thread if not started ---
         if "live_update_thread_started" not in st.session_state:
             import threading, time
 
@@ -345,15 +351,17 @@ with tab5:
                 while True:
                     try:
                         df_live = api.build_live_candles(interval="1min")
-                        if df_live.empty and "live_ticks" in st.session_state:
-                            df_live = pd.DataFrame(st.session_state["live_ticks"])
+                        if df_live.empty and hasattr(api, "live_ticks"):
+                            df_live = pd.DataFrame(api.live_ticks)
                             if not df_live.empty:
-                                df_live = df_live.rename(columns={"time":"datetime","price":"close"})
+                                df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
                                 df_live["open"] = df_live["close"]
                                 df_live["high"] = df_live["close"]
                                 df_live["low"] = df_live["close"]
+
                         df_live = ensure_datetime(df_live)
-                        st.session_state["latest_live"] = df_live
+                        if not df_live.empty:
+                            st.session_state["live_data_queue"].put(df_live)  # Push safely to queue
                     except Exception as e:
                         st.session_state["live_error"] = str(e)
                     time.sleep(1)
@@ -361,6 +369,10 @@ with tab5:
             t = threading.Thread(target=live_fetch_loop, args=(api,), daemon=True)
             t.start()
             st.session_state["live_update_thread_started"] = True
+
+        # --- Pull latest live data from queue ---
+        if not st.session_state["live_data_queue"].empty():
+            st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
 
         # --- Render live data in main thread ---
         df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
@@ -373,5 +385,3 @@ with tab5:
             live_container.warning(f"Live update error: {st.session_state['live_error']}")
         else:
             live_container.info("⏳ Waiting for live ticks...")
-
-
