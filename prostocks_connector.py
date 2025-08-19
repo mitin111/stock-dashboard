@@ -364,7 +364,6 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-    
     def build_live_candles(self, interval="1min"):
         """
         Convert buffered ticks into minute candles.
@@ -445,6 +444,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
