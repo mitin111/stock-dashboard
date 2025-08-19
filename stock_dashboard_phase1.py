@@ -306,7 +306,11 @@ with tab5:
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first.")
     else:
-        api = st.session_state.ps_api
+         api = st.session_state.ps_api  # ← yeh line ensure kare ki api object exist kare
+
+         if "ws_started" not in st.session_state:
+             api.start_websocket_for_symbol("TATAMOTORS-EQ")  # ab api object exist karta hai
+             st.session_state.ws_started = True
 
         # --- Historical TPSeries Chart ---
         st.subheader("📊 TPSeries Historical Chart")
@@ -387,5 +391,6 @@ if not df.empty and "datetime" in df.columns:
     st.dataframe(df.tail(20), use_container_width=True, height=300)
 else:
     st.info("⏳ Waiting for live ticks...")
+
 
 
