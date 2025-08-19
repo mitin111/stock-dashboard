@@ -344,8 +344,7 @@ class ProStocksAPI:
 
         # --- Fallback logic: UAT first, then LIVE ---
         for url in [
-            "wss://starapiuat.prostocks.com/NorenWSTP/",
-            "wss://starapi.prostocks.com/NorenWSTP/"
+            "wss://starapi.prostocks.com/NorenWSTP/"      # LIVE WebSocket
         ]:
             try:
                 print(f"🔗 Trying WebSocket URL: {url}")
@@ -455,3 +454,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
