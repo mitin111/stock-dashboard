@@ -306,108 +306,113 @@ class ProStocksAPI:
         return results
 
            # ------------------ WebSocket (thread-safe buffer) ------------------
-    def _on_open(self, ws):  
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
+def _on_open(self, ws):  
+    self.is_ws_connected = True
+    print("✅ WebSocket Connected")
 
-    def subscribe_tokens(self, tokens):
-        if self.ws and self.is_ws_connected:
-            for tk in tokens:
-                sub_payload = {"t": "t", "k": tk}
-                self.ws.send(json.dumps(sub_payload))
-                print("📡 Subscribed:", tk)
+def subscribe_tokens(self, tokens):
+    if self.ws and self.is_ws_connected:
+        for tk in tokens:
+            sub_payload = {"t": "t", "k": tk}
+            self.ws.send(json.dumps(sub_payload))
+            print("📡 Subscribed:", tk)
 
-    def _on_message(self, ws, message):
-        try:
-            import streamlit as st
-            import json
-            from datetime import datetime
-            tick = json.loads(message)
-            self._tick_buffer.append(tick)   # buffer for backend use
-            # ---- Streamlit live chart ke liye LTP extract ----
-    ltp = tick.get("lp") or tick.get("ltp")  # kuch API me "lp", kuch me "ltp" hota hai
-    if ltp:
-        ts = datetime.now()
-        if "live_ticks" not in st.session_state:
-            st.session_state["live_ticks"] = []
+def _on_message(self, ws, message):
+    try:
+        import streamlit as st
+        import json
+        from datetime import datetime
+
+        tick = json.loads(message)
+        self._tick_buffer.append(tick)   # buffer for backend use
+
+        # ---- Streamlit live chart ke liye LTP extract ----
+        ltp = tick.get("lp") or tick.get("ltp")  # kuch API me "lp", kuch me "ltp" hota hai
+        if ltp:
+            ts = datetime.now()
+            if "live_ticks" not in st.session_state:
+                st.session_state["live_ticks"] = []
             st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
 
     except Exception as e:
         print("❌ Tick parse error:", e)
-    
-    def _on_close(self, ws, code, msg):
-        self.is_ws_connected = False
-        print("❌ WebSocket Closed", code, msg)
 
-    def start_websocket_for_symbols(self, tokens):
-        if not self.is_logged_in:
-            raise Exception("⚠️ Please login first before starting WebSocket")
+def _on_error(self, ws, error):
+    print("❌ WebSocket Error:", error)
 
-        ws_url = f"wss://norenapi.prostocks.com/NorenWSTp/{self.userid}"
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=lambda ws: self.on_open_multi(ws, tokens),
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close
+def _on_close(self, ws, code, msg):
+    self.is_ws_connected = False
+    print("❌ WebSocket Closed", code, msg)
+
+def start_websocket_for_symbols(self, tokens):
+    if not self.is_logged_in:
+        raise Exception("⚠️ Please login first before starting WebSocket")
+
+    ws_url = f"wss://norenapi.prostocks.com/NorenWSTp/{self.userid}"
+    self.ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=lambda ws: self.on_open_multi(ws, tokens),
+        on_message=self._on_message,
+        on_error=self._on_error,
+        on_close=self._on_close
+    )
+    self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30})
+    self.wst.daemon = True
+    self.wst.start()
+
+def start_websocket_for_symbol(self, symbol):
+    """Wrapper for single symbol websocket subscription"""
+    self.start_websocket_for_symbols([symbol])
+
+def on_open_multi(self, ws, tokens):
+    self.is_ws_connected = True
+    print("✅ WebSocket connected")
+    self.subscribe_tokens(tokens)
+
+def stop_websocket(self):
+    try:
+        if self.ws:
+            self.ws.close()
+            print("🛑 WebSocket stopped")
+    except Exception as e:
+        print("❌ stop_websocket error:", e)
+
+def get_latest_ticks(self, n=20):
+    return list(self._tick_buffer)[-n:]
+
+def build_live_candles(self, interval="1min"):
+    """
+    Convert buffered ticks into minute candles.
+    Expected tick fields: t="tk", ft=epoch_ms, lp=last price, v=volume
+    """
+    ticks = list(self._tick_buffer)
+    if not ticks:
+        return self._live_candles
+
+    rows = []
+    for tick in ticks:
+        if tick.get("t") != "tk":
+            continue
+        ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+        minute = ts.replace(second=0, microsecond=0)
+        price = float(tick.get("lp", 0))
+        vol = int(tick.get("v", 1))
+        rows.append([minute, price, price, price, price, vol])
+
+    if not rows:
+        return self._live_candles
+
+    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+
+    if self._live_candles.empty:
+        self._live_candles = df_new
+    else:
+        self._live_candles = (
+            pd.concat([self._live_candles, df_new], ignore_index=True)
+            .drop_duplicates(subset=["Datetime"], keep="last")
         )
-        self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30})
-        self.wst.daemon = True
-        self.wst.start()
 
-    def start_websocket_for_symbol(self, symbol):
-        """Wrapper for single symbol websocket subscription"""
-        self.start_websocket_for_symbols([symbol])
-
-    def on_open_multi(self, ws, tokens):
-        self.is_ws_connected = True
-        print("✅ WebSocket connected")
-        self.subscribe_tokens(tokens)
-
-    def stop_websocket(self):
-        try:
-            if self.ws:
-                self.ws.close()
-                print("🛑 WebSocket stopped")
-        except Exception as e:
-            print("❌ stop_websocket error:", e)
-
-    def get_latest_ticks(self, n=20):
-        return list(self._tick_buffer)[-n:]
-
-    def build_live_candles(self, interval="1min"):
-        """
-        Convert buffered ticks into minute candles.
-        Expected tick fields: t="tk", ft=epoch_ms, lp=last price, v=volume
-        """
-        ticks = list(self._tick_buffer)
-        if not ticks:
-            return self._live_candles
-
-        rows = []
-        for tick in ticks:
-            if tick.get("t") != "tk":
-                continue
-            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick.get("lp", 0))
-            vol = int(tick.get("v", 1))
-            rows.append([minute, price, price, price, price, vol])
-
-        if not rows:
-            return self._live_candles
-
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-
-        if self._live_candles.empty:
-            self._live_candles = df_new
-        else:
-            self._live_candles = (
-                pd.concat([self._live_candles, df_new], ignore_index=True)
-                .drop_duplicates(subset=["Datetime"], keep="last")
-            )
-
-        return self._live_candles.sort_values("Datetime")
+    return self._live_candles.sort_values("Datetime")
 
 # ---------------- Chart Helper ----------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
@@ -455,6 +460,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
