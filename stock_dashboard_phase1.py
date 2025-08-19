@@ -263,7 +263,7 @@ with tab5:
                         token = scrip.get("token")
                         tsym = scrip.get("tsym") or scrip.get("symbol")
                         if not (exch and token and tsym):
-                           continue  # skip invalid scrip
+                            continue  # skip invalid scrip
 
                         try:
                             df_candle = fetch_full_tpseries(api, exch, token, selected_interval, days=5)
@@ -271,8 +271,8 @@ with tab5:
                                 df_candle = ensure_datetime(df_candle)
                                 fig = plot_tpseries_candles(df_candle, tsym)
                                 st.plotly_chart(fig, use_container_width=True)
-                         except Exception as e:
-                             st.warning(f"{tsym}: {e}")
+                        except Exception as e:
+                            st.warning(f"{tsym}: {e}")
 
         # --- Live WebSocket Stream ---
         st.subheader("📡 Live WebSocket Stream")
@@ -311,4 +311,3 @@ with tab5:
             live_container.warning(f"Live update error: {st.session_state['live_error']}")
         else:
             live_container.info("⏳ Waiting for live ticks...")
-
