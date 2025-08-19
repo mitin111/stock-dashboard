@@ -1,19 +1,13 @@
 
-# main_app.py
+# main_app_live.py
 import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime, timedelta
-import calendar
 import time
-import json
-import requests
-from urllib.parse import urlencode
-from datetime import timezone
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import websocket
 import threading
 
 # === Page Layout ===
@@ -141,80 +135,9 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+# === Helper Functions ===
 chart_container = st.empty()
 
-def update_chart(df):
-    if "datetime" not in df.columns:
-        return
-    df = df.sort_values("datetime")
-
-    # rename OHLC if capital case
-    rename_map = {}
-    for a, b in [("Open","open"),("High","high"),("Low","low"),("Close","close")]:
-        if a in df.columns and b not in df.columns:
-            rename_map[a] = b
-    if rename_map:
-        df = df.rename(columns=rename_map)
-
-    if not all(col in df.columns for col in ["open","high","low","close"]):
-        return  # agar OHLC columns hi missing hain toh chart mat banao
-
-    fig = go.Figure(data=[go.Candlestick(
-        x=df['datetime'],
-        open=df['open'],
-        high=df['high'],
-        low=df['low'],
-        close=df['close']
-    )])
-    fig.update_layout(
-        title="Live Candlestick Chart",
-        xaxis_rangeslider_visible=False,
-        template="plotly_dark",
-        height=700
-    )
-    chart_container.plotly_chart(fig, use_container_width=True)
-
-# === Function: TPSeries fetch in daily chunks (fix for single candle issue) ===
-def fetch_full_tpseries(api, exch, token, interval, days=60):
-    final_df = pd.DataFrame()
-
-    # IST timezone
-    ist_offset = timedelta(hours=5, minutes=30)
-    today_ist = datetime.utcnow() + ist_offset
-    end_dt = today_ist
-    start_dt = end_dt - timedelta(days=days)
-
-    current_day = start_dt
-    while current_day <= end_dt:
-        day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
-        day_end = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
-
-        # Convert to epoch seconds (UTC)
-        st_epoch = int((day_start - ist_offset).timestamp())
-        et_epoch = int((day_end - ist_offset).timestamp())
-
-        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
-
-        if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
-            chunk_df = pd.DataFrame(resp["values"])
-            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
-            chunk_df.set_index("datetime", inplace=True)
-            final_df = pd.concat([final_df, chunk_df])
-        else:
-            # Weekend/holiday skip message
-            pass  
-
-        current_day += timedelta(days=1)
-        time.sleep(0.3)  # Avoid rate limit
-
-    final_df.sort_index(inplace=True)
-    return final_df
-
-from prostocks_connector import ProStocksAPI
-import streamlit as st
-from streamlit_autorefresh import st_autorefresh
-
-# --- Helper Functions (yeh tab5 ke bahar hi rakho, bilkul LEFT aligned) ---
 def ensure_datetime(df):
     if "datetime" not in df.columns:
         for cand_col in ["time", "date", "datetime"]:
@@ -226,16 +149,10 @@ def ensure_datetime(df):
     if pd.api.types.is_datetime64_any_dtype(df["datetime"]):
         return df
 
-    dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
-    if dt.isna().any():
-        num = pd.to_numeric(df["datetime"], errors="coerce")
-        mask = dt.isna() & num.notna()
-        if mask.any():
-            dt.loc[mask] = pd.to_datetime(num.loc[mask], unit="s", errors="coerce")
+    dt = pd.to_datetime(df["datetime"], errors="coerce")
     df["datetime"] = dt
     df = df.dropna(subset=["datetime"])
     return df
-
 
 def get_col(df, *names):
     for n in names:
@@ -243,15 +160,10 @@ def get_col(df, *names):
             return df[n]
     return None
 
-
 def plot_tpseries_candles(df, symbol):
     df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
-
-    # Market hours filter
-    df = df[
-        (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-        (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
-    ]
+    df = df[(df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())]
 
     fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
     fig.add_trace(go.Candlestick(
@@ -264,50 +176,48 @@ def plot_tpseries_candles(df, symbol):
         decreasing_line_color='#ef5350',
         name='Price'
     ))
-
     fig.update_layout(
         xaxis_rangeslider_visible=False,
-        dragmode='pan',
-        hovermode='x unified',
-        showlegend=False,
         template="plotly_dark",
         height=700,
         margin=dict(l=50, r=50, t=50, b=50),
-        plot_bgcolor='black',
-        paper_bgcolor='black',
-        font=dict(color='white'),
         title=f"{symbol} - TradingView-style Chart"
     )
-    fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray',
-                     rangebreaks=[dict(bounds=["sat", "mon"]),
-                                  dict(bounds=[15.5, 9.25], pattern="hour")])
-    fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-
-    if len(df) > 50:
-        fig.update_layout(
-            updatemenus=[dict(
-                type="buttons",
-                direction="left",
-                x=1, y=1.15,
-                buttons=[dict(
-                    label="Go to Latest",
-                    method="relayout",
-                    args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
-                )]
-            )]
-        )
     return fig
 
+# === TPSeries Fetch Function ===
+def fetch_full_tpseries(api, exch, token, interval, days=60):
+    final_df = pd.DataFrame()
+    ist_offset = timedelta(hours=5, minutes=30)
+    today_ist = datetime.utcnow() + ist_offset
+    end_dt = today_ist
+    start_dt = end_dt - timedelta(days=days)
+    current_day = start_dt
+    while current_day <= end_dt:
+        day_start = current_day.replace(hour=9, minute=15)
+        day_end = current_day.replace(hour=15, minute=30)
+        st_epoch = int((day_start - ist_offset).timestamp())
+        et_epoch = int((day_end - ist_offset).timestamp())
+        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
+        if resp.get("stat") == "Ok" and "values" in resp:
+            chunk_df = pd.DataFrame(resp["values"])
+            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
+            final_df = pd.concat([final_df, chunk_df])
+        current_day += timedelta(days=1)
+        time.sleep(0.3)
+    final_df.sort_values("datetime", inplace=True)
+    return final_df
 
-# --- Tab 5: Strategy Engine ---
+# === Tab 5: Strategy Engine (Full Live Compatible) ===
 with tab5:
     st.subheader("📡 Live WebSocket Candles + TPSeries")
 
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first.")
     else:
-        api = st.session_state.ps_api  # ensure api object exists
+        api = st.session_state["ps_api"]
 
+        # --- Start WebSocket if not already ---
         if "ws_started" not in st.session_state:
             api.start_websocket_for_symbol("TATAMOTORS-EQ")
             st.session_state.ws_started = True
@@ -316,74 +226,53 @@ with tab5:
         st.subheader("📊 TPSeries Historical Chart")
         wl_resp = api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
-            raw_watchlists = wl_resp["values"]
-            watchlists = sorted(raw_watchlists, key=int)
-
+            watchlists = sorted(wl_resp["values"], key=int)
             selected_watchlist = st.selectbox("Select Watchlist", watchlists, key="wl_tab5")
             selected_interval = st.selectbox(
                 "Select Interval",
-                ["1", "3", "5", "10", "15", "30", "60", "120", "240"],
+                ["1","3","5","10","15","30","60","120","240"],
                 index=2,
                 key="int_tab5"
             )
-
             if st.button("🔁 Fetch TPSeries Data", key="fetch_tab5"):
-                with st.spinner("Fetching candle data for all scrips..."):
-                    wl_data = api.get_watchlist(selected_watchlist)
-                    if wl_data.get("stat") == "Ok":
-                        for scrip in wl_data.get("values", []):
-                            exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
+                wl_data = api.get_watchlist(selected_watchlist)
+                if wl_data.get("stat") == "Ok":
+                    for scrip in wl_data.get("values", []):
+                        exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
+                        try:
+                            df_candle = fetch_full_tpseries(api, exch, token, selected_interval, days=5)
+                            if not df_candle.empty:
+                                df_candle = ensure_datetime(df_candle)
+                                fig = plot_tpseries_candles(df_candle, tsym)
+                                st.plotly_chart(fig, use_container_width=True)
+                        except Exception as e:
+                            st.warning(f"{tsym}: {e}")
 
-                            try:
-                                df_candle = api.fetch_full_tpseries(
-                                    exch, token,
-                                    interval=selected_interval,
-                                    chunk_days=5
-                                )
-                                if not df_candle.empty:
-                                    df_candle = ensure_datetime(df_candle)
-
-                                    # Rename OHLC columns to lowercase
-                                    rename_map = {}
-                                    for a, b in [("Open","open"),("High","high"),
-                                                 ("Low","low"),("Close","close"),("Volume","volume")]:
-                                        if a in df_candle.columns and b not in df_candle.columns:
-                                            rename_map[a] = b
-                                    if rename_map:
-                                        df_candle = df_candle.rename(columns=rename_map)
-
-                                    fig = plot_tpseries_candles(df_candle, tsym)
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.warning(f"⚠️ No data for {tsym}")
-                            except Exception as e:
-                                st.warning(f"⚠️ {tsym}: {e}")
-                    else:
-                        st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
-        else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-        # --- Live WebSocket Stream ---
+        # --- Live WebSocket Stream (Dynamic Update) ---
         st.subheader("📡 Live WebSocket Stream")
-        st_autorefresh(interval=3000, key="ws_refresh")
+        live_container = st.empty()
 
-        # Build candles from API tick buffer
-        df = api.build_live_candles(interval="1min")
-        if "time" in df.columns:
-            df["time"] = pd.to_datetime(df["time"], unit="s", errors="coerce")
-            df = df.dropna(subset=["time"])
+        if "live_update_thread" not in st.session_state:
+            def live_update_loop():
+                while True:
+                    try:
+                        df_live = api.build_live_candles(interval="1min")
+                        if df_live.empty and "live_ticks" in st.session_state:
+                            df_live = pd.DataFrame(st.session_state["live_ticks"])
+                            if not df_live.empty:
+                                df_live = df_live.rename(columns={"time":"datetime","price":"close"})
+                                df_live["open"] = df_live["close"]
+                                df_live["high"] = df_live["close"]
+                                df_live["low"] = df_live["close"]
+                        df_live = ensure_datetime(df_live)
+                        if not df_live.empty and "datetime" in df_live.columns:
+                            fig = plot_tpseries_candles(df_live, "TATAMOTORS-EQ")
+                            live_container.plotly_chart(fig, use_container_width=True)
+                            live_container.dataframe(df_live.tail(20), use_container_width=True, height=300)
+                    except Exception as e:
+                        live_container.warning(f"Live update error: {e}")
+                    time.sleep(3)
 
-        # Fallback: use session_state live_ticks
-        if df.empty and "live_ticks" in st.session_state and len(st.session_state["live_ticks"]) > 0:
-            df = pd.DataFrame(st.session_state["live_ticks"])
-            df = df.rename(columns={"time": "datetime", "price": "close"})
-            df["open"] = df["close"]
-            df["high"] = df["close"]
-            df["low"]  = df["close"]
-
-        if not df.empty and "datetime" in df.columns:
-            fig = plot_tpseries_candles(df, "TATAMOTORS-EQ")
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(df.tail(20), use_container_width=True, height=300)
-        else:
-            st.info("⏳ Waiting for live ticks...")
+            t = threading.Thread(target=live_update_loop, daemon=True)
+            t.start()
+            st.session_state["live_update_thread"] = t
