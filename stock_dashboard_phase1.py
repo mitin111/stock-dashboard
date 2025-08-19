@@ -374,8 +374,10 @@ with tab5:
 
         if not df.empty:
             df = df.rename(columns={"time": "datetime"})  # live ws me column "time" hota hai
-            update_chart(df)   # <-- ye naya function call karo
+            fig = plot_tpseries_candles(df, "TATAMOTORS-EQ")
+            st.plotly_chart(fig, use_container_width=True)
             st.dataframe(df.tail(20), use_container_width=True, height=300)
         else:
             st.info("⏳ Waiting for live ticks...")
+
 
