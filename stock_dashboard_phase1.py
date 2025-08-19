@@ -141,6 +141,39 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+chart_container = st.empty()
+
+def update_chart(df):
+    if "datetime" not in df.columns:
+        return
+    df = df.sort_values("datetime")
+
+    # rename OHLC if capital case
+    rename_map = {}
+    for a, b in [("Open","open"),("High","high"),("Low","low"),("Close","close")]:
+        if a in df.columns and b not in df.columns:
+            rename_map[a] = b
+    if rename_map:
+        df = df.rename(columns=rename_map)
+
+    if not all(col in df.columns for col in ["open","high","low","close"]):
+        return  # agar OHLC columns hi missing hain toh chart mat banao
+
+    fig = go.Figure(data=[go.Candlestick(
+        x=df['datetime'],
+        open=df['open'],
+        high=df['high'],
+        low=df['low'],
+        close=df['close']
+    )])
+    fig.update_layout(
+        title="Live Candlestick Chart",
+        xaxis_rangeslider_visible=False,
+        template="plotly_dark",
+        height=700
+    )
+    chart_container.plotly_chart(fig, use_container_width=True)
+
 # === Function: TPSeries fetch in daily chunks (fix for single candle issue) ===
 def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df = pd.DataFrame()
@@ -340,9 +373,9 @@ with tab5:
             df = df.dropna(subset=["time"])
 
         if not df.empty:
-            symbol = "TATAMOTORS-EQ"
-            fig = plot_tpseries_candles(df, symbol)
-            st.plotly_chart(fig, use_container_width=True)
+            df = df.rename(columns={"time": "datetime"})  # live ws me column "time" hota hai
+            update_chart(df)   # <-- ye naya function call karo
             st.dataframe(df.tail(20), use_container_width=True, height=300)
         else:
             st.info("⏳ Waiting for live ticks...")
+
