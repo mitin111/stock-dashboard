@@ -335,6 +335,10 @@ class ProStocksAPI:
         self.wst.daemon = True
         self.wst.start()
 
+    def start_websocket_for_symbol(self, symbol):
+        """Wrapper for single symbol websocket subscription"""
+        self.start_websocket_for_symbols([symbol])
+
     def on_open_multi(self, ws, tokens):
         self.is_ws_connected = True
         print("✅ WebSocket connected")
@@ -432,6 +436,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
