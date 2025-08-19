@@ -296,7 +296,7 @@ class ProStocksAPI:
 
         return results
 
-    # ------------------ WebSocket (thread-safe buffer) ------------------
+        # ------------------ WebSocket (thread-safe buffer) ------------------
     def _on_open(self, ws):
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
@@ -319,7 +319,7 @@ class ProStocksAPI:
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
-        def start_websocket_for_symbols(self, tokens):
+    def start_websocket_for_symbols(self, tokens):
         if not self.is_logged_in:
             raise Exception("⚠️ Please login first before starting WebSocket")
 
@@ -327,9 +327,9 @@ class ProStocksAPI:
         self.ws = websocket.WebSocketApp(
             ws_url,
             on_open=lambda ws: self.on_open_multi(ws, tokens),
-            on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
         )
         self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30})
         self.wst.daemon = True
@@ -351,6 +351,7 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
+    
     def build_live_candles(self, interval="1min"):
         """
         Convert buffered ticks into minute candles.
@@ -431,5 +432,6 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
