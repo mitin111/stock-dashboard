@@ -245,7 +245,8 @@ with tab5:
 
             if st.button("🔁 Fetch TPSeries Data", key="fetch_tab5"):
                 wl_data = api.get_watchlist(selected_watchlist)
-                # Handle dict or list
+
+                # Ensure wl_data is always iterable
                 if isinstance(wl_data, dict):
                     scrips = wl_data.get("values", [])
                 elif isinstance(wl_data, list):
@@ -253,16 +254,25 @@ with tab5:
                 else:
                     scrips = []
 
-                for scrip in scrips:
-                    exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
-                    try:
-                        df_candle = fetch_full_tpseries(api, exch, token, selected_interval, days=5)
-                        if not df_candle.empty:
-                            df_candle = ensure_datetime(df_candle)
-                            fig = plot_tpseries_candles(df_candle, tsym)
-                            st.plotly_chart(fig, use_container_width=True)
-                    except Exception as e:
-                        st.warning(f"{tsym}: {e}")
+                if not scrips:
+                    st.warning("No scrips found in this watchlist.")
+                else:
+                    for scrip in scrips:
+                        # Safety checks for keys
+                        exch = scrip.get("exch") or scrip.get("exchange")
+                        token = scrip.get("token")
+                        tsym = scrip.get("tsym") or scrip.get("symbol")
+                        if not (exch and token and tsym):
+                           continue  # skip invalid scrip
+
+                        try:
+                            df_candle = fetch_full_tpseries(api, exch, token, selected_interval, days=5)
+                            if not df_candle.empty:
+                                df_candle = ensure_datetime(df_candle)
+                                fig = plot_tpseries_candles(df_candle, tsym)
+                                st.plotly_chart(fig, use_container_width=True)
+                         except Exception as e:
+                             st.warning(f"{tsym}: {e}")
 
         # --- Live WebSocket Stream ---
         st.subheader("📡 Live WebSocket Stream")
@@ -301,3 +311,4 @@ with tab5:
             live_container.warning(f"Live update error: {st.session_state['live_error']}")
         else:
             live_container.info("⏳ Waiting for live ticks...")
+
