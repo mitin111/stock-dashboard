@@ -304,41 +304,41 @@ class ProStocksAPI:
         return results
 
        # ------------------ WebSocket (thread-safe buffer) ------------------
-    def _on_open(self, ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
+def _on_open(self, ws):
+    self.is_ws_connected = True
+    print("✅ WebSocket Connected")
 
-    def subscribe_tokens(self, tokens):
-        if self.ws and self.is_ws_connected:
-            for tk in tokens:
-                sub_payload = {"t": "t", "k": tk}
-                self.ws.send(json.dumps(sub_payload))
-                print("📡 Subscribed:", tk)
+def subscribe_tokens(self, tokens):
+    if self.ws and self.is_ws_connected:
+        for tk in tokens:
+            sub_payload = {"t": "t", "k": tk}
+            self.ws.send(json.dumps(sub_payload))
+            print("📡 Subscribed:", tk)
 
-    def _on_message(self, ws, message):
-        try:
-            import streamlit as st
-            tick = json.loads(message)
-            self._tick_buffer.append(tick)
+def _on_message(self, ws, message):
+    try:
+        import streamlit as st
+        tick = json.loads(message)
+        self._tick_buffer.append(tick)
 
-            # ---- Streamlit live chart ke liye LTP extract ----
-            ltp = tick.get("lp") or tick.get("ltp")
-            if ltp:
-                ts = datetime.now()
-                if "live_ticks" not in st.session_state:
-                    st.session_state["live_ticks"] = []
-                st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-        except Exception as e:
-            print("❌ Tick parse error:", e)
+        # ---- Streamlit live chart ke liye LTP extract ----
+        ltp = tick.get("lp") or tick.get("ltp")
+        if ltp:
+            ts = datetime.now()
+            if "live_ticks" not in st.session_state:
+                st.session_state["live_ticks"] = []
+            st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
+    except Exception as e:
+        print("❌ Tick parse error:", e)
 
-    def _on_error(self, ws, error):
-        print("❌ WebSocket Error:", error)
+def _on_error(self, ws, error):
+    print("❌ WebSocket Error:", error)
 
-    def _on_close(self, ws, code, msg):
-        self.is_ws_connected = False
-        print("❌ WebSocket Closed", code, msg)
+def _on_close(self, ws, code, msg):
+    self.is_ws_connected = False
+    print("❌ WebSocket Closed", code, msg)
 
-    def start_websocket_for_symbols(self, tokens):
+def start_websocket_for_symbols(self, tokens):
     if not self.is_logged_in:
         raise Exception("⚠️ Please login first before starting WebSocket")
 
@@ -365,7 +365,6 @@ class ProStocksAPI:
 
 def start_websocket_for_symbol(self, symbol):
     self.start_websocket_for_symbols([symbol])
-
 
 def on_open_multi(self, ws, tokens):
     self.is_ws_connected = True
@@ -454,3 +453,4 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
