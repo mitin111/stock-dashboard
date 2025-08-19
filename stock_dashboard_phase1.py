@@ -360,24 +360,32 @@ with tab5:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
 
         # --- Live WebSocket Stream ---
-        st.subheader("📡 Live WebSocket Stream")
-        if "ws_started" not in st.session_state:
-            api.start_websocket_for_symbol("TATAMOTORS-EQ")
-            st.session_state.ws_started = True
+st.subheader("📡 Live WebSocket Stream")
+if "ws_started" not in st.session_state:
+    api.start_websocket_for_symbol("TATAMOTORS-EQ")
+    st.session_state.ws_started = True
 
-        st_autorefresh(interval=3000, key="ws_refresh")
+st_autorefresh(interval=3000, key="ws_refresh")
 
-        df = api.build_live_candles(interval="1min")
-        if "time" in df.columns:
-            df["time"] = pd.to_datetime(df["time"], unit="s", errors="coerce")
-            df = df.dropna(subset=["time"])
+# First try to build candles from API tick buffer
+df = api.build_live_candles(interval="1min")
+if "time" in df.columns:
+    df["time"] = pd.to_datetime(df["time"], unit="s", errors="coerce")
+    df = df.dropna(subset=["time"])
 
-        if not df.empty:
-            df = df.rename(columns={"time": "datetime"})  # live ws me column "time" hota hai
-            fig = plot_tpseries_candles(df, "TATAMOTORS-EQ")
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(df.tail(20), use_container_width=True, height=300)
-        else:
-            st.info("⏳ Waiting for live ticks...")
+# --- Fallback: if df is empty, try live_ticks session_state ---
+if df.empty and "live_ticks" in st.session_state and len(st.session_state["live_ticks"]) > 0:
+    df = pd.DataFrame(st.session_state["live_ticks"])
+    df = df.rename(columns={"time": "datetime", "price": "close"})
+    df["open"] = df["close"]
+    df["high"] = df["close"]
+    df["low"]  = df["close"]
+
+if not df.empty and "datetime" in df.columns:
+    fig = plot_tpseries_candles(df, "TATAMOTORS-EQ")
+    st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(df.tail(20), use_container_width=True, height=300)
+else:
+    st.info("⏳ Waiting for live ticks...")
 
 
