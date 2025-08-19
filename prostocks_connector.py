@@ -305,8 +305,8 @@ class ProStocksAPI:
 
         return results
 
-        # ------------------ WebSocket (thread-safe buffer) ------------------
-    def _on_open(self, ws):
+           # ------------------ WebSocket (thread-safe buffer) ------------------
+    def _on_open(self, ws):  
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
 
@@ -323,6 +323,9 @@ class ProStocksAPI:
             self._tick_buffer.append(tick)   # buffer only
         except Exception as e:
             print("❌ Tick parse error:", e)
+
+    def _on_error(self, ws, error):   # 👈 ye naya method add karo
+        print("❌ WebSocket Error:", error)
 
     def _on_close(self, ws, code, msg):
         self.is_ws_connected = False
@@ -444,6 +447,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
