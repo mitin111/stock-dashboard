@@ -301,6 +301,13 @@ class ProStocksAPI:
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
 
+    def subscribe_tokens(self, tokens):
+        if self.ws and self.is_ws_connected:
+            for tk in tokens:
+                sub_payload = {"t": "t", "k": tk}
+                self.ws.send(json.dumps(sub_payload))
+                print("📡 Subscribed:", tk)
+
     def _on_message(self, ws, message):
         try:
             tick = json.loads(message)
@@ -312,23 +319,26 @@ class ProStocksAPI:
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
-    def start_websocket_for_symbol(self, symbol):
-        """
-        Starts WebSocket in background thread. (Note: ProStocks usually
-        requires a 'subscribe' message after connect; add it if needed.)
-        """
-        def run_ws():
-            self.ws = websocket.WebSocketApp(
-                "wss://starapi.prostocks.com/NorenWSTP/",
-                on_open=self._on_open,
-                on_message=self._on_message,
-                on_close=self._on_close
-            )
-            self.ws.run_forever()
+        def start_websocket_for_symbols(self, tokens):
+        if not self.is_logged_in:
+            raise Exception("⚠️ Please login first before starting WebSocket")
 
-        threading.Thread(target=run_ws, daemon=True).start()
-        print(f"🚀 WebSocket started for {symbol}")
-        # TODO: send subscription for the given symbol/token as per ProStocks WS spec.
+        ws_url = f"wss://norenapi.prostocks.com/NorenWSTp/{self.userid}"
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=lambda ws: self.on_open_multi(ws, tokens),
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close
+        )
+        self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30})
+        self.wst.daemon = True
+        self.wst.start()
+
+    def on_open_multi(self, ws, tokens):
+        self.is_ws_connected = True
+        print("✅ WebSocket connected")
+        self.subscribe_tokens(tokens)
 
     def stop_websocket(self):
         try:
@@ -421,4 +431,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
