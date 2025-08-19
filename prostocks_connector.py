@@ -45,6 +45,7 @@ class ProStocksAPI:
         self.is_ws_connected = False
         self._tick_buffer = deque(maxlen=1000)
         self._live_candles = pd.DataFrame()
+        self.is_logged_in = False
 
     # ---------------- Utils ----------------
     @staticmethod
@@ -106,10 +107,18 @@ class ProStocksAPI:
                 self.userid = data.get("uid", self.userid)
                 # Keep Authorization header if your backend needs it
                 self.headers["Authorization"] = self.session_token
+                self.is_logged_in = True
                 return True, self.session_token
             return False, data.get("emsg", "Login failed")
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
+
+    def logout(self):
+        """Clear session and mark user as logged out."""
+        self.is_logged_in = False
+        self.session_token = None
+        self.feed_token = None
+        print("👋 Logged out successfully")
 
     # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
@@ -436,6 +445,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
