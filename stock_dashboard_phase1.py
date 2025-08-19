@@ -213,11 +213,11 @@ with tab5:
     st.subheader("📡 Live WebSocket Candles + TPSeries")
 
     if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first.")
+        st.warning("⚠️ Please login first using your API credentials.")
     else:
         api = st.session_state["ps_api"]
 
-        # --- Start WebSocket for a default symbol if not already ---
+        # --- Start WebSocket if not already ---
         if "ws_started" not in st.session_state:
             api.start_websocket_for_symbol("TATAMOTORS-EQ")
             st.session_state.ws_started = True
@@ -226,27 +226,25 @@ with tab5:
         st.subheader("📊 TPSeries Historical Chart")
         wl_resp = api.get_watchlists()
 
-        # --- Normalize watchlists ---
+        # Normalize watchlists
         watchlists = []
         if wl_resp is not None:
             if isinstance(wl_resp, dict) and wl_resp.get("stat") == "Ok":
                 watchlists = wl_resp.get("values", [])
             elif isinstance(wl_resp, list):
                 watchlists = wl_resp
-
         watchlists = sorted(watchlists, key=int) if watchlists else []
+
         selected_watchlist = st.selectbox("Select Watchlist", watchlists, key="wl_tab5")
         selected_interval = st.selectbox(
             "Select Interval",
-            ["1","3","5","10","15","30","60","120","240"],
+            ["1", "3", "5", "10", "15", "30", "60", "120", "240"],
             index=2,
             key="int_tab5"
         )
 
         if st.button("🔁 Fetch TPSeries Data", key="fetch_tab5"):
             wl_data = api.get_watchlist(selected_watchlist)
-
-            # --- Ensure scrips is always a list ---
             scrips = []
             if isinstance(wl_data, dict):
                 scrips = wl_data.get("values", [])
@@ -256,47 +254,65 @@ with tab5:
             if not scrips:
                 st.warning("No scrips found in this watchlist.")
             else:
-                for scrip in scrips:
-                    # --- Safety checks ---
-                    if isinstance(scrip, dict):
+                with st.spinner("Fetching TPSeries candle data..."):
+                    for i, scrip in enumerate(scrips):
+                        if not isinstance(scrip, dict):
+                            continue
                         exch = scrip.get("exch") or scrip.get("exchange")
                         token = scrip.get("token")
                         tsym = scrip.get("tsym") or scrip.get("symbol")
                         if not (exch and token and tsym):
-                            continue  # skip invalid scrip
+                            continue
 
                         try:
-                            df_candle = fetch_full_tpseries(api, exch, token, selected_interval, days=5)
+                            session_key = f"tpseries_{tsym}"
+                            if session_key not in st.session_state:
+                                df_candle = api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
+                                st.session_state[session_key] = df_candle.copy()
+                            else:
+                                df_candle = st.session_state[session_key]
+
                             if not df_candle.empty:
-                                df_candle = ensure_datetime(df_candle)
+                                # Standardize datetime
+                                datetime_col = next((c for c in ["datetime", "time", "date"] if c in df_candle.columns), None)
+                                if datetime_col:
+                                    df_candle.rename(columns={datetime_col: "datetime"}, inplace=True)
+                                    df_candle["datetime"] = pd.to_datetime(df_candle["datetime"], errors="coerce", dayfirst=True)
+                                    df_candle.dropna(subset=["datetime"], inplace=True)
+                                    df_candle.sort_values("datetime", inplace=True)
+                                else:
+                                    st.warning(f"⚠️ Missing datetime column for {tsym}")
+                                    continue
+
                                 fig = plot_tpseries_candles(df_candle, tsym)
-                                st.plotly_chart(fig, use_container_width=True)
+                                if fig:
+                                    st.plotly_chart(fig, use_container_width=True)
+                                    st.dataframe(df_candle, use_container_width=True, height=600)
+                            else:
+                                st.warning(f"No data for {tsym}")
                         except Exception as e:
-                            st.warning(f"{tsym}: {e}")
-                    else:
-                        continue  # skip if scrip is not a dict
+                            st.warning(f"{tsym}: Exception occurred - {e}")
 
         # --- Live WebSocket Stream ---
         st.subheader("📡 Live WebSocket Stream")
         live_container = st.empty()
 
-        # --- Start background thread for live data only once ---
         if "live_update_thread_started" not in st.session_state:
+            import threading, time
+
             def live_fetch_loop(api):
                 while True:
                     try:
                         df_live = api.build_live_candles(interval="1min")
-                        # fallback to last live ticks if empty
                         if df_live.empty and "live_ticks" in st.session_state:
                             df_live = pd.DataFrame(st.session_state["live_ticks"])
                             if not df_live.empty:
-                                df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
+                                df_live = df_live.rename(columns={"time":"datetime","price":"close"})
                                 df_live["open"] = df_live["close"]
                                 df_live["high"] = df_live["close"]
                                 df_live["low"] = df_live["close"]
                         df_live = ensure_datetime(df_live)
-                        if not df_live.empty:
-                            st.session_state["latest_live"] = df_live
+                        st.session_state["latest_live"] = df_live
                     except Exception as e:
                         st.session_state["live_error"] = str(e)
                     time.sleep(1)
@@ -305,13 +321,15 @@ with tab5:
             t.start()
             st.session_state["live_update_thread_started"] = True
 
-        # --- Main UI rendering (runs in Streamlit main thread) ---
+        # --- Render live data in main thread ---
         df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
         if not df_live_ui.empty:
             fig = plot_tpseries_candles(df_live_ui, "TATAMOTORS-EQ")
-            live_container.plotly_chart(fig, use_container_width=True)
-            live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+            if fig:
+                live_container.plotly_chart(fig, use_container_width=True)
+                live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
         elif "live_error" in st.session_state:
             live_container.warning(f"Live update error: {st.session_state['live_error']}")
         else:
             live_container.info("⏳ Waiting for live ticks...")
+
