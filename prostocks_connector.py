@@ -303,7 +303,7 @@ class ProStocksAPI:
                 break
         return results
 
-    # ------------------ WebSocket (thread-safe buffer) ------------------
+       # ------------------ WebSocket (thread-safe buffer) ------------------
     def _on_open(self, ws):
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
@@ -341,17 +341,33 @@ class ProStocksAPI:
     def start_websocket_for_symbols(self, tokens):
         if not self.is_logged_in:
             raise Exception("⚠️ Please login first before starting WebSocket")
-        ws_url = f"wss://starapiuat.prostocks.com/NorenWSTP/"
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=lambda ws: self.on_open_multi(ws, tokens),
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close
-        )
-        self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30})
-        self.wst.daemon = True
-        self.wst.start()
+
+        # --- Fallback logic: UAT first, then LIVE ---
+        for url in [
+            "wss://starapiuat.prostocks.com/NorenWSTP/",
+            "wss://starapi.prostocks.com/NorenWSTP/"
+        ]:
+            try:
+                print(f"🔗 Trying WebSocket URL: {url}")
+                self.ws = websocket.WebSocketApp(
+                    url,
+                    on_open=lambda ws: self.on_open_multi(ws, tokens),
+                    on_message=self._on_message,
+                    on_error=self._on_error,
+                    on_close=self._on_close
+                )
+                self.wst = threading.Thread(
+                    target=self.ws.run_forever,
+                    kwargs={"ping_interval": 30}
+                )
+                self.wst.daemon = True
+                self.wst.start()
+                return  # exit if success
+            except Exception as e:
+                print(f"⚠️ Failed to connect {url} -> {e}")
+                continue
+
+        raise Exception("❌ Could not connect to any WebSocket endpoint")
 
     def start_websocket_for_symbol(self, symbol):
         self.start_websocket_for_symbols([symbol])
@@ -439,4 +455,3 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
