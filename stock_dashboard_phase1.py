@@ -248,31 +248,41 @@ with tab5:
                         except Exception as e:
                             st.warning(f"{tsym}: {e}")
 
-        # --- Live WebSocket Stream (Dynamic Update) ---
-        st.subheader("📡 Live WebSocket Stream")
-        live_container = st.empty()
+       # --- Live WebSocket Stream (Dynamic Update) ---
+st.subheader("📡 Live WebSocket Stream")
+live_container = st.empty()
+st_autorefresh(interval=3000, key="ws_refresh")  # refresh UI every 3 sec
 
-        if "live_update_thread" not in st.session_state:
-            def live_update_loop():
-                while True:
-                    try:
-                        df_live = api.build_live_candles(interval="1min")
-                        if df_live.empty and "live_ticks" in st.session_state:
-                            df_live = pd.DataFrame(st.session_state["live_ticks"])
-                            if not df_live.empty:
-                                df_live = df_live.rename(columns={"time":"datetime","price":"close"})
-                                df_live["open"] = df_live["close"]
-                                df_live["high"] = df_live["close"]
-                                df_live["low"] = df_live["close"]
-                        df_live = ensure_datetime(df_live)
-                        if not df_live.empty and "datetime" in df_live.columns:
-                            fig = plot_tpseries_candles(df_live, "TATAMOTORS-EQ")
-                            live_container.plotly_chart(fig, use_container_width=True)
-                            live_container.dataframe(df_live.tail(20), use_container_width=True, height=300)
-                    except Exception as e:
-                        live_container.warning(f"Live update error: {e}")
-                    time.sleep(3)
+# --- Start background data fetch only once ---
+if "live_update_thread_started" not in st.session_state:
+    def live_fetch_loop(api):
+        while True:
+            try:
+                df_live = api.build_live_candles(interval="1min")
+                if df_live.empty and "live_ticks" in st.session_state:
+                    df_live = pd.DataFrame(st.session_state["live_ticks"])
+                    if not df_live.empty:
+                        df_live = df_live.rename(columns={"time":"datetime","price":"close"})
+                        df_live["open"] = df_live["close"]
+                        df_live["high"] = df_live["close"]
+                        df_live["low"] = df_live["close"]
+                df_live = ensure_datetime(df_live)
+                st.session_state["latest_live"] = df_live  # push to session_state only
+            except Exception as e:
+                st.session_state["live_error"] = str(e)
+            time.sleep(1)
 
-            t = threading.Thread(target=live_update_loop, daemon=True)
-            t.start()
-            st.session_state["live_update_thread"] = t
+    t = threading.Thread(target=live_fetch_loop, args=(api,), daemon=True)
+    t.start()
+    st.session_state["live_update_thread_started"] = True
+
+# --- Main UI update (runs in main Streamlit thread) ---
+df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
+if not df_live_ui.empty:
+    fig = plot_tpseries_candles(df_live_ui, "TATAMOTORS-EQ")
+    live_container.plotly_chart(fig, use_container_width=True)
+    live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+elif "live_error" in st.session_state:
+    live_container.warning(f"Live update error: {st.session_state['live_error']}")
+else:
+    live_container.info("⏳ Waiting for live ticks...")
