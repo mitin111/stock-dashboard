@@ -14,7 +14,6 @@ import websocket  # pip install websocket-client
 
 load_dotenv()
 
-
 class ProStocksAPI:
     def __init__(
         self,
@@ -58,6 +57,7 @@ class ProStocksAPI:
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain or "")
         appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+
         payload = {
             "uid": self.userid,
             "pwd": pwd_hash,
@@ -68,6 +68,7 @@ class ProStocksAPI:
             "apkversion": self.apkversion,
             "source": "API"
         }
+
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
@@ -81,6 +82,7 @@ class ProStocksAPI:
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain or "")
         appkey_hash = self.sha256(f"{self.userid}|{self.api_key}")
+
         payload = {
             "uid": self.userid,
             "pwd": pwd_hash,
@@ -91,6 +93,7 @@ class ProStocksAPI:
             "apkversion": self.apkversion,
             "source": "API"
         }
+
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}"
@@ -106,13 +109,16 @@ class ProStocksAPI:
                 self.headers["Authorization"] = self.session_token
                 self.is_logged_in = True
                 return True, self.session_token
+
             return False, data.get("emsg", "Login failed")
         except requests.exceptions.RequestException as e:
             return False, f"RequestException: {e}"
 
     def logout(self):
+        """Clear session and mark user as logged out."""
         self.is_logged_in = False
         self.session_token = None
+        self.feed_token = None
         print("👋 Logged out successfully")
 
     # ------------- Core POST helper -------------
@@ -133,9 +139,32 @@ class ProStocksAPI:
         payload = {"uid": self.userid}
         return self._post_json(url, payload)
 
+    def get_watchlist_names(self):
+        resp = self.get_watchlists()
+        if resp.get("stat") == "Ok":
+            return sorted(resp["values"], key=int)
+        return []
+
     def get_watchlist(self, wlname):
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
+        return self._post_json(url, payload)
+
+    def search_scrip(self, search_text, exch="NSE"):
+        url = f"{self.base_url}/SearchScrip"
+        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
+        return self._post_json(url, payload)
+
+    def add_scrips_to_watchlist(self, wlname, scrips_list):
+        url = f"{self.base_url}/AddMultiScripsToMW"
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        return self._post_json(url, payload)
+
+    def delete_scrips_from_watchlist(self, wlname, scrips_list):
+        url = f"{self.base_url}/DeleteMultiMWScrips"
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
     # ------------- TPSeries -------------
@@ -197,6 +226,7 @@ class ProStocksAPI:
 
             df_chunk = pd.DataFrame(resp)
             all_chunks.append(df_chunk)
+
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
@@ -205,23 +235,73 @@ class ProStocksAPI:
 
         df = pd.concat(all_chunks, ignore_index=True)
 
-        # Rename columns
+        if "time" in df.columns:
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)
+
         rename_map = {
             "time": "datetime",
             "into": "open",
             "inth": "high",
             "intl": "low",
             "intc": "close",
-            "intv": "volume"
+            "intvwap": "vwap",
+            "intv": "volume",
+            "ssboe": "epoch",
+            "oi": "open_interest"
         }
         df.rename(columns=rename_map, inplace=True)
+
+        if "volume" not in df.columns:
+            if "intv" in df.columns:
+                df["volume"] = pd.to_numeric(df["intv"], errors="coerce")
+            elif "v" in df.columns:
+                df["volume"] = pd.to_numeric(df["v"], errors="coerce")
+
+        if "datetime" in df.columns:
+            dt_parsed = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
+            if dt_parsed.isna().any():
+                dt_num = pd.to_numeric(df["datetime"], errors="coerce")
+                mask = dt_parsed.isna() & dt_num.notna()
+                if mask.any():
+                    dt_parsed.loc[mask] = pd.to_datetime(dt_num.loc[mask], unit="s", errors="coerce")
+            df["datetime"] = dt_parsed
+
+        df = df.dropna(subset=["datetime"])
+
         for col in ["open", "high", "low", "close", "volume"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-        df.dropna(subset=["open", "high", "low", "close"], inplace=True)
 
+        df.dropna(subset=["open", "high", "low", "close"], inplace=True)
         df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
+
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+        results = []
+        MAX_CALLS_PER_MIN = 20
+        call_count = 0
+
+        symbols = self.get_watchlist(wlname)
+        if not symbols or "values" not in symbols:
+            return []
+
+        for sym in symbols["values"]:
+            exch = sym.get("exch", "").strip()
+            token = str(sym.get("token", "")).strip()
+            symbol = sym.get("tsym", "").strip()
+            if not token.isdigit():
+                continue
+            try:
+                df = self.fetch_full_tpseries(exch, token, interval)
+                if not df.empty:
+                    results.append({"symbol": symbol, "data": df})
+            except Exception:
+                pass
+            call_count += 1
+            if call_count >= MAX_CALLS_PER_MIN:
+                break
+        return results
 
     # ------------------ WebSocket (thread-safe buffer) ------------------
     def _on_open(self, ws):
@@ -241,6 +321,7 @@ class ProStocksAPI:
             tick = json.loads(message)
             self._tick_buffer.append(tick)
 
+            # ---- Streamlit live chart ke liye LTP extract ----
             ltp = tick.get("lp") or tick.get("ltp")
             if ltp:
                 ts = datetime.now()
@@ -260,7 +341,6 @@ class ProStocksAPI:
     def start_websocket_for_symbols(self, tokens):
         if not self.is_logged_in:
             raise Exception("⚠️ Please login first before starting WebSocket")
-
         ws_url = f"wss://norenapi.prostocks.com/NorenWSTp/{self.userid}"
         self.ws = websocket.WebSocketApp(
             ws_url,
@@ -287,4 +367,75 @@ class ProStocksAPI:
                 self.ws.close()
                 print("🛑 WebSocket stopped")
         except Exception as e:
-            print
+            print("❌ stop_websocket error:", e)
+
+    def get_latest_ticks(self, n=20):
+        return list(self._tick_buffer)[-n:]
+
+    def build_live_candles(self, interval="1min"):
+        """Convert buffered ticks into minute candles."""
+        ticks = list(self._tick_buffer)
+        if not ticks:
+            return self._live_candles
+
+        rows = []
+        for tick in ticks:
+            if tick.get("t") != "tk":
+                continue
+            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick.get("lp", 0))
+            vol = int(tick.get("v", 1))
+            rows.append([minute, price, price, price, price, vol])
+
+        if not rows:
+            return self._live_candles
+
+        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+        if self._live_candles.empty:
+            self._live_candles = df_new
+        else:
+            self._live_candles = (
+                pd.concat([self._live_candles, df_new], ignore_index=True)
+                .drop_duplicates(subset=["Datetime"], keep="last")
+            )
+        return self._live_candles.sort_values("Datetime")
+
+    # ---------------- Chart Helper ----------------
+    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+        import plotly.graph_objects as go
+        df_hist = df_hist.copy()
+        fig = go.Figure()
+
+        def update_chart():
+            df_live = self.build_live_candles(interval)
+            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
+                subset=["datetime", "Datetime"], keep="last"
+            )
+            if "Datetime" in df_all.columns:
+                df_all["datetime"] = df_all["Datetime"]
+
+            fig.data = []
+            fig.add_trace(go.Candlestick(
+                x=df_all["datetime"],
+                open=df_all["open"] if "open" in df_all else df_all["Open"],
+                high=df_all["high"] if "high" in df_all else df_all["High"],
+                low=df_all["low"] if "low" in df_all else df_all["Low"],
+                close=df_all["close"] if "close" in df_all else df_all["Close"],
+                name="Candles"
+            ))
+            fig.update_layout(
+                title="Historical + Live Candles",
+                xaxis_rangeslider_visible=False,
+                template="plotly_dark",
+                height=600,
+            )
+            fig.show()
+
+        print("📊 Live chart running... (close chart window to stop)")
+        try:
+            while True:
+                update_chart()
+                time.sleep(refresh)
+        except KeyboardInterrupt:
+            print("🛑 Chart stopped")
