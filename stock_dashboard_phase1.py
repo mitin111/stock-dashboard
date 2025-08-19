@@ -217,7 +217,7 @@ with tab5:
     else:
         api = st.session_state["ps_api"]
 
-        # --- Start WebSocket if not already ---
+        # --- Start WebSocket for a default symbol if not already ---
         if "ws_started" not in st.session_state:
             api.start_websocket_for_symbol("TATAMOTORS-EQ")
             st.session_state.ws_started = True
@@ -225,40 +225,40 @@ with tab5:
         # --- Historical TPSeries Chart ---
         st.subheader("📊 TPSeries Historical Chart")
         wl_resp = api.get_watchlists()
+
+        # --- Normalize watchlists ---
+        watchlists = []
         if wl_resp is not None:
-            # Handle list or dict responses
             if isinstance(wl_resp, dict) and wl_resp.get("stat") == "Ok":
                 watchlists = wl_resp.get("values", [])
             elif isinstance(wl_resp, list):
                 watchlists = wl_resp
+
+        watchlists = sorted(watchlists, key=int) if watchlists else []
+        selected_watchlist = st.selectbox("Select Watchlist", watchlists, key="wl_tab5")
+        selected_interval = st.selectbox(
+            "Select Interval",
+            ["1","3","5","10","15","30","60","120","240"],
+            index=2,
+            key="int_tab5"
+        )
+
+        if st.button("🔁 Fetch TPSeries Data", key="fetch_tab5"):
+            wl_data = api.get_watchlist(selected_watchlist)
+
+            # --- Ensure scrips is always a list ---
+            scrips = []
+            if isinstance(wl_data, dict):
+                scrips = wl_data.get("values", [])
+            elif isinstance(wl_data, list):
+                scrips = wl_data
+
+            if not scrips:
+                st.warning("No scrips found in this watchlist.")
             else:
-                watchlists = []
-
-            watchlists = sorted(watchlists, key=int) if watchlists else []
-            selected_watchlist = st.selectbox("Select Watchlist", watchlists, key="wl_tab5")
-            selected_interval = st.selectbox(
-                "Select Interval",
-                ["1","3","5","10","15","30","60","120","240"],
-                index=2,
-                key="int_tab5"
-            )
-
-            if st.button("🔁 Fetch TPSeries Data", key="fetch_tab5"):
-                wl_data = api.get_watchlist(selected_watchlist)
-
-                # Ensure wl_data is always iterable
-                if isinstance(wl_data, dict):
-                    scrips = wl_data.get("values", [])
-                elif isinstance(wl_data, list):
-                    scrips = wl_data
-                else:
-                    scrips = []
-
-                if not scrips:
-                    st.warning("No scrips found in this watchlist.")
-                else:
-                    for scrip in scrips:
-                        # Safety checks for keys
+                for scrip in scrips:
+                    # --- Safety checks ---
+                    if isinstance(scrip, dict):
                         exch = scrip.get("exch") or scrip.get("exchange")
                         token = scrip.get("token")
                         tsym = scrip.get("tsym") or scrip.get("symbol")
@@ -273,6 +273,8 @@ with tab5:
                                 st.plotly_chart(fig, use_container_width=True)
                         except Exception as e:
                             st.warning(f"{tsym}: {e}")
+                    else:
+                        continue  # skip if scrip is not a dict
 
         # --- Live WebSocket Stream ---
         st.subheader("📡 Live WebSocket Stream")
@@ -284,15 +286,17 @@ with tab5:
                 while True:
                     try:
                         df_live = api.build_live_candles(interval="1min")
+                        # fallback to last live ticks if empty
                         if df_live.empty and "live_ticks" in st.session_state:
                             df_live = pd.DataFrame(st.session_state["live_ticks"])
                             if not df_live.empty:
-                                df_live = df_live.rename(columns={"time":"datetime","price":"close"})
+                                df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
                                 df_live["open"] = df_live["close"]
                                 df_live["high"] = df_live["close"]
                                 df_live["low"] = df_live["close"]
                         df_live = ensure_datetime(df_live)
-                        st.session_state["latest_live"] = df_live  # only update session_state
+                        if not df_live.empty:
+                            st.session_state["latest_live"] = df_live
                     except Exception as e:
                         st.session_state["live_error"] = str(e)
                     time.sleep(1)
