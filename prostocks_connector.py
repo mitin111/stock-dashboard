@@ -366,6 +366,7 @@ class ProStocksAPI:
         try:
             import streamlit as st
             tick = json.loads(message)
+            print("✅ Raw tick received:", tick)   # 👈 Debug add karo
             self._tick_buffer.append(tick)
 
             # ---- Streamlit live chart ke liye LTP extract ----
@@ -375,6 +376,7 @@ class ProStocksAPI:
                 if "live_ticks" not in st.session_state:
                     st.session_state["live_ticks"] = []
                 st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
+                print(f"📈 Tick parsed: time={ts}, price={ltp}")  # 👈 Debug add karo
         except Exception as e:
             print("❌ Tick parse error:", e)
 
@@ -533,4 +535,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
