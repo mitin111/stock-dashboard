@@ -348,18 +348,23 @@ with tab5:
                         except Exception as e:
                             st.warning(f"{tsym}: Exception occurred - {e}")
 
-        # --- Live WebSocket Stream ---
-        st.subheader("📡 Live WebSocket Stream")
-        live_container = st.empty()
+       # --- Live WebSocket Stream ---
+st.subheader("📡 Live WebSocket Stream")
+live_container = st.empty()
 
-        # --- Start live fetch thread if not started ---
+# Thread-safe queue setup
+import queue
+if "live_data_queue" not in st.session_state:
+    st.session_state["live_data_queue"] = queue.Queue()
+
 if "live_update_thread_started" not in st.session_state:
     import threading, time
 
-    def live_fetch_loop(api):
+    def live_fetch_loop(api, data_queue, error_key="last_live_error"):
         while True:
             try:
                 df_live = api.build_live_candles(interval="1min")
+
                 if df_live.empty and hasattr(api, "live_ticks"):
                     df_live = pd.DataFrame(api.live_ticks)
                     if not df_live.empty:
@@ -370,17 +375,35 @@ if "live_update_thread_started" not in st.session_state:
 
                 df_live = ensure_datetime(df_live)
                 if not df_live.empty:
-                    st.session_state["live_data_queue"].put(df_live)
+                    # ✅ Sirf queue me daalo
+                    data_queue.put(df_live)
+
             except Exception as e:
-                st.session_state["live_error"] = str(e)
+                # ✅ Error ko safe dict key me store karo
+                st.session_state[error_key] = str(e)
+
             time.sleep(1)
 
-    # ✅ Yaha "ps_api" pass karna hai
     if "ps_api" in st.session_state:
         t = threading.Thread(
             target=live_fetch_loop,
-            args=(st.session_state["ps_api"],),  # <-- yeh change karna hai
+            args=(st.session_state["ps_api"], st.session_state["live_data_queue"]),
             daemon=True
         )
         t.start()
         st.session_state["live_update_thread_started"] = True
+
+# --- UI rendering part (main thread only) ---
+if not st.session_state["live_data_queue"].empty():
+    st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
+
+df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
+if not df_live_ui.empty:
+    fig = plot_tpseries_candles(df_live_ui, "TATAMOTORS-EQ")
+    if fig:
+        live_container.plotly_chart(fig, use_container_width=True)
+        live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+elif "last_live_error" in st.session_state:
+    live_container.warning(f"Live update error: {st.session_state['last_live_error']}")
+else:
+    live_container.info("⏳ Waiting for live ticks...")
