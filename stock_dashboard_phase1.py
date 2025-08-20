@@ -269,7 +269,7 @@ with tab5:
 
         # --- Start WebSocket if not already ---
         if "ws_started" not in st.session_state:
-            api.start_websocket_for_symbols(["TATAMOTORS-EQ"])
+            api.start_websocket_for_symbols(selected_watchlist)
             st.session_state.ws_started = True
 
         # --- Initialize thread-safe queue for live data ---
@@ -411,4 +411,5 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
