@@ -390,9 +390,9 @@ class ProStocksAPI:
         print("❌ WebSocket Closed", code, msg)
 
     # ------------------------------------------------
-    # Start WebSocket for multiple symbols
-    # ------------------------------------------------
-    def start_websocket_for_symbols(self, symbols: list[str]):
+# Start WebSocket for multiple symbols
+# ------------------------------------------------
+def start_websocket_for_symbols(self, symbols: list[str]):
     """
     Start LIVE WebSocket and subscribe to given list of NSE symbols by resolving tokens.
     Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
@@ -444,104 +444,104 @@ class ProStocksAPI:
     except Exception as e:
         raise Exception(f"❌ WebSocket connection failed: {e}")
 
-    # ------------------------------------------------
-    # Start WebSocket for single symbol
-    # ------------------------------------------------
-    def start_websocket_for_symbol(self, symbol):
-        self.start_websocket_for_symbols([symbol])
 
-    def stop_websocket(self):
-        try:
-            if self.ws:
-                self.ws.close()
-                print("🛑 WebSocket stopped")
-        except Exception as e:
-            print("❌ stop_websocket error:", e)
+# ------------------------------------------------
+# Start WebSocket for single symbol
+# ------------------------------------------------
+def start_websocket_for_symbol(self, symbol):
+    self.start_websocket_for_symbols([symbol])
 
-    def get_latest_ticks(self, n=20):
-        return list(self._tick_buffer)[-n:]
 
-    def build_live_candles(self, interval="1min"):
-        """Convert buffered ticks into minute candles."""
-        ticks = list(self._tick_buffer)
-        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")  # 👈 Debug add karo
-        
-        if not ticks:
-            return self._live_candles
+def stop_websocket(self):
+    try:
+        if self.ws:
+            self.ws.close()
+            print("🛑 WebSocket stopped")
+    except Exception as e:
+        print("❌ stop_websocket error:", e)
 
-        rows = []
-        for tick in ticks:
-            # Accept any tick that has a last price
-            if "lp" not in tick and "ltp" not in tick:
-                continue
 
-            # Timestamp: 'ft' (feed time, ms) preferred; fallback to now()
-            if "ft" in tick:
-                try:
-                    ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-                except Exception:
-                    ts = datetime.now()
-            else:
+def get_latest_ticks(self, n=20):
+    return list(self._tick_buffer)[-n:]
+
+
+def build_live_candles(self, interval="1min"):
+    """Convert buffered ticks into minute candles."""
+    ticks = list(self._tick_buffer)
+    print(f"🕐 build_live_candles called, total ticks={len(ticks)}")  # 👈 Debug add karo
+
+    if not ticks:
+        return self._live_candles
+
+    rows = []
+    for tick in ticks:
+        # Accept any tick that has a last price
+        if "lp" not in tick and "ltp" not in tick:
+            continue
+
+        # Timestamp: 'ft' (feed time, ms) preferred; fallback to now()
+        if "ft" in tick:
+            try:
+                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+            except Exception:
                 ts = datetime.now()
-
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick.get("lp") or tick.get("ltp") or 0)
-            vol = int(tick.get("v", 1))
-            rows.append([minute, price, price, price, price, vol])
-
-        if not rows:
-            return self._live_candles
-
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-        if self._live_candles.empty:
-            self._live_candles = df_new
         else:
-            self._live_candles = (
-                pd.concat([self._live_candles, df_new], ignore_index=True)
-                .drop_duplicates(subset=["Datetime"], keep="last")
-            )
-        return self._live_candles.sort_values("Datetime")
+            ts = datetime.now()
 
-    # ---------------- Chart Helper ----------------
-    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-        import plotly.graph_objects as go
-        df_hist = df_hist.copy()
-        fig = go.Figure()
+        minute = ts.replace(second=0, microsecond=0)
+        price = float(tick.get("lp") or tick.get("ltp") or 0)
+        vol = int(tick.get("v", 1))
+        rows.append([minute, price, price, price, price, vol])
 
-        def update_chart():
-            df_live = self.build_live_candles(interval)
-            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
-                subset=["datetime", "Datetime"], keep="last"
-            )
-            if "Datetime" in df_all.columns:
-                df_all["datetime"] = df_all["Datetime"]
+    if not rows:
+        return self._live_candles
 
-            fig.data = []
-            fig.add_trace(go.Candlestick(
-                x=df_all["datetime"],
-                open=df_all["open"] if "open" in df_all else df_all["Open"],
-                high=df_all["high"] if "high" in df_all else df_all["High"],
-                low=df_all["low"] if "low" in df_all else df_all["Low"],
-                close=df_all["close"] if "close" in df_all else df_all["Close"],
-                name="Candles"
-            ))
-            fig.update_layout(
-                title="Historical + Live Candles",
-                xaxis_rangeslider_visible=False,
-                template="plotly_dark",
-                height=600,
-            )
-            fig.show()
-
-        print("📊 Live chart running... (close chart window to stop)")
-        try:
-            while True:
-                update_chart()
-                time.sleep(refresh)
-        except KeyboardInterrupt:
-            print("🛑 Chart stopped")
+    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+    if self._live_candles.empty:
+        self._live_candles = df_new
+    else:
+        self._live_candles = (
+            pd.concat([self._live_candles, df_new], ignore_index=True)
+            .drop_duplicates(subset=["Datetime"], keep="last")
+        )
+    return self._live_candles.sort_values("Datetime")
 
 
+# ---------------- Chart Helper ----------------
+def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+    import plotly.graph_objects as go
+    df_hist = df_hist.copy()
+    fig = go.Figure()
 
+    def update_chart():
+        df_live = self.build_live_candles(interval)
+        df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
+            subset=["datetime", "Datetime"], keep="last"
+        )
+        if "Datetime" in df_all.columns:
+            df_all["datetime"] = df_all["Datetime"]
 
+        fig.data = []
+        fig.add_trace(go.Candlestick(
+            x=df_all["datetime"],
+            open=df_all["open"] if "open" in df_all else df_all["Open"],
+            high=df_all["high"] if "high" in df_all else df_all["High"],
+            low=df_all["low"] if "low" in df_all else df_all["Low"],
+            close=df_all["close"] if "close" in df_all else df_all["Close"],
+            name="Candles"
+        ))
+        fig.update_layout(
+            title="Historical + Live Candles",
+            xaxis_rangeslider_visible=False,
+            template="plotly_dark",
+            height=600,
+        )
+        fig.show()
 
+    print("📊 Live chart running... (close chart window to stop)")
+    try:
+        while True:
+            update_chart()
+            time.sleep(refresh)
+    except KeyboardInterrupt:
+        print("🛑 Chart stopped")
