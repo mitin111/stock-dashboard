@@ -428,16 +428,17 @@ class ProStocksAPI:
     def _on_close(self, ws, code, msg):
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
-
-       # ------------------------------------------------
-    # Start WebSocket for multiple symbols
-    # ------------------------------------------------
-    def start_websocket_for_symbols(self, symbols, interval="1"):
+        
+ # ------------------------------------------------
+ # Start WebSocket for multiple symbols
+# ------------------------------------------------
+def start_websocket_for_symbols(self, symbols, interval="1"):
     """
     Start WebSocket and subscribe to given list of symbols OR a watchlist name.
+
     Example:
-      api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
-      api.start_websocket_for_symbols("MyWatchlist")  # 👈 watchlist se tokens
+        api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
+        api.start_websocket_for_symbols("MyWatchlist")  # 👈 watchlist se tokens
     """
     if not self.is_logged_in or not self.feed_token:
         print("❌ Login first before starting WebSocket")
@@ -463,6 +464,7 @@ class ProStocksAPI:
         print("⚠️ No valid tokens found for subscription")
         return
 
+    # --- WebSocket Callbacks ---
     def on_open(ws):
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
@@ -477,7 +479,7 @@ class ProStocksAPI:
         try:
             tick = json.loads(message)
             self._tick_buffer.append(tick)
-            self.on_tick(tick)
+            self.on_tick(tick)   # 👈 agar aapka tick handler defined hai
         except Exception as e:
             print("⚠️ Tick parse error:", e)
 
@@ -488,6 +490,7 @@ class ProStocksAPI:
     def on_error(ws, error):
         print(f"⚠️ WebSocket error: {error}")
 
+    # --- Start WebSocket Connection ---
     ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
     print(f"🔗 Connecting to WebSocket: {ws_url}")
 
@@ -499,7 +502,11 @@ class ProStocksAPI:
         on_close=on_close
     )
 
-    self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30}, daemon=True)
+    self.wst = threading.Thread(
+        target=self.ws.run_forever,
+        kwargs={"ping_interval": 30},
+        daemon=True
+    )
     self.wst.start()
 
     # ------------------------------------------------
@@ -605,6 +612,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
