@@ -386,3 +386,4 @@ with tab5:
         else:
             live_container.info("⏳ Waiting for live ticks...")
 
+
