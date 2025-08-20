@@ -124,6 +124,33 @@ class ProStocksAPI:
         self.feed_token = None
         print("👋 Logged out successfully")
 
+        # ----------------- Search Scrip -----------------
+    def search_scrip(self, tsym, exch="NSE"):
+        """
+        Search for a symbol in ProStocks.
+        tsym: Trading symbol (e.g. 'TATAMOTORS-EQ')
+        exch: Exchange ('NSE' or 'BSE')
+        """
+        try:
+            url = f"{self.base_url}/SearchScrip"
+            jdata = {
+                "uid": self.userid,
+                "exch": exch,
+                "stext": tsym
+            }
+            payload = {
+                "jData": json.dumps(jdata),
+                "jKey": self.jkey
+            }
+            resp = requests.post(url, data=payload).json()
+            if resp and resp.get("stat") == "Ok":
+                return resp.get("values", [])
+            else:
+                return None
+        except Exception as e:
+            print(f"⚠️ search_scrip error: {e}")
+            return None
+
     # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
@@ -506,3 +533,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
