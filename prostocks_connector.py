@@ -384,25 +384,25 @@ class ProStocksAPI:
                 break
         return results
 
-           # ------------------ WebSocket (thread-safe buffer) ------------------
+              # ------------------ WebSocket (thread-safe buffer) ------------------
     def _on_open(self, ws):
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
 
     def subscribe_tokens(self, tokens):
-    """
-    Subscribe tokens to WebSocket
-    """
-    if not self.ws:
-        print("⚠️ WebSocket not connected.")
-        return
-    
-    data = {
-        "t": "t",      # subscribe request type
-        "k": ",".join(map(str, tokens))  # multiple tokens comma separated
-    }
-    self.ws.send(json.dumps(data))
-    print(f"✅ Subscribed to tokens: {tokens}")
+        """
+        Subscribe tokens to WebSocket
+        """
+        if not self.ws:
+            print("⚠️ WebSocket not connected.")
+            return
+        
+        data = {
+            "t": "t",      # subscribe request type
+            "k": ",".join(map(str, tokens))  # multiple tokens comma separated
+        }
+        self.ws.send(json.dumps(data))
+        print(f"✅ Subscribed to tokens: {tokens}")
 
     def _on_message(self, ws, message):
         try:
@@ -428,86 +428,86 @@ class ProStocksAPI:
     def _on_close(self, ws, code, msg):
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
-        
- # ------------------------------------------------
- # Start WebSocket for multiple symbols
-# ------------------------------------------------
-def start_websocket_for_symbols(self, symbols, interval="1"):
-    """
-    Start WebSocket and subscribe to given list of symbols OR a watchlist name.
 
-    Example:
-        api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
-        api.start_websocket_for_symbols("MyWatchlist")  # 👈 watchlist se tokens
-    """
-    if not self.is_logged_in or not self.feed_token:
-        print("❌ Login first before starting WebSocket")
-        return
+    # ------------------------------------------------
+    # Start WebSocket for multiple symbols
+    # ------------------------------------------------
+    def start_websocket_for_symbols(self, symbols, interval="1"):
+        """
+        Start WebSocket and subscribe to given list of symbols OR a watchlist name.
 
-    token_list = []
+        Example:
+            api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
+            api.start_websocket_for_symbols("MyWatchlist")  # 👈 watchlist se tokens
+        """
+        if not self.is_logged_in or not self.feed_token:
+            print("❌ Login first before starting WebSocket")
+            return
 
-    # 👉 Case 1: agar user ne ek string diya hai, matlab watchlist ka naam
-    if isinstance(symbols, str):
-        token_list, _ = self.get_tokens_from_watchlist(symbols)
+        token_list = []
 
-    # 👉 Case 2: agar list of symbols diya hai
-    elif isinstance(symbols, list):
-        for sym in symbols:
-            exch, name = "NSE", sym.replace("-EQ", "")
-            token = self.search_scrip(exch, name)
-            if token:
-                token_list.append(f"{exch}|{token}")
-            else:
-                print(f"⚠️ Token not found for {sym}")
+        # 👉 Case 1: agar user ne ek string diya hai, matlab watchlist ka naam
+        if isinstance(symbols, str):
+            token_list, _ = self.get_tokens_from_watchlist(symbols)
 
-    if not token_list:
-        print("⚠️ No valid tokens found for subscription")
-        return
+        # 👉 Case 2: agar list of symbols diya hai
+        elif isinstance(symbols, list):
+            for sym in symbols:
+                exch, name = "NSE", sym.replace("-EQ", "")
+                token = self.search_scrip(exch, name)
+                if token:
+                    token_list.append(f"{exch}|{token}")
+                else:
+                    print(f"⚠️ Token not found for {sym}")
 
-    # --- WebSocket Callbacks ---
-    def on_open(ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
-        sub_data = {"t": "t", "k": "#".join(token_list)}
-        try:
-            ws.send(json.dumps(sub_data))
-            print(f"📡 Subscribed: {token_list}")
-        except Exception as e:
-            print("❌ Subscribe error:", e)
+        if not token_list:
+            print("⚠️ No valid tokens found for subscription")
+            return
 
-    def on_message(ws, message):
-        try:
-            tick = json.loads(message)
-            self._tick_buffer.append(tick)
-            self.on_tick(tick)   # 👈 agar aapka tick handler defined hai
-        except Exception as e:
-            print("⚠️ Tick parse error:", e)
+        # --- WebSocket Callbacks ---
+        def on_open(ws):
+            self.is_ws_connected = True
+            print("✅ WebSocket Connected")
+            sub_data = {"t": "t", "k": "#".join(token_list)}
+            try:
+                ws.send(json.dumps(sub_data))
+                print(f"📡 Subscribed: {token_list}")
+            except Exception as e:
+                print("❌ Subscribe error:", e)
 
-    def on_close(ws, code, reason):
-        self.is_ws_connected = False
-        print(f"❌ WebSocket closed: {code}, {reason}")
+        def on_message(ws, message):
+            try:
+                tick = json.loads(message)
+                self._tick_buffer.append(tick)
+                self.on_tick(tick)   # 👈 agar aapka tick handler defined hai
+            except Exception as e:
+                print("⚠️ Tick parse error:", e)
 
-    def on_error(ws, error):
-        print(f"⚠️ WebSocket error: {error}")
+        def on_close(ws, code, reason):
+            self.is_ws_connected = False
+            print(f"❌ WebSocket closed: {code}, {reason}")
 
-    # --- Start WebSocket Connection ---
-    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-    print(f"🔗 Connecting to WebSocket: {ws_url}")
+        def on_error(ws, error):
+            print(f"⚠️ WebSocket error: {error}")
 
-    self.ws = websocket.WebSocketApp(
-        ws_url,
-        on_open=on_open,
-        on_message=on_message,
-        on_error=on_error,
-        on_close=on_close
-    )
+        # --- Start WebSocket Connection ---
+        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+        print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-    self.wst = threading.Thread(
-        target=self.ws.run_forever,
-        kwargs={"ping_interval": 30},
-        daemon=True
-    )
-    self.wst.start()
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close
+        )
+
+        self.wst = threading.Thread(
+            target=self.ws.run_forever,
+            kwargs={"ping_interval": 30},
+            daemon=True
+        )
+        self.wst.start()
 
     # ------------------------------------------------
     # Start WebSocket for single symbol
@@ -612,6 +612,7 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
