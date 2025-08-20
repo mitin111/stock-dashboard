@@ -567,3 +567,4 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
         print("🛑 Chart stopped")
 
 
+
