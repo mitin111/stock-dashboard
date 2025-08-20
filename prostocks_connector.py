@@ -461,6 +461,8 @@ class ProStocksAPI:
     def build_live_candles(self, interval="1min"):
         """Convert buffered ticks into minute candles."""
         ticks = list(self._tick_buffer)
+        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")  # 👈 Debug add karo
+        
         if not ticks:
             return self._live_candles
 
@@ -535,5 +537,6 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
