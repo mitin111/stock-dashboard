@@ -362,55 +362,55 @@ class ProStocksAPI:
     # Start WebSocket for multiple symbols
     # ------------------------------------------------
     def start_websocket_for_symbols(self, symbols: list[str]):
-    """
-    Start LIVE WebSocket and subscribe to given list of NSE symbols by resolving tokens.
-    Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
-    """
-    if not self.is_logged_in:
-        print("⚠️ Login required before starting WebSocket")
-        return
+        """
+        Start LIVE WebSocket and subscribe to given list of NSE symbols by resolving tokens.
+        Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
+        """
+        if not self.is_logged_in:
+            print("⚠️ Login required before starting WebSocket")
+            return
 
-    # Resolve tokens up-front
-    token_keys = []
-    for sym in symbols:
-        tk = self.get_token_for_symbol("NSE", sym)
-        if tk:
-            token_keys.append(f"NSE|{tk}")
-        else:
-            print(f"⚠️ Skipping {sym}: token not found")
+        # Resolve tokens up-front
+        token_keys = []
+        for sym in symbols:
+            tk = self.get_token_for_symbol("NSE", sym)
+            if tk:
+                token_keys.append(f"NSE|{tk}")
+            else:
+                print(f"⚠️ Skipping {sym}: token not found")
 
-    if not token_keys:
-        print("⚠️ No tokens to subscribe")
-        return
+        if not token_keys:
+            print("⚠️ No tokens to subscribe")
+            return
 
-    def on_open(ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
-        payload = json.dumps({"t": "t", "k": "#".join(token_keys)})
+        def on_open(ws):
+            self.is_ws_connected = True
+            print("✅ WebSocket Connected")
+            payload = json.dumps({"t": "t", "k": "#".join(token_keys)})
+            try:
+                ws.send(payload)
+                print("📡 Subscribed:", token_keys)
+            except Exception as e:
+                print("❌ Subscribe send error:", e)
+
+        ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # LIVE
         try:
-            ws.send(payload)
-            print("📡 Subscribed:", token_keys)
+            print(f"🔗 Connecting to WebSocket: {ws_url}")
+            self.ws = websocket.WebSocketApp(
+                ws_url,
+                on_open=on_open,
+                on_message=self._on_message,
+                on_error=self._on_error,
+                on_close=self._on_close
+            )
+            self.wst = threading.Thread(
+                target=self.ws.run_forever,
+                kwargs={"ping_interval": 30},
+                daemon=True
+            )
+            self.wst.start()
         except Exception as e:
-            print("❌ Subscribe send error:", e)
-
-    ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # LIVE
-    try:
-        print(f"🔗 Connecting to WebSocket: {ws_url}")
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close
-        )
-        self.wst = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"ping_interval": 30},
-            daemon=True
-        )
-        self.wst.start()
-    except Exception as e:
-        raise Exception(f"❌ WebSocket connection failed: {e}")
+            raise Exception(f"❌ WebSocket connection failed: {e}")
 
     # ------------------------------------------------
     # Start WebSocket for single symbol
@@ -429,44 +429,44 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-   def build_live_candles(self, interval="1min"):
-    """Convert buffered ticks into minute candles."""
-    ticks = list(self._tick_buffer)
-    if not ticks:
-        return self._live_candles
+    def build_live_candles(self, interval="1min"):
+        """Convert buffered ticks into minute candles."""
+        ticks = list(self._tick_buffer)
+        if not ticks:
+            return self._live_candles
 
-    rows = []
-    for tick in ticks:
-        # Accept any tick that has a last price
-        if "lp" not in tick and "ltp" not in tick:
-            continue
+        rows = []
+        for tick in ticks:
+            # Accept any tick that has a last price
+            if "lp" not in tick and "ltp" not in tick:
+                continue
 
-        # Timestamp: 'ft' (feed time, ms) preferred; fallback to now()
-        if "ft" in tick:
-            try:
-                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-            except Exception:
+            # Timestamp: 'ft' (feed time, ms) preferred; fallback to now()
+            if "ft" in tick:
+                try:
+                    ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+                except Exception:
+                    ts = datetime.now()
+            else:
                 ts = datetime.now()
+
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick.get("lp") or tick.get("ltp") or 0)
+            vol = int(tick.get("v", 1))
+            rows.append([minute, price, price, price, price, vol])
+
+        if not rows:
+            return self._live_candles
+
+        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+        if self._live_candles.empty:
+            self._live_candles = df_new
         else:
-            ts = datetime.now()
-
-        minute = ts.replace(second=0, microsecond=0)
-        price = float(tick.get("lp") or tick.get("ltp") or 0)
-        vol = int(tick.get("v", 1))
-        rows.append([minute, price, price, price, price, vol])
-
-    if not rows:
-        return self._live_candles
-
-    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-    if self._live_candles.empty:
-        self._live_candles = df_new
-    else:
-        self._live_candles = (
-            pd.concat([self._live_candles, df_new], ignore_index=True)
-            .drop_duplicates(subset=["Datetime"], keep="last")
-        )
-    return self._live_candles.sort_values("Datetime")
+            self._live_candles = (
+                pd.concat([self._live_candles, df_new], ignore_index=True)
+                .drop_duplicates(subset=["Datetime"], keep="last")
+            )
+        return self._live_candles.sort_values("Datetime")
 
     # ---------------- Chart Helper ----------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
@@ -506,5 +506,3 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
-
