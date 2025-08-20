@@ -370,15 +370,17 @@ if "live_update_thread_started" not in st.session_state:
 
                 df_live = ensure_datetime(df_live)
                 if not df_live.empty:
-                    # ✅ Sirf data ko queue me push karo, Streamlit UI call mat karo
                     st.session_state["live_data_queue"].put(df_live)
             except Exception as e:
                 st.session_state["live_error"] = str(e)
             time.sleep(1)
 
-    t = threading.Thread(target=live_fetch_loop, args=(api,), daemon=True)
-    t.start()
-    st.session_state["live_update_thread_started"] = True
-
-
-
+    # ✅ Yaha "ps_api" pass karna hai
+    if "ps_api" in st.session_state:
+        t = threading.Thread(
+            target=live_fetch_loop,
+            args=(st.session_state["ps_api"],),  # <-- yeh change karna hai
+            daemon=True
+        )
+        t.start()
+        st.session_state["live_update_thread_started"] = True
