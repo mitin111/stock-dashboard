@@ -528,43 +528,41 @@ def build_live_candles(self, interval="1min"):
 
 
 # ---------------- Chart Helper ----------------
-def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-    import plotly.graph_objects as go
-    df_hist = df_hist.copy()
-    fig = go.Figure()
+    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+        import plotly.graph_objects as go
+        import time
+        df_hist = df_hist.copy()
+        fig = go.Figure()
 
-    def update_chart():
-        df_live = self.build_live_candles(interval)
-        df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
-            subset=["datetime", "Datetime"], keep="last"
-        )
-        if "Datetime" in df_all.columns:
-            df_all["datetime"] = df_all["Datetime"]
+        def update_chart():
+            df_live = self.build_live_candles(interval)
+            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
+                subset=["datetime", "Datetime"], keep="last"
+            )
+            if "Datetime" in df_all.columns:
+                df_all["datetime"] = df_all["Datetime"]
 
-        fig.data = []
-        fig.add_trace(go.Candlestick(
-            x=df_all["datetime"],
-            open=df_all["open"] if "open" in df_all else df_all["Open"],
-            high=df_all["high"] if "high" in df_all else df_all["High"],
-            low=df_all["low"] if "low" in df_all else df_all["Low"],
-            close=df_all["close"] if "close" in df_all else df_all["Close"],
-            name="Candles"
-        ))
-        fig.update_layout(
-            title="Historical + Live Candles",
-            xaxis_rangeslider_visible=False,
-            template="plotly_dark",
-            height=600,
-        )
-        fig.show()
+            fig.data = []
+            fig.add_trace(go.Candlestick(
+                x=df_all["datetime"],
+                open=df_all["open"] if "open" in df_all else df_all["Open"],
+                high=df_all["high"] if "high" in df_all else df_all["High"],
+                low=df_all["low"] if "low" in df_all else df_all["Low"],
+                close=df_all["close"] if "close" in df_all else df_all["Close"],
+                name="Candles"
+            ))
+            fig.update_layout(
+                title="Historical + Live Candles",
+                xaxis_rangeslider_visible=False,
+                template="plotly_dark",
+                height=600,
+            )
+            fig.show()
 
-    print("📊 Live chart running... (close chart window to stop)")
-    try:
-        while True:
-            update_chart()
-            time.sleep(refresh)
-    except KeyboardInterrupt:
-        print("🛑 Chart stopped")
-
-
-
+        print("📊 Live chart running... (close chart window to stop)")
+        try:
+            while True:
+                update_chart()
+                time.sleep(refresh)
+        except KeyboardInterrupt:
+            print("🛑 Chart stopped")
