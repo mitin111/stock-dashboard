@@ -353,47 +353,32 @@ with tab5:
         live_container = st.empty()
 
         # --- Start live fetch thread if not started ---
-        if "live_update_thread_started" not in st.session_state:
-            import threading, time
+if "live_update_thread_started" not in st.session_state:
+    import threading, time
 
-            def live_fetch_loop(api):
-                while True:
-                    try:
-                        df_live = api.build_live_candles(interval="1min")
-                        if df_live.empty and hasattr(api, "live_ticks"):
-                            df_live = pd.DataFrame(api.live_ticks)
-                            if not df_live.empty:
-                                df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
-                                df_live["open"] = df_live["close"]
-                                df_live["high"] = df_live["close"]
-                                df_live["low"] = df_live["close"]
+    def live_fetch_loop(api):
+        while True:
+            try:
+                df_live = api.build_live_candles(interval="1min")
+                if df_live.empty and hasattr(api, "live_ticks"):
+                    df_live = pd.DataFrame(api.live_ticks)
+                    if not df_live.empty:
+                        df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
+                        df_live["open"] = df_live["close"]
+                        df_live["high"] = df_live["close"]
+                        df_live["low"] = df_live["close"]
 
-                        df_live = ensure_datetime(df_live)
-                        if not df_live.empty:
-                            st.session_state["live_data_queue"].put(df_live)  # Push safely to queue
-                    except Exception as e:
-                        st.session_state["live_error"] = str(e)
-                    time.sleep(1)
+                df_live = ensure_datetime(df_live)
+                if not df_live.empty:
+                    # ✅ Sirf data ko queue me push karo, Streamlit UI call mat karo
+                    st.session_state["live_data_queue"].put(df_live)
+            except Exception as e:
+                st.session_state["live_error"] = str(e)
+            time.sleep(1)
 
-            t = threading.Thread(target=live_fetch_loop, args=(api,), daemon=True)
-            t.start()
-            st.session_state["live_update_thread_started"] = True
-
-        # --- Pull latest live data from queue ---
-        if not st.session_state["live_data_queue"].empty():
-            st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
-
-        # --- Render live data in main thread ---
-        df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
-        if not df_live_ui.empty:
-            fig = plot_tpseries_candles(df_live_ui, "TATAMOTORS-EQ")
-            if fig:
-                live_container.plotly_chart(fig, use_container_width=True)
-                live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
-        elif "live_error" in st.session_state:
-            live_container.warning(f"Live update error: {st.session_state['live_error']}")
-        else:
-            live_container.info("⏳ Waiting for live ticks...")
+    t = threading.Thread(target=live_fetch_loop, args=(api,), daemon=True)
+    t.start()
+    st.session_state["live_update_thread_started"] = True
 
 
 
