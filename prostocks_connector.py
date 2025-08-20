@@ -46,6 +46,9 @@ class ProStocksAPI:
         self._live_candles = pd.DataFrame()
         self.is_logged_in = False
 
+        # --- Symbol -> token cache ---
+        self._token_cache: dict[str, str] = {}
+
     # ---------------- Utils ----------------
     @staticmethod
     def sha256(text: str) -> str:
@@ -150,10 +153,28 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname}
         return self._post_json(url, payload)
 
-    def search_scrip(self, search_text, exch="NSE"):
-        url = f"{self.base_url}/SearchScrip"
-        payload = {"uid": self.userid, "stext": search_text, "exch": exch}
-        return self._post_json(url, payload)
+    def get_token_for_symbol(self, exch: str, tsym: str) -> str | None:
+    """
+    Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
+    Caches results to avoid rate limits.
+    """
+    key = f"{exch}|{tsym}"
+    if key in self._token_cache:
+        return self._token_cache[key]
+
+    resp = self.search_scrip(tsym, exch=exch)
+    try:
+        if isinstance(resp, dict) and resp.get("stat") == "Ok":
+            values = resp.get("values") or []
+            if values:
+                token = str(values[0]["token"])
+                self._token_cache[key] = token
+                return token
+        print(f"⚠️ Token resolve failed for {key}: {resp}")
+    except Exception as e:
+        print(f"❌ get_token_for_symbol error for {key}: {e}")
+    return None
+
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/AddMultiScripsToMW"
@@ -341,49 +362,56 @@ class ProStocksAPI:
     # ------------------------------------------------
     # Start WebSocket for multiple symbols
     # ------------------------------------------------
-    def start_websocket_for_symbols(self, symbols):
-        """
-        Start WebSocket and subscribe to given list of symbols.
-        Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
-        """
-        if not self.is_logged_in:
-            print("⚠️ Login required before starting WebSocket")
-            return
+    def start_websocket_for_symbols(self, symbols: list[str]):
+    """
+    Start LIVE WebSocket and subscribe to given list of NSE symbols by resolving tokens.
+    Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
+    """
+    if not self.is_logged_in:
+        print("⚠️ Login required before starting WebSocket")
+        return
 
-        def on_open(ws):
-            print("✅ WebSocket Connected")
-            # subscription request
-            subs = []
-            for sym in symbols:
-                token = self.get_token_for_symbol("NSE", sym)
-                if token:
-                    subs.append(f"NSE|{token}")
-            if subs:
-                payload = json.dumps({
-                    "t": "t",
-                    "k": "#".join(subs)
-                })
-                ws.send(payload)
-                print("📡 Subscribed symbols:", symbols)
+    # Resolve tokens up-front
+    token_keys = []
+    for sym in symbols:
+        tk = self.get_token_for_symbol("NSE", sym)
+        if tk:
+            token_keys.append(f"NSE|{tk}")
+        else:
+            print(f"⚠️ Skipping {sym}: token not found")
 
-        ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # ✅ LIVE WebSocket
+    if not token_keys:
+        print("⚠️ No tokens to subscribe")
+        return
+
+    def on_open(ws):
+        self.is_ws_connected = True
+        print("✅ WebSocket Connected")
+        payload = json.dumps({"t": "t", "k": "#".join(token_keys)})
         try:
-            print(f"🔗 Connecting to WebSocket: {ws_url}")
-            self.ws = websocket.WebSocketApp(
-                ws_url,
-                on_open=on_open,
-                on_message=self._on_message,
-                on_error=self._on_error,
-                on_close=self._on_close
-            )
-            self.wst = threading.Thread(
-                target=self.ws.run_forever,
-                kwargs={"ping_interval": 30},
-                daemon=True
-            )
-            self.wst.start()
+            ws.send(payload)
+            print("📡 Subscribed:", token_keys)
         except Exception as e:
-            raise Exception(f"❌ WebSocket connection failed: {e}")
+            print("❌ Subscribe send error:", e)
+
+    ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # LIVE
+    try:
+        print(f"🔗 Connecting to WebSocket: {ws_url}")
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
+        )
+        self.wst = threading.Thread(
+            target=self.ws.run_forever,
+            kwargs={"ping_interval": 30},
+            daemon=True
+        )
+        self.wst.start()
+    except Exception as e:
+        raise Exception(f"❌ WebSocket connection failed: {e}")
 
     # ------------------------------------------------
     # Start WebSocket for single symbol
@@ -402,34 +430,44 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-    def build_live_candles(self, interval="1min"):
-        """Convert buffered ticks into minute candles."""
-        ticks = list(self._tick_buffer)
-        if not ticks:
-            return self._live_candles
+   def build_live_candles(self, interval="1min"):
+    """Convert buffered ticks into minute candles."""
+    ticks = list(self._tick_buffer)
+    if not ticks:
+        return self._live_candles
 
-        rows = []
-        for tick in ticks:
-            if tick.get("t") != "tk":
-                continue
-            ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick.get("lp", 0))
-            vol = int(tick.get("v", 1))
-            rows.append([minute, price, price, price, price, vol])
+    rows = []
+    for tick in ticks:
+        # Accept any tick that has a last price
+        if "lp" not in tick and "ltp" not in tick:
+            continue
 
-        if not rows:
-            return self._live_candles
-
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-        if self._live_candles.empty:
-            self._live_candles = df_new
+        # Timestamp: 'ft' (feed time, ms) preferred; fallback to now()
+        if "ft" in tick:
+            try:
+                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+            except Exception:
+                ts = datetime.now()
         else:
-            self._live_candles = (
-                pd.concat([self._live_candles, df_new], ignore_index=True)
-                .drop_duplicates(subset=["Datetime"], keep="last")
-            )
-        return self._live_candles.sort_values("Datetime")
+            ts = datetime.now()
+
+        minute = ts.replace(second=0, microsecond=0)
+        price = float(tick.get("lp") or tick.get("ltp") or 0)
+        vol = int(tick.get("v", 1))
+        rows.append([minute, price, price, price, price, vol])
+
+    if not rows:
+        return self._live_candles
+
+    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+    if self._live_candles.empty:
+        self._live_candles = df_new
+    else:
+        self._live_candles = (
+            pd.concat([self._live_candles, df_new], ignore_index=True)
+            .drop_duplicates(subset=["Datetime"], keep="last")
+        )
+    return self._live_candles.sort_values("Datetime")
 
     # ---------------- Chart Helper ----------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
@@ -469,3 +507,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
