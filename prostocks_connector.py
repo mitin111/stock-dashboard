@@ -390,11 +390,19 @@ class ProStocksAPI:
         print("✅ WebSocket Connected")
 
     def subscribe_tokens(self, tokens):
-        if self.ws and self.is_ws_connected:
-            for tk in tokens:
-                sub_payload = {"t": "t", "k": tk}
-                self.ws.send(json.dumps(sub_payload))
-                print("📡 Subscribed:", tk)
+    """
+    Subscribe tokens to WebSocket
+    """
+    if not self.ws:
+        print("⚠️ WebSocket not connected.")
+        return
+    
+    data = {
+        "t": "t",      # subscribe request type
+        "k": ",".join(map(str, tokens))  # multiple tokens comma separated
+    }
+    self.ws.send(json.dumps(data))
+    print(f"✅ Subscribed to tokens: {tokens}")
 
     def _on_message(self, ws, message):
         try:
@@ -597,6 +605,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
