@@ -38,6 +38,7 @@ class ProStocksAPI:
         self.session = requests.Session()
         self.headers = {"Content-Type": "text/plain"}
         self.session_token = None
+        self.jkey = None   # 👈 yaha add karo
 
         # ---- WebSocket state (thread-safe) ----
         self.ws = None
@@ -566,3 +567,4 @@ def build_live_candles(self, interval="1min"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
