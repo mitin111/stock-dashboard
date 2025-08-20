@@ -154,27 +154,26 @@ class ProStocksAPI:
         return self._post_json(url, payload)
 
     def get_token_for_symbol(self, exch: str, tsym: str) -> str | None:
-    """
-    Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
-    Caches results to avoid rate limits.
-    """
-    key = f"{exch}|{tsym}"
-    if key in self._token_cache:
-        return self._token_cache[key]
+        """
+        Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
+        Caches results to avoid rate limits.
+        """
+        key = f"{exch}|{tsym}"
+        if key in self._token_cache:
+            return self._token_cache[key]
 
-    resp = self.search_scrip(tsym, exch=exch)
-    try:
-        if isinstance(resp, dict) and resp.get("stat") == "Ok":
-            values = resp.get("values") or []
-            if values:
-                token = str(values[0]["token"])
-                self._token_cache[key] = token
-                return token
-        print(f"⚠️ Token resolve failed for {key}: {resp}")
-    except Exception as e:
-        print(f"❌ get_token_for_symbol error for {key}: {e}")
-    return None
-
+        resp = self.search_scrip(tsym, exch=exch)
+        try:
+            if isinstance(resp, dict) and resp.get("stat") == "Ok":
+                values = resp.get("values") or []
+                if values:
+                    token = str(values[0]["token"])
+                    self._token_cache[key] = token
+                    return token
+            print(f"⚠️ Token resolve failed for {key}: {resp}")
+        except Exception as e:
+            print(f"❌ get_token_for_symbol error for {key}: {e}")
+        return None
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/AddMultiScripsToMW"
@@ -507,4 +506,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
