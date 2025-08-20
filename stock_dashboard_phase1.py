@@ -353,47 +353,55 @@ st.subheader("📡 Live WebSocket Stream")
 live_container = st.empty()
 
 # Thread-safe queue setup
-import queue
+import threading, time, queue
+
+# Thread-safe globals
 if "live_data_queue" not in st.session_state:
     st.session_state["live_data_queue"] = queue.Queue()
+if "last_live_error" not in st.session_state:
+    st.session_state["last_live_error"] = None
 
-if "live_update_thread_started" not in st.session_state:
-    import threading, time
+# Background thread ka storage (normal Python var, not Streamlit)
+_thread_error = {}
+_thread_started = False
 
-    def live_fetch_loop(api, data_queue, error_key="last_live_error"):
-        while True:
-            try:
-                df_live = api.build_live_candles(interval="1min")
-
-                if df_live.empty and hasattr(api, "live_ticks"):
-                    df_live = pd.DataFrame(api.live_ticks)
-                    if not df_live.empty:
-                        df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
-                        df_live["open"] = df_live["close"]
-                        df_live["high"] = df_live["close"]
-                        df_live["low"] = df_live["close"]
-
-                df_live = ensure_datetime(df_live)
+def live_fetch_loop(api, data_queue, error_store):
+    while True:
+        try:
+            df_live = api.build_live_candles(interval="1min")
+            if df_live.empty and hasattr(api, "live_ticks"):
+                df_live = pd.DataFrame(api.live_ticks)
                 if not df_live.empty:
-                    # ✅ Sirf queue me daalo
-                    data_queue.put(df_live)
+                    df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
+                    df_live["open"] = df_live["close"]
+                    df_live["high"] = df_live["close"]
+                    df_live["low"] = df_live["close"]
 
-            except Exception as e:
-                # ✅ Error ko safe dict key me store karo
-                st.session_state[error_key] = str(e)
+            df_live = ensure_datetime(df_live)
+            if not df_live.empty:
+                # ✅ Sirf Python queue me push
+                data_queue.put(df_live)
 
-            time.sleep(1)
+        except Exception as e:
+            # ✅ Error bhi normal dict me save
+            error_store["error"] = str(e)
 
-    if "ps_api" in st.session_state:
-        t = threading.Thread(
-            target=live_fetch_loop,
-            args=(st.session_state["ps_api"], st.session_state["live_data_queue"]),
-            daemon=True
-        )
-        t.start()
-        st.session_state["live_update_thread_started"] = True
+        time.sleep(1)
 
-# --- UI rendering part (main thread only) ---
+# Start thread once
+if not _thread_started and "ps_api" in st.session_state:
+    t = threading.Thread(
+        target=live_fetch_loop,
+        args=(st.session_state["ps_api"], st.session_state["live_data_queue"], _thread_error),
+        daemon=True
+    )
+    t.start()
+    _thread_started = True
+
+# --- Main UI render (safe) ---
+st.subheader("📡 Live WebSocket Stream")
+live_container = st.empty()
+
 if not st.session_state["live_data_queue"].empty():
     st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
 
@@ -403,7 +411,7 @@ if not df_live_ui.empty:
     if fig:
         live_container.plotly_chart(fig, use_container_width=True)
         live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
-elif "last_live_error" in st.session_state:
-    live_container.warning(f"Live update error: {st.session_state['last_live_error']}")
+elif _thread_error.get("error"):
+    live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
