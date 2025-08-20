@@ -348,10 +348,6 @@ with tab5:
                         except Exception as e:
                             st.warning(f"{tsym}: Exception occurred - {e}")
 
-       # --- Live WebSocket Stream ---
-st.subheader("📡 Live WebSocket Stream")
-live_container = st.empty()
-
 # Thread-safe queue setup
 import threading, time, queue
 
@@ -415,3 +411,4 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
