@@ -393,55 +393,56 @@ class ProStocksAPI:
     # Start WebSocket for multiple symbols
     # ------------------------------------------------
     def start_websocket_for_symbols(self, symbols: list[str]):
-        """
-        Start LIVE WebSocket and subscribe to given list of NSE symbols by resolving tokens.
-        Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
-        """
-        if not self.is_logged_in:
-            print("⚠️ Login required before starting WebSocket")
-            return
+    """
+    Start LIVE WebSocket and subscribe to given list of NSE symbols by resolving tokens.
+    Example: api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
+    """
+    if not self.is_logged_in or not self.feed_token:
+        print("⚠️ Login required before starting WebSocket")
+        return
 
-        # Resolve tokens up-front
-        token_keys = []
-        for sym in symbols:
-            tk = self.get_token_for_symbol("NSE", sym)
-            if tk:
-                token_keys.append(f"NSE|{tk}")
-            else:
-                print(f"⚠️ Skipping {sym}: token not found")
+    # Resolve tokens up-front
+    token_keys = []
+    for sym in symbols:
+        tk = self.get_token_for_symbol("NSE", sym)
+        if tk:
+            token_keys.append(f"NSE|{tk}")
+        else:
+            print(f"⚠️ Skipping {sym}: token not found")
 
-        if not token_keys:
-            print("⚠️ No tokens to subscribe")
-            return
+    if not token_keys:
+        print("⚠️ No tokens to subscribe")
+        return
 
-        def on_open(ws):
-            self.is_ws_connected = True
-            print("✅ WebSocket Connected")
-            payload = json.dumps({"t": "t", "k": "#".join(token_keys)})
-            try:
-                ws.send(payload)
-                print("📡 Subscribed:", token_keys)
-            except Exception as e:
-                print("❌ Subscribe send error:", e)
-
-        ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # LIVE
+    def on_open(ws):
+        self.is_ws_connected = True
+        print("✅ WebSocket Connected")
+        payload = json.dumps({"t": "t", "k": "#".join(token_keys)})
         try:
-            print(f"🔗 Connecting to WebSocket: {ws_url}")
-            self.ws = websocket.WebSocketApp(
-                ws_url,
-                on_open=on_open,
-                on_message=self._on_message,
-                on_error=self._on_error,
-                on_close=self._on_close
-            )
-            self.wst = threading.Thread(
-                target=self.ws.run_forever,
-                kwargs={"ping_interval": 30},
-                daemon=True
-            )
-            self.wst.start()
+            ws.send(payload)
+            print("📡 Subscribed:", token_keys)
         except Exception as e:
-            raise Exception(f"❌ WebSocket connection failed: {e}")
+            print("❌ Subscribe send error:", e)
+
+    ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # LIVE
+    try:
+        print(f"🔗 Connecting to WebSocket: {ws_url}")
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            header=[f"auth={self.feed_token}"],   # 👈 FEED TOKEN PASS HERE
+            on_open=on_open,
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
+        )
+        self.wst = threading.Thread(
+            target=self.ws.run_forever,
+            kwargs={"ping_interval": 30},
+            daemon=True
+        )
+        self.wst.start()
+    except Exception as e:
+        raise Exception(f"❌ WebSocket connection failed: {e}")
 
     # ------------------------------------------------
     # Start WebSocket for single symbol
@@ -539,6 +540,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
