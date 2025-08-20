@@ -258,6 +258,15 @@ with tab5:
     else:
         api = st.session_state["ps_api"]
 
+        # 👇 yaha ensure karo ki login ho chuka hai
+        if not api.is_logged_in:
+            ok, msg = api.login(st.session_state.get("otp", ""))  # OTP agar UI se le rahe ho
+            if not ok:
+                st.error(f"❌ Login failed: {msg}")
+                st.stop()
+            else:
+                st.success("✅ Logged in successfully")
+
         # --- Start WebSocket if not already ---
         if "ws_started" not in st.session_state:
             api.start_websocket_for_symbols(["TATAMOTORS-EQ"])
@@ -385,5 +394,6 @@ with tab5:
             live_container.warning(f"Live update error: {st.session_state['live_error']}")
         else:
             live_container.info("⏳ Waiting for live ticks...")
+
 
 
