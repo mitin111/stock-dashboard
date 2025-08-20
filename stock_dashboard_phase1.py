@@ -267,10 +267,26 @@ with tab5:
             else:
                 st.success("✅ Logged in successfully")
 
-        # --- Start WebSocket if not already ---
-        if "ws_started" not in st.session_state:
-            api.start_websocket_for_symbols(selected_watchlist)
-            st.session_state.ws_started = True
+        # -------------------------------------------
+        # 🔹 STEP 1: User se symbols select karna
+        # -------------------------------------------
+        available_watchlist = ["NIFTY", "BANKNIFTY", "LTFOODS", "REDINGTON"]  
+        selected_watchlist = st.multiselect(
+            "Select symbols for WebSocket live feed",
+            available_watchlist,
+            default=["NIFTY"]
+        )
+
+        # -------------------------------------------
+        # 🔹 STEP 2: WebSocket start karna
+        # -------------------------------------------
+        if st.button("▶ Start Live Feed"):
+            if selected_watchlist:
+                api.start_websocket_for_symbols(selected_watchlist)
+                st.session_state.ws_started = True
+                st.success(f"✅ WebSocket started for {selected_watchlist}")
+            else:
+                st.warning("⚠️ Please select at least one symbol to start WebSocket.")
 
         # --- Initialize thread-safe queue for live data ---
         import queue
@@ -411,5 +427,6 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
 
