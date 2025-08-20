@@ -108,9 +108,11 @@ class ProStocksAPI:
             data = resp.json()
             if data.get("stat") == "Ok":
                 self.session_token = data.get("susertoken")
+                self.feed_token = data.get("susertoken")   # ✅ Add this line
                 self.userid = data.get("uid", self.userid)
                 self.headers["Authorization"] = self.session_token
                 self.is_logged_in = True
+                print("✅ Login success, session_token & feed_token set:", self.session_token)
                 return True, self.session_token
 
             return False, data.get("emsg", "Login failed")
@@ -537,6 +539,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
