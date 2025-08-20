@@ -479,54 +479,53 @@ class ProStocksAPI:
                 print("🛑 WebSocket stopped")
         except Exception as e:
             print("❌ stop_websocket error:", e)
-
+            
     # ------------------------------------------------
     # Get latest ticks from buffer
     # ------------------------------------------------
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-def build_live_candles(self, interval="1min"):
-    """Convert buffered ticks into minute candles."""
-    ticks = list(self._tick_buffer)
-    print(f"🕐 build_live_candles called, total ticks={len(ticks)}")  # 👈 Debug add karo
+    # ------------------------------------------------
+    # Build live candles from ticks
+    # ------------------------------------------------
+    def build_live_candles(self, interval="1min"):
+        """Convert buffered ticks into minute candles."""
+        ticks = list(self._tick_buffer)
+        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
-    if not ticks:
-        return self._live_candles
+        if not ticks:
+            return self._live_candles
 
-    rows = []
-    for tick in ticks:
-        # Accept any tick that has a last price
-        if "lp" not in tick and "ltp" not in tick:
-            continue
-
-        # Timestamp: 'ft' (feed time, ms) preferred; fallback to now()
-        if "ft" in tick:
-            try:
-                ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
-            except Exception:
+        rows = []
+        for tick in ticks:
+            if "lp" not in tick and "ltp" not in tick:
+                continue
+            if "ft" in tick:
+                try:
+                    ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+                except Exception:
+                    ts = datetime.now()
+            else:
                 ts = datetime.now()
+
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick.get("lp") or tick.get("ltp") or 0)
+            vol = int(tick.get("v", 1))
+            rows.append([minute, price, price, price, price, vol])
+
+        if not rows:
+            return self._live_candles
+
+        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+        if self._live_candles.empty:
+            self._live_candles = df_new
         else:
-            ts = datetime.now()
-
-        minute = ts.replace(second=0, microsecond=0)
-        price = float(tick.get("lp") or tick.get("ltp") or 0)
-        vol = int(tick.get("v", 1))
-        rows.append([minute, price, price, price, price, vol])
-
-    if not rows:
-        return self._live_candles
-
-    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-    if self._live_candles.empty:
-        self._live_candles = df_new
-    else:
-        self._live_candles = (
-            pd.concat([self._live_candles, df_new], ignore_index=True)
-            .drop_duplicates(subset=["Datetime"], keep="last")
-        )
-    return self._live_candles.sort_values("Datetime")
-
+            self._live_candles = (
+                pd.concat([self._live_candles, df_new], ignore_index=True)
+                .drop_duplicates(subset=["Datetime"], keep="last")
+            )
+        return self._live_candles.sort_values("Datetime")
 
 # ---------------- Chart Helper ----------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
@@ -567,4 +566,5 @@ def build_live_candles(self, interval="1min"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
