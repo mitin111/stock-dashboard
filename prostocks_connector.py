@@ -430,101 +430,92 @@ class ProStocksAPI:
         print("❌ WebSocket Closed", code, msg)
 
     # ------------------------------------------------
-# Start WebSocket for multiple symbols
-# ------------------------------------------------
-def start_websocket_for_symbols(self, symbols, interval="1"):
-    """
-    Start WebSocket and subscribe to given list of symbols OR a watchlist name.
+    # Start WebSocket for multiple symbols
+    # ------------------------------------------------
+    def start_websocket_for_symbols(self, symbols, interval="1"):
+        """
+        Start WebSocket and subscribe to given list of symbols OR a watchlist name.
+        """
+        if not self.is_logged_in or not self.feed_token:
+            print("❌ Login first before starting WebSocket")
+            return
 
-    Example:
-        api.start_websocket_for_symbols(["TATAMOTORS-EQ", "RELIANCE-EQ"])
-        api.start_websocket_for_symbols("MyWatchlist")  # 👈 watchlist se tokens
-    """
-    if not self.is_logged_in or not self.feed_token:
-        print("❌ Login first before starting WebSocket")
-        return
+        token_list = []
 
-    token_list = []
+        # 👉 Case 1: Watchlist
+        if isinstance(symbols, str):
+            token_list, _ = self.get_tokens_from_watchlist(symbols)
 
-    # 👉 Case 1: agar user ne ek string diya hai, matlab watchlist ka naam
-    if isinstance(symbols, str):
-        token_list, _ = self.get_tokens_from_watchlist(symbols)
+        # 👉 Case 2: List of symbols
+        elif isinstance(symbols, list):
+            for sym in symbols:
+                exch, name = "NSE", sym.replace("-EQ", "")
+                token = self.search_scrip(exch, name)
+                if token:
+                    token_list.append(f"{exch}|{token}")
+                else:
+                    print(f"⚠️ Token not found for {sym}")
 
-    # 👉 Case 2: agar list of symbols diya hai
-    elif isinstance(symbols, list):
-        for sym in symbols:
-            exch, name = "NSE", sym.replace("-EQ", "")
-            token = self.search_scrip(exch, name)
-            if token:
-                token_list.append(f"{exch}|{token}")
-            else:
-                print(f"⚠️ Token not found for {sym}")
+        if not token_list:
+            print("⚠️ No valid tokens found for subscription")
+            return
 
-    if not token_list:
-        print("⚠️ No valid tokens found for subscription")
-        return
+        # --- WebSocket Callbacks ---
+        def on_open(ws):
+            self.is_ws_connected = True
+            print("✅ WebSocket Connected")
+            sub_data = {"t": "t", "k": "#".join(token_list)}
+            try:
+                ws.send(json.dumps(sub_data))
+                print(f"📡 Subscribed: {token_list}")
+            except Exception as e:
+                print("❌ Subscribe error:", e)
 
-    # --- WebSocket Callbacks ---
-    def on_open(ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
-        sub_data = {"t": "t", "k": "#".join(token_list)}
-        try:
-            ws.send(json.dumps(sub_data))
-            print(f"📡 Subscribed: {token_list}")
-        except Exception as e:
-            print("❌ Subscribe error:", e)
+        def on_message(ws, message):
+            try:
+                tick = json.loads(message)
+                self._tick_buffer.append(tick)
+                self.on_tick(tick)
+            except Exception as e:
+                print("⚠️ Tick parse error:", e)
 
-    def on_message(ws, message):
-        try:
-            tick = json.loads(message)
-            self._tick_buffer.append(tick)
-            self.on_tick(tick)   # 👈 agar aapka tick handler defined hai
-        except Exception as e:
-            print("⚠️ Tick parse error:", e)
+        def on_error(ws, error):
+            print("❌ WebSocket Error:", error)
 
-    def on_error(ws, error):
-        print("❌ WebSocket Error:", error)
+        def on_close(ws, close_status_code, close_msg):
+            self.is_ws_connected = False
+            print("🔌 WebSocket Closed:", close_status_code, close_msg)
 
-    def on_close(ws, close_status_code, close_msg):
-        self.is_ws_connected = False
-        print("🔌 WebSocket Closed:", close_status_code, close_msg)
-        # 👇 optional: reconnect logic
-        # self.start_websocket_for_symbols(symbols, interval)
+        # Heartbeat thread
+        def send_ping(ws):
+            while True:
+                if self.is_ws_connected:
+                    try:
+                        ws.send(json.dumps({"t": "h"}))
+                        print("💓 Ping sent")
+                    except Exception as e:
+                        print("⚠️ Ping error:", e)
+                time.sleep(30)
 
-    # Heartbeat (Ping) har 30 sec
-    def send_ping(ws):
-        while True:
-            if self.is_ws_connected:
-                try:
-                    ws.send(json.dumps({"t": "h"}))  # prostocks heartbeat
-                    print("💓 Ping sent")
-                except Exception as e:
-                    print("⚠️ Ping error:", e)
-            time.sleep(30)
+        # --- Start WebSocket Connection ---
+        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+        print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-    # --- Start WebSocket Connection ---
-    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-    print(f"🔗 Connecting to WebSocket: {ws_url}")
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close
+        )
 
-    self.ws = websocket.WebSocketApp(
-        ws_url,
-        on_open=on_open,
-        on_message=on_message,
-        on_error=on_error,
-        on_close=on_close
-    )
-
-    # background thread me ping chalana
-    threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-
-    # background thread me websocket chalana
-    self.wst = threading.Thread(
-        target=self.ws.run_forever,
-        kwargs={"ping_interval": 30, "ping_timeout": 10},
-        daemon=True
-    )
-    self.wst.start()
+        threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
+        self.wst = threading.Thread(
+            target=self.ws.run_forever,
+            kwargs={"ping_interval": 30, "ping_timeout": 10},
+            daemon=True
+        )
+        self.wst.start()
 
     # ------------------------------------------------
     # Start WebSocket for single symbol
@@ -542,7 +533,7 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
                 print("🛑 WebSocket stopped")
         except Exception as e:
             print("❌ stop_websocket error:", e)
-            
+
     # ------------------------------------------------
     # Get latest ticks from buffer
     # ------------------------------------------------
@@ -553,7 +544,6 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
     # Build live candles from ticks
     # ------------------------------------------------
     def build_live_candles(self, interval="1min"):
-        """Convert buffered ticks into minute candles."""
         ticks = list(self._tick_buffer)
         print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
@@ -590,7 +580,9 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
             )
         return self._live_candles.sort_values("Datetime")
 
-# ---------------- Chart Helper ----------------
+    # ------------------------------------------------
+    # Chart Helper
+    # ------------------------------------------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
         import plotly.graph_objects as go
         import time
@@ -608,10 +600,10 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
             fig.data = []
             fig.add_trace(go.Candlestick(
                 x=df_all["datetime"],
-                open=df_all["open"] if "open" in df_all else df_all["Open"],
-                high=df_all["high"] if "high" in df_all else df_all["High"],
-                low=df_all["low"] if "low" in df_all else df_all["Low"],
-                close=df_all["close"] if "close" in df_all else df_all["Close"],
+                open=df_all.get("open", df_all["Open"]),
+                high=df_all.get("high", df_all["High"]),
+                low=df_all.get("low", df_all["Low"]),
+                close=df_all.get("close", df_all["Close"]),
                 name="Candles"
             ))
             fig.update_layout(
@@ -629,10 +621,3 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
-
-
-
-
-
-
