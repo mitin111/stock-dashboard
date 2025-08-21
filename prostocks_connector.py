@@ -476,6 +476,13 @@ class ProStocksAPI:
                 tick = json.loads(message)
                 self._tick_buffer.append(tick)
                 self.on_tick(tick)
+                token = tick.get("tk") or tick.get("token")
+                if token:
+                    st.session_state.ticks[token] = {
+                        "LTP": tick.get("lp") or tick.get("ltp"),
+                        "Volume": tick.get("v"),
+                        "Time": datetime.now().strftime("%H:%M:%S")
+                        }
             except Exception as e:
                 print("⚠️ Tick parse error:", e)
 
@@ -621,3 +628,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
