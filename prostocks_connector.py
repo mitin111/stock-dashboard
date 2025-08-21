@@ -443,57 +443,61 @@ class ProStocksAPI:
     # Start WebSocket for multiple symbols
     # ------------------------------------------------
     def start_websocket_for_symbols(self, symbols, interval="1"):
-        if not self.is_logged_in or not self.feed_token:
-            print("❌ Login first before starting WebSocket")
-            return
+    if not self.is_logged_in or not self.feed_token:
+        print("❌ Login first before starting WebSocket")
+        return
 
-        token_list = []
+    token_list = []
 
-        if isinstance(symbols, str):
-            # Implement get_tokens_from_watchlist if needed
-            token_list.append(symbols)
-        elif isinstance(symbols, list):
-            for sym in symbols:
-                token_list.append(sym)
+    # 🔹 Agar user watchlist ka naam de raha hai (string)
+    if isinstance(symbols, str):
+        tokens, syms = self.get_tokens_from_watchlist(symbols)  # <-- yahi add karo
+        token_list.extend(tokens)
+        print("📡 Tokens from watchlist:", token_list)
 
-        if not token_list:
-            print("⚠️ No valid tokens found for subscription")
-            return
+    # 🔹 Agar user list of symbols de raha hai
+    elif isinstance(symbols, list):
+        for sym in symbols:
+            token_list.append(sym)
 
-        def on_open(ws):
-            self.is_ws_connected = True
-            print("✅ WebSocket Connected")
-            sub_data = {"t": "t", "k": "#".join(token_list)}
-            try:
-                ws.send(json.dumps(sub_data))
-                print(f"📡 Subscribed: {token_list}")
-            except Exception as e:
-                print("❌ Subscribe error:", e)
+    if not token_list:
+        print("⚠️ No valid tokens found for subscription")
+        return
 
-        def send_ping(ws):
-            while True:
-                if self.is_ws_connected:
-                    try:
-                        ws.send(json.dumps({"t": "h"}))
-                        print("💓 Ping sent")
-                    except Exception as e:
-                        print("⚠️ Ping error:", e)
-                time.sleep(30)
+    def on_open(ws):
+        self.is_ws_connected = True
+        print("✅ WebSocket Connected")
+        sub_data = {"t": "t", "k": "#".join(token_list)}
+        try:
+            ws.send(json.dumps(sub_data))
+            print(f"📡 Subscribed: {token_list}")
+        except Exception as e:
+            print("❌ Subscribe error:", e)
 
-        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-        print(f"🔗 Connecting to WebSocket: {ws_url}")
+    def send_ping(ws):
+        while True:
+            if self.is_ws_connected:
+                try:
+                    ws.send(json.dumps({"t": "h"}))
+                    print("💓 Ping sent")
+                except Exception as e:
+                    print("⚠️ Ping error:", e)
+            time.sleep(30)
 
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close
-        )
+    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+    print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-        threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-        self.wst = threading.Thread(target=self.ws.run_forever, daemon=True)
-        self.wst.start()
+    self.ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=on_open,
+        on_message=self._on_message,
+        on_error=self._on_error,
+        on_close=self._on_close
+    )
+
+    threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
+    self.wst = threading.Thread(target=self.ws.run_forever, daemon=True)
+    self.wst.start()
 
     # ------------------------------------------------
     # Stop WebSocket
@@ -587,4 +591,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
