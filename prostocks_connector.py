@@ -472,6 +472,7 @@ class ProStocksAPI:
                 print("❌ Subscribe error:", e)
 
         def on_message(ws, message):
+            print("📩 Raw message:", message)
             try:
                 tick = json.loads(message)
                 print("📩 Tick received:", tick)  # 👈 Check what data actually comes
@@ -621,5 +622,6 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
