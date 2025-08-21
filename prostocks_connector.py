@@ -429,19 +429,17 @@ class ProStocksAPI:
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
-    # ------------------------------------------------
+ # ------------------------------------------------
 # Start WebSocket for multiple symbols
 # ------------------------------------------------
-def start_websocket_for_symbols(self, symbols, interval="1"):
+def start_websocket_for_symbols(self, symbols, callback=None):
     """
     Start WebSocket and subscribe to given list of symbols OR a watchlist name.
+    Tick data is parsed and sent to callback(tick).
     """
     if not self.is_logged_in or not self.feed_token:
         print("❌ Login first before starting WebSocket")
         return
-
-    # 🔸 Make sure process_tick is available (either defined above or imported)
-    # from candles import process_tick  # <-- if you keep it in a separate module
 
     token_list = []
 
@@ -449,11 +447,11 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
     if isinstance(symbols, str):
         token_list, _ = self.get_tokens_from_watchlist(symbols)
 
-    # 👉 Case 2: List of symbols (['TATAMOTORS-EQ', 'RELIANCE-EQ', ...])
+    # 👉 Case 2: List of symbols
     elif isinstance(symbols, list):
         for sym in symbols:
             exch, name = "NSE", sym.replace("-EQ", "")
-            token = self.search_scrip(name, exch=exch)  # note: search_scrip(tsym, exch)
+            token = self.search_scrip(exch, name)
             if token:
                 token_list.append(f"{exch}|{token}")
             else:
@@ -467,7 +465,6 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
     def on_open(ws):
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
-        # ProStocks subscribe payload: {"t":"t","k":"NSE|123#NSE|456"}
         sub_data = {"t": "t", "k": "#".join(token_list)}
         try:
             ws.send(json.dumps(sub_data))
@@ -475,48 +472,27 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
         except Exception as e:
             print("❌ Subscribe error:", e)
 
-    # ✅ Tick parser —> process_tick()
-    def on_tick(tick_data: dict):
-        try:
-            # Keep raw tick (optional)
-            self._tick_buffer.append(tick_data)
-
-            # Normalize/guard values before passing to candle engine
-            symbol = tick_data.get("tk") or tick_data.get("token") or tick_data.get("symbol")
-            # ft (feed time) is often in ms; fall back to now if missing
-            if "ft" in tick_data:
-                try:
-                    ts_epoch = int(int(tick_data["ft"]) / 1000)
-                except Exception:
-                    ts_epoch = int(time.time())
-            else:
-                ts_epoch = int(time.time())
-
-            ltp_val = tick_data.get("lp") or tick_data.get("ltp") or 0
-            vol_val = tick_data.get("v", 0)
-
-            tick = {
-                "symbol": symbol,
-                "time": ts_epoch,                   # epoch seconds
-                "ltp": float(ltp_val) if ltp_val not in (None, "") else 0.0,
-                "volume": int(vol_val) if vol_val not in (None, "") else 0,
-            }
-            # 🔥 Push into your 1-minute OHLC engine
-            process_tick(tick)
-
-        except Exception as e:
-            print("⚠️ on_tick parse error:", e)
-
     def on_message(ws, message):
         try:
             data = json.loads(message)
-            # Many ProStocks events come through this channel; only parse price ticks
-            # Heuristic: presence of 'lp'/'ltp' OR type field 'tk'
+            # Heuristic: tick packets usually contain 'lp'/'ltp' or 'tk'
             if ("lp" in data) or ("ltp" in data) or (data.get("t") in ("tk", "tf")):
-                on_tick(data)
-            else:
-                # non-tick messages (pongs, acks, heartbeats) can be ignored/logged
-                pass
+                tick = {
+                    "symbol": data.get("tk") or data.get("symbol"),
+                    "time": int(data.get("ft")) // 1000 if "ft" in data else int(time.time()),
+                    "ltp": float(data.get("lp") or data.get("ltp") or 0),
+                    "volume": int(data.get("v", 1))
+                }
+                if callback:
+                    callback(tick)
+                # also keep in session_state if running with Streamlit
+                token = tick.get("symbol")
+                if token:
+                    st.session_state.ticks[token] = {
+                        "LTP": tick["ltp"],
+                        "Volume": tick["volume"],
+                        "Time": datetime.now().strftime("%H:%M:%S"),
+                    }
         except Exception as e:
             print("⚠️ Tick parse error:", e)
 
@@ -545,11 +521,11 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
     )
     print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-    # IMPORTANT: wire on_message -> on_tick via lambda
+    # IMPORTANT: wire on_message -> tick parser
     self.ws = websocket.WebSocketApp(
         ws_url,
         on_open=on_open,
-        on_message=on_message,  # we parse JSON then call on_tick()
+        on_message=on_message,
         on_error=on_error,
         on_close=on_close
     )
@@ -562,28 +538,28 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
     )
     self.wst.start()
 
-    # ------------------------------------------------
-    # Start WebSocket for single symbol
-    # ------------------------------------------------
-    def start_websocket_for_symbol(self, symbol):
-        self.start_websocket_for_symbols([symbol])
+# ------------------------------------------------
+# Start WebSocket for single symbol
+# ------------------------------------------------
+def start_websocket_for_symbol(self, symbol, callback=None):
+    self.start_websocket_for_symbols([symbol], callback=callback)
 
-    # ------------------------------------------------
-    # Stop WebSocket
-    # ------------------------------------------------
-    def stop_websocket(self):
-        try:
-            if self.ws:
-                self.ws.close()
-                print("🛑 WebSocket stopped")
-        except Exception as e:
-            print("❌ stop_websocket error:", e)
+# ------------------------------------------------
+# Stop WebSocket
+# ------------------------------------------------
+def stop_websocket(self):
+    try:
+        if self.ws:
+            self.ws.close()
+            print("🛑 WebSocket stopped")
+    except Exception as e:
+        print("❌ stop_websocket error:", e)
 
-    # ------------------------------------------------
-    # Get latest ticks from buffer
-    # ------------------------------------------------
-    def get_latest_ticks(self, n=20):
-        return list(self._tick_buffer)[-n:]
+# ------------------------------------------------
+# Get latest ticks from buffer
+# ------------------------------------------------
+def get_latest_ticks(self, n=20):
+    return list(self._tick_buffer)[-n:]
 
     # ------------------------------------------------
     # Build live candles from ticks
@@ -666,5 +642,6 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
