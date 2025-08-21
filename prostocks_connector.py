@@ -160,57 +160,63 @@ class ProStocksAPI:
             print(f"⚠️ search_scrip error: {e}")
             return None
 
-         # ------------- Core POST helper -------------
-def _post_json(self, url, payload):
-    if not self.session_token:
-        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-    try:
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}&jKey={self.session_token}"
-        resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=20)
-        data = resp.json()
+             # ------------- Core POST helper -------------
+    def _post_json(self, url, payload):
+        if not self.session_token:
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            resp = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=20,
+            )
+            data = resp.json()
 
-        # 🔑 FIX: Agar response list hai to wrap kar do dict me
-        if isinstance(data, list):
-            return {"stat": "Ok", "values": data}
+            # 🔑 FIX: Agar response list hai to wrap kar do dict me
+            if isinstance(data, list):
+                return {"stat": "Ok", "values": data}
 
-        return data
+            return data
 
-    except requests.exceptions.RequestException as e:
-        return {"stat": "Not_Ok", "emsg": str(e)}
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
     # ------------- Watchlists -------------
     def get_watchlists(self):
+        """
+        Fetch all watchlists for the logged-in user
+        """
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
         return self._post_json(url, payload)
-    
+
     def get_watchlist_names(self):
-        """Returns sorted list of watchlist IDs"""
+        """
+        Extract only watchlist names from the response
+        """
         resp = self.get_watchlists()
         if isinstance(resp, dict) and resp.get("stat") == "Ok":
-            return sorted(resp["values"], key=int)
+            return [wl["wlname"] for wl in resp.get("values", [])]
+        elif isinstance(resp, list):  # agar API list return karti hai
+            return [wl.get("wlname") for wl in resp]
         return []
-            
+
     def get_watchlist(self, wlname):
+        """
+        Fetch contents of a specific watchlist
+        """
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
         return self._post_json(url, payload)
 
-        # Normalize response
-        if isinstance(resp, list):
-            return {"stat": "Ok", "values": resp}
-        elif isinstance(resp, dict):
-            return resp
-        else:
-            return {"stat": "Not_Ok", "values": []}
-
-    # 👇 Yahin ADD KARO
     def get_tokens_from_watchlist(self, wlname):
-        """Fetch tokens for all symbols in a given watchlist"""
+        """
+        Fetch tokens + symbols for all scrips in a given watchlist
+        """
         wl_data = self.get_watchlist(wlname)
-        tokens = []
-        symbols = []
 
         if isinstance(wl_data, dict):
             scrips = wl_data.get("values", [])
@@ -219,6 +225,7 @@ def _post_json(self, url, payload):
         else:
             scrips = []
 
+        tokens, symbols = [], []
         for scrip in scrips:
             if not isinstance(scrip, dict):
                 continue
@@ -253,12 +260,18 @@ def _post_json(self, url, payload):
         return None
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
+        """
+        Add multiple scrips to a given watchlist
+        """
         url = f"{self.base_url}/AddMultiScripsToMW"
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
     def delete_scrips_from_watchlist(self, wlname, scrips_list):
+        """
+        Delete multiple scrips from a given watchlist
+        """
         url = f"{self.base_url}/DeleteMultiMWScrips"
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
@@ -639,6 +652,7 @@ def _post_json(self, url, payload):
     # Dummy placeholder (you should implement these API calls)
     def get_watchlist(self, wlname):
         return []  # replace with actual API call
+
 
 
 
