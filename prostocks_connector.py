@@ -160,30 +160,37 @@ class ProStocksAPI:
             print(f"⚠️ search_scrip error: {e}")
             return None
 
-    # ------------- Core POST helper -------------
-    def _post_json(self, url, payload):
-        if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=20)
-            return resp.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
+         # ------------- Core POST helper -------------
+def _post_json(self, url, payload):
+    if not self.session_token:
+        return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+    try:
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}&jKey={self.session_token}"
+        resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=20)
+        data = resp.json()
+
+        # 🔑 FIX: Agar response list hai to wrap kar do dict me
+        if isinstance(data, list):
+            return {"stat": "Ok", "values": data}
+
+        return data
+
+    except requests.exceptions.RequestException as e:
+        return {"stat": "Not_Ok", "emsg": str(e)}
 
     # ------------- Watchlists -------------
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
         return self._post_json(url, payload)
-
+    
     def get_watchlist_names(self):
         resp = self.get_watchlists()
         if resp.get("stat") == "Ok":
-            return sorted(resp["values"], key=int)
+            return [str(v) for v in resp["values"]]
         return []
-
+            
     def get_watchlist(self, wlname):
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
@@ -631,4 +638,5 @@ class ProStocksAPI:
     # Dummy placeholder (you should implement these API calls)
     def get_watchlist(self, wlname):
         return []  # replace with actual API call
+
 
