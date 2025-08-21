@@ -474,6 +474,7 @@ class ProStocksAPI:
         def on_message(ws, message):
             try:
                 tick = json.loads(message)
+                print("📩 Tick received:", tick)  # 👈 Check what data actually comes
                 self._tick_buffer.append(tick)
             except Exception as e:
                 print("⚠️ Tick parse error:", e)
@@ -620,4 +621,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
