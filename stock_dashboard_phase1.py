@@ -109,57 +109,28 @@ with tab2:
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
 
-    # Auto-refresh every 10 seconds
-    from streamlit_autorefresh import st_autorefresh
-    st_autorefresh(interval=10 * 1000, limit=None, key="refresh_wl")
-
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
-
-        # --- Fetch Watchlists ---
         wl_resp = ps_api.get_watchlists()
+        if wl_resp.get("stat") == "Ok":
+            raw_watchlists = wl_resp["values"]
+            watchlists = sorted(raw_watchlists, key=int)
+            wl_labels = [f"Watchlist {wl}" for wl in watchlists]
+            selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
+            selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
-        if isinstance(wl_resp, dict):  # ✅ dict response
-            if wl_resp.get("stat") == "Ok":
-                watchlists = wl_resp.get("values", [])
-                if watchlists:
-                    # Dropdown for selecting watchlist
-                    selected_wl = st.selectbox("📁 Choose Watchlist", watchlists)
-
-                    # --- Fetch data of selected watchlist ---
-                    wl_data = ps_api.get_watchlist(selected_wl)
-
-                    if isinstance(wl_data, dict):  # ✅ dict response
-                        if wl_data.get("stat") == "Ok":
-                            df = pd.DataFrame(wl_data.get("values", []))
-                            st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
-                            st.dataframe(df if not df.empty else pd.DataFrame())
-                        else:
-                            st.warning(wl_data.get("emsg", "Failed to load watchlist."))
-
-                    elif isinstance(wl_data, list):  # ⚠️ list response
-                        st.warning("⚠️ API returned list instead of dict for watchlist data")
-                        st.write(wl_data)
-
-                    else:  # ❌ unexpected
-                        st.error("❌ Unexpected watchlist data format")
-                        st.write(wl_data)
-                else:
-                    st.warning("⚠️ No watchlists found.")
+            wl_data = ps_api.get_watchlist(selected_wl)
+            if wl_data.get("stat") == "Ok":
+                df = pd.DataFrame(wl_data["values"])
+                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
+                st.dataframe(df if not df.empty else pd.DataFrame())
             else:
-                st.error(f"❌ Error: {wl_resp.get('emsg', 'Could not fetch watchlists.')}")
-        
-        elif isinstance(wl_resp, list):  # ⚠️ list response
-            st.warning("⚠️ API returned list instead of dict for watchlists")
-            st.write(wl_resp)
-
-        else:  # ❌ unexpected
-            st.error("❌ Unexpected watchlists response format")
-            st.write(wl_resp)
-
+                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+        else:
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
-        
+
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
@@ -395,21 +366,21 @@ def live_fetch_loop(api, data_queue, error_store):
     while True:
         try:
             df_live = api.build_live_candles(interval="1min")
-            if df_live.empty:
-                # fallback single latest tick
-                ticks = api.get_latest_ticks(1)
-                rows = []
-                for t in ticks:
-                    ts = datetime.fromtimestamp(int(t.get("ft", time.time()*1000))/1000)
-                    price = float(t.get("lp") or t.get("ltp") or t.get("lastPrice") or 0)
-                    rows.append({"datetime": ts, "Open": price, "High": price, "Low": price, "Close": price, "Volume": int(t.get("v",1))})
-                df_live = pd.DataFrame(rows)
+            if df_live.empty and hasattr(api, "live_ticks"):
+                df_live = pd.DataFrame(api.live_ticks)
+                if not df_live.empty:
+                    df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
+                    df_live["open"] = df_live["close"]
+                    df_live["high"] = df_live["close"]
+                    df_live["low"] = df_live["close"]
 
             df_live = ensure_datetime(df_live)
             if not df_live.empty:
+                # ✅ Sirf Python queue me push
                 data_queue.put(df_live)
 
         except Exception as e:
+            # ✅ Error bhi normal dict me save
             error_store["error"] = str(e)
 
         time.sleep(1)
@@ -441,13 +412,3 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
-
-
-
-
-
-
-
-
-
-
