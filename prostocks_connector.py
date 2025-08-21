@@ -405,11 +405,14 @@ class ProStocksAPI:
         print(f"✅ Subscribed to tokens: {tokens}")
 
     def _on_message(self, ws, message):
+        print("📩 Raw WebSocket message:", message)  # 🔹 Full raw data check
         try:
             import streamlit as st
             tick = json.loads(message)
             print("✅ Raw tick received:", tick)   # 👈 Debug add karo
             self._tick_buffer.append(tick)
+         except Exception as e:
+             print("⚠️ Tick parse error:", e)
 
             # ---- Streamlit live chart ke liye LTP extract ----
             ltp = tick.get("lp") or tick.get("ltp")
@@ -627,3 +630,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
