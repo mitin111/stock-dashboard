@@ -366,21 +366,21 @@ def live_fetch_loop(api, data_queue, error_store):
     while True:
         try:
             df_live = api.build_live_candles(interval="1min")
-            if df_live.empty and hasattr(api, "live_ticks"):
-                df_live = pd.DataFrame(api.live_ticks)
-                if not df_live.empty:
-                    df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
-                    df_live["open"] = df_live["close"]
-                    df_live["high"] = df_live["close"]
-                    df_live["low"] = df_live["close"]
+            if df_live.empty:
+                # fallback single latest tick
+                ticks = api.get_latest_ticks(1)
+                rows = []
+                for t in ticks:
+                    ts = datetime.fromtimestamp(int(t.get("ft", time.time()*1000))/1000)
+                    price = float(t.get("lp") or t.get("ltp") or t.get("lastPrice") or 0)
+                    rows.append({"datetime": ts, "Open": price, "High": price, "Low": price, "Close": price, "Volume": int(t.get("v",1))})
+                df_live = pd.DataFrame(rows)
 
             df_live = ensure_datetime(df_live)
             if not df_live.empty:
-                # ✅ Sirf Python queue me push
                 data_queue.put(df_live)
 
         except Exception as e:
-            # ✅ Error bhi normal dict me save
             error_store["error"] = str(e)
 
         time.sleep(1)
@@ -412,6 +412,7 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
 
 
