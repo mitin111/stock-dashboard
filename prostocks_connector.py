@@ -404,30 +404,57 @@ class ProStocksAPI:
         self.ws.send(json.dumps(data))
         print(f"✅ Subscribed to tokens: {tokens}")
 
-    def _on_message(self, ws, message):
-        print("📩 Raw WebSocket message:", message)  # 🔹 Full raw data check
-        try:
-            import streamlit as st
-            tick = json.loads(message)
-            print("✅ Raw tick received:", tick)   # 👈 Debug add karo
-            self._tick_buffer.append(tick)
-         except Exception as e:
-             print("⚠️ Tick parse error:", e)
+import json
+import time
+import threading
+from collections import deque
+from datetime import datetime
+import pandas as pd
+import websocket
+import plotly.graph_objects as go
+import streamlit as st
 
-            # ---- Streamlit live chart ke liye LTP extract ----
-            ltp = tick.get("lp") or tick.get("ltp")
+class ProStocksAPI:
+    def __init__(self, userid, feed_token):
+        self.userid = userid
+        self.feed_token = feed_token
+        self.ws = None
+        self.is_ws_connected = False
+        self._tick_buffer = deque(maxlen=1000)
+        self._live_candles = pd.DataFrame()
+        self.is_logged_in = True  # assume logged in for WebSocket
+
+    # ------------------------------------------------
+    # WebSocket message handler
+    # ------------------------------------------------
+    def _on_message(self, ws, message):
+        print("📩 Raw WebSocket message:", message)
+        try:
+            tick = json.loads(message)
+            print("✅ Parsed tick:", tick)
+            self._tick_buffer.append(tick)
+
+            # Streamlit live chart ke liye LTP extract
+            ltp = tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt")
             if ltp:
                 ts = datetime.now()
                 if "live_ticks" not in st.session_state:
                     st.session_state["live_ticks"] = []
                 st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-                print(f"📈 Tick parsed: time={ts}, price={ltp}")  # 👈 Debug add karo
-        except Exception as e:
-            print("❌ Tick parse error:", e)
+                print(f"📈 Tick parsed: time={ts}, price={ltp}")
 
+        except Exception as e:
+            print("⚠️ Tick parse error:", e)
+
+    # ------------------------------------------------
+    # WebSocket error handler
+    # ------------------------------------------------
     def _on_error(self, ws, error):
         print("❌ WebSocket Error:", error)
 
+    # ------------------------------------------------
+    # WebSocket close handler
+    # ------------------------------------------------
     def _on_close(self, ws, code, msg):
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
@@ -436,34 +463,23 @@ class ProStocksAPI:
     # Start WebSocket for multiple symbols
     # ------------------------------------------------
     def start_websocket_for_symbols(self, symbols, interval="1"):
-        """
-        Start WebSocket and subscribe to given list of symbols OR a watchlist name.
-        """
         if not self.is_logged_in or not self.feed_token:
             print("❌ Login first before starting WebSocket")
             return
 
         token_list = []
 
-        # 👉 Case 1: Watchlist
         if isinstance(symbols, str):
-            token_list, _ = self.get_tokens_from_watchlist(symbols)
-
-        # 👉 Case 2: List of symbols
+            # Implement get_tokens_from_watchlist if needed
+            token_list.append(symbols)
         elif isinstance(symbols, list):
             for sym in symbols:
-                exch, name = "NSE", sym.replace("-EQ", "")
-                token = self.search_scrip(exch, name)
-                if token:
-                    token_list.append(f"{exch}|{token}")
-                else:
-                    print(f"⚠️ Token not found for {sym}")
+                token_list.append(sym)
 
         if not token_list:
             print("⚠️ No valid tokens found for subscription")
             return
 
-        # --- WebSocket Callbacks ---
         def on_open(ws):
             self.is_ws_connected = True
             print("✅ WebSocket Connected")
@@ -474,23 +490,6 @@ class ProStocksAPI:
             except Exception as e:
                 print("❌ Subscribe error:", e)
 
-        def on_message(ws, message):
-            print("📩 Raw message:", message)
-            try:
-                tick = json.loads(message)
-                print("📩 Tick received:", tick)  # 👈 Check what data actually comes
-                self._tick_buffer.append(tick)
-            except Exception as e:
-                print("⚠️ Tick parse error:", e)
-
-        def on_error(ws, error):
-            print("❌ WebSocket Error:", error)
-
-        def on_close(ws, close_status_code, close_msg):
-            self.is_ws_connected = False
-            print("🔌 WebSocket Closed:", close_status_code, close_msg)
-
-        # Heartbeat thread
         def send_ping(ws):
             while True:
                 if self.is_ws_connected:
@@ -501,31 +500,20 @@ class ProStocksAPI:
                         print("⚠️ Ping error:", e)
                 time.sleep(30)
 
-        # --- Start WebSocket Connection ---
         ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
         print(f"🔗 Connecting to WebSocket: {ws_url}")
 
         self.ws = websocket.WebSocketApp(
             ws_url,
             on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
         )
 
         threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-        self.wst = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"ping_interval": 30, "ping_timeout": 10},
-            daemon=True
-        )
+        self.wst = threading.Thread(target=self.ws.run_forever, daemon=True)
         self.wst.start()
-
-    # ------------------------------------------------
-    # Start WebSocket for single symbol
-    # ------------------------------------------------
-    def start_websocket_for_symbol(self, symbol):
-        self.start_websocket_for_symbols([symbol])
 
     # ------------------------------------------------
     # Stop WebSocket
@@ -550,13 +538,11 @@ class ProStocksAPI:
     def build_live_candles(self, interval="1min"):
         ticks = list(self._tick_buffer)
         print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
-
         if not ticks:
             return self._live_candles
 
         rows = []
         for tick in ticks:
-            # Timestamp fallback
             ts = None
             for key in ["ft", "timestamp"]:
                 if key in tick:
@@ -568,14 +554,9 @@ class ProStocksAPI:
             if not ts:
                 ts = datetime.now()
 
-            # Price fallback
             price = float(tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt") or 0)
             vol = int(tick.get("v") or tick.get("volume") or 1)
-
             rows.append([ts.replace(second=0, microsecond=0), price, price, price, price, vol])
-
-        if not rows:
-            return self._live_candles
 
         df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
         if self._live_candles.empty:
@@ -591,10 +572,6 @@ class ProStocksAPI:
     # Chart Helper
     # ------------------------------------------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-        import plotly.graph_objects as go
-        import time
-        from plotly.subplots import make_subplots
-
         df_hist = df_hist.copy()
         fig = go.Figure()
 
@@ -630,4 +607,3 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
