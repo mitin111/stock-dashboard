@@ -280,7 +280,7 @@ with tab5:
         watchlists = sorted(watchlists, key=int) if watchlists else []
 
         # -------------------------------------------
-        # 🔹 STEP 1: Watchlist select karna (same for TPSeries + WebSocket)
+        # 🔹 STEP 1: Watchlist select karna
         # -------------------------------------------
         selected_watchlist = st.selectbox("Select Watchlist", watchlists, key="wl_tab5")
 
@@ -298,11 +298,20 @@ with tab5:
         if st.button("▶ Start Live Feed"):
             if selected_watchlist:
                 # WebSocket start for full watchlist
-                api.start_websocket_for_symbols(selected_watchlist)
+                def on_tick(tick_data):
+                    tick = {
+                        "symbol": tick_data.get("tk") or tick_data.get("symbol"),
+                        "time": int(tick_data.get("ft")) // 1000 if "ft" in tick_data else int(time.time()),
+                        "ltp": float(tick_data.get("lp") or tick_data.get("ltp") or 0),
+                        "volume": int(tick_data.get("v", 1))
+                    }
+                    process_tick(tick)
+
+                api.start_websocket_for_symbols(selected_watchlist, callback=on_tick)
                 st.session_state.ws_started = True
                 st.success(f"✅ WebSocket started for watchlist: {selected_watchlist}")
 
-                # Fetch TPSeries data for each symbol
+                # Fetch TPSeries historical candles
                 wl_data = api.get_watchlist(selected_watchlist)
                 scrips = []
                 if isinstance(wl_data, dict):
@@ -326,17 +335,24 @@ with tab5:
                             try:
                                 session_key = f"tpseries_{tsym}"
                                 if session_key not in st.session_state:
-                                    df_candle = api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
+                                    df_candle = api.fetch_full_tpseries(
+                                        exch, token,
+                                        interval=selected_interval,
+                                        chunk_days=5
+                                    )
                                     st.session_state[session_key] = df_candle.copy()
                                 else:
                                     df_candle = st.session_state[session_key]
 
                                 if not df_candle.empty:
-                                    # Standardize datetime
-                                    datetime_col = next((c for c in ["datetime", "time", "date"] if c in df_candle.columns), None)
+                                    datetime_col = next(
+                                        (c for c in ["datetime", "time", "date"] if c in df_candle.columns), None
+                                    )
                                     if datetime_col:
                                         df_candle.rename(columns={datetime_col: "datetime"}, inplace=True)
-                                        df_candle["datetime"] = pd.to_datetime(df_candle["datetime"], errors="coerce", dayfirst=True)
+                                        df_candle["datetime"] = pd.to_datetime(
+                                            df_candle["datetime"], errors="coerce", dayfirst=True
+                                        )
                                         df_candle.dropna(subset=["datetime"], inplace=True)
                                         df_candle.sort_values("datetime", inplace=True)
 
@@ -349,43 +365,31 @@ with tab5:
                             except Exception as e:
                                 st.warning(f"{tsym}: Exception occurred - {e}")
 
+
 # Thread-safe queue setup
 import threading, time, queue
 
-# Thread-safe globals
 if "live_data_queue" not in st.session_state:
     st.session_state["live_data_queue"] = queue.Queue()
 if "last_live_error" not in st.session_state:
     st.session_state["last_live_error"] = None
 
-# Background thread ka storage (normal Python var, not Streamlit)
 _thread_error = {}
 _thread_started = False
 
 def live_fetch_loop(api, data_queue, error_store):
     while True:
         try:
-            df_live = api.build_live_candles(interval="1min")
-            if df_live.empty and hasattr(api, "live_ticks"):
-                df_live = pd.DataFrame(api.live_ticks)
-                if not df_live.empty:
-                    df_live = df_live.rename(columns={"time": "datetime", "price": "close"})
-                    df_live["open"] = df_live["close"]
-                    df_live["high"] = df_live["close"]
-                    df_live["low"] = df_live["close"]
-
-            df_live = ensure_datetime(df_live)
+            # ✅ Ab direct candle engine se latest DF uthao
+            df_live = get_live_df("NSE|3456")   # 👈 Symbol ko UI select se dynamic banao
             if not df_live.empty:
-                # ✅ Sirf Python queue me push
                 data_queue.put(df_live)
 
         except Exception as e:
-            # ✅ Error bhi normal dict me save
             error_store["error"] = str(e)
 
         time.sleep(1)
 
-# Start thread once
 if not _thread_started and "ps_api" in st.session_state:
     t = threading.Thread(
         target=live_fetch_loop,
