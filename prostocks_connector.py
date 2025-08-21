@@ -189,6 +189,14 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname}
         return self._post_json(url, payload)
 
+        # Normalize response
+        if isinstance(resp, list):
+            return {"stat": "Ok", "values": resp}
+        elif isinstance(resp, dict):
+            return resp
+        else:
+            return {"stat": "Not_Ok", "values": []}
+
     # 👇 Yahin ADD KARO
     def get_tokens_from_watchlist(self, wlname):
         """Fetch tokens for all symbols in a given watchlist"""
@@ -623,3 +631,4 @@ class ProStocksAPI:
     # Dummy placeholder (you should implement these API calls)
     def get_watchlist(self, wlname):
         return []  # replace with actual API call
+
