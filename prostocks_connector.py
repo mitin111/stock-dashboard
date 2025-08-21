@@ -160,80 +160,49 @@ class ProStocksAPI:
             print(f"⚠️ search_scrip error: {e}")
             return None
 
-             # ------------- Core POST helper -------------
+    # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-            resp = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=20,
-            )
-            data = resp.json()
-
-            # 🔑 FIX: Agar response list hai to wrap kar do dict me
-            if isinstance(data, list):
-                return {"stat": "Ok", "values": data}
-
-            return data
-
+            resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=20)
+            return resp.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-        # ------------- Watchlists -------------
+    # ------------- Watchlists -------------
     def get_watchlists(self):
-        """
-        Fetch all watchlists for the logged-in user
-        Always return dict with {"stat": "Ok", "values": [...]}
-        """
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
-        resp = self._post_json(url, payload)
-
-        if isinstance(resp, list):
-            return {"stat": "Ok", "values": resp}
-        elif isinstance(resp, dict):
-            return resp
-        return {"stat": "Not_Ok", "values": []}
+        return self._post_json(url, payload)
 
     def get_watchlist_names(self):
-        """
-        Extract only watchlist names from the response
-        """
         resp = self.get_watchlists()
-        if isinstance(resp, dict) and resp.get("stat") == "Ok":
-            return [wl["wlname"] for wl in resp.get("values", [])]
-        elif isinstance(resp, list):  # safety fallback
-            return [wl.get("wlname") for wl in resp]
+        if resp.get("stat") == "Ok":
+            return sorted(resp["values"], key=int)
         return []
 
     def get_watchlist(self, wlname):
-        """
-        Fetch contents of a specific watchlist
-        Always return dict with {"stat": "Ok", "values": [...]}
-        """
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
-        resp = self._post_json(url, payload)
+        return self._post_json(url, payload)
 
-        if isinstance(resp, list):
-            return {"stat": "Ok", "values": resp}
-        elif isinstance(resp, dict):
-            return resp
-        return {"stat": "Not_Ok", "values": []}
-
+    # 👇 Yahin ADD KARO
     def get_tokens_from_watchlist(self, wlname):
-        """
-        Fetch tokens + symbols for all scrips in a given watchlist
-        """
+        """Fetch tokens for all symbols in a given watchlist"""
         wl_data = self.get_watchlist(wlname)
-        scrips = wl_data.get("values", []) if isinstance(wl_data, dict) else []
+        tokens = []
+        symbols = []
 
-        tokens, symbols = [], []
+        if isinstance(wl_data, dict):
+            scrips = wl_data.get("values", [])
+        elif isinstance(wl_data, list):
+            scrips = wl_data
+        else:
+            scrips = []
+
         for scrip in scrips:
             if not isinstance(scrip, dict):
                 continue
@@ -268,18 +237,12 @@ class ProStocksAPI:
         return None
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
-        """
-        Add multiple scrips to a given watchlist
-        """
         url = f"{self.base_url}/AddMultiScripsToMW"
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
     def delete_scrips_from_watchlist(self, wlname, scrips_list):
-        """
-        Delete multiple scrips from a given watchlist
-        """
         url = f"{self.base_url}/DeleteMultiMWScrips"
         scrips_str = ",".join(scrips_list)
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
@@ -441,67 +404,63 @@ class ProStocksAPI:
         self.ws.send(json.dumps(data))
         print(f"✅ Subscribed to tokens: {tokens}")
 
-    # ------------------------------------------------
-    # WebSocket message handler
-    # ------------------------------------------------
     def _on_message(self, ws, message):
-        import streamlit as st
-        print("📩 Raw WebSocket message:", message)
         try:
+            import streamlit as st
             tick = json.loads(message)
-            print("✅ Parsed tick:", tick)
+            print("✅ Raw tick received:", tick)   # 👈 Debug add karo
             self._tick_buffer.append(tick)
 
-            # Streamlit live chart ke liye LTP extract
-            ltp = tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt")
+            # ---- Streamlit live chart ke liye LTP extract ----
+            ltp = tick.get("lp") or tick.get("ltp")
             if ltp:
                 ts = datetime.now()
                 if "live_ticks" not in st.session_state:
                     st.session_state["live_ticks"] = []
                 st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-                print(f"📈 Tick parsed: time={ts}, price={ltp}")
-
+                print(f"📈 Tick parsed: time={ts}, price={ltp}")  # 👈 Debug add karo
         except Exception as e:
-            print("⚠️ Tick parse error:", e)
+            print("❌ Tick parse error:", e)
 
-    # ------------------------------------------------
-    # WebSocket error handler
-    # ------------------------------------------------
     def _on_error(self, ws, error):
         print("❌ WebSocket Error:", error)
 
-    # ------------------------------------------------
-    # WebSocket close handler
-    # ------------------------------------------------
     def _on_close(self, ws, code, msg):
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
     # ------------------------------------------------
-    # Start WebSocket for multiple symbols or watchlist
+    # Start WebSocket for multiple symbols
     # ------------------------------------------------
     def start_websocket_for_symbols(self, symbols, interval="1"):
+        """
+        Start WebSocket and subscribe to given list of symbols OR a watchlist name.
+        """
         if not self.is_logged_in or not self.feed_token:
             print("❌ Login first before starting WebSocket")
             return
 
         token_list = []
 
-        # 🔹 Agar user watchlist ka naam de raha hai (string)
+        # 👉 Case 1: Watchlist
         if isinstance(symbols, str):
-            tokens, syms = self.get_tokens_from_watchlist(symbols)
-            token_list.extend(tokens)
-            print("📡 Tokens from watchlist:", token_list)
+            token_list, _ = self.get_tokens_from_watchlist(symbols)
 
-        # 🔹 Agar user list of symbols de raha hai
+        # 👉 Case 2: List of symbols
         elif isinstance(symbols, list):
             for sym in symbols:
-                token_list.append(sym)
+                exch, name = "NSE", sym.replace("-EQ", "")
+                token = self.search_scrip(exch, name)
+                if token:
+                    token_list.append(f"{exch}|{token}")
+                else:
+                    print(f"⚠️ Token not found for {sym}")
 
         if not token_list:
             print("⚠️ No valid tokens found for subscription")
             return
 
+        # --- WebSocket Callbacks ---
         def on_open(ws):
             self.is_ws_connected = True
             print("✅ WebSocket Connected")
@@ -512,6 +471,22 @@ class ProStocksAPI:
             except Exception as e:
                 print("❌ Subscribe error:", e)
 
+        def on_message(ws, message):
+            try:
+                tick = json.loads(message)
+                self._tick_buffer.append(tick)
+                self.on_tick(tick)
+            except Exception as e:
+                print("⚠️ Tick parse error:", e)
+
+        def on_error(ws, error):
+            print("❌ WebSocket Error:", error)
+
+        def on_close(ws, close_status_code, close_msg):
+            self.is_ws_connected = False
+            print("🔌 WebSocket Closed:", close_status_code, close_msg)
+
+        # Heartbeat thread
         def send_ping(ws):
             while True:
                 if self.is_ws_connected:
@@ -522,20 +497,31 @@ class ProStocksAPI:
                         print("⚠️ Ping error:", e)
                 time.sleep(30)
 
+        # --- Start WebSocket Connection ---
         ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
         print(f"🔗 Connecting to WebSocket: {ws_url}")
 
         self.ws = websocket.WebSocketApp(
             ws_url,
             on_open=on_open,
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close
         )
 
         threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-        self.wst = threading.Thread(target=self.ws.run_forever, daemon=True)
+        self.wst = threading.Thread(
+            target=self.ws.run_forever,
+            kwargs={"ping_interval": 30, "ping_timeout": 10},
+            daemon=True
+        )
         self.wst.start()
+
+    # ------------------------------------------------
+    # Start WebSocket for single symbol
+    # ------------------------------------------------
+    def start_websocket_for_symbol(self, symbol):
+        self.start_websocket_for_symbols([symbol])
 
     # ------------------------------------------------
     # Stop WebSocket
@@ -560,25 +546,29 @@ class ProStocksAPI:
     def build_live_candles(self, interval="1min"):
         ticks = list(self._tick_buffer)
         print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
+
         if not ticks:
             return self._live_candles
 
         rows = []
         for tick in ticks:
-            ts = None
-            for key in ["ft", "timestamp"]:
-                if key in tick:
-                    try:
-                        ts = datetime.fromtimestamp(int(tick[key]) / 1000)
-                        break
-                    except Exception:
-                        ts = datetime.now()
-            if not ts:
+            if "lp" not in tick and "ltp" not in tick:
+                continue
+            if "ft" in tick:
+                try:
+                    ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+                except Exception:
+                    ts = datetime.now()
+            else:
                 ts = datetime.now()
 
-            price = float(tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt") or 0)
-            vol = int(tick.get("v") or tick.get("volume") or 1)
-            rows.append([ts.replace(second=0, microsecond=0), price, price, price, price, vol])
+            minute = ts.replace(second=0, microsecond=0)
+            price = float(tick.get("lp") or tick.get("ltp") or 0)
+            vol = int(tick.get("v", 1))
+            rows.append([minute, price, price, price, price, vol])
+
+        if not rows:
+            return self._live_candles
 
         df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
         if self._live_candles.empty:
@@ -594,6 +584,8 @@ class ProStocksAPI:
     # Chart Helper
     # ------------------------------------------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+        import plotly.graph_objects as go
+        import time
         df_hist = df_hist.copy()
         fig = go.Figure()
 
@@ -629,39 +621,3 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
-    # ------------------------------------------------
-    # Watchlist helpers
-    # ------------------------------------------------
-    def get_tokens_from_watchlist(self, wlname):
-        """Fetch tokens for all symbols in a given watchlist"""
-        wl_data = self.get_watchlist(wlname)
-        tokens = []
-        symbols = []
-
-        if isinstance(wl_data, dict):
-            scrips = wl_data.get("values", [])
-        elif isinstance(wl_data, list):
-            scrips = wl_data
-        else:
-            scrips = []
-
-        for scrip in scrips:
-            if not isinstance(scrip, dict):
-                continue
-            exch = scrip.get("exch") or scrip.get("exchange")
-            token = scrip.get("token")
-            tsym = scrip.get("tsym") or scrip.get("symbol")
-            if exch and token and tsym:
-                tokens.append(f"{exch}|{token}")
-                symbols.append(tsym)
-        return tokens, symbols
-
-    # Dummy placeholder (you should implement these API calls)
-    def get_watchlist(self, wlname):
-        return []  # replace with actual API call
-
-
-
-
-
