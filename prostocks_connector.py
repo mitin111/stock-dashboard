@@ -542,9 +542,9 @@ class ProStocksAPI:
         return list(self._tick_buffer)[-n:]
 
     # ------------------------------------------------
-    # Build live candles from ticks
-    # ------------------------------------------------
-   def build_live_candles(self, interval="1min"):
+# Build live candles from ticks
+# ------------------------------------------------
+def build_live_candles(self, interval="1min"):
     ticks = list(self._tick_buffer)
     print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
@@ -584,48 +584,47 @@ class ProStocksAPI:
         )
     return self._live_candles.sort_values("Datetime")
 
-    # ------------------------------------------------
-    # Chart Helper
-    # ------------------------------------------------
-    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-        import plotly.graph_objects as go
-        import time
-        df_hist = df_hist.copy()
-        fig = go.Figure()
 
-        def update_chart():
-            df_live = self.build_live_candles(interval)
-            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
-                subset=["datetime", "Datetime"], keep="last"
-            )
-            if "Datetime" in df_all.columns:
-                df_all["datetime"] = df_all["Datetime"]
+# ------------------------------------------------
+# Chart Helper
+# ------------------------------------------------
+def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+    import plotly.graph_objects as go
+    import time
+    from plotly.subplots import make_subplots
 
-            fig.data = []
-            fig.add_trace(go.Candlestick(
-                x=df_all["datetime"],
-                open=df_all.get("open", df_all["Open"]),
-                high=df_all.get("high", df_all["High"]),
-                low=df_all.get("low", df_all["Low"]),
-                close=df_all.get("close", df_all["Close"]),
-                name="Candles"
-            ))
-            fig.update_layout(
-                title="Historical + Live Candles",
-                xaxis_rangeslider_visible=False,
-                template="plotly_dark",
-                height=600,
-            )
-            fig.show()
+    df_hist = df_hist.copy()
+    fig = go.Figure()
 
-        print("📊 Live chart running... (close chart window to stop)")
-        try:
-            while True:
-                update_chart()
-                time.sleep(refresh)
-        except KeyboardInterrupt:
-            print("🛑 Chart stopped")
+    def update_chart():
+        df_live = self.build_live_candles(interval)
+        df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
+            subset=["datetime", "Datetime"], keep="last"
+        )
+        if "Datetime" in df_all.columns:
+            df_all["datetime"] = df_all["Datetime"]
 
+        fig.data = []
+        fig.add_trace(go.Candlestick(
+            x=df_all["datetime"],
+            open=df_all.get("open", df_all["Open"]),
+            high=df_all.get("high", df_all["High"]),
+            low=df_all.get("low", df_all["Low"]),
+            close=df_all.get("close", df_all["Close"]),
+            name="Candles"
+        ))
+        fig.update_layout(
+            title="Historical + Live Candles",
+            xaxis_rangeslider_visible=False,
+            template="plotly_dark",
+            height=600,
+        )
+        fig.show()
 
-
-
+    print("📊 Live chart running... (close chart window to stop)")
+    try:
+        while True:
+            update_chart()
+            time.sleep(refresh)
+    except KeyboardInterrupt:
+        print("🛑 Chart stopped")
