@@ -544,42 +544,45 @@ class ProStocksAPI:
     # ------------------------------------------------
     # Build live candles from ticks
     # ------------------------------------------------
-    def build_live_candles(self, interval="1min"):
-        ticks = list(self._tick_buffer)
-        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
+   def build_live_candles(self, interval="1min"):
+    ticks = list(self._tick_buffer)
+    print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
-        if not ticks:
-            return self._live_candles
+    if not ticks:
+        return self._live_candles
 
-        rows = []
-        for tick in ticks:
-            if "lp" not in tick and "ltp" not in tick:
-                continue
-            if "ft" in tick:
+    rows = []
+    for tick in ticks:
+        # Timestamp fallback
+        ts = None
+        for key in ["ft", "timestamp"]:
+            if key in tick:
                 try:
-                    ts = datetime.fromtimestamp(int(tick["ft"]) / 1000)
+                    ts = datetime.fromtimestamp(int(tick[key]) / 1000)
+                    break
                 except Exception:
                     ts = datetime.now()
-            else:
-                ts = datetime.now()
+        if not ts:
+            ts = datetime.now()
 
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick.get("lp") or tick.get("ltp") or 0)
-            vol = int(tick.get("v", 1))
-            rows.append([minute, price, price, price, price, vol])
+        # Price fallback
+        price = float(tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt") or 0)
+        vol = int(tick.get("v") or tick.get("volume") or 1)
 
-        if not rows:
-            return self._live_candles
+        rows.append([ts.replace(second=0, microsecond=0), price, price, price, price, vol])
 
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-        if self._live_candles.empty:
-            self._live_candles = df_new
-        else:
-            self._live_candles = (
-                pd.concat([self._live_candles, df_new], ignore_index=True)
-                .drop_duplicates(subset=["Datetime"], keep="last")
-            )
-        return self._live_candles.sort_values("Datetime")
+    if not rows:
+        return self._live_candles
+
+    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+    if self._live_candles.empty:
+        self._live_candles = df_new
+    else:
+        self._live_candles = (
+            pd.concat([self._live_candles, df_new], ignore_index=True)
+            .drop_duplicates(subset=["Datetime"], keep="last")
+        )
+    return self._live_candles.sort_values("Datetime")
 
     # ------------------------------------------------
     # Chart Helper
@@ -622,6 +625,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
