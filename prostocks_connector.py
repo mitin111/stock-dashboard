@@ -186,9 +186,10 @@ def _post_json(self, url, payload):
         return self._post_json(url, payload)
     
     def get_watchlist_names(self):
+        """Returns sorted list of watchlist IDs"""
         resp = self.get_watchlists()
-        if resp.get("stat") == "Ok":
-            return [str(v) for v in resp["values"]]
+        if isinstance(resp, dict) and resp.get("stat") == "Ok":
+            return sorted(resp["values"], key=int)
         return []
             
     def get_watchlist(self, wlname):
@@ -638,5 +639,6 @@ def _post_json(self, url, payload):
     # Dummy placeholder (you should implement these API calls)
     def get_watchlist(self, wlname):
         return []  # replace with actual API call
+
 
 
