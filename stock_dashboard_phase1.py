@@ -111,28 +111,39 @@ with tab3:
 
     # Auto-refresh every 10 seconds
     from streamlit_autorefresh import st_autorefresh
-    
     st_autorefresh(interval=10 * 1000, limit=None, key="refresh_wl")
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
-        if wl_resp.get("stat") == "Ok":
+
+        if isinstance(wl_resp, dict) and wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             wl_labels = [f"Watchlist {wl}" for wl in watchlists]
             selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
+            # response lo
             wl_data = ps_api.get_watchlist(selected_wl)
-            if wl_data.get("stat") == "Ok":
-                df = pd.DataFrame(wl_data["values"])
-                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
-                st.dataframe(df if not df.empty else pd.DataFrame())
+
+            # check karo kya type hai
+            if isinstance(wl_data, dict):  # dict hai
+                if wl_data.get("stat") == "Ok":
+                    df = pd.DataFrame(wl_data["values"])
+                    st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
+                    st.dataframe(df if not df.empty else pd.DataFrame())
+                else:
+                    st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+            elif isinstance(wl_data, list):  # list hai
+                st.warning("⚠️ API returned list instead of dict")
+                st.write(wl_data)
             else:
-                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+                st.error("❌ Unexpected response format")
+                st.write(wl_data)
+
         else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists.") if isinstance(wl_resp, dict) else "⚠️ Invalid watchlists response")
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
 
@@ -417,6 +428,7 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
 
 
