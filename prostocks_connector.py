@@ -542,89 +542,88 @@ class ProStocksAPI:
         return list(self._tick_buffer)[-n:]
 
     # ------------------------------------------------
-# Build live candles from ticks
-# ------------------------------------------------
-def build_live_candles(self, interval="1min"):
-    ticks = list(self._tick_buffer)
-    print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
+    # Build live candles from ticks
+    # ------------------------------------------------
+    def build_live_candles(self, interval="1min"):
+        ticks = list(self._tick_buffer)
+        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
-    if not ticks:
-        return self._live_candles
+        if not ticks:
+            return self._live_candles
 
-    rows = []
-    for tick in ticks:
-        # Timestamp fallback
-        ts = None
-        for key in ["ft", "timestamp"]:
-            if key in tick:
-                try:
-                    ts = datetime.fromtimestamp(int(tick[key]) / 1000)
-                    break
-                except Exception:
-                    ts = datetime.now()
-        if not ts:
-            ts = datetime.now()
+        rows = []
+        for tick in ticks:
+            # Timestamp fallback
+            ts = None
+            for key in ["ft", "timestamp"]:
+                if key in tick:
+                    try:
+                        ts = datetime.fromtimestamp(int(tick[key]) / 1000)
+                        break
+                    except Exception:
+                        ts = datetime.now()
+            if not ts:
+                ts = datetime.now()
 
-        # Price fallback
-        price = float(tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt") or 0)
-        vol = int(tick.get("v") or tick.get("volume") or 1)
+            # Price fallback
+            price = float(tick.get("lp") or tick.get("ltp") or tick.get("lastPrice") or tick.get("lt") or 0)
+            vol = int(tick.get("v") or tick.get("volume") or 1)
 
-        rows.append([ts.replace(second=0, microsecond=0), price, price, price, price, vol])
+            rows.append([ts.replace(second=0, microsecond=0), price, price, price, price, vol])
 
-    if not rows:
-        return self._live_candles
+        if not rows:
+            return self._live_candles
 
-    df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-    if self._live_candles.empty:
-        self._live_candles = df_new
-    else:
-        self._live_candles = (
-            pd.concat([self._live_candles, df_new], ignore_index=True)
-            .drop_duplicates(subset=["Datetime"], keep="last")
-        )
-    return self._live_candles.sort_values("Datetime")
+        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+        if self._live_candles.empty:
+            self._live_candles = df_new
+        else:
+            self._live_candles = (
+                pd.concat([self._live_candles, df_new], ignore_index=True)
+                .drop_duplicates(subset=["Datetime"], keep="last")
+            )
+        return self._live_candles.sort_values("Datetime")
 
+    # ------------------------------------------------
+    # Chart Helper
+    # ------------------------------------------------
+    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+        import plotly.graph_objects as go
+        import time
+        from plotly.subplots import make_subplots
 
-# ------------------------------------------------
-# Chart Helper
-# ------------------------------------------------
-def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-    import plotly.graph_objects as go
-    import time
-    from plotly.subplots import make_subplots
+        df_hist = df_hist.copy()
+        fig = go.Figure()
 
-    df_hist = df_hist.copy()
-    fig = go.Figure()
+        def update_chart():
+            df_live = self.build_live_candles(interval)
+            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
+                subset=["datetime", "Datetime"], keep="last"
+            )
+            if "Datetime" in df_all.columns:
+                df_all["datetime"] = df_all["Datetime"]
 
-    def update_chart():
-        df_live = self.build_live_candles(interval)
-        df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
-            subset=["datetime", "Datetime"], keep="last"
-        )
-        if "Datetime" in df_all.columns:
-            df_all["datetime"] = df_all["Datetime"]
+            fig.data = []
+            fig.add_trace(go.Candlestick(
+                x=df_all["datetime"],
+                open=df_all.get("open", df_all["Open"]),
+                high=df_all.get("high", df_all["High"]),
+                low=df_all.get("low", df_all["Low"]),
+                close=df_all.get("close", df_all["Close"]),
+                name="Candles"
+            ))
+            fig.update_layout(
+                title="Historical + Live Candles",
+                xaxis_rangeslider_visible=False,
+                template="plotly_dark",
+                height=600,
+            )
+            fig.show()
 
-        fig.data = []
-        fig.add_trace(go.Candlestick(
-            x=df_all["datetime"],
-            open=df_all.get("open", df_all["Open"]),
-            high=df_all.get("high", df_all["High"]),
-            low=df_all.get("low", df_all["Low"]),
-            close=df_all.get("close", df_all["Close"]),
-            name="Candles"
-        ))
-        fig.update_layout(
-            title="Historical + Live Candles",
-            xaxis_rangeslider_visible=False,
-            template="plotly_dark",
-            height=600,
-        )
-        fig.show()
-
-    print("📊 Live chart running... (close chart window to stop)")
-    try:
-        while True:
-            update_chart()
-            time.sleep(refresh)
-    except KeyboardInterrupt:
-        print("🛑 Chart stopped")
+        print("📊 Live chart running... (close chart window to stop)")
+        try:
+            while True:
+                update_chart()
+                time.sleep(refresh)
+        except KeyboardInterrupt:
+            print("🛑 Chart stopped")
