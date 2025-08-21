@@ -475,7 +475,6 @@ class ProStocksAPI:
             try:
                 tick = json.loads(message)
                 self._tick_buffer.append(tick)
-                self.on_tick(tick)
             except Exception as e:
                 print("⚠️ Tick parse error:", e)
 
@@ -621,3 +620,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
