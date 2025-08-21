@@ -115,42 +115,45 @@ with tab3:
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
+
+        # --- Fetch Watchlists ---
         wl_resp = ps_api.get_watchlists()
 
-        # --- Watchlist Names Response ---
-        if isinstance(wl_resp, dict):
+        if isinstance(wl_resp, dict):  # ✅ dict response
             if wl_resp.get("stat") == "Ok":
-                raw_watchlists = wl_resp.get("values", [])
-                if raw_watchlists:
-                    # Show dropdown of watchlists
-                    selected_wl = st.selectbox("📁 Choose Watchlist", raw_watchlists)
+                watchlists = wl_resp.get("values", [])
+                if watchlists:
+                    # Dropdown for selecting watchlist
+                    selected_wl = st.selectbox("📁 Choose Watchlist", watchlists)
 
-                    # --- Get symbols inside selected watchlist ---
+                    # --- Fetch data of selected watchlist ---
                     wl_data = ps_api.get_watchlist(selected_wl)
 
-                    if isinstance(wl_data, dict):  # dict response
+                    if isinstance(wl_data, dict):  # ✅ dict response
                         if wl_data.get("stat") == "Ok":
                             df = pd.DataFrame(wl_data.get("values", []))
                             st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                             st.dataframe(df if not df.empty else pd.DataFrame())
                         else:
                             st.warning(wl_data.get("emsg", "Failed to load watchlist."))
-                    elif isinstance(wl_data, list):  # list response
+
+                    elif isinstance(wl_data, list):  # ⚠️ list response
                         st.warning("⚠️ API returned list instead of dict for watchlist data")
                         st.write(wl_data)
-                    else:
+
+                    else:  # ❌ unexpected
                         st.error("❌ Unexpected watchlist data format")
                         st.write(wl_data)
-
                 else:
                     st.warning("⚠️ No watchlists found.")
             else:
-                st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-        elif isinstance(wl_resp, list):  
-            # Direct list response (edge case)
+                st.error(f"❌ Error: {wl_resp.get('emsg', 'Could not fetch watchlists.')}")
+        
+        elif isinstance(wl_resp, list):  # ⚠️ list response
             st.warning("⚠️ API returned list instead of dict for watchlists")
             st.write(wl_resp)
-        else:
+
+        else:  # ❌ unexpected
             st.error("❌ Unexpected watchlists response format")
             st.write(wl_resp)
 
@@ -438,6 +441,7 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
 
 
