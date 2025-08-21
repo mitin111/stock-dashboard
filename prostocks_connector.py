@@ -184,14 +184,21 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-    # ------------- Watchlists -------------
+        # ------------- Watchlists -------------
     def get_watchlists(self):
         """
         Fetch all watchlists for the logged-in user
+        Always return dict with {"stat": "Ok", "values": [...]}
         """
         url = f"{self.base_url}/MWList"
         payload = {"uid": self.userid}
-        return self._post_json(url, payload)
+        resp = self._post_json(url, payload)
+
+        if isinstance(resp, list):
+            return {"stat": "Ok", "values": resp}
+        elif isinstance(resp, dict):
+            return resp
+        return {"stat": "Not_Ok", "values": []}
 
     def get_watchlist_names(self):
         """
@@ -200,30 +207,31 @@ class ProStocksAPI:
         resp = self.get_watchlists()
         if isinstance(resp, dict) and resp.get("stat") == "Ok":
             return [wl["wlname"] for wl in resp.get("values", [])]
-        elif isinstance(resp, list):  # agar API list return karti hai
+        elif isinstance(resp, list):  # safety fallback
             return [wl.get("wlname") for wl in resp]
         return []
 
     def get_watchlist(self, wlname):
         """
         Fetch contents of a specific watchlist
+        Always return dict with {"stat": "Ok", "values": [...]}
         """
         url = f"{self.base_url}/MarketWatch"
         payload = {"uid": self.userid, "wlname": wlname}
-        return self._post_json(url, payload)
+        resp = self._post_json(url, payload)
+
+        if isinstance(resp, list):
+            return {"stat": "Ok", "values": resp}
+        elif isinstance(resp, dict):
+            return resp
+        return {"stat": "Not_Ok", "values": []}
 
     def get_tokens_from_watchlist(self, wlname):
         """
         Fetch tokens + symbols for all scrips in a given watchlist
         """
         wl_data = self.get_watchlist(wlname)
-
-        if isinstance(wl_data, dict):
-            scrips = wl_data.get("values", [])
-        elif isinstance(wl_data, list):
-            scrips = wl_data
-        else:
-            scrips = []
+        scrips = wl_data.get("values", []) if isinstance(wl_data, dict) else []
 
         tokens, symbols = [], []
         for scrip in scrips:
@@ -652,6 +660,7 @@ class ProStocksAPI:
     # Dummy placeholder (you should implement these API calls)
     def get_watchlist(self, wlname):
         return []  # replace with actual API call
+
 
 
 
