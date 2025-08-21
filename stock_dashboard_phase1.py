@@ -109,6 +109,9 @@ with tab2:
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
 
+    # Auto-refresh every 10 seconds
+    st_autorefresh = st.experimental_autorefresh(interval=10 * 1000, limit=None, key="refresh_wl")
+
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
@@ -412,6 +415,7 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
 
 
