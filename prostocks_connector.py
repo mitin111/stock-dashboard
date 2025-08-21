@@ -404,26 +404,6 @@ class ProStocksAPI:
         self.ws.send(json.dumps(data))
         print(f"✅ Subscribed to tokens: {tokens}")
 
-import json
-import time
-import threading
-from collections import deque
-from datetime import datetime
-import pandas as pd
-import websocket
-import plotly.graph_objects as go
-import streamlit as st
-
-class ProStocksAPI:
-    def __init__(self, userid, feed_token):
-        self.userid = userid
-        self.feed_token = feed_token
-        self.ws = None
-        self.is_ws_connected = False
-        self._tick_buffer = deque(maxlen=1000)
-        self._live_candles = pd.DataFrame()
-        self.is_logged_in = True  # assume logged in for WebSocket
-
     # ------------------------------------------------
     # WebSocket message handler
     # ------------------------------------------------
@@ -607,3 +587,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
