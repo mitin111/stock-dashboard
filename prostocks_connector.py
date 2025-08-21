@@ -408,6 +408,7 @@ class ProStocksAPI:
     # WebSocket message handler
     # ------------------------------------------------
     def _on_message(self, ws, message):
+        import streamlit as st
         print("📩 Raw WebSocket message:", message)
         try:
             tick = json.loads(message)
@@ -440,64 +441,64 @@ class ProStocksAPI:
         print("❌ WebSocket Closed", code, msg)
 
     # ------------------------------------------------
-    # Start WebSocket for multiple symbols
+    # Start WebSocket for multiple symbols or watchlist
     # ------------------------------------------------
     def start_websocket_for_symbols(self, symbols, interval="1"):
-    if not self.is_logged_in or not self.feed_token:
-        print("❌ Login first before starting WebSocket")
-        return
+        if not self.is_logged_in or not self.feed_token:
+            print("❌ Login first before starting WebSocket")
+            return
 
-    token_list = []
+        token_list = []
 
-    # 🔹 Agar user watchlist ka naam de raha hai (string)
-    if isinstance(symbols, str):
-        tokens, syms = self.get_tokens_from_watchlist(symbols)  # <-- yahi add karo
-        token_list.extend(tokens)
-        print("📡 Tokens from watchlist:", token_list)
+        # 🔹 Agar user watchlist ka naam de raha hai (string)
+        if isinstance(symbols, str):
+            tokens, syms = self.get_tokens_from_watchlist(symbols)
+            token_list.extend(tokens)
+            print("📡 Tokens from watchlist:", token_list)
 
-    # 🔹 Agar user list of symbols de raha hai
-    elif isinstance(symbols, list):
-        for sym in symbols:
-            token_list.append(sym)
+        # 🔹 Agar user list of symbols de raha hai
+        elif isinstance(symbols, list):
+            for sym in symbols:
+                token_list.append(sym)
 
-    if not token_list:
-        print("⚠️ No valid tokens found for subscription")
-        return
+        if not token_list:
+            print("⚠️ No valid tokens found for subscription")
+            return
 
-    def on_open(ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
-        sub_data = {"t": "t", "k": "#".join(token_list)}
-        try:
-            ws.send(json.dumps(sub_data))
-            print(f"📡 Subscribed: {token_list}")
-        except Exception as e:
-            print("❌ Subscribe error:", e)
+        def on_open(ws):
+            self.is_ws_connected = True
+            print("✅ WebSocket Connected")
+            sub_data = {"t": "t", "k": "#".join(token_list)}
+            try:
+                ws.send(json.dumps(sub_data))
+                print(f"📡 Subscribed: {token_list}")
+            except Exception as e:
+                print("❌ Subscribe error:", e)
 
-    def send_ping(ws):
-        while True:
-            if self.is_ws_connected:
-                try:
-                    ws.send(json.dumps({"t": "h"}))
-                    print("💓 Ping sent")
-                except Exception as e:
-                    print("⚠️ Ping error:", e)
-            time.sleep(30)
+        def send_ping(ws):
+            while True:
+                if self.is_ws_connected:
+                    try:
+                        ws.send(json.dumps({"t": "h"}))
+                        print("💓 Ping sent")
+                    except Exception as e:
+                        print("⚠️ Ping error:", e)
+                time.sleep(30)
 
-    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-    print(f"🔗 Connecting to WebSocket: {ws_url}")
+        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+        print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-    self.ws = websocket.WebSocketApp(
-        ws_url,
-        on_open=on_open,
-        on_message=self._on_message,
-        on_error=self._on_error,
-        on_close=self._on_close
-    )
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
+        )
 
-    threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-    self.wst = threading.Thread(target=self.ws.run_forever, daemon=True)
-    self.wst.start()
+        threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
+        self.wst = threading.Thread(target=self.ws.run_forever, daemon=True)
+        self.wst.start()
 
     # ------------------------------------------------
     # Stop WebSocket
@@ -592,4 +593,33 @@ class ProStocksAPI:
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
 
+    # ------------------------------------------------
+    # Watchlist helpers
+    # ------------------------------------------------
+    def get_tokens_from_watchlist(self, wlname):
+        """Fetch tokens for all symbols in a given watchlist"""
+        wl_data = self.get_watchlist(wlname)
+        tokens = []
+        symbols = []
 
+        if isinstance(wl_data, dict):
+            scrips = wl_data.get("values", [])
+        elif isinstance(wl_data, list):
+            scrips = wl_data
+        else:
+            scrips = []
+
+        for scrip in scrips:
+            if not isinstance(scrip, dict):
+                continue
+            exch = scrip.get("exch") or scrip.get("exchange")
+            token = scrip.get("token")
+            tsym = scrip.get("tsym") or scrip.get("symbol")
+            if exch and token and tsym:
+                tokens.append(f"{exch}|{token}")
+                symbols.append(tsym)
+        return tokens, symbols
+
+    # Dummy placeholder (you should implement these API calls)
+    def get_watchlist(self, wlname):
+        return []  # replace with actual API call
