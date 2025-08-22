@@ -542,6 +542,32 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
+        # ------------------ Get live ticks as DataFrame ------------------
+    def get_live_df(self):
+        """
+        Convert the current tick buffer to a DataFrame for plotting.
+        """
+        import pandas as pd
+        import time
+        from datetime import datetime
+
+        ticks = list(self._tick_buffer)
+        if not ticks:
+            return pd.DataFrame(columns=["Datetime", "LTP", "Volume"])
+        
+        rows = []
+        for t in ticks:
+            ts = datetime.fromtimestamp(int(t.get("ft", time.time()*1000))/1000) if "ft" in t else datetime.now()
+            rows.append({
+                "Datetime": ts,
+                "LTP": float(t.get("lp") or t.get("ltp") or 0),
+                "Volume": int(t.get("v", 1))
+            })
+        
+        df = pd.DataFrame(rows)
+        df.sort_values("Datetime", inplace=True)
+        return df
+
     # ------------------ Build live candles ------------------
     def build_live_candles(self, interval="1min"):
         ticks = list(self._tick_buffer)
@@ -607,6 +633,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
