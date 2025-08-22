@@ -340,22 +340,26 @@ import pandas as pd
 import time
 
 # ---------------- Live container ----------------
-# Live container
+if "live_data_queue" not in st.session_state:
+    st.session_state.live_data_queue = queue.Queue()
+if "latest_live" not in st.session_state:
+    st.session_state.latest_live = pd.DataFrame()
+if "last_live_error" not in st.session_state:
+    st.session_state.last_live_error = None
+
 live_container = st.empty()
 
-def update_live_chart():
-    if not st.session_state.live_data_queue.empty():
-        st.session_state.latest_live = st.session_state.live_data_queue.get()
-    df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
-    if not df_live_ui.empty:
-        fig = plot_tpseries_candles(df_live_ui, "WATCHLIST")
-        if fig:
-            live_container.plotly_chart(fig, use_container_width=True)
-            live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
-    else:
-        live_container.info("⏳ Waiting for live ticks...")
+# Periodically update container
+if not st.session_state.live_data_queue.empty():
+    st.session_state.latest_live = st.session_state.live_data_queue.get()
 
-# Loop manually with sleep
-while True:
-    update_live_chart()
-    time.sleep(1)  # 1 second refresh
+df_live_ui = st.session_state.latest_live
+if not df_live_ui.empty:
+    fig = plot_tpseries_candles(df_live_ui, "WATCHLIST_NAME")
+    if fig:
+        live_container.plotly_chart(fig, use_container_width=True)
+        live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+elif st.session_state.last_live_error:
+    live_container.warning(f"Live update error: {st.session_state.last_live_error}")
+else:
+    live_container.info("⏳ Waiting for live ticks...")
