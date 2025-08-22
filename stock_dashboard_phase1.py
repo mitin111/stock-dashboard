@@ -335,24 +335,28 @@ with tab5:
             t.start()
             st.session_state.thread_started = True
 
-        # ---------------- Live container ----------------
-        live_container = st.empty()
+        import streamlit as st
+import pandas as pd
+import time
 
-        # Poll queue periodically for new candles
-        def update_live_chart():
-            if not st.session_state.live_data_queue.empty():
-                st.session_state.latest_live = st.session_state.live_data_queue.get()
-            df_live_ui = st.session_state.latest_live
-            if not df_live_ui.empty:
-                fig = plot_tpseries_candles(df_live_ui, "WATCHLIST")
-                if fig:
-                    live_container.plotly_chart(fig, use_container_width=True)
-                    live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
-            elif st.session_state.last_live_error:
-                live_container.warning(f"Live update error: {st.session_state.last_live_error}")
-            else:
-                live_container.info("⏳ Waiting for live ticks...")
+# ---------------- Live container ----------------
+live_container = st.empty()
 
-        # Streamlit auto-refresh every 1 sec
-        update_live_chart()
-        st.rerun()
+# Poll queue periodically for new candles
+def update_live_chart():
+    if not st.session_state.live_data_queue.empty():
+        st.session_state.latest_live = st.session_state.live_data_queue.get()
+    df_live_ui = st.session_state.latest_live
+    if not df_live_ui.empty:
+        fig = plot_tpseries_candles(df_live_ui, "WATCHLIST")
+        if fig:
+            live_container.plotly_chart(fig, use_container_width=True)
+            live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+    elif st.session_state.last_live_error:
+        live_container.warning(f"Live update error: {st.session_state.last_live_error}")
+    else:
+        live_container.info("⏳ Waiting for live ticks...")
+
+# ✅ Instead of st.rerun(), use st_autorefresh
+st_autorefresh(interval=1000, limit=None, key="live_refresh")  # 1000ms = 1 sec
+update_live_chart()
