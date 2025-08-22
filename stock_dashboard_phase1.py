@@ -347,7 +347,6 @@ with tab5:
             t = threading.Thread(target=live_fetch_loop, args=(api, st.session_state.live_data_queue), daemon=True)
             t.start()
             st.session_state.thread_started = True
-
         # ---------------- Live Streamlit container ----------------
         live_container = st.empty()
 
@@ -357,10 +356,18 @@ with tab5:
 
         df_live_ui = st.session_state.latest_live
         if not df_live_ui.empty:
+            # Plotly Candlestick
             fig = plot_tpseries_candles(df_live_ui, "WATCHLIST")
             if fig:
                 live_container.plotly_chart(fig, use_container_width=True)
                 live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+
+            # 🔥 Extra simple line chart with Streamlit
+            st.session_state.candles = df_live_ui.copy()
+            if "Close" in st.session_state.candles.columns:
+                st.session_state.candles.rename(columns={"Close": "close"}, inplace=True)
+                st.line_chart(st.session_state.candles[["close"]])
+
         elif st.session_state.last_live_error:
             live_container.warning(f"Live update error: {st.session_state.last_live_error}")
         else:
