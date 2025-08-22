@@ -411,6 +411,7 @@ live_container = st.empty()
 # Queue se data read kar ke latest session me update karo
 if not st.session_state["live_data_queue"].empty():
     st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
+    print("📈 New live candle received")  # ✅ debug
 
 df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
 if not df_live_ui.empty:
@@ -423,3 +424,4 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
