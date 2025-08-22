@@ -423,7 +423,7 @@ class ProStocksAPI:
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
-    # ------------------ WebSocket ------------------
+        # ------------------ WebSocket ------------------
     def start_websocket_for_symbols(self, symbols, callback=None):
         if not self.is_logged_in or not self.feed_token:
             print("❌ Login first before starting WebSocket")
@@ -467,13 +467,14 @@ class ProStocksAPI:
                     # Append to buffer
                     self._tick_buffer.append(tick)
 
-                    # 🔥 Debug: check tick and buffer
+                    # 🔥 Debug
                     print("🔥 Tick received:", tick)
                     print("Buffer length:", len(self._tick_buffer))
-                    
+
                     # User callback
                     if callback:
                         callback(tick)
+
                     # Streamlit session update
                     token = tick.get("symbol")
                     if token:
@@ -513,7 +514,11 @@ class ProStocksAPI:
         )
 
         threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-        self.wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30, "ping_timeout": 10}, daemon=True)
+        self.wst = threading.Thread(
+            target=self.ws.run_forever,
+            kwargs={"ping_interval": 30, "ping_timeout": 10},
+            daemon=True
+        )
         self.wst.start()
 
     def start_websocket_for_symbol(self, symbol, callback=None):
@@ -524,7 +529,7 @@ class ProStocksAPI:
             self.ws.close()
             print("🛑 WebSocket stopped")
 
-        # ------------------ Tick / Candle helpers ------------------
+    # ------------------ Tick helpers ------------------
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
@@ -539,92 +544,3 @@ class ProStocksAPI:
         df = pd.DataFrame(rows)
         df.sort_values("Datetime", inplace=True)
         return df
-
-    # ✅ Corrected candle builder (resample OHLC)
-    def build_live_candles(self, interval="1min"):
-        ticks = list(self._tick_buffer)
-        if not ticks:
-            return self._live_candles
-
-        # Convert tick buffer → DataFrame
-        rows = []
-        for t in ticks:
-            ts = datetime.fromtimestamp(t.get("time", time.time()))
-            rows.append({"Datetime": ts, "LTP": t["ltp"], "Volume": t["volume"]})
-        df = pd.DataFrame(rows)
-
-        if df.empty:
-            return self._live_candles
-
-        df.set_index("Datetime", inplace=True)
-
-        # 🔥 Resample to OHLC based on interval (1min, 5min etc.)
-        ohlc = df["LTP"].resample(interval).ohlc()
-        vol = df["Volume"].resample(interval).sum()
-
-        df_candles = ohlc.join(vol).dropna().reset_index()
-
-        df_candles.rename(
-            columns={
-                "open": "Open",
-                "high": "High",
-                "low": "Low",
-                "close": "Close",
-                "Volume": "Volume"
-            },
-            inplace=True
-        )
-
-        # Merge with previous live candles
-        if self._live_candles.empty:
-            self._live_candles = df_candles
-        else:
-            self._live_candles = pd.concat(
-                [self._live_candles, df_candles], ignore_index=True
-            )
-            self._live_candles.drop_duplicates(
-                subset=["Datetime"], keep="last", inplace=True
-            )
-
-        return self._live_candles.sort_values("Datetime")
-
-    # ------------------ Chart Helper ------------------
-    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-        import plotly.graph_objects as go
-        import time
-
-        df_hist = df_hist.copy()
-        fig = go.Figure()
-
-        def update_chart():
-            df_live = self.build_live_candles(interval)
-            df_all = pd.concat([df_hist, df_live], ignore_index=True).drop_duplicates(
-                subset=["datetime", "Datetime"], keep="last"
-            )
-            if "Datetime" in df_all.columns:
-                df_all["datetime"] = df_all["Datetime"]
-
-            fig.data = []
-            fig.add_trace(go.Candlestick(
-                x=df_all["datetime"],
-                open=df_all.get("open", df_all["Open"]),
-                high=df_all.get("high", df_all["High"]),
-                low=df_all.get("low", df_all["Low"]),
-                close=df_all.get("close", df_all["Close"]),
-                name="Candles"
-            ))
-            fig.update_layout(
-                title="Historical + Live Candles",
-                xaxis_rangeslider_visible=False,
-                template="plotly_dark",
-                height=600,
-            )
-            fig.show()
-
-        print("📊 Live chart running... (close chart window to stop)")
-        try:
-            while True:
-                update_chart()
-                time.sleep(refresh)
-        except KeyboardInterrupt:
-            print("🛑 Chart stopped")
