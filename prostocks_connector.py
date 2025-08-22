@@ -635,3 +635,4 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
 
+
