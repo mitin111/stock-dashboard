@@ -466,6 +466,11 @@ class ProStocksAPI:
                     }
                     # Append to buffer
                     self._tick_buffer.append(tick)
+
+                    # 🔥 Debug: check tick and buffer
+                    print("🔥 Tick received:", tick)
+                    print("Buffer length:", len(self._tick_buffer))
+                    
                     # User callback
                     if callback:
                         callback(tick)
@@ -592,5 +597,6 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
