@@ -370,11 +370,13 @@ with tab5:
                                 st.warning(f"{tsym}: Exception occurred - {e}")
 
 
-# Thread-safe queue setup
+# ---------------- Thread-safe queue setup ----------------
 import threading, time, queue
 
 if "live_data_queue" not in st.session_state:
     st.session_state["live_data_queue"] = queue.Queue()
+if "latest_live" not in st.session_state:
+    st.session_state["latest_live"] = pd.DataFrame()
 if "last_live_error" not in st.session_state:
     st.session_state["last_live_error"] = None
 
@@ -384,16 +386,15 @@ _thread_started = False
 def live_fetch_loop(api, data_queue, error_store):
     while True:
         try:
-            # ✅ Ab direct candle engine se latest DF uthao
-            df_live = api.get_live_df()   # 👈 yahi change karo
+            # ✅ Build live candles from tick buffer
+            df_live = api.build_live_candles(interval="1min")
             if not df_live.empty:
                 data_queue.put(df_live)
-
         except Exception as e:
             error_store["error"] = str(e)
+        time.sleep(1)  # 1-second interval
 
-        time.sleep(1)
-
+# Start thread only once
 if not _thread_started and "ps_api" in st.session_state:
     t = threading.Thread(
         target=live_fetch_loop,
@@ -403,16 +404,18 @@ if not _thread_started and "ps_api" in st.session_state:
     t.start()
     _thread_started = True
 
-# --- Main UI render (safe) ---
+# ---------------- Streamlit Live Container ----------------
 st.subheader("📡 Live WebSocket Stream")
 live_container = st.empty()
 
+# Queue se data read kar ke latest session me update karo
 if not st.session_state["live_data_queue"].empty():
     st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
 
 df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
 if not df_live_ui.empty:
-    fig = plot_tpseries_candles(df_live_ui, "TATAMOTORS-EQ")
+    # Tumhara plot function call
+    fig = plot_tpseries_candles(df_live_ui, "WATCHLIST_NAME")
     if fig:
         live_container.plotly_chart(fig, use_container_width=True)
         live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
@@ -420,5 +423,3 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
-
-
