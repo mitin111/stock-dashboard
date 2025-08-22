@@ -355,4 +355,4 @@ with tab5:
 
         # Streamlit auto-refresh every 1 sec
         update_live_chart()
-        st.experimental_rerun()
+        st.rerun()
