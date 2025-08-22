@@ -423,6 +423,27 @@ class ProStocksAPI:
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
+    import json
+import time
+import threading
+from datetime import datetime
+import pandas as pd
+import websocket
+import streamlit as st
+
+class ProStocksAPI:
+    def __init__(self, userid, feed_token=None):
+        self.userid = userid
+        self.feed_token = feed_token
+        self.is_logged_in = True if feed_token else False
+        self.ws = None
+        self.wst = None
+        self.is_ws_connected = False
+        self._tick_buffer = []
+        self._live_candles = pd.DataFrame()
+        if "ticks" not in st.session_state:
+            st.session_state.ticks = {}
+
     # ------------------ Start WebSocket ------------------
     def start_websocket_for_symbols(self, symbols, callback=None):
         """
@@ -466,7 +487,6 @@ class ProStocksAPI:
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                # Heuristic: tick packets usually contain 'lp'/'ltp' or 'tk'
                 if ("lp" in data) or ("ltp" in data) or (data.get("t") in ("tk", "tf")):
                     tick = {
                         "symbol": data.get("tk") or data.get("symbol"),
@@ -474,8 +494,15 @@ class ProStocksAPI:
                         "ltp": float(data.get("lp") or data.get("ltp") or 0),
                         "volume": int(data.get("v", 1))
                     }
+
+                    # ✅ Append to tick buffer
+                    self._tick_buffer.append(tick)
+
+                    # ✅ User callback
                     if callback:
                         callback(tick)
+
+                    # ✅ Update Streamlit session_state
                     token = tick.get("symbol")
                     if token:
                         st.session_state.ticks[token] = {
@@ -503,10 +530,7 @@ class ProStocksAPI:
                         print("⚠️ Ping error:", e)
                 time.sleep(30)
 
-        ws_url = (
-            f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}"
-            f"&t={self.feed_token}&uid={self.userid}"
-        )
+        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
         print(f"🔗 Connecting to WebSocket: {ws_url}")
 
         self.ws = websocket.WebSocketApp(
@@ -542,19 +566,11 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-        # ------------------ Get live ticks as DataFrame ------------------
+    # ------------------ Get live ticks as DataFrame ------------------
     def get_live_df(self):
-        """
-        Convert the current tick buffer to a DataFrame for plotting.
-        """
-        import pandas as pd
-        import time
-        from datetime import datetime
-
         ticks = list(self._tick_buffer)
         if not ticks:
             return pd.DataFrame(columns=["Datetime", "LTP", "Volume"])
-        
         rows = []
         for t in ticks:
             ts = datetime.fromtimestamp(int(t.get("ft", time.time()*1000))/1000) if "ft" in t else datetime.now()
@@ -563,7 +579,6 @@ class ProStocksAPI:
                 "LTP": float(t.get("lp") or t.get("ltp") or 0),
                 "Volume": int(t.get("v", 1))
             })
-        
         df = pd.DataFrame(rows)
         df.sort_values("Datetime", inplace=True)
         return df
@@ -571,7 +586,6 @@ class ProStocksAPI:
     # ------------------ Build live candles ------------------
     def build_live_candles(self, interval="1min"):
         ticks = list(self._tick_buffer)
-        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
         if not ticks:
             return self._live_candles
 
@@ -592,12 +606,11 @@ class ProStocksAPI:
                 .drop_duplicates(subset=["Datetime"], keep="last")
         return self._live_candles.sort_values("Datetime")
 
-    # ------------------------------------------------
-    # Chart Helper
-    # ------------------------------------------------
+    # ------------------ Chart Helper ------------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
         import plotly.graph_objects as go
         import time
+
         df_hist = df_hist.copy()
         fig = go.Figure()
 
@@ -633,8 +646,3 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
-
-
-
-
