@@ -324,9 +324,6 @@ with tab5:
             chart_placeholder = st.empty()
             table_placeholder = st.empty()
 
-            # Auto-refresh every 2 sec
-            count = st_autorefresh(interval=2000, limit=None, key="live_autorefresh")
-
             # Build candles
             df_live = api.build_live_candles(interval="1min")
             if not df_live.empty:
@@ -343,6 +340,12 @@ with tab5:
                 if "Close" in df_live.columns:
                     df_line = df_live.rename(columns={"Close": "close"})
                     st.line_chart(df_line[["close"]])
+
+                # ✅ Refresh AFTER chart builds
+                from streamlit_autorefresh import st_autorefresh
+                st_autorefresh(interval=2000, key="live_autorefresh")
+
             else:
                 chart_placeholder.info("⏳ Waiting for live ticks...")
+
 
