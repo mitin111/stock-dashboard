@@ -381,7 +381,7 @@ def live_fetch_loop(api, data_queue, error_store):
     while True:
         try:
             # ✅ Ab direct candle engine se latest DF uthao
-            df_live = get_live_df("NSE|3456")   # 👈 Symbol ko UI select se dynamic banao
+            df_live = api.get_live_df()   # 👈 yahi change karo
             if not df_live.empty:
                 data_queue.put(df_live)
 
@@ -416,3 +416,4 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
