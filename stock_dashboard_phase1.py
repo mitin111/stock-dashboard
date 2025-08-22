@@ -261,16 +261,10 @@ with tab5:
     # ---------------- Session state defaults ----------------
     if "ticks" not in st.session_state:
         st.session_state.ticks = {}
-    if "live_data_queue" not in st.session_state:
-        st.session_state.live_data_queue = queue.Queue()
-    if "latest_live" not in st.session_state:
-        st.session_state.latest_live = pd.DataFrame()
-    if "last_live_error" not in st.session_state:
-        st.session_state.last_live_error = None
     if "ws_started" not in st.session_state:
         st.session_state.ws_started = False
-    if "thread_started" not in st.session_state:
-        st.session_state.thread_started = False
+    if "candles" not in st.session_state:
+        st.session_state.candles = pd.DataFrame()
 
     # ---------------- Login check ----------------
     if "ps_api" not in st.session_state:
@@ -299,11 +293,11 @@ with tab5:
         selected_watchlist = st.selectbox("Select Watchlist", watchlists)
         selected_interval = st.selectbox(
             "Select Interval",
-            ["1","3","5","10","15","30","60","120","240"],
+            ["1", "3", "5", "10", "15", "30", "60", "120", "240"],
             index=2
         )
 
-        # ---------------- Start WebSocket ----------------
+        # ---------------- Start WebSocket + Chart ----------------
         if st.button("▶ Start Live Feed") and selected_watchlist:
             if not st.session_state.ws_started:
 
@@ -314,61 +308,39 @@ with tab5:
                         "ltp": float(tick_data.get("lp") or tick_data.get("ltp") or 0),
                         "volume": int(tick_data.get("v", 1))
                     }
-                    # Append to tick buffer
                     api._tick_buffer.append(tick)
-
-                    # Update session ticks for reference
                     st.session_state.ticks[tick["symbol"]] = {
                         "LTP": tick["ltp"],
                         "Volume": tick["volume"],
                         "Time": datetime.now().strftime("%H:%M:%S")
                     }
 
-                    # Debug
-                    print("🔥 Tick received:", tick, "Buffer length:", len(api._tick_buffer))
-
                 api.start_websocket_for_symbols(selected_watchlist, callback=on_tick)
                 st.session_state.ws_started = True
                 st.success(f"✅ WebSocket started for watchlist: {selected_watchlist}")
 
-        # ---------------- Live candle thread ----------------
-        def live_fetch_loop(api, data_queue):
-            while True:
-                try:
-                    df_live = api.build_live_candles(interval="1min")
-                    if not df_live.empty:
-                        if data_queue.empty():  # prevent backlog
-                            data_queue.put(df_live)
-                except Exception as e:
-                    st.session_state.last_live_error = str(e)
-                time.sleep(1)  # 1 sec interval
+            # 🔥 Chart + Table placeholders
+            chart_placeholder = st.empty()
+            table_placeholder = st.empty()
 
-        if not st.session_state.thread_started and st.session_state.ws_started:
-            t = threading.Thread(target=live_fetch_loop, args=(api, st.session_state.live_data_queue), daemon=True)
-            t.start()
-            st.session_state.thread_started = True
-        # ---------------- Live Streamlit container ----------------
-        live_container = st.empty()
+            # Auto-refresh every 2 sec
+            count = st_autorefresh(interval=2000, limit=None, key="live_autorefresh")
 
-        # Poll queue for latest candles
-        if not st.session_state.live_data_queue.empty():
-            st.session_state.latest_live = st.session_state.live_data_queue.get()
+            # Build candles
+            df_live = api.build_live_candles(interval="1min")
+            if not df_live.empty:
+                st.session_state.candles = df_live.copy()
 
-        df_live_ui = st.session_state.latest_live
-        if not df_live_ui.empty:
-            # Plotly Candlestick
-            fig = plot_tpseries_candles(df_live_ui, "WATCHLIST")
-            if fig:
-                live_container.plotly_chart(fig, use_container_width=True)
-                live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+                # Plotly candlestick chart
+                fig = plot_tpseries_candles(df_live, "LIVE")
+                chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-            # 🔥 Extra simple line chart with Streamlit
-            st.session_state.candles = df_live_ui.copy()
-            if "Close" in st.session_state.candles.columns:
-                st.session_state.candles.rename(columns={"Close": "close"}, inplace=True)
-                st.line_chart(st.session_state.candles[["close"]])
+                # Show table
+                table_placeholder.dataframe(df_live.tail(20), use_container_width=True, height=300)
 
-        elif st.session_state.last_live_error:
-            live_container.warning(f"Live update error: {st.session_state.last_live_error}")
-        else:
-            live_container.info("⏳ Waiting for live ticks...")
+                # Extra simple Streamlit line chart
+                if "Close" in df_live.columns:
+                    df_line = df_live.rename(columns={"Close": "close"})
+                    st.line_chart(df_line[["close"]])
+            else:
+                chart_placeholder.info("⏳ Waiting for live ticks...")
