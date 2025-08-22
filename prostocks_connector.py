@@ -524,7 +524,7 @@ class ProStocksAPI:
             self.ws.close()
             print("🛑 WebSocket stopped")
 
-    # ------------------ Tick / Candle helpers ------------------
+        # ------------------ Tick / Candle helpers ------------------
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
@@ -540,23 +540,54 @@ class ProStocksAPI:
         df.sort_values("Datetime", inplace=True)
         return df
 
+    # ✅ Corrected candle builder (resample OHLC)
     def build_live_candles(self, interval="1min"):
         ticks = list(self._tick_buffer)
         if not ticks:
             return self._live_candles
+
+        # Convert tick buffer → DataFrame
         rows = []
         for t in ticks:
             ts = datetime.fromtimestamp(t.get("time", time.time()))
-            price = t["ltp"]
-            vol = t["volume"]
-            rows.append([ts.replace(second=0, microsecond=0), price, price, price, price, vol])
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+            rows.append({"Datetime": ts, "LTP": t["ltp"], "Volume": t["volume"]})
+        df = pd.DataFrame(rows)
+
+        if df.empty:
+            return self._live_candles
+
+        df.set_index("Datetime", inplace=True)
+
+        # 🔥 Resample to OHLC based on interval (1min, 5min etc.)
+        ohlc = df["LTP"].resample(interval).ohlc()
+        vol = df["Volume"].resample(interval).sum()
+
+        df_candles = ohlc.join(vol).dropna().reset_index()
+
+        df_candles.rename(
+            columns={
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "Volume": "Volume"
+            },
+            inplace=True
+        )
+
+        # Merge with previous live candles
         if self._live_candles.empty:
-            self._live_candles = df_new
+            self._live_candles = df_candles
         else:
-            self._live_candles = pd.concat([self._live_candles, df_new], ignore_index=True).drop_duplicates(subset=["Datetime"], keep="last")
+            self._live_candles = pd.concat(
+                [self._live_candles, df_candles], ignore_index=True
+            )
+            self._live_candles.drop_duplicates(
+                subset=["Datetime"], keep="last", inplace=True
+            )
+
         return self._live_candles.sort_values("Datetime")
-        
+
     # ------------------ Chart Helper ------------------
     def show_combined_chart(self, df_hist, interval="1min", refresh=10):
         import plotly.graph_objects as go
@@ -597,6 +628,3 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
-
-
-
