@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from collections import deque
 import threading
 import websocket  # pip install websocket-client
-from NorenApi import NorenApiPy   # ✅ Official SDK import
+from NorenApiPy import NorenApi
 
 
 load_dotenv()
@@ -634,3 +634,4 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
