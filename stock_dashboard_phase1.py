@@ -9,6 +9,7 @@ import time
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import threading
+from streamlit_autorefresh import st_autorefresh
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -344,3 +345,4 @@ with tab5:
                     st.line_chart(df_line[["close"]])
             else:
                 chart_placeholder.info("⏳ Waiting for live ticks...")
+
