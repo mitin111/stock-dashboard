@@ -130,37 +130,38 @@ class ProStocksAPI:
         print("👋 Logged out successfully")
 
             # ----------------- Search Scrip -----------------
-    def search_scrip(self, tsym, exch="NSE"):
-        """
-        Search for a symbol in ProStocks.
-        tsym: Trading symbol (e.g. 'TATAMOTORS-EQ')
-        exch: Exchange ('NSE' or 'BSE')
-        Returns: token (str) if found, else None
-        """
-        try:
-            url = f"{self.base_url}/SearchScrip"
-            jdata = {
-                "uid": self.userid,
-                "exch": exch,
-                "stext": tsym
-            }
-            payload = {
-                "jData": json.dumps(jdata),
-                "jKey": self.jkey
-            }
+def search_scrip(self, tsym, exch="NSE"):
+    """
+    Search for a symbol in ProStocks.
+    tsym: Trading symbol (e.g. 'TATAMOTORS-EQ')
+    exch: Exchange ('NSE' or 'BSE')
+    Returns: 'EXCH|TOKEN' string if found, else None
+    """
+    try:
+        url = f"{self.base_url}/SearchScrip"
+        jdata = {
+            "uid": self.userid,
+            "exch": exch,
+            "stext": tsym
+        }
+        payload = {
+            "jData": json.dumps(jdata),
+            "jKey": self.jkey
+        }
 
-            resp = requests.post(url, data=payload).json()
-            # Debug print
-            # print("🔍 SearchScrip resp:", resp)
+        resp = requests.post(url, data=payload).json()
+        # Debug print
+        # print("🔍 SearchScrip resp:", resp)
 
-            if resp and resp.get("stat") == "Ok":
-                values = resp.get("values", [])
-                if values and "token" in values[0]:
-                    return values[0]["token"]  # ✅ Return token only
-            return None
-        except Exception as e:
-            print(f"⚠️ search_scrip error: {e}")
-            return None
+        if resp and resp.get("stat") == "Ok":
+            values = resp.get("values", [])
+            if values and "token" in values[0]:
+                token = values[0]["token"]
+                return f"{exch}|{token}"   # ✅ Return proper format
+        return None
+    except Exception as e:
+        print(f"⚠️ search_scrip error: {e}")
+        return None
 
     # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
@@ -634,5 +635,6 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
 
 
