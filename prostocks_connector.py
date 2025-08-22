@@ -50,10 +50,6 @@ class ProStocksAPI:
         # --- Symbol -> token cache ---
         self._token_cache: dict[str, str] = {}
 
-        # ✅ Streamlit ticks table init
-        if "ticks" not in st.session_state:
-            st.session_state.ticks = {}
-
     # ---------------- Utils ----------------
     @staticmethod
     def sha256(text: str) -> str:
@@ -596,4 +592,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
