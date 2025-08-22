@@ -299,53 +299,54 @@ with tab5:
         )
 
         # ---------------- Start WebSocket + Chart ----------------
-        if st.button("▶ Start Live Feed") and selected_watchlist:
-            if not st.session_state.ws_started:
+if st.button("▶ Start Live Feed") and selected_watchlist:
+    if not st.session_state.ws_started:
 
-                def on_tick(tick_data):
-                    tick = {
-                        "symbol": tick_data.get("tk") or tick_data.get("symbol"),
-                        "time": int(tick_data.get("ft")) // 1000 if "ft" in tick_data else int(time.time()),
-                        "ltp": float(tick_data.get("lp") or tick_data.get("ltp") or 0),
-                        "volume": int(tick_data.get("v", 1))
-                    }
-                    api._tick_buffer.append(tick)
-                    st.session_state.ticks[tick["symbol"]] = {
-                        "LTP": tick["ltp"],
-                        "Volume": tick["volume"],
-                        "Time": datetime.now().strftime("%H:%M:%S")
-                    }
+        def on_tick(tick_data):
+            tick = {
+                "symbol": tick_data.get("tk") or tick_data.get("symbol"),
+                "time": int(tick_data.get("ft")) // 1000 if "ft" in tick_data else int(time.time()),
+                "ltp": float(tick_data.get("lp") or tick_data.get("ltp") or 0),
+                "volume": int(tick_data.get("v", 1))
+            }
+            # Tick buffer update
+            api._tick_buffer.append(tick)
 
-                api.start_websocket_for_symbols(selected_watchlist, callback=on_tick)
-                st.session_state.ws_started = True
-                st.success(f"✅ WebSocket started for watchlist: {selected_watchlist}")
+            # Store in session_state for table
+            st.session_state.ticks[tick["symbol"]] = {
+                "LTP": tick["ltp"],
+                "Volume": tick["volume"],
+                "Time": datetime.now().strftime("%H:%M:%S")
+            }
 
-            # 🔥 Chart + Table placeholders
-            chart_placeholder = st.empty()
-            table_placeholder = st.empty()
-
-            # Build candles
+            # ✅ Candle build hota rahe on every tick
             df_live = api.build_live_candles(interval="1min")
             if not df_live.empty:
                 st.session_state.candles = df_live.copy()
 
-                # Plotly candlestick chart
-                fig = plot_tpseries_candles(df_live, "LIVE")
-                chart_placeholder.plotly_chart(fig, use_container_width=True)
+        # ✅ Start websocket once
+        api.start_websocket_for_symbols(selected_watchlist, callback=on_tick)
+        st.session_state.ws_started = True
+        st.success(f"✅ WebSocket started for watchlist: {selected_watchlist}")
 
-                # Show table
-                table_placeholder.dataframe(df_live.tail(20), use_container_width=True, height=300)
+# 🔥 Chart + Table placeholders (outside button condition)
+chart_placeholder = st.empty()
+table_placeholder = st.empty()
 
-                # Extra simple Streamlit line chart
-                if "Close" in df_live.columns:
-                    df_line = df_live.rename(columns={"Close": "close"})
-                    st.line_chart(df_line[["close"]])
+# Agar candles ban chuki hain → chart dikhao
+if not st.session_state.candles.empty:
+    df_live = st.session_state.candles
 
-                # ✅ Refresh AFTER chart builds
-                from streamlit_autorefresh import st_autorefresh
-                st_autorefresh(interval=2000, key="live_autorefresh")
+    # Plotly candlestick chart
+    fig = plot_tpseries_candles(df_live, "LIVE")
+    chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-            else:
-                chart_placeholder.info("⏳ Waiting for live ticks...")
+    # Show table
+    table_placeholder.dataframe(df_live.tail(20), use_container_width=True, height=300)
 
-
+    # Optional: simple line chart
+    if "Close" in df_live.columns:
+        df_line = df_live.rename(columns={"Close": "close"})
+        st.line_chart(df_line[["close"]])
+else:
+    chart_placeholder.info("⏳ Waiting for live ticks...")
