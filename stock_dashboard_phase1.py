@@ -253,6 +253,10 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📡 Live WebSocket Candles + TPSeries")
 
+    # ✅ Initialize ticks dict safely at top of Tab 5
+    if "ticks" not in st.session_state:
+        st.session_state.ticks = {}
+
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
@@ -416,4 +420,5 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
 
