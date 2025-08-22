@@ -9,6 +9,7 @@ import time
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import threading
+from streamlit.experimental import st_autorefresh
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -360,3 +361,4 @@ def update_live_chart():
 # ✅ Instead of st.rerun(), use st_autorefresh
 st_autorefresh(interval=1000, limit=None, key="live_refresh")  # 1000ms = 1 sec
 update_live_chart()
+
