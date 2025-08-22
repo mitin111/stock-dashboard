@@ -258,6 +258,7 @@ from datetime import datetime
 with tab5:
     st.subheader("📡 Live WebSocket Candles + TPSeries")
 
+    # ---------------- Session state defaults ----------------
     if "ticks" not in st.session_state:
         st.session_state.ticks = {}
     if "live_data_queue" not in st.session_state:
@@ -268,9 +269,12 @@ with tab5:
         st.session_state.last_live_error = None
     if "ws_started" not in st.session_state:
         st.session_state.ws_started = False
+    if "thread_started" not in st.session_state:
+        st.session_state.thread_started = False
 
+    # ---------------- Login check ----------------
     if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first.")
+        st.warning("⚠️ Please login first using your API credentials.")
     else:
         api = st.session_state["ps_api"]
 
@@ -282,20 +286,24 @@ with tab5:
             else:
                 st.success("✅ Logged in successfully")
 
-        # Watchlist select
+        # ---------------- Watchlist selection ----------------
         wl_resp = api.get_watchlists()
         watchlists = []
         if wl_resp:
-            if isinstance(wl_resp, dict) and wl_resp.get("stat")=="Ok":
+            if isinstance(wl_resp, dict) and wl_resp.get("stat") == "Ok":
                 watchlists = wl_resp.get("values", [])
             elif isinstance(wl_resp, list):
                 watchlists = wl_resp
         watchlists = sorted(watchlists, key=int) if watchlists else []
 
         selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-        selected_interval = st.selectbox("Select Interval", ["1","3","5","10","15","30","60","120","240"], index=2)
+        selected_interval = st.selectbox(
+            "Select Interval",
+            ["1","3","5","10","15","30","60","120","240"],
+            index=2
+        )
 
-        # Start WebSocket
+        # ---------------- Start WebSocket ----------------
         if st.button("▶ Start Live Feed") and selected_watchlist:
             if not st.session_state.ws_started:
 
@@ -306,60 +314,54 @@ with tab5:
                         "ltp": float(tick_data.get("lp") or tick_data.get("ltp") or 0),
                         "volume": int(tick_data.get("v", 1))
                     }
+                    # Append to tick buffer
                     api._tick_buffer.append(tick)
+
+                    # Update session ticks for reference
                     st.session_state.ticks[tick["symbol"]] = {
                         "LTP": tick["ltp"],
                         "Volume": tick["volume"],
                         "Time": datetime.now().strftime("%H:%M:%S")
                     }
+
+                    # Debug
                     print("🔥 Tick received:", tick, "Buffer length:", len(api._tick_buffer))
 
                 api.start_websocket_for_symbols(selected_watchlist, callback=on_tick)
                 st.session_state.ws_started = True
                 st.success(f"✅ WebSocket started for watchlist: {selected_watchlist}")
 
-        # ---------------- Live fetch thread ----------------
+        # ---------------- Live candle thread ----------------
         def live_fetch_loop(api, data_queue):
             while True:
                 try:
                     df_live = api.build_live_candles(interval="1min")
                     if not df_live.empty:
-                        if data_queue.empty():  # avoid backlog
+                        if data_queue.empty():  # prevent backlog
                             data_queue.put(df_live)
                 except Exception as e:
                     st.session_state.last_live_error = str(e)
-                time.sleep(1)
+                time.sleep(1)  # 1 sec interval
 
-        if "thread_started" not in st.session_state:
+        if not st.session_state.thread_started and st.session_state.ws_started:
             t = threading.Thread(target=live_fetch_loop, args=(api, st.session_state.live_data_queue), daemon=True)
             t.start()
             st.session_state.thread_started = True
 
-        import streamlit as st
-import pandas as pd
-import time
+        # ---------------- Live Streamlit container ----------------
+        live_container = st.empty()
 
-# ---------------- Live container ----------------
-if "live_data_queue" not in st.session_state:
-    st.session_state.live_data_queue = queue.Queue()
-if "latest_live" not in st.session_state:
-    st.session_state.latest_live = pd.DataFrame()
-if "last_live_error" not in st.session_state:
-    st.session_state.last_live_error = None
+        # Poll queue for latest candles
+        if not st.session_state.live_data_queue.empty():
+            st.session_state.latest_live = st.session_state.live_data_queue.get()
 
-live_container = st.empty()
-
-# Periodically update container
-if not st.session_state.live_data_queue.empty():
-    st.session_state.latest_live = st.session_state.live_data_queue.get()
-
-df_live_ui = st.session_state.latest_live
-if not df_live_ui.empty:
-    fig = plot_tpseries_candles(df_live_ui, "WATCHLIST_NAME")
-    if fig:
-        live_container.plotly_chart(fig, use_container_width=True)
-        live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
-elif st.session_state.last_live_error:
-    live_container.warning(f"Live update error: {st.session_state.last_live_error}")
-else:
-    live_container.info("⏳ Waiting for live ticks...")
+        df_live_ui = st.session_state.latest_live
+        if not df_live_ui.empty:
+            fig = plot_tpseries_candles(df_live_ui, "WATCHLIST")
+            if fig:
+                live_container.plotly_chart(fig, use_container_width=True)
+                live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+        elif st.session_state.last_live_error:
+            live_container.warning(f"Live update error: {st.session_state.last_live_error}")
+        else:
+            live_container.info("⏳ Waiting for live ticks...")
