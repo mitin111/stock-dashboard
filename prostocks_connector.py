@@ -635,3 +635,4 @@ def search_scrip(self, tsym, exch="NSE"):
             print("🛑 Chart stopped")
 
 
+
