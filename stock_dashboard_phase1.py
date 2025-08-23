@@ -404,15 +404,13 @@ if not st.session_state["_thread_started"] and "ps_api" in st.session_state:
 st.subheader("📡 Live WebSocket Stream")
 live_container = st.empty()
 
-if not st.session_state["live_data_queue"].empty():
-    st.session_state["latest_live"] = st.session_state["live_data_queue"].get()
-
-df_live_ui = st.session_state.get("latest_live", pd.DataFrame())
-if not df_live_ui.empty:
-    fig = plot_tpseries_candles(df_live_ui, "LIVE-STREAM")
+# Prefer live_ticks from Streamlit session
+if "live_ticks" in st.session_state and st.session_state["live_ticks"]:
+    df_live = pd.DataFrame(st.session_state["live_ticks"])
+    fig = plot_tpseries_candles(df_live, "LIVE-STREAM")
     if fig:
         live_container.plotly_chart(fig, use_container_width=True)
-        live_container.dataframe(df_live_ui.tail(20), use_container_width=True, height=300)
+        live_container.dataframe(df_live.tail(20), use_container_width=True, height=300)
 elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
