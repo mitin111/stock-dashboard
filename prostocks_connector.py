@@ -532,10 +532,10 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-    # ------------------------------------------------
+   # ------------------------------------------------
 # Tick handler (override for Streamlit)
 # ------------------------------------------------
-    def on_tick(self, tick):
+def on_tick(self, tick):
     import streamlit as st
     try:
         ltp = tick.get("lp") or tick.get("ltp")
@@ -551,104 +551,92 @@ class ProStocksAPI:
             self._tick_buffer.append(tick)
     except Exception as e:
         print("❌ Tick handler error:", e)
-        
-    # ------------------------------------------------
-    # Build live candles from ticks
-    # ------------------------------------------------
-    def build_live_candles(self, interval="1min"):
-        ticks = list(self._tick_buffer)
-        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
-        if not ticks:
-            return self._live_candles
+# ------------------------------------------------
+# Build live candles from ticks
+# ------------------------------------------------
+def build_live_candles(self, interval="1min"):
+    ticks = list(self._tick_buffer)
+    print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
-        rows = []
-        for tick in ticks:
-            try:
-                ts = datetime.fromtimestamp(int(tick.get("ft", time.time() * 1000)) / 1000)
-            except:
-                ts = datetime.now()
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick.get("lp") or tick.get("ltp") or 0)
-            vol = int(tick.get("v", 0))
-
-            rows.append([minute, price, vol])
-
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Price", "Volume"])
-        if df_new.empty:
-            return self._live_candles
-
-        # aggregate OHLCV per minute
-        agg = df_new.groupby("Datetime").agg(
-            Open=("Price", "first"),
-            High=("Price", "max"),
-            Low=("Price", "min"),
-            Close=("Price", "last"),
-            Volume=("Volume", "sum"),
-        ).reset_index()
-
-        if self._live_candles.empty:
-            self._live_candles = agg
-        else:
-            self._live_candles = (
-                pd.concat([self._live_candles, agg], ignore_index=True)
-                .drop_duplicates(subset=["Datetime"], keep="last")
-                .sort_values("Datetime")
-            )
-
+    if not ticks:
         return self._live_candles
 
-    # ------------------------------------------------
-    # Chart Helper
-    # ------------------------------------------------
-    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-        import plotly.graph_objects as go
-
-        df_hist = df_hist.copy()
-        fig = go.Figure()
-
-        def update_chart():
-            df_live = self.build_live_candles(interval)
-
-            df_all = pd.concat([df_hist, df_live], ignore_index=True)
-            df_all = df_all.drop_duplicates(subset=["Datetime"], keep="last")
-            df_all = df_all.sort_values("Datetime")
-
-            fig.data = []
-            fig.add_trace(
-                go.Candlestick(
-                    x=df_all["Datetime"],
-                    open=df_all["Open"],
-                    high=df_all["High"],
-                    low=df_all["Low"],
-                    close=df_all["Close"],
-                    name="Candles",
-                )
-            )
-            fig.update_layout(
-                title="Historical + Live Candles",
-                xaxis_rangeslider_visible=False,
-                template="plotly_dark",
-                height=600,
-            )
-            fig.show()
-
-        print("📊 Live chart running... (close chart window to stop)")
+    rows = []
+    for tick in ticks:
         try:
-            while True:
-                update_chart()
-                time.sleep(refresh)
-        except KeyboardInterrupt:
-            print("🛑 Chart stopped")
+            ts = datetime.fromtimestamp(int(tick.get("ft", time.time() * 1000)) / 1000)
+        except:
+            ts = datetime.now()
+        minute = ts.replace(second=0, microsecond=0)
+        price = float(tick.get("lp") or tick.get("ltp") or 0)
+        vol = int(tick.get("v", 0))
 
+        rows.append([minute, price, vol])
 
+    df_new = pd.DataFrame(rows, columns=["Datetime", "Price", "Volume"])
+    if df_new.empty:
+        return self._live_candles
 
+    # aggregate OHLCV per minute
+    agg = df_new.groupby("Datetime").agg(
+        Open=("Price", "first"),
+        High=("Price", "max"),
+        Low=("Price", "min"),
+        Close=("Price", "last"),
+        Volume=("Volume", "sum"),
+    ).reset_index()
 
+    if self._live_candles.empty:
+        self._live_candles = agg
+    else:
+        self._live_candles = (
+            pd.concat([self._live_candles, agg], ignore_index=True)
+            .drop_duplicates(subset=["Datetime"], keep="last")
+            .sort_values("Datetime")
+        )
 
+    return self._live_candles
 
+# ------------------------------------------------
+# Chart Helper
+# ------------------------------------------------
+def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+    import plotly.graph_objects as go
 
+    df_hist = df_hist.copy()
+    fig = go.Figure()
 
+    def update_chart():
+        df_live = self.build_live_candles(interval)
 
+        df_all = pd.concat([df_hist, df_live], ignore_index=True)
+        df_all = df_all.drop_duplicates(subset=["Datetime"], keep="last")
+        df_all = df_all.sort_values("Datetime")
 
+        fig.data = []
+        fig.add_trace(
+            go.Candlestick(
+                x=df_all["Datetime"],
+                open=df_all["Open"],
+                high=df_all["High"],
+                low=df_all["Low"],
+                close=df_all["Close"],
+                name="Candles",
+            )
+        )
+        fig.update_layout(
+            title="Historical + Live Candles",
+            xaxis_rangeslider_visible=False,
+            template="plotly_dark",
+            height=600,
+        )
+        fig.show()
 
-
+    print("📊 Live chart running... (close chart window to stop)")
+    try:
+        while True:
+            update_chart()
+            time.sleep(refresh)
+    except KeyboardInterrupt:
+        print("🛑 Chart stopped")
