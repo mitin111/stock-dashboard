@@ -163,7 +163,7 @@ def search_scrip(self, tsym, exch="NSE"):
         print(f"⚠️ search_scrip error: {e}")
         return None
 
-    # ------------- Core POST helper -------------
+        # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
@@ -192,7 +192,6 @@ def search_scrip(self, tsym, exch="NSE"):
         payload = {"uid": self.userid, "wlname": wlname}
         return self._post_json(url, payload)
 
-    # 👇 Yahin ADD KARO
     def get_tokens_from_watchlist(self, wlname):
         """Fetch tokens for all symbols in a given watchlist"""
         wl_data = self.get_watchlist(wlname)
@@ -218,22 +217,22 @@ def search_scrip(self, tsym, exch="NSE"):
         return tokens, symbols
 
     def get_token_for_symbol(self, exch: str, tsym: str) -> str | None:
-    """
-    Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
-    Returns: 'EXCH|TOKEN' format (same as search_scrip).
-    Uses cache to avoid repeated lookups.
-    """
-    key = f"{exch}|{tsym}"
-    if key in self._token_cache:
-        return self._token_cache[key]
+        """
+        Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
+        Returns: 'EXCH|TOKEN' format (same as search_scrip).
+        Uses cache to avoid repeated lookups.
+        """
+        key = f"{exch}|{tsym}"
+        if key in self._token_cache:
+            return self._token_cache[key]
 
-    token_str = self.search_scrip(tsym, exch=exch)  # already returns 'EXCH|TOKEN'
-    if token_str:
-        self._token_cache[key] = token_str
-        return token_str
+        token_str = self.search_scrip(tsym, exch=exch)  # already returns 'EXCH|TOKEN'
+        if token_str:
+            self._token_cache[key] = token_str
+            return token_str
 
-    print(f"⚠️ Token resolve failed for {exch}|{tsym}")
-    return None
+        print(f"⚠️ Token resolve failed for {exch}|{tsym}")
+        return None
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/AddMultiScripsToMW"
@@ -634,4 +633,5 @@ def search_scrip(self, tsym, exch="NSE"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
