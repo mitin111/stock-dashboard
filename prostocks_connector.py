@@ -129,48 +129,47 @@ class ProStocksAPI:
         self.feed_token = None
         print("👋 Logged out successfully")
 
-            # ----------------- Search Scrip -----------------
-def search_scrip(self, tsym, exch="NSE"):
-    """
-    Search for a symbol in ProStocks.
-    tsym: Trading symbol (e.g. 'TATAMOTORS-EQ')
-    exch: Exchange ('NSE' or 'BSE')
-    Returns: 'EXCH|TOKEN' string if found, else None
-    """
-    try:
-        url = f"{self.base_url}/SearchScrip"
-        jdata = {
-            "uid": self.userid,
-            "exch": exch,
-            "stext": tsym
-        }
-        payload = {
-            "jData": json.dumps(jdata),
-            "jKey": self.jkey
-        }
+           # ----------------- Search Scrip -----------------
+    def search_scrip(self, tsym, exch="NSE"):
+        """
+        Search for a symbol in ProStocks.
+        tsym: Trading symbol (e.g. 'TATAMOTORS-EQ')
+        exch: Exchange ('NSE' or 'BSE')
+        Returns: 'EXCH|TOKEN' string if found, else None
+        """
+        try:
+            url = f"{self.base_url}/SearchScrip"
+            jdata = {
+                "uid": self.userid,
+                "exch": exch,
+                "stext": tsym
+            }
+            payload = {
+                "jData": json.dumps(jdata),
+                "jKey": self.jkey
+            }
 
-        resp = requests.post(url, data=payload).json()
-        # Debug print
-        # print("🔍 SearchScrip resp:", resp)
+            resp = requests.post(url, data=payload).json()
+            if resp and resp.get("stat") == "Ok":
+                values = resp.get("values", [])
+                if values and "token" in values[0]:
+                    token = values[0]["token"]
+                    return f"{exch}|{token}"   # ✅ Return proper format
+            return None
+        except Exception as e:
+            print(f"⚠️ search_scrip error: {e}")
+            return None
 
-        if resp and resp.get("stat") == "Ok":
-            values = resp.get("values", [])
-            if values and "token" in values[0]:
-                token = values[0]["token"]
-                return f"{exch}|{token}"   # ✅ Return proper format
-        return None
-    except Exception as e:
-        print(f"⚠️ search_scrip error: {e}")
-        return None
-
-        # ------------- Core POST helper -------------
+    # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
             return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             raw_data = f"jData={jdata}&jKey={self.session_token}"
-            resp = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=20)
+            resp = self.session.post(url, data=raw_data,
+                                     headers={"Content-Type": "text/plain"},
+                                     timeout=20)
             return resp.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
@@ -633,6 +632,7 @@ def search_scrip(self, tsym, exch="NSE"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
