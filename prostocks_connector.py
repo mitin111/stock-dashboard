@@ -451,7 +451,7 @@ class ProStocksAPI:
             self.is_ws_connected = True
             print("✅ WebSocket Connected")
             try:
-                sub_req = {"t": "t", "k": "#".join(subs)}
+                sub_req = {"t": "t", "k": ",".join(subs)}  # ✅ Correct format
                 ws.send(json.dumps(sub_req))
                 print(f"📡 Subscribed to tokens: {subs}")
             except Exception as e:
@@ -626,6 +626,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
