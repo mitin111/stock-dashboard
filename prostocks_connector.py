@@ -447,196 +447,216 @@ class ProStocksAPI:
         self.subscribed_tokens = subs
 
         # --- WebSocket Callbacks ---
-        def on_open(ws):
-            self.is_ws_connected = True
-            print("✅ WebSocket Connected")
+def on_open(ws):
+    self.is_ws_connected = True
+    print("✅ WebSocket Connected")
+
+    # abhi yaha se har token subscribe hoga
+    try:
+        for token in self._sub_tokens:
+            sub_req = {"t": "t", "k": token}
+            ws.send(json.dumps(sub_req))
+            print(f"📡 Subscribed to {token}")
+    except Exception as e:
+        print("❌ Subscription error:", e)
+
+
+def on_message(ws, message):
+    try:
+        data = json.loads(message)
+        print("📥 Raw Tick:", data)   # debug
+
+        # tick handler call
+        if data.get("t") == "tk":   # tick type
+            if hasattr(self, "on_tick") and callable(self.on_tick):
+                self.on_tick(data)
+            if hasattr(self, "_tick_buffer"):
+                self._tick_buffer.append(data)
+            print(f"✅ Tick received: {data.get('tk')} LTP={data.get('lp')}")
+    except Exception as e:
+        print("⚠️ Tick parse error:", e)
+
+
+def on_error(ws, error):
+    print("⚠️ WebSocket Error:", error)
+
+
+def on_close(ws, close_status_code, close_msg):
+    self.is_ws_connected = False
+    print("❌ WebSocket Closed:", close_status_code, close_msg)
+
+
+# --- Heartbeat Thread ---
+def send_ping(ws):
+    while True:
+        if getattr(self, "is_ws_connected", False):
             try:
-                sub_req = {"t": "t", "k": ",".join(subs)}  # ✅ Correct format
-                ws.send(json.dumps(sub_req))
-                print(f"📡 Subscribed to tokens: {subs}")
+                ws.send(json.dumps({"t": "h"}))
             except Exception as e:
-                print("❌ Subscription error:", e)
+                print("⚠️ Ping error:", e)
+        time.sleep(30)
 
-        def on_message(ws, message):
-            try:
-                data = json.loads(message)
-                if hasattr(self, "on_tick") and callable(self.on_tick):
-                    self.on_tick(data)
-                if hasattr(self, "_tick_buffer"):
-                    self._tick_buffer.append(data)
-            except Exception as e:
-                print("⚠️ Tick parse error:", e)
 
-        def on_error(ws, error):
-            print("⚠️ WebSocket Error:", error)
+# --- Start WebSocket ---
+import websocket, threading
 
-        def on_close(ws, close_status_code, close_msg):
-            self.is_ws_connected = False
-            print("❌ WebSocket Closed:", close_status_code, close_msg)
+ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-        # --- Heartbeat Thread ---
-        def send_ping(ws):
-            while True:
-                if getattr(self, "is_ws_connected", False):
-                    try:
-                        ws.send(json.dumps({"t": "h"}))
-                    except Exception as e:
-                        print("⚠️ Ping error:", e)
-                time.sleep(30)
+self.ws = websocket.WebSocketApp(
+    ws_url,
+    on_open=on_open,
+    on_message=on_message,
+    on_error=on_error,
+    on_close=on_close,
+)
 
-        # --- Start WebSocket ---
-        import websocket, threading
+# Start heartbeat
+threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
 
-        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-        print(f"🔗 Connecting to WebSocket: {ws_url}")
+# Run WebSocket in a background thread
+self.wst = threading.Thread(
+    target=self.ws.run_forever,
+    kwargs={"ping_interval": 30, "ping_timeout": 10},
+    daemon=True,
+)
+self.wst.start()
 
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-        )
-
-        # Start heartbeat
-        threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
-
-        # Run WebSocket in a background thread
-        self.wst = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"ping_interval": 30, "ping_timeout": 10},
-            daemon=True,
-        )
-        self.wst.start()
-
-    # ------------------------------------------------
-    # Start WebSocket for single symbol
-    # ------------------------------------------------
-    def start_websocket_for_symbol(self, symbol):
-        self.start_websocket_for_symbols([symbol])
-
-    # ------------------------------------------------
-    # Stop WebSocket
-    # ------------------------------------------------
-    def stop_websocket(self):
-        try:
-            if self.ws:
-                self.ws.close()
-                print("🛑 WebSocket stopped")
-        except Exception as e:
-            print("❌ stop_websocket error:", e)
-
-    # ------------------------------------------------
-    # Get latest ticks from buffer
-    # ------------------------------------------------
-    def get_latest_ticks(self, n=20):
-        return list(self._tick_buffer)[-n:]
 
 # ------------------------------------------------
-    # Tick handler (override for Streamlit)
-    # ------------------------------------------------
-    def on_tick(self, tick):
-        import streamlit as st
-        try:
-            ltp = tick.get("lp") or tick.get("ltp")
-            if ltp:
-                ts = pd.Timestamp.now()
-                if "live_ticks" not in st.session_state:
-                    st.session_state["live_ticks"] = []
-                st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-                print(f"📈 Tick: {ts} -> {ltp}")
-            
-            # Also keep ticks in buffer for build_live_candles
-            if hasattr(self, "_tick_buffer"):
-                self._tick_buffer.append(tick)
-        except Exception as e:
-            print("❌ Tick handler error:", e)
+# Start WebSocket for single symbol
+# ------------------------------------------------
+def start_websocket_for_symbol(self, symbol):
+    self._sub_tokens = [symbol]
+    self.start_websocket_for_symbols([symbol])
 
-    # ------------------------------------------------
-    # Build live candles from ticks
-    # ------------------------------------------------
-    def build_live_candles(self, interval="1min"):
-        ticks = list(self._tick_buffer)
-        print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
 
-        if not ticks:
-            return self._live_candles
+# ------------------------------------------------
+# Stop WebSocket
+# ------------------------------------------------
+def stop_websocket(self):
+    try:
+        if self.ws:
+            self.ws.close()
+            print("🛑 WebSocket stopped")
+    except Exception as e:
+        print("❌ stop_websocket error:", e)
 
-        rows = []
-        for tick in ticks:
-            try:
-                ts = datetime.fromtimestamp(int(tick.get("ft", time.time() * 1000)) / 1000)
-            except:
-                ts = datetime.now()
-            minute = ts.replace(second=0, microsecond=0)
-            price = float(tick.get("lp") or tick.get("ltp") or 0)
-            vol = int(tick.get("v", 0))
 
-            rows.append([minute, price, vol])
+# ------------------------------------------------
+# Get latest ticks from buffer
+# ------------------------------------------------
+def get_latest_ticks(self, n=20):
+    return list(self._tick_buffer)[-n:]
 
-        df_new = pd.DataFrame(rows, columns=["Datetime", "Price", "Volume"])
-        if df_new.empty:
-            return self._live_candles
 
-        # aggregate OHLCV per minute
-        agg = df_new.groupby("Datetime").agg(
-            Open=("Price", "first"),
-            High=("Price", "max"),
-            Low=("Price", "min"),
-            Close=("Price", "last"),
-            Volume=("Volume", "sum"),
-        ).reset_index()
+# ------------------------------------------------
+# Tick handler (override for Streamlit)
+# ------------------------------------------------
+def on_tick(self, tick):
+    import streamlit as st
+    try:
+        ltp = tick.get("lp") or tick.get("ltp")
+        if ltp:
+            ts = pd.Timestamp.now()
+            if "live_ticks" not in st.session_state:
+                st.session_state["live_ticks"] = []
+            st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
+            print(f"📈 Tick: {ts} -> {ltp}")
+        
+        # Also keep ticks in buffer for build_live_candles
+        if hasattr(self, "_tick_buffer"):
+            self._tick_buffer.append(tick)
+    except Exception as e:
+        print("❌ Tick handler error:", e)
 
-        if self._live_candles.empty:
-            self._live_candles = agg
-        else:
-            self._live_candles = (
-                pd.concat([self._live_candles, agg], ignore_index=True)
-                .drop_duplicates(subset=["Datetime"], keep="last")
-                .sort_values("Datetime")
-            )
 
+# ------------------------------------------------
+# Build live candles from ticks
+# ------------------------------------------------
+def build_live_candles(self, interval="1min"):
+    ticks = list(self._tick_buffer)
+    print(f"🕐 build_live_candles called, total ticks={len(ticks)}")
+
+    if not ticks:
         return self._live_candles
 
-    # ------------------------------------------------
-    # Chart Helper
-    # ------------------------------------------------
-    def show_combined_chart(self, df_hist, interval="1min", refresh=10):
-        import plotly.graph_objects as go
-
-        df_hist = df_hist.copy()
-        fig = go.Figure()
-
-        def update_chart():
-            df_live = self.build_live_candles(interval)
-
-            df_all = pd.concat([df_hist, df_live], ignore_index=True)
-            df_all = df_all.drop_duplicates(subset=["Datetime"], keep="last")
-            df_all = df_all.sort_values("Datetime")
-
-            fig.data = []
-            fig.add_trace(
-                go.Candlestick(
-                    x=df_all["Datetime"],
-                    open=df_all["Open"],
-                    high=df_all["High"],
-                    low=df_all["Low"],
-                    close=df_all["Close"],
-                    name="Candles",
-                )
-            )
-            fig.update_layout(
-                title="Historical + Live Candles",
-                xaxis_rangeslider_visible=False,
-                template="plotly_dark",
-                height=600,
-            )
-            fig.show()
-
-        print("📊 Live chart running... (close chart window to stop)")
+    rows = []
+    for tick in ticks:
         try:
-            while True:
-                update_chart()
-                time.sleep(refresh)
-        except KeyboardInterrupt:
-            print("🛑 Chart stopped")
+            ts = datetime.fromtimestamp(int(tick.get("ft", time.time() * 1000)) / 1000)
+        except:
+            ts = datetime.now()
+        minute = ts.replace(second=0, microsecond=0)
+        price = float(tick.get("lp") or tick.get("ltp") or 0)
+        vol = int(tick.get("v", 0))
+
+        rows.append([minute, price, vol])
+
+    df_new = pd.DataFrame(rows, columns=["Datetime", "Price", "Volume"])
+    if df_new.empty:
+        return self._live_candles
+
+    # aggregate OHLCV per minute
+    agg = df_new.groupby("Datetime").agg(
+        Open=("Price", "first"),
+        High=("Price", "max"),
+        Low=("Price", "min"),
+        Close=("Price", "last"),
+        Volume=("Volume", "sum"),
+    ).reset_index()
+
+    if self._live_candles.empty:
+        self._live_candles = agg
+    else:
+        self._live_candles = (
+            pd.concat([self._live_candles, agg], ignore_index=True)
+            .drop_duplicates(subset=["Datetime"], keep="last")
+            .sort_values("Datetime")
+        )
+
+    return self._live_candles
+
+
+# ------------------------------------------------
+# Chart Helper
+# ------------------------------------------------
+def show_combined_chart(self, df_hist, interval="1min", refresh=10):
+    import plotly.graph_objects as go
+
+    df_hist = df_hist.copy()
+    fig = go.Figure()
+
+    def update_chart():
+        df_live = self.build_live_candles(interval)
+
+        df_all = pd.concat([df_hist, df_live], ignore_index=True)
+        df_all = df_all.drop_duplicates(subset=["Datetime"], keep="last")
+        df_all = df_all.sort_values("Datetime")
+
+        fig.data = []
+        fig.add_trace(
+            go.Candlestick(
+                x=df_all["Datetime"],
+                open=df_all["Open"],
+                high=df_all["High"],
+                low=df_all["Low"],
+                close=df_all["Close"],
+                name="Candles",
+            )
+        )
+        fig.update_layout(
+            title="Historical + Live Candles",
+            xaxis_rangeslider_visible=False,
+            template="plotly_dark",
+            height=600,
+        )
+        fig.show()
+
+    print("📊 Live chart running... (close chart window to stop)")
+    try:
+        while True:
+            update_chart()
+            time.sleep(refresh)
+    except KeyboardInterrupt:
+        print("🛑 Chart stopped")
