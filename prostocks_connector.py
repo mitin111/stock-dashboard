@@ -427,9 +427,19 @@ class ProStocksAPI:
         print("❌ WebSocket Closed", code, msg)
 
 # ------------------------------------------------
-# Start WebSocket for multiple symbols
+# Start WebSocket for multiple symbols (watchlist or symbol list)
 # ------------------------------------------------
 def start_websocket_for_symbols(self, symbols, interval="1"):
+    """
+    Start WebSocket connection and subscribe to tick data.
+
+    symbols:
+        - str  : watchlist name (e.g. "Watchlist1")
+        - list : list of symbol strings (e.g. ["TATAMOTORS-EQ", "INFY-EQ"])
+    interval:
+        - timeframe for candle builder (default "1" minute)
+    """
+
     if not self.is_logged_in or not self.feed_token:
         print("❌ Login first before starting WebSocket")
         return
@@ -444,15 +454,33 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
     elif isinstance(symbols, list):
         for sym in symbols:
             exch, name = "NSE", sym.replace("-EQ", "")
-            token = self.search_scrip(exch, name)
+            token = self.search_scrip(name, exch=exch)
             if token:
                 token_list.append(f"{exch}|{token}")
             else:
                 print(f"⚠️ Token not found for {sym}")
 
+    # Check if tokens found
     if not token_list:
         print("⚠️ No valid tokens found for subscription")
         return
+
+    # Ensure WebSocket client exists
+    if not hasattr(self, "ws") or self.ws is None:
+        self.start_websocket()
+
+    # Build subscription payload
+    sub_req = {
+        "t": "t",
+        "k": "#".join(token_list)
+    }
+
+    try:
+        self.ws.send(json.dumps(sub_req))
+        print(f"✅ Subscribed to WebSocket: {token_list}")
+    except Exception as e:
+        print(f"⚠️ WebSocket subscription failed: {e}")
+
 
     # --- WebSocket URL ---
     ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
@@ -638,6 +666,7 @@ def stop_websocket(self):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
