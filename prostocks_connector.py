@@ -532,12 +532,26 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-    # ------------------------------------------------
-    # Tick handler (override in your app)
+     # ------------------------------------------------
+    # Tick handler (override for Streamlit)
     # ------------------------------------------------
     def on_tick(self, tick):
-        print("Tick:", tick)
-
+    import streamlit as st
+    try:
+        ltp = tick.get("lp") or tick.get("ltp")
+        if ltp:
+            ts = pd.Timestamp.now()
+            if "live_ticks" not in st.session_state:
+                st.session_state["live_ticks"] = []
+            st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
+            print(f"📈 Tick: {ts} -> {ltp}")
+        
+        # Also keep ticks in buffer for build_live_candles
+        if hasattr(self, "_tick_buffer"):
+            self._tick_buffer.append(tick)
+    except Exception as e:
+        print("❌ Tick handler error:", e)
+        
     # ------------------------------------------------
     # Build live candles from ticks
     # ------------------------------------------------
@@ -626,6 +640,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
