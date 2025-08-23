@@ -218,26 +218,22 @@ def search_scrip(self, tsym, exch="NSE"):
         return tokens, symbols
 
     def get_token_for_symbol(self, exch: str, tsym: str) -> str | None:
-        """
-        Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
-        Caches results to avoid rate limits.
-        """
-        key = f"{exch}|{tsym}"
-        if key in self._token_cache:
-            return self._token_cache[key]
+    """
+    Resolve tradingsymbol like 'TATAMOTORS-EQ' to numeric token string.
+    Returns: 'EXCH|TOKEN' format (same as search_scrip).
+    Uses cache to avoid repeated lookups.
+    """
+    key = f"{exch}|{tsym}"
+    if key in self._token_cache:
+        return self._token_cache[key]
 
-        resp = self.search_scrip(tsym, exch=exch)
-        try:
-            if isinstance(resp, dict) and resp.get("stat") == "Ok":
-                values = resp.get("values") or []
-                if values:
-                    token = str(values[0]["token"])
-                    self._token_cache[key] = token
-                    return token
-            print(f"⚠️ Token resolve failed for {key}: {resp}")
-        except Exception as e:
-            print(f"❌ get_token_for_symbol error for {key}: {e}")
-        return None
+    token_str = self.search_scrip(tsym, exch=exch)  # already returns 'EXCH|TOKEN'
+    if token_str:
+        self._token_cache[key] = token_str
+        return token_str
+
+    print(f"⚠️ Token resolve failed for {exch}|{tsym}")
+    return None
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/AddMultiScripsToMW"
@@ -638,3 +634,4 @@ def search_scrip(self, tsym, exch="NSE"):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
