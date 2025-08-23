@@ -532,9 +532,9 @@ class ProStocksAPI:
     def get_latest_ticks(self, n=20):
         return list(self._tick_buffer)[-n:]
 
-     # ------------------------------------------------
-    # Tick handler (override for Streamlit)
     # ------------------------------------------------
+# Tick handler (override for Streamlit)
+# ------------------------------------------------
     def on_tick(self, tick):
     import streamlit as st
     try:
@@ -640,6 +640,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
