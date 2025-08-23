@@ -460,27 +460,9 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
             else:
                 print(f"⚠️ Token not found for {sym}")
 
-    # Check if tokens found
     if not token_list:
         print("⚠️ No valid tokens found for subscription")
         return
-
-    # Ensure WebSocket client exists
-    if not hasattr(self, "ws") or self.ws is None:
-        self.start_websocket()
-
-    # Build subscription payload
-    sub_req = {
-        "t": "t",
-        "k": "#".join(token_list)
-    }
-
-    try:
-        self.ws.send(json.dumps(sub_req))
-        print(f"✅ Subscribed to WebSocket: {token_list}")
-    except Exception as e:
-        print(f"⚠️ WebSocket subscription failed: {e}")
-
 
     # --- WebSocket URL ---
     ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
@@ -522,7 +504,6 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
             if self.is_ws_connected:
                 try:
                     ws.send(json.dumps({"t": "h"}))
-                    print("💓 Ping sent")
                 except Exception as e:
                     print("⚠️ Ping error:", e)
             time.sleep(30)
@@ -546,7 +527,6 @@ def start_websocket_for_symbols(self, symbols, interval="1"):
         daemon=True,
     )
     self.wst.start()
-
 
 # ------------------------------------------------
 # Start WebSocket for single symbol
@@ -666,6 +646,7 @@ def stop_websocket(self):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
