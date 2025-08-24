@@ -461,7 +461,7 @@ class ProStocksAPI:
                 sub_key = "#".join(self._sub_tokens)   # join multiple tokens
                 sub_req = {"t": "t", "k": sub_key}
                 ws.send(json.dumps(sub_req))
-                    print(f"📡 Sent subscription for {token}")
+                print(f"📡 Sent subscription for {token}")          
             except Exception as e:
                 print("❌ Subscription error:", e)
 
@@ -646,6 +646,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
