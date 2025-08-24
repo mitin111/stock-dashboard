@@ -473,8 +473,8 @@ class ProStocksAPI:
                         self.on_tick(data)
                     self._tick_buffer.append(data)
                     print(f"✅ Tick: {data.get('tk')} LTP={data.get('lp')}")
-                elif data.get("t") == "ok":   # subscription ack
-                    print("✅ Subscription confirmed:", data)
+                elif data.get("t") == "ck" and data.get("stat") == "Ok":  # subscription ack
+                    print(f"✅ Subscription confirmed for {data.get('k')}: {data}")
                 elif data.get("t") == "e":    # error from server
                     print("❌ Subscription error:", data)
                 else:
@@ -645,5 +645,6 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
