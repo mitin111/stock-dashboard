@@ -432,7 +432,7 @@ class ProStocksAPI:
 # ==========================
     # WebSocket: Subscribe to multiple symbols
     # ==========================
-    def start_websocket_for_symbols(self, symbols):
+        def start_websocket_for_symbols(self, symbols):
         """
         Starts WebSocket and subscribes to live ticks for given symbols.
         symbols: list of dicts with { 'exch': 'NSE', 'token': '22' }
@@ -466,14 +466,20 @@ class ProStocksAPI:
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                # Debug raw tick
-                # print("📥 Raw Tick:", data)
+                print("📥 Server Msg:", data)  # Debug all server msgs
 
                 if data.get("t") == "tk":   # tick packet
                     if hasattr(self, "on_tick") and callable(self.on_tick):
                         self.on_tick(data)
                     self._tick_buffer.append(data)
                     print(f"✅ Tick: {data.get('tk')} LTP={data.get('lp')}")
+                elif data.get("t") == "ok":   # subscription ack
+                    print("✅ Subscription confirmed:", data)
+                elif data.get("t") == "e":    # error from server
+                    print("❌ Subscription error:", data)
+                else:
+                    print("ℹ️ Other Msg:", data)
+
             except Exception as e:
                 print("⚠️ Tick parse error:", e)
 
@@ -640,3 +646,4 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
