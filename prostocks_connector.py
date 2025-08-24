@@ -434,7 +434,7 @@ def _on_close(self, ws, code, msg):
     # ==========================
     # WebSocket: Subscribe to multiple symbols
     # ==========================
-    def start_websocket_for_symbols(self, symbols):
+def start_websocket_for_symbols(self, symbols):
         """
         Starts WebSocket and subscribes to live ticks for given symbols.
         symbols: list of dicts with { 'exch': 'NSE', 'token': '22' }
@@ -521,7 +521,7 @@ def _on_close(self, ws, code, msg):
             daemon=True,
         )
         self.wst.start()
-
+    
 # ==========================
 # Start WebSocket for single symbol
 # ==========================
@@ -646,6 +646,7 @@ def stop_websocket(self):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
