@@ -452,26 +452,44 @@ def subscribe_symbol(self, symbol_token):
     except Exception as e:
         print(f"❌ Subscription error: {e}")
 
-# ==========================
-# WebSocket: Subscribe to multiple symbols
-# ==========================
-def start_websocket_for_symbols(self, symbols):
-    """
-    Starts WebSocket and subscribes to live ticks for given symbols.
-    symbols: list of dicts with { 'exch': 'NSE', 'token': '22' }
-    Example: [{"exch":"NSE", "token":"11872"}, {"exch":"NSE", "token":"3045"}]
-    """
-    if not symbols or not isinstance(symbols, list):
-        print("⚠️ No symbols provided for WebSocket subscription")
-        return
+    # ==========================
+    # WebSocket: Subscribe to multiple symbols
+    # ==========================
+    def start_websocket_for_symbols(self, symbols):
+        """
+        Starts WebSocket and subscribes to live ticks for given symbols.
 
-    subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
-    if not subs:
-        print("⚠️ No valid tokens found for subscription")
-        return
+        symbols can be either:
+        - List of dicts: [{"exch":"NSE", "token":"11872"}, {"exch":"NSE", "token":"3045"}]
+        - OR list of strings: ["NSE|3456", "NSE|11536"]
+        """
 
-    self.subscribed_tokens = subs
-    self._sub_tokens = subs  # for later use
+        if not symbols or not isinstance(symbols, list):
+            print("⚠️ No symbols provided for WebSocket subscription")
+            return
+
+        # --- Normalize symbols ---
+        if isinstance(symbols[0], dict):
+            subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
+        else:
+            subs = symbols  # already ["NSE|3456", "NSE|11536"]
+
+        if not subs:
+            print("⚠️ No valid tokens found for subscription")
+            return
+
+        self.subscribed_tokens = subs
+        self._sub_tokens = subs
+
+        # --- WebSocket Connect ---
+        self.start_websocket()
+
+        # --- Delayed subscription after connection ---
+        def run():
+            for tk in self._sub_tokens:
+                self.subscribe_symbol(tk)
+
+        threading.Timer(1.5, run).start()
 
     # --- WebSocket Callbacks ---
     def on_open(ws):
@@ -663,6 +681,7 @@ def start_websocket_for_symbols(self, symbols):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
