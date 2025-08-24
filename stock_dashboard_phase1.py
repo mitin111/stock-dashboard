@@ -3,6 +3,7 @@
 import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
+print(dir(ProStocksAPI))
 from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime, timedelta
 import time
@@ -415,3 +416,4 @@ elif _thread_error.get("error"):
     live_container.warning(f"Live update error: {_thread_error['error']}")
 else:
     live_container.info("⏳ Waiting for live ticks...")
+
