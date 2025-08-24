@@ -384,57 +384,57 @@ class ProStocksAPI:
                 break
         return results
 
-              # ------------------ WebSocket (thread-safe buffer) ------------------
-def _on_open(self, ws):
-    self.is_ws_connected = True
-    print("✅ WebSocket Connected")
+             # ------------------ WebSocket (thread-safe buffer) ------------------ 
+    def _on_open(self, ws):
+        self.is_ws_connected = True
+        print("✅ WebSocket Connected")
 
-def subscribe_tokens(self, tokens):
-    """
-    Subscribe tokens to WebSocket
-    tokens: list of "EXCH|TOKEN"
-    """
-    if not self.ws:
-        print("⚠️ WebSocket not connected.")
-        return
+    def subscribe_tokens(self, tokens):
+        """
+        Subscribe tokens to WebSocket
+        tokens: list of "EXCH|TOKEN"
+        """
+        if not self.ws:
+            print("⚠️ WebSocket not connected.")
+            return
 
-    try:
-        for token in tokens:
-            sub_req = {"t": "t", "k": token}
-            self.ws.send(json.dumps(sub_req))
-            print(f"📡 Sent subscription for {token}")
-    except Exception as e:
-        print("❌ Subscription error:", e)
+        try:
+            for token in tokens:
+                sub_req = {"t": "t", "k": token}
+                self.ws.send(json.dumps(sub_req))
+                print(f"📡 Sent subscription for {token}")
+        except Exception as e:
+            print("❌ Subscription error:", e)
 
-def _on_message(self, ws, message):
-    try:
-        import streamlit as st
-        tick = json.loads(message)
-        print("✅ Raw tick received:", tick)   # 👈 Debug add karo
-        self._tick_buffer.append(tick)
+    def _on_message(self, ws, message):
+        try:
+            import streamlit as st
+            tick = json.loads(message)
+            print("✅ Raw tick received:", tick)
+            self._tick_buffer.append(tick)
 
-        # ---- Streamlit live chart ke liye LTP extract ----
-        ltp = tick.get("lp") or tick.get("ltp")
-        if ltp:
-            ts = datetime.now()
-            if "live_ticks" not in st.session_state:
-                st.session_state["live_ticks"] = []
-            st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-            print(f"📈 Tick parsed: time={ts}, price={ltp}")  # 👈 Debug add karo
-    except Exception as e:
-        print("❌ Tick parse error:", e)
+            # ---- Streamlit live chart ke liye LTP extract ----
+            ltp = tick.get("lp") or tick.get("ltp")
+            if ltp:
+                ts = datetime.now()
+                if "live_ticks" not in st.session_state:
+                    st.session_state["live_ticks"] = []
+                st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
+                print(f"📈 Tick parsed: time={ts}, price={ltp}")
+        except Exception as e:
+            print("❌ Tick parse error:", e)
 
-def _on_error(self, ws, error):
-    print("❌ WebSocket Error:", error)
+    def _on_error(self, ws, error):
+        print("❌ WebSocket Error:", error)
 
-def _on_close(self, ws, code, msg):
-    self.is_ws_connected = False
-    print("❌ WebSocket Closed", code, msg)
+    def _on_close(self, ws, code, msg):
+        self.is_ws_connected = False
+        print("❌ WebSocket Closed", code, msg)
 
     # ==========================
     # WebSocket: Subscribe to multiple symbols
     # ==========================
-def start_websocket_for_symbols(self, symbols):
+    def start_websocket_for_symbols(self, symbols):
         """
         Starts WebSocket and subscribes to live ticks for given symbols.
         symbols: list of dicts with { 'exch': 'NSE', 'token': '22' }
@@ -468,7 +468,7 @@ def start_websocket_for_symbols(self, symbols):
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                print("📥 Server Msg:", data)  # Debug all server msgs
+                print("📥 Server Msg:", data)
 
                 if data.get("t") == "tk":   # tick packet
                     self._tick_buffer.append(data)
@@ -521,23 +521,23 @@ def start_websocket_for_symbols(self, symbols):
             daemon=True,
         )
         self.wst.start()
-    
-# ==========================
-# Start WebSocket for single symbol
-# ==========================
-def start_websocket_for_symbol(self, symbol):
-    self.start_websocket_for_symbols([symbol])
 
-# ==========================
-# Stop WebSocket
-# ==========================
-def stop_websocket(self):
-    try:
-        if self.ws:
-            self.ws.close()
-            print("🛑 WebSocket stopped")
-    except Exception as e:
-        print("❌ stop_websocket error:", e)
+    # ==========================
+    # Start WebSocket for single symbol
+    # ==========================
+    def start_websocket_for_symbol(self, symbol):
+        self.start_websocket_for_symbols([symbol])
+
+    # ==========================
+    # Stop WebSocket
+    # ==========================
+    def stop_websocket(self):
+        try:
+            if self.ws:
+                self.ws.close()
+                print("🛑 WebSocket stopped")
+        except Exception as e:
+            print("❌ stop_websocket error:", e)
 
     # ==========================
     # Get latest ticks from buffer
@@ -646,6 +646,7 @@ def stop_websocket(self):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
