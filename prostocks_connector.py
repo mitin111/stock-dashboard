@@ -400,9 +400,7 @@ class ProStocksAPI:
 
         try:
             for tk in self._sub_tokens:
-                sub_req = {"t": "t", "k": tk, "ft": "d"}  # ✅ feed_type add
-                ws.send(json.dumps(sub_req))
-                print(f"📡 Sent subscription for {tk} with feed_type=d")
+                self.subscribe_symbol("NSE|3456")
         except Exception as e:
             print("❌ Subscription error:", e)
 
@@ -665,6 +663,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
