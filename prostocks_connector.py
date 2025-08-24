@@ -459,9 +459,9 @@ class ProStocksAPI:
 
             try:
                 for tk in self._sub_tokens:
-                    sub_req = {"t": "t", "k": tk}
+                    sub_req = {"t": "t", "k": tk, "ft": "d"}
                     ws.send(json.dumps(sub_req))
-                    print(f"📡 Sent subscription for {tk}")
+                    print(f"📡 Sent subscription for {tk} with feed_type=d")
             except Exception as e:
                 print("❌ Subscription error:", e)
 
@@ -645,6 +645,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
