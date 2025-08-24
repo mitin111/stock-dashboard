@@ -435,92 +435,93 @@ class ProStocksAPI:
     # WebSocket: Subscribe to multiple symbols
     # ==========================
     def start_websocket_for_symbols(self, symbols):
-        """
-        Starts WebSocket and subscribes to live ticks for given symbols.
-        symbols: list of dicts with { 'exch': 'NSE', 'token': '22' }
-        Example: [{"exch":"NSE", "token":"11872"}, {"exch":"NSE", "token":"3045"}]
-        """
-        if not symbols or not isinstance(symbols, list):
-            print("⚠️ No symbols provided for WebSocket subscription")
-            return
+    """
+    Starts WebSocket and subscribes to live ticks for given symbols.
+    symbols: list of dicts with { 'exch': 'NSE', 'token': '22' }
+    Example: [{"exch":"NSE", "token":"11872"}, {"exch":"NSE", "token":"3045"}]
+    """
+    if not symbols or not isinstance(symbols, list):
+        print("⚠️ No symbols provided for WebSocket subscription")
+        return
 
-        subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
-        if not subs:
-            print("⚠️ No valid tokens found for subscription")
-            return
+    subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
+    if not subs:
+        print("⚠️ No valid tokens found for subscription")
+        return
 
-        self.subscribed_tokens = subs
-        self._sub_tokens = subs  # for later use
+    self.subscribed_tokens = subs
+    self._sub_tokens = subs  # for later use
 
-        # --- WebSocket Callbacks ---
-        def on_open(ws):
-            self.is_ws_connected = True
-            print("✅ WebSocket Connected")
+    # --- WebSocket Callbacks ---
+    def on_open(ws):
+        self.is_ws_connected = True
+        print("✅ WebSocket Connected")
 
-            try:
-                sub_key = "#".join(self._sub_tokens)   # join multiple tokens
-                sub_req = {"t": "t", "k": sub_key}
+        try:
+            # ✅ Har token alag se subscribe karo
+            for tk in self._sub_tokens:
+                sub_req = {"t": "t", "k": tk}
                 ws.send(json.dumps(sub_req))
-                print(f"📡 Sent subscription for {token}")          
-            except Exception as e:
-                print("❌ Subscription error:", e)
+                print(f"📡 Sent subscription for {tk}")
+        except Exception as e:
+            print("❌ Subscription error:", e)
 
-        def on_message(ws, message):
-            try:
-                data = json.loads(message)
-                print("📥 Server Msg:", data)
+    def on_message(ws, message):
+        try:
+            data = json.loads(message)
+            print("📥 Server Msg:", data)
 
-                if data.get("t") == "tk":   # tick packet
-                    self._tick_buffer.append(data)
-                    print(f"✅ Tick: {data.get('tk')} LTP={data.get('lp')}")
-                elif data.get("t") == "ck" and data.get("stat") == "Ok":  # subscription ack
-                    print(f"✅ Subscription confirmed for {data.get('k')}: {data}")
-                elif data.get("t") == "e":    # error from server
-                    print("❌ Subscription error:", data)
-                else:
-                    print("ℹ️ Other Msg:", data)
+            if data.get("t") == "tk":   # tick packet
+                self._tick_buffer.append(data)
+                print(f"✅ Tick: {data.get('tk')} LTP={data.get('lp')}")
+            elif data.get("t") == "ck" and data.get("stat") == "Ok":  # subscription ack
+                print(f"✅ Subscription confirmed for {data.get('k')}: {data}")
+            elif data.get("t") == "e":    # error from server
+                print("❌ Subscription error:", data)
+            else:
+                print("ℹ️ Other Msg:", data)
 
-            except Exception as e:
-                print("⚠️ Tick parse error:", e)
+        except Exception as e:
+            print("⚠️ Tick parse error:", e)
 
-        def on_error(ws, error):
-            print("⚠️ WebSocket Error:", error)
+    def on_error(ws, error):
+        print("⚠️ WebSocket Error:", error)
 
-        def on_close(ws, close_status_code, close_msg):
-            self.is_ws_connected = False
-            print("❌ WebSocket Closed:", close_status_code, close_msg)
+    def on_close(ws, close_status_code, close_msg):
+        self.is_ws_connected = False
+        print("❌ WebSocket Closed:", close_status_code, close_msg)
 
-        # --- Heartbeat Thread ---
-        def send_ping(ws):
-            while True:
-                if self.is_ws_connected:
-                    try:
-                        ws.send(json.dumps({"t": "h"}))
-                    except Exception as e:
-                        print("⚠️ Ping error:", e)
-                time.sleep(30)
+    # --- Heartbeat Thread ---
+    def send_ping(ws):
+        while True:
+            if self.is_ws_connected:
+                try:
+                    ws.send(json.dumps({"t": "h"}))
+                except Exception as e:
+                    print("⚠️ Ping error:", e)
+            time.sleep(30)
 
-        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-        print(f"🔗 Connecting to WebSocket: {ws_url}")
+    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+    print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-        )
+    self.ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=on_open,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close,
+    )
 
-        # Start heartbeat
-        threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
+    # Start heartbeat
+    threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
 
-        # Run WebSocket in a background thread
-        self.wst = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"ping_interval": 30, "ping_timeout": 10},
-            daemon=True,
-        )
-        self.wst.start()
+    # Run WebSocket in a background thread
+    self.wst = threading.Thread(
+        target=self.ws.run_forever,
+        kwargs={"ping_interval": 30, "ping_timeout": 10},
+        daemon=True,
+    )
+    self.wst.start()
 
     # ==========================
     # Start WebSocket for single symbol
@@ -646,6 +647,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
