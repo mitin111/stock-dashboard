@@ -400,9 +400,9 @@ class ProStocksAPI:
 
         try:
             for tk in tokens:
-                sub_req = {"t": "t", "k": f"NSE|{tk}"}
-                ws.send(json.dumps(sub_req))
-                print(f"✅ Subscribed: NSE|{tk}")
+                sub_req = {"t": "t", "k": tk}
+                self.ws.send(json.dumps(sub_req))
+                print(f"📡 Subscribed: {sub_req}")
         except Exception as e:
             print("❌ Subscription error:", e)
 
@@ -646,6 +646,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
