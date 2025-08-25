@@ -384,57 +384,56 @@ class ProStocksAPI:
                 break
         return results
 
-         # ------------------ WebSocket (thread-safe buffer) ------------------ 
-    def _on_open(self, ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket Connected")
+        # ------------------ WebSocket (thread-safe buffer) ------------------ 
+def _on_open(self, ws):
+    self.is_ws_connected = True
+    print("✅ WebSocket Connected")
 
-        # Step 1: LOGIN packet bhejna zaroori hai
-        login_req = {
-            "t": "c",
-            "uid": self.userid,
-            "actid": self.userid,
-            "jKey": self.feed_token,
-            "source": "API"
-        }
-        ws.send(json.dumps(login_req))
-        print("🔑 Login packet sent")
+    # Step 1: LOGIN packet bhejna zaroori hai
+    login_req = {
+        "t": "c",
+        "uid": self.userid,
+        "actid": self.userid,
+        "jKey": self.feed_token,
+        "source": "API"
+    }
+    ws.send(json.dumps(login_req))
+    print("🔑 Login packet sent")
 
-    def _on_error(self, ws, error):
-        print("❌ WebSocket Error:", error)
+def _on_error(self, ws, error):
+    print("❌ WebSocket Error:", error)
 
-    def _on_close(self, ws, code, msg):
-        self.is_ws_connected = False
-        print("❌ WebSocket Closed", code, msg)
+def _on_close(self, ws, code, msg):
+    self.is_ws_connected = False
+    print("❌ WebSocket Closed", code, msg)
 
-    def subscribe_symbol(self, symbol_token):
-        """Subscribe a single token to WebSocket."""
-        if not ws:
-            print("⚠️ WebSocket not connected.")
-            return
-        try:
-            sub_req = {"t": "t", "k": symbol_token}  # single token string 'NSE|11872'
-            self.ws.send(json.dumps(sub_req))  
-            print(f"➡️ Subscribed single: {symbol_token}")
-        except Exception as e:
-            print(f"❌ Subscription error: {e}")
+def subscribe_symbol(self, symbol_token):
+    """Subscribe a single token to WebSocket."""
+    if not self.ws:
+        print("⚠️ WebSocket not connected.")
+        return
+    try:
+        sub_req = {"t": "t", "k": symbol_token}  # single token string 'NSE|11872'
+        self.ws.send(json.dumps(sub_req))  
+        print(f"➡️ Subscribed single: {symbol_token}")
+    except Exception as e:
+        print(f"❌ Subscription error: {e}")
 
-    def subscribe_tokens(self, tokens):
-        """Subscribe multiple tokens in one go (correct ProStocks format)."""
-        ws = ws or self.ws
-        if not self.ws:
-            print("⚠️ WebSocket not connected.")
-            return
-        try:
-            for token in self._sub_tokens:
-                sub_req = {"t": "t", "k": token}  # token string 'NSE|11872'
-                ws.send(json.dumps(sub_req))
-                print(f"📡 Subscribed to {token}")
-                key_list = "#".join(tokens)   # join with #
-        except Exception as e:
-            print("❌ Subscription error:", e)
+def subscribe_tokens(self, tokens):
+    """Subscribe multiple tokens in one go (correct ProStocks format)."""
+    if not self.ws:
+        print("⚠️ WebSocket not connected.")
+        return
+    try:
+        for token in self._sub_tokens:
+            sub_req = {"t": "t", "k": token}  # token string 'NSE|11872'
+            self.ws.send(json.dumps(sub_req))
+            print(f"📡 Subscribed to {token}")
+        key_list = "#".join(tokens)   # join with #
+    except Exception as e:
+        print("❌ Subscription error:", e)
 
-    def _on_message(self, ws, message):
+def _on_message(self, ws, message):
     try:
         import streamlit as st
         print("📥 RAW:", message)
@@ -444,7 +443,7 @@ class ProStocksAPI:
         # Step 2: Server se LOGIN confirm aayega
         if tick.get("t") == "ck" and tick.get("stat") == "Ok":
             print("✅ Login confirmed, subscribing tokens...")
-            self.subscribe_tokens(self._sub_tokens, ws) 
+            self.subscribe_tokens(self._sub_tokens)
         elif tick.get("t") == "tk":   # tick data 
             print("📥 Tick received:", tick)
             self.on_tick(tick)   # ✅ Proper handler call
@@ -453,68 +452,68 @@ class ProStocksAPI:
         else:
             print("ℹ️ Other Msg:", tick)
 
-    except Exception as e:   # ✅ ab indentation sahi hai
+    except Exception as e:
         print("❌ Tick parse error:", e)
 
-    def start_websocket_for_symbols(self, symbols):
-        """Start WebSocket and subscribe to multiple symbols"""
-        import websocket, threading, json, time
+def start_websocket_for_symbols(self, symbols):
+    """Start WebSocket and subscribe to multiple symbols"""
+    import websocket, threading, json, time
 
-        if not symbols or not isinstance(symbols, list):
-            print("⚠️ No symbols provided for WebSocket subscription")
-            return
+    if not symbols or not isinstance(symbols, list):
+        print("⚠️ No symbols provided for WebSocket subscription")
+        return
 
-        if isinstance(symbols[0], dict):
-            subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
-        else:
-            subs = symbols
+    if isinstance(symbols[0], dict):
+        subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
+    else:
+        subs = symbols
 
-        if not subs:
-            print("⚠️ No valid tokens found for subscription")
-            return
+    if not subs:
+        print("⚠️ No valid tokens found for subscription")
+        return
 
-        self._sub_tokens = subs
+    self._sub_tokens = subs
 
-        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-        print(f"🔗 Connecting to WebSocket: {ws_url}")
+    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+    print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=self._on_open,      # login packet send karega
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close,
-        )
+    self.ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=self._on_open,      # login packet send karega
+        on_message=self._on_message,
+        on_error=self._on_error,
+        on_close=self._on_close,
+    )
 
-        def send_ping(ws):
-            while True:
-                if self.is_ws_connected:
-                    try:
-                        ws.send(json.dumps({"t": "h"}))
-                        print("💓 Ping sent")
-                    except Exception as e:
-                        print("⚠️ Ping error:", e)
-                time.sleep(30)
+    def send_ping(ws):
+        while True:
+            if self.is_ws_connected:
+                try:
+                    ws.send(json.dumps({"t": "h"}))
+                    print("💓 Ping sent")
+                except Exception as e:
+                    print("⚠️ Ping error:", e)
+            time.sleep(30)
 
-        threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
+    threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
 
-        self.wst = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"ping_interval": 30, "ping_timeout": 10},
-            daemon=True,
-        )
-        self.wst.start()
+    self.wst = threading.Thread(
+        target=self.ws.run_forever,
+        kwargs={"ping_interval": 30, "ping_timeout": 10},
+        daemon=True,
+    )
+    self.wst.start()
 
-    def start_websocket_for_symbol(self, symbol):
-        self.start_websocket_for_symbols([symbol])
+def start_websocket_for_symbol(self, symbol):
+    self.start_websocket_for_symbols([symbol])
 
-    def stop_websocket(self):
-        try:
-            if self.ws:
-                self.ws.close()
-                print("🛑 WebSocket stopped")
-        except Exception as e:
-            print("❌ stop_websocket error:", e)
+def stop_websocket(self):
+    try:
+        if self.ws:
+            self.ws.close()
+            print("🛑 WebSocket stopped")
+    except Exception as e:
+        print("❌ stop_websocket error:", e)
 
     # ==========================
     # Tick handler
@@ -634,6 +633,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
