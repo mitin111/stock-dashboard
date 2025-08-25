@@ -529,11 +529,6 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ stop_websocket error:", e)
 
-    class ProStocksAPI:
-    def __init__(self, ...):
-        self._tick_buffer = deque(maxlen=5000)
-        self._live_candles = pd.DataFrame()
-
     # ==========================
     # Tick handler
     # ==========================
@@ -649,5 +644,6 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
