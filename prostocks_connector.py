@@ -452,15 +452,8 @@ class ProStocksAPI:
                     print("❌ Login failed:", tick)
 
             elif tick.get("t") == "tk":   # tick data
-                ltp = tick.get("lp") or tick.get("ltp")
-                if ltp:
-                    ts = datetime.now()
-                    if "live_ticks" not in st.session_state:
-                        st.session_state["live_ticks"] = []
-                    st.session_state["live_ticks"].append(
-                        {"time": ts, "price": float(ltp)}
-                    )
-                    print(f"📈 Tick parsed: time={ts}, price={ltp}")
+                print("📥 Tick received:", tick)
+                self.on_tick(tick)   # ✅ Proper handler call
 
             elif tick.get("t") == "e":
                 print("❌ Error from server:", tick)
@@ -546,16 +539,19 @@ class ProStocksAPI:
                 return
 
             # --- Handle market ticks ---
-            ltp = tick.get("lp") or tick.get("ltp")
-            if ltp:
-                ts = pd.Timestamp.now()
-                if "live_ticks" not in st.session_state:
-                    st.session_state["live_ticks"] = []
-                st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-                print(f"📈 Tick: {ts} -> {ltp}")
+            if tick.get("t") == "tk":
+                ltp = tick.get("lp") or tick.get("ltp")
+                if ltp:
+                    ts = pd.Timestamp.now()
+                    if "live_ticks" not in st.session_state:
+                        st.session_state["live_ticks"] = []
+                    st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
+                    print(f"📈 Tick: {ts} -> {ltp}")
+                # buffer tick for candle builder 
+                self._tick_buffer.append(tick)
 
-            # buffer tick for candle builder
-            self._tick_buffer.append(tick)
+                # ✅ Build candles here
+                self.build_live_candles()
 
         except Exception as e:
             print("❌ Tick handler error:", e)
@@ -644,6 +640,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
