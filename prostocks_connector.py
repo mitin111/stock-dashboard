@@ -405,29 +405,37 @@ class ProStocksAPI:
             print("❌ Subscription error:", e)
 
     def _on_message(self, ws, message):
-        try:
-            import streamlit as st
-            tick = json.loads(message)
-            print("✅ Raw tick received:", tick)
-            self._tick_buffer.append(tick)
-            
-            # ---- Streamlit live chart ke liye LTP extract ----
-            ltp = tick.get("lp") or tick.get("ltp")
-            if ltp:
-                ts = datetime.now()
-                if "live_ticks" not in st.session_state:
-                    st.session_state["live_ticks"] = []
-                st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
-                print(f"📈 Tick parsed: time={ts}, price={ltp}")
-        except Exception as e:
-            print("❌ Tick parse error:", e)
+    try:
+        import streamlit as st
+        print("📥 RAW:", message)   # debugging ke liye
 
-    def _on_error(self, ws, error):
-        print("❌ WebSocket Error:", error)
+        tick = json.loads(message)
+        self._tick_buffer.append(tick)
 
-    def _on_close(self, ws, code, msg):
-        self.is_ws_connected = False
-        print("❌ WebSocket Closed", code, msg)
+        # ---- Streamlit live chart ke liye LTP extract ----
+        ltp = tick.get("lp") or tick.get("ltp")
+        if ltp:
+            ts = datetime.now()
+            if "live_ticks" not in st.session_state:
+                st.session_state["live_ticks"] = []
+            st.session_state["live_ticks"].append(
+                {"time": ts, "price": float(ltp)}
+            )
+            print(f"📈 Tick parsed: time={ts}, price={ltp}")
+        else:
+            print("ℹ️ Non-tick message:", tick)
+
+    except Exception as e:
+        print("❌ Tick parse error:", e)
+
+
+def _on_error(self, ws, error):
+    print("❌ WebSocket Error:", error)
+
+
+def _on_close(self, ws, code, msg):
+    self.is_ws_connected = False
+    print("❌ WebSocket Closed", code, msg)
 
         # ==========================
     # WebSocket: Subscribe single symbol
@@ -672,6 +680,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
