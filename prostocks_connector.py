@@ -429,10 +429,10 @@ class ProStocksAPI:
         self.is_ws_connected = False
         print("❌ WebSocket Closed", code, msg)
 
-   # ==========================
-# WebSocket: Subscribe single symbol
-# ==========================
-def subscribe_symbol(self, symbol_token):
+    # ==========================
+    # WebSocket: Subscribe single symbol
+    # ==========================
+    def subscribe_symbol(self, symbol_token):
     """
     Subscribe a single token to WebSocket.
     Example: "NSE|3456"
@@ -681,6 +681,7 @@ def subscribe_symbol(self, symbol_token):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
