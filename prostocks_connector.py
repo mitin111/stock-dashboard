@@ -413,9 +413,9 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected.")
             return
         try:
-            sub_req = {"t": "t", "k": symbol_token}
-            self.ws.send(json.dumps(sub_req))
-            print(f"📡 Subscribed: {symbol_token}")
+            sub_req = f't|{symbol_token}'
+            self.ws.send(sub_req)
+            print(f"📡 Subscribed: {sub_req}")
         except Exception as e:
             print(f"❌ Subscription error: {e}")
 
@@ -630,6 +630,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
