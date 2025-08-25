@@ -405,25 +405,25 @@ class ProStocksAPI:
             print("❌ Subscription error:", e)
 
     def _on_message(self, ws, message):
-    try:
-        import streamlit as st
-        print("📥 RAW:", message)   # debugging ke liye
+        try:
+            import streamlit as st
+            print("📥 RAW:", message)   # debugging ke liye
 
-        tick = json.loads(message)
-        self._tick_buffer.append(tick)
+            tick = json.loads(message)
+            self._tick_buffer.append(tick)
 
-        # ---- Streamlit live chart ke liye LTP extract ----
-        ltp = tick.get("lp") or tick.get("ltp")
-        if ltp:
-            ts = datetime.now()
-            if "live_ticks" not in st.session_state:
-                st.session_state["live_ticks"] = []
-            st.session_state["live_ticks"].append(
-                {"time": ts, "price": float(ltp)}
-            )
-            print(f"📈 Tick parsed: time={ts}, price={ltp}")
-        else:
-            print("ℹ️ Non-tick message:", tick)
+            # ---- Streamlit live chart ke liye LTP extract ----
+            ltp = tick.get("lp") or tick.get("ltp")
+            if ltp:
+                ts = datetime.now()
+                if "live_ticks" not in st.session_state:
+                    st.session_state["live_ticks"] = []
+                st.session_state["live_ticks"].append(
+                    {"time": ts, "price": float(ltp)}
+               )
+               print(f"📈 Tick parsed: time={ts}, price={ltp}")
+            else:
+               print("ℹ️ Non-tick message:", tick)
 
     except Exception as e:
         print("❌ Tick parse error:", e)
@@ -680,6 +680,7 @@ def _on_close(self, ws, code, msg):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
