@@ -389,57 +389,13 @@ class ProStocksAPI:
         self.is_ws_connected = True
         print("✅ WebSocket Connected")
 
-    def subscribe_tokens(self, tokens):
-        """
-        Subscribe tokens to WebSocket
-        tokens: list of "EXCH|TOKEN"
-        """
-        if not self.ws:
-            print("⚠️ WebSocket not connected.")
-            return
+    def _on_error(self, ws, error):
+        print("❌ WebSocket Error:", error)
 
-        try:
-            for tk in self._sub_tokens:
-                self.subscribe_symbol("NSE|3456")
-        except Exception as e:
-            print("❌ Subscription error:", e)
+    def _on_close(self, ws, code, msg):
+        self.is_ws_connected = False
+        print("❌ WebSocket Closed", code, msg)
 
-    def _on_message(self, ws, message):
-        try:
-            import streamlit as st
-            print("📥 RAW:", message)   # debugging ke liye
-
-            tick = json.loads(message)
-            self._tick_buffer.append(tick)
-
-            # ---- Streamlit live chart ke liye LTP extract ----
-            ltp = tick.get("lp") or tick.get("ltp")
-            if ltp:
-                ts = datetime.now()
-                if "live_ticks" not in st.session_state:
-                    st.session_state["live_ticks"] = []
-                st.session_state["live_ticks"].append(
-                    {"time": ts, "price": float(ltp)}
-                )
-                print(f"📈 Tick parsed: time={ts}, price={ltp}")
-            else:
-                print("ℹ️ Non-tick message:", tick)
-               
-        except Exception as e:
-                print("❌ Tick parse error:", e)
-
-
-def _on_error(self, ws, error):
-    print("❌ WebSocket Error:", error)
-
-
-def _on_close(self, ws, code, msg):
-    self.is_ws_connected = False
-    print("❌ WebSocket Closed", code, msg)
-
-        # ==========================
-    # WebSocket: Subscribe single symbol
-    # ==========================
     def subscribe_symbol(self, symbol_token):
         """Subscribe a single token to WebSocket."""
         if not self.ws:
@@ -452,9 +408,6 @@ def _on_close(self, ws, code, msg):
         except Exception as e:
             print(f"❌ Subscription error: {e}")
 
-    # ==========================
-    # WebSocket: Subscribe multiple tokens
-    # ==========================
     def subscribe_tokens(self, tokens):
         """Subscribe multiple tokens to WebSocket."""
         if not self.ws:
@@ -466,14 +419,10 @@ def _on_close(self, ws, code, msg):
         except Exception as e:
             print("❌ Subscription error:", e)
 
-    # ==========================
-    # WebSocket Message Handler
-    # ==========================
     def _on_message(self, ws, message):
         try:
             import streamlit as st
             print("📥 RAW:", message)
-
             tick = json.loads(message)
             self._tick_buffer.append(tick)
 
@@ -493,13 +442,9 @@ def _on_close(self, ws, code, msg):
                 print("❌ Error from server:", tick)
             else:
                 print("ℹ️ Other Msg:", tick)
-
         except Exception as e:
             print("❌ Tick parse error:", e)
 
-    # ==========================
-    # Start WebSocket for multiple symbols
-    # ==========================
     def start_websocket_for_symbols(self, symbols):
         """Start WebSocket and subscribe to multiple symbols"""
         import websocket, threading, json, time
@@ -553,16 +498,10 @@ def _on_close(self, ws, code, msg):
             daemon=True,
         )
         self.wst.start()
-    
-    # ==========================
-    # Start WebSocket for single symbol
-    # ==========================
+
     def start_websocket_for_symbol(self, symbol):
         self.start_websocket_for_symbols([symbol])
 
-    # ==========================
-    # Stop WebSocket
-    # ==========================
     def stop_websocket(self):
         try:
             if self.ws:
@@ -570,7 +509,7 @@ def _on_close(self, ws, code, msg):
                 print("🛑 WebSocket stopped")
         except Exception as e:
             print("❌ stop_websocket error:", e)
-
+            
     # ==========================
     # Get latest ticks from buffer
     # ==========================
@@ -678,6 +617,7 @@ def _on_close(self, ws, code, msg):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
