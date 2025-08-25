@@ -444,20 +444,19 @@ class ProStocksAPI:
             # Step 2: Server se LOGIN confirm aayega
             if tick.get("t")=="ck" and tick.get("stat")=="Ok":
                 print("✅ Login confirmed, subscribing tokens...")
-                self.subscribe_tokens(self._sub_tokens, ws)        
-            else:
-                print("❌ Login failed:", tick)
-
-            elif tick.get("t") == "tk":   # tick data
+                self.subscribe_tokens(self._sub_tokens, ws) 
+            elif tick.get("t") == "tk":   # tick data 
                 print("📥 Tick received:", tick)
                 self.on_tick(tick)   # ✅ Proper handler call
 
             elif tick.get("t") == "e":
                 print("❌ Error from server:", tick)
+
             else:
                 print("ℹ️ Other Msg:", tick)
-        except Exception as e:
-            print("❌ Tick parse error:", e)
+                  
+       except Exception as e:
+           print("❌ Tick parse error:", e)
 
     def start_websocket_for_symbols(self, symbols):
         """Start WebSocket and subscribe to multiple symbols"""
@@ -637,6 +636,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
