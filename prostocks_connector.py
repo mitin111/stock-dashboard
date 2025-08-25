@@ -420,13 +420,13 @@ class ProStocksAPI:
                     st.session_state["live_ticks"] = []
                 st.session_state["live_ticks"].append(
                     {"time": ts, "price": float(ltp)}
-               )
-               print(f"📈 Tick parsed: time={ts}, price={ltp}")
-            else:
-               print("ℹ️ Non-tick message:", tick)
-
-    except Exception as e:
-        print("❌ Tick parse error:", e)
+                )
+                print(f"📈 Tick parsed: time={ts}, price={ltp}")
+           else:
+                print("ℹ️ Non-tick message:", tick)
+               
+        except Exception as e:
+                print("❌ Tick parse error:", e)
 
 
 def _on_error(self, ws, error):
@@ -680,6 +680,7 @@ def _on_close(self, ws, code, msg):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
