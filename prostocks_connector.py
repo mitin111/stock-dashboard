@@ -529,11 +529,12 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ stop_websocket error:", e)
 
-    # ==========================
-    # Get latest ticks from buffer
-    # ==========================
-    def get_latest_ticks(self, n=20):
-        return list(self._tick_buffer)[-n:]
+     # ==========================
+# Get latest ticks from buffer
+# ==========================
+def get_latest_ticks(self, n=20):
+    return list(self._tick_buffer)[-n:]
+
 
 # ==========================
 # Tick handler
@@ -652,6 +653,3 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
-
-
-    
