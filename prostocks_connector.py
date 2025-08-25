@@ -414,19 +414,22 @@ class ProStocksAPI:
             return
         try:
             sub_req = f"t|{symbol_token}"
+            print(f"➡️ Sending subscribe request: {sub_req}")
             self.ws.send(sub_req)
-            print(f"📡 Subscribed: {sub_req}")
         except Exception as e:
             print(f"❌ Subscription error: {e}")
 
     def subscribe_tokens(self, tokens):
-        """Subscribe multiple tokens to WebSocket."""
+        """Subscribe multiple tokens in one go (correct ProStocks format)."""
         if not self.ws:
             print("⚠️ WebSocket not connected.")
             return
         try:
-            for tk in tokens:
-                self.subscribe_symbol(tk)
+            # tokens = ["NSE|22", "NSE|2885", ...]
+            key_list = "#".join(tokens)
+            sub_req = {"t": "t", "k": key_list}
+            self.ws.send(json.dumps(sub_req))
+            print(f"📡 Subscribed: {key_list}")
         except Exception as e:
             print("❌ Subscription error:", e)
 
@@ -630,6 +633,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
