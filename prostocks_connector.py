@@ -534,16 +534,6 @@ class ProStocksAPI:
         self._tick_buffer = deque(maxlen=5000)
         self._live_candles = pd.DataFrame()
 
-    # ------------------ WebSocket (thread-safe buffer) ------------------
-    def _on_open(self, ws):
-        ...
-
-    def _on_message(self, ws, message):
-        ...
-        tick = json.loads(message)
-        self.on_tick(tick)   # <--- abhi call karega class ke andar wale on_tick ko
-        ...
-
     # ==========================
     # Tick handler
     # ==========================
@@ -659,4 +649,5 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
