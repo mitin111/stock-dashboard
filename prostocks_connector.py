@@ -391,11 +391,13 @@ class ProStocksAPI:
 
         # Step 1: LOGIN packet bhejna zaroori hai
         login_req = {
-            "t": "c",
-            "uid": self.userid,
-            "actid": self.userid,
-            "jKey": self.feed_token,
-            "source": "API"
+            "t": "c",                  # connection request
+            "uid": self.userid,        # e.g. A0588
+            "actid": self.userid,      # same as uid
+            "pwd": self.session_token, # ya feed_token (susertoken jo QuickAuth se mila tha)
+            "vc": self.vc,             # vendor code
+            "appkey": self.api_key,    # api key
+            "token": self.session_token  # same susertoken
         }
         ws.send(json.dumps(login_req))
         print("🔑 Login packet sent")
@@ -438,12 +440,16 @@ class ProStocksAPI:
             tick = json.loads(message)
             self._tick_buffer.append(tick)
 
-            if tick.get("t") == "ck" and tick.get("stat") == "Ok":
+            if tick.get("s") == "OK" or tick.get("stat") == "Ok":
                 print("✅ Login confirmed, subscribing tokens...")
-                self.subscribe_tokens(self._sub_tokens)
-            elif tick.get("t") == "tk":
-                print("📥 Tick received:", tick)
-                self.on_tick(tick)
+                if hasattr(self, "_sub_tokens") and self._sub_tokens:
+                    self.subscribe_tokens(self._sub_tokens)
+                return
+
+            if tick.get("t") == "tk":  # tick data
+                if tick.get("t") == "tk":  # tick data
+                    self.on_tick(tick)
+                
             elif tick.get("t") == "e":
                 print("❌ Error from server:", tick)
             else:
@@ -624,6 +630,7 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
 
 
 
