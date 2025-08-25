@@ -444,9 +444,9 @@ class ProStocksAPI:
             # Step 2: Server se LOGIN confirm aayega
             if tick.get("t")=="ck" and tick.get("stat")=="Ok":
                 print("✅ Login confirmed, subscribing tokens...")
-                    self.subscribe_tokens(self._sub_tokens, ws)
-                else:
-                    print("❌ Login failed:", tick)
+                self.subscribe_tokens(self._sub_tokens, ws)        
+            else:
+                print("❌ Login failed:", tick)
 
             elif tick.get("t") == "tk":   # tick data
                 print("📥 Tick received:", tick)
@@ -637,6 +637,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
