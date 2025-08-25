@@ -422,7 +422,7 @@ class ProStocksAPI:
                     {"time": ts, "price": float(ltp)}
                 )
                 print(f"📈 Tick parsed: time={ts}, price={ltp}")
-           else:
+            else:
                 print("ℹ️ Non-tick message:", tick)
                
         except Exception as e:
@@ -680,6 +680,7 @@ def _on_close(self, ws, code, msg):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
