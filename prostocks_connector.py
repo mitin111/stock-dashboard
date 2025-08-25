@@ -414,7 +414,7 @@ class ProStocksAPI:
             return
         try:
             sub_req = {"t": "t", "k": symbol_token}  # single token string 'NSE|11872'
-            self.ws.send(json.dumps(sub_req))    self.ws.send(json.dumps(sub_req))
+            self.ws.send(json.dumps(sub_req))  
             print(f"➡️ Subscribed single: {symbol_token}")
         except Exception as e:
             print(f"❌ Subscription error: {e}")
@@ -637,6 +637,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
