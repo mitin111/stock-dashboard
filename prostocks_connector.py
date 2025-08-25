@@ -425,8 +425,11 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected.")
             return
         try:
-            # tokens = ["NSE|22", "NSE|2885", ...]
-            key_list = "#".join(tokens)
+            if isinstance(tokens, (list, tuple)):
+                key_list = "#".join(tokens)   # join with #
+            else:
+                key_list = str(tokens)
+            
             sub_req = {"t": "t", "k": key_list}
             self.ws.send(json.dumps(sub_req))
             print(f"📡 Subscribed: {key_list}")
@@ -538,6 +541,17 @@ class ProStocksAPI:
     def on_tick(self, tick):
         import streamlit as st
         try:
+           # --- Handle login confirmation ---
+           if tick.get("t") == "ck":
+              if tick.get("stat") == "Ok":
+                  print("✅ Login confirmed, subscribing tokens...")
+                  if hasattr(self, "_sub_tokens") and self._sub_tokens:
+                      self.subscribe_tokens(self._sub_tokens)
+               else:
+                   print("❌ Login failed:", tick)
+               return  # don't process further for "ck"
+
+            # --- Handle market ticks ---
             ltp = tick.get("lp") or tick.get("ltp")
             if ltp:
                 ts = pd.Timestamp.now()
@@ -545,7 +559,10 @@ class ProStocksAPI:
                     st.session_state["live_ticks"] = []
                 st.session_state["live_ticks"].append({"time": ts, "price": float(ltp)})
                 print(f"📈 Tick: {ts} -> {ltp}")
+
+            # buffer tick for candle builder
             self._tick_buffer.append(tick)
+
         except Exception as e:
             print("❌ Tick handler error:", e)
 
@@ -633,6 +650,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
