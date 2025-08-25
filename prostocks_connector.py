@@ -409,7 +409,7 @@ class ProStocksAPI:
 
     def subscribe_symbol(self, symbol_token):
         """Subscribe a single token to WebSocket."""
-        if not self.ws:
+        if not ws:
             print("⚠️ WebSocket not connected.")
             return
         try:
@@ -421,6 +421,7 @@ class ProStocksAPI:
 
     def subscribe_tokens(self, tokens):
         """Subscribe multiple tokens in one go (correct ProStocks format)."""
+        ws = ws or self.ws
         if not self.ws:
             print("⚠️ WebSocket not connected.")
             return
@@ -441,10 +442,9 @@ class ProStocksAPI:
             self._tick_buffer.append(tick)
 
             # Step 2: Server se LOGIN confirm aayega
-            if tick.get("t") == "ck":
-                if tick.get("stat") == "Ok":
-                    print("✅ Login confirmed, subscribing tokens...")
-                    self.subscribe_tokens(self._sub_tokens)
+            if tick.get("t")=="ck" and tick.get("stat")=="Ok":
+                print("✅ Login confirmed, subscribing tokens...")
+                    self.subscribe_tokens(self._sub_tokens, ws)
                 else:
                     print("❌ Login failed:", tick)
 
@@ -571,7 +571,7 @@ class ProStocksAPI:
                 ts = datetime.now()
             minute = ts.replace(second=0, microsecond=0)
             price = float(tick.get("lp") or tick.get("ltp") or 0)
-            vol = int(tick.get("v", 0))
+            vol = int(tick.get("v") or 0)
             rows.append([minute, price, vol])
 
         df_new = pd.DataFrame(rows, columns=["Datetime", "Price", "Volume"])
@@ -637,6 +637,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
