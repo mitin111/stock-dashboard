@@ -455,8 +455,8 @@ class ProStocksAPI:
             else:
                 print("ℹ️ Other Msg:", tick)
                   
-       except Exception as e:
-           print("❌ Tick parse error:", e)
+         except Exception as e:
+             print("❌ Tick parse error:", e)
 
     def start_websocket_for_symbols(self, symbols):
         """Start WebSocket and subscribe to multiple symbols"""
@@ -636,6 +636,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
