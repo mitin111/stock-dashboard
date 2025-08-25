@@ -463,13 +463,55 @@ def _on_close(self, ws, code, msg):
     # ==========================
     # WebSocket: Subscribe to multiple symbols
     # ==========================
+    def subscribe_tokens(self, tokens):
+        """
+        Subscribe multiple tokens to WebSocket.
+        tokens: list of "EXCH|TOKEN"
+        """
+        if not self.ws:
+            print("⚠️ WebSocket not connected.")
+            return
+
+        try:
+            for tk in tokens:
+                self.subscribe_symbol(tk)
+        except Exception as e:
+            print("❌ Subscription error:", e)
+
+
+    def _on_message(self, ws, message):
+        try:
+            import streamlit as st
+            print("📥 RAW:", message)
+
+            tick = json.loads(message)
+            self._tick_buffer.append(tick)
+
+            # Tick / Subscription ACK check
+            if tick.get("t") == "tk":   # tick packet
+                ltp = tick.get("lp") or tick.get("ltp")
+                if ltp:
+                    ts = datetime.now()
+                    if "live_ticks" not in st.session_state:
+                        st.session_state["live_ticks"] = []
+                    st.session_state["live_ticks"].append(
+                        {"time": ts, "price": float(ltp)}
+                    )
+                    print(f"📈 Tick parsed: time={ts}, price={ltp}")
+            elif tick.get("t") == "ck" and tick.get("stat") == "Ok":
+                print(f"✅ Subscription confirmed for {tick.get('k')}")
+            elif tick.get("t") == "e":
+                print("❌ Error from server:", tick)
+            else:
+                print("ℹ️ Other Msg:", tick)
+
+        except Exception as e:
+            print("❌ Tick parse error:", e)
+
+
     def start_websocket_for_symbols(self, symbols):
         """
-        Starts WebSocket and subscribes to live ticks for given symbols.
-
-        symbols can be either:
-        - List of dicts: [{"exch":"NSE", "token":"11872"}, {"exch":"NSE", "token":"3045"}]
-        - OR list of strings: ["NSE|3456", "NSE|11536"]
+        Start WebSocket and subscribe to multiple symbols
         """
         import websocket, threading, json, time
 
@@ -477,55 +519,29 @@ def _on_close(self, ws, code, msg):
             print("⚠️ No symbols provided for WebSocket subscription")
             return
 
-        # --- Normalize symbols ---
+        # Normalize symbols
         if isinstance(symbols[0], dict):
             subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
         else:
-            subs = symbols  # already ["NSE|3456", "NSE|11536"]
+            subs = symbols
 
         if not subs:
             print("⚠️ No valid tokens found for subscription")
             return
 
-        self.subscribed_tokens = subs
         self._sub_tokens = subs
 
-        # --- WebSocket Callbacks (nested so they can use self) ---
-        def on_open(ws):
-            self.is_ws_connected = True
-            print("✅ WebSocket Connected")
-            try:
-                for tk in self._sub_tokens:
-                    self.subscribe_symbol(tk)
-            except Exception as e:
-                print("❌ Subscription error:", e)
+        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
+        print(f"🔗 Connecting to WebSocket: {ws_url}")
 
-        def on_message(ws, message):
-            try:
-                data = json.loads(message)
-                print("📥 Server Msg:", data)
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=lambda ws: self.subscribe_tokens(self._sub_tokens),
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close,
+        )
 
-                if data.get("t") == "tk":   # tick packet
-                    self._tick_buffer.append(data)
-                    print(f"✅ Tick: {data.get('tk')} LTP={data.get('lp')}")
-                elif data.get("t") == "ck" and data.get("stat") == "Ok":  # subscription ack
-                    print(f"✅ Subscription confirmed for {data.get('k')}: {data}")
-                elif data.get("t") == "e":    # error from server
-                    print("❌ Subscription error:", data)
-                else:
-                    print("ℹ️ Other Msg:", data)
-
-            except Exception as e:
-                print("⚠️ Tick parse error:", e)
-
-        def on_error(ws, error):
-            print("⚠️ WebSocket Error:", error)
-
-        def on_close(ws, close_status_code, close_msg):
-            self.is_ws_connected = False
-            print("❌ WebSocket Closed:", close_status_code, close_msg)
-
-        # --- Heartbeat Thread ---
         def send_ping(ws):
             while True:
                 if self.is_ws_connected:
@@ -535,18 +551,6 @@ def _on_close(self, ws, code, msg):
                         print("⚠️ Ping error:", e)
                 time.sleep(30)
 
-        # --- WebSocket Connect ---
-        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
-        print(f"🔗 Connecting to WebSocket: {ws_url}")
-
-        self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-        )
-
         threading.Thread(target=send_ping, args=(self.ws,), daemon=True).start()
 
         self.wst = threading.Thread(
@@ -554,8 +558,8 @@ def _on_close(self, ws, code, msg):
             kwargs={"ping_interval": 30, "ping_timeout": 10},
             daemon=True,
         )
-        self.wst.start()
-
+        self.wst.start()      
+    
     # ==========================
     # Start WebSocket for single symbol
     # ==========================
@@ -680,6 +684,7 @@ def _on_close(self, ws, code, msg):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
