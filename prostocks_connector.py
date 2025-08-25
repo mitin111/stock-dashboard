@@ -435,28 +435,26 @@ class ProStocksAPI:
             print("❌ Subscription error:", e)
 
     def _on_message(self, ws, message):
-        try:
-            import streamlit as st
-            print("📥 RAW:", message)
-            tick = json.loads(message)
-            self._tick_buffer.append(tick)
+    try:
+        import streamlit as st
+        print("📥 RAW:", message)
+        tick = json.loads(message)
+        self._tick_buffer.append(tick)
 
-            # Step 2: Server se LOGIN confirm aayega
-            if tick.get("t")=="ck" and tick.get("stat")=="Ok":
-                print("✅ Login confirmed, subscribing tokens...")
-                self.subscribe_tokens(self._sub_tokens, ws) 
-            elif tick.get("t") == "tk":   # tick data 
-                print("📥 Tick received:", tick)
-                self.on_tick(tick)   # ✅ Proper handler call
+        # Step 2: Server se LOGIN confirm aayega
+        if tick.get("t") == "ck" and tick.get("stat") == "Ok":
+            print("✅ Login confirmed, subscribing tokens...")
+            self.subscribe_tokens(self._sub_tokens, ws) 
+        elif tick.get("t") == "tk":   # tick data 
+            print("📥 Tick received:", tick)
+            self.on_tick(tick)   # ✅ Proper handler call
+        elif tick.get("t") == "e":
+            print("❌ Error from server:", tick)
+        else:
+            print("ℹ️ Other Msg:", tick)
 
-            elif tick.get("t") == "e":
-                print("❌ Error from server:", tick)
-
-            else:
-                print("ℹ️ Other Msg:", tick)
-                  
-         except Exception as e:
-             print("❌ Tick parse error:", e)
+    except Exception as e:   # ✅ ab indentation sahi hai
+        print("❌ Tick parse error:", e)
 
     def start_websocket_for_symbols(self, symbols):
         """Start WebSocket and subscribe to multiple symbols"""
@@ -636,6 +634,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
