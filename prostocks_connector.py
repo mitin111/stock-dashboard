@@ -441,17 +441,17 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected.")
             return
 
-         try:
-              sub_req = {
-                  "t": "t",
-                  "k": symbol_token,
-                  "ft": "d"  # feed_type, optional
-               }
-               self.ws.send(json.dumps(sub_req))
-               print(f"✅ Subscribed to {symbol_token}")
-               except Exception as e:
-                   print(f"❌ Subscription error: {e}")
-             
+    try:
+        sub_req = {
+            "t": "t",
+            "k": symbol_token,
+            "ft": "d"  # feed_type, optional
+        }
+        self.ws.send(json.dumps(sub_req))
+        print(f"✅ Subscribed to {symbol_token}")
+    except Exception as e:
+        print(f"❌ Subscription error: {e}")
+
     # ==========================
     # WebSocket: Subscribe to multiple symbols
     # ==========================
@@ -681,6 +681,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
