@@ -413,7 +413,7 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected.")
             return
         try:
-            sub_req = {"t": "t", "k": str(symbol_token)}
+            for token in self._sub_tokens:
             self.ws.send(json.dumps(sub_req))
             print(f"➡️ Subscribed single: {symbol_token}")
         except Exception as e:
@@ -425,14 +425,11 @@ class ProStocksAPI:
             print("⚠️ WebSocket not connected.")
             return
         try:
-            if isinstance(tokens, (list, tuple)):
+            for token in self._sub_tokens:
+                sub_req = {"t": "t", "k": token}  # token string 'NSE|11872'
+                ws.send(json.dumps(sub_req))
+                print(f"📡 Subscribed to {token}")
                 key_list = "#".join(tokens)   # join with #
-            else:
-                key_list = str(tokens)
-            
-            sub_req = {"t": "t", "k": key_list}
-            self.ws.send(json.dumps(sub_req))
-            print(f"📡 Subscribed: {key_list}")
         except Exception as e:
             print("❌ Subscription error:", e)
 
@@ -640,6 +637,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
