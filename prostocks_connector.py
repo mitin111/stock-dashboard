@@ -433,24 +433,24 @@ class ProStocksAPI:
     # WebSocket: Subscribe single symbol
     # ==========================
     def subscribe_symbol(self, symbol_token):
-    """
-    Subscribe a single token to WebSocket.
-    Example: "NSE|3456"
-    """
-    if not self.ws:
-        print("⚠️ WebSocket not connected.")
-        return
+        """
+        Subscribe a single token to WebSocket.
+        Example: "NSE|3456"
+        """
+        if not self.ws:
+            print("⚠️ WebSocket not connected.")
+            return
 
-    try:
-        sub_req = {
-            "t": "t",
-            "k": symbol_token,
-            "ft": "d"  # feed_type, optional
-        }
-        self.ws.send(json.dumps(sub_req))
-        print(f"✅ Subscribed to {symbol_token}")
-    except Exception as e:
-        print(f"❌ Subscription error: {e}")
+         try:
+             sub_req = {
+                 "t": "t",
+                 "k": symbol_token,
+                 "ft": "d"  # feed_type, optional
+             }
+             self.ws.send(json.dumps(sub_req))
+             print(f"✅ Subscribed to {symbol_token}")
+             except Exception as e:
+                 print(f"❌ Subscription error: {e}")
 
     # ==========================
     # WebSocket: Subscribe to multiple symbols
@@ -681,6 +681,7 @@ class ProStocksAPI:
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
