@@ -441,44 +441,34 @@ def _on_close(self, ws, code, msg):
     # WebSocket: Subscribe single symbol
     # ==========================
     def subscribe_symbol(self, symbol_token):
-        """
-        Subscribe a single token to WebSocket.
-        Example: "NSE|3456"
-        """
+        """Subscribe a single token to WebSocket."""
         if not self.ws:
             print("⚠️ WebSocket not connected.")
             return
-
         try:
-            sub_req = {
-                "t": "t",
-                "k": symbol_token,
-                "ft": "d"  # feed_type, optional
-            }
+            sub_req = {"t": "t", "k": symbol_token, "ft": "d"}
             self.ws.send(json.dumps(sub_req))
             print(f"✅ Subscribed to {symbol_token}")
         except Exception as e:
             print(f"❌ Subscription error: {e}")
 
     # ==========================
-    # WebSocket: Subscribe to multiple symbols
+    # WebSocket: Subscribe multiple tokens
     # ==========================
     def subscribe_tokens(self, tokens):
-        """
-        Subscribe multiple tokens to WebSocket.
-        tokens: list of "EXCH|TOKEN"
-        """
+        """Subscribe multiple tokens to WebSocket."""
         if not self.ws:
             print("⚠️ WebSocket not connected.")
             return
-
         try:
             for tk in tokens:
                 self.subscribe_symbol(tk)
         except Exception as e:
             print("❌ Subscription error:", e)
 
-
+    # ==========================
+    # WebSocket Message Handler
+    # ==========================
     def _on_message(self, ws, message):
         try:
             import streamlit as st
@@ -487,8 +477,7 @@ def _on_close(self, ws, code, msg):
             tick = json.loads(message)
             self._tick_buffer.append(tick)
 
-            # Tick / Subscription ACK check
-            if tick.get("t") == "tk":   # tick packet
+            if tick.get("t") == "tk":   # tick data
                 ltp = tick.get("lp") or tick.get("ltp")
                 if ltp:
                     ts = datetime.now()
@@ -508,18 +497,17 @@ def _on_close(self, ws, code, msg):
         except Exception as e:
             print("❌ Tick parse error:", e)
 
-
+    # ==========================
+    # Start WebSocket for multiple symbols
+    # ==========================
     def start_websocket_for_symbols(self, symbols):
-        """
-        Start WebSocket and subscribe to multiple symbols
-        """
+        """Start WebSocket and subscribe to multiple symbols"""
         import websocket, threading, json, time
 
         if not symbols or not isinstance(symbols, list):
             print("⚠️ No symbols provided for WebSocket subscription")
             return
 
-        # Normalize symbols
         if isinstance(symbols[0], dict):
             subs = [f"{s['exch']}|{s['token']}" for s in symbols if 'exch' in s and 'token' in s]
         else:
@@ -534,9 +522,14 @@ def _on_close(self, ws, code, msg):
         ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={self.userid}&t={self.feed_token}&uid={self.userid}"
         print(f"🔗 Connecting to WebSocket: {ws_url}")
 
+        def on_open(ws):
+            self.is_ws_connected = True
+            print("✅ WebSocket Connected")
+            self.subscribe_tokens(self._sub_tokens)
+
         self.ws = websocket.WebSocketApp(
             ws_url,
-            on_open=lambda ws: self.subscribe_tokens(self._sub_tokens),
+            on_open=on_open,
             on_message=self._on_message,
             on_error=self._on_error,
             on_close=self._on_close,
@@ -547,6 +540,7 @@ def _on_close(self, ws, code, msg):
                 if self.is_ws_connected:
                     try:
                         ws.send(json.dumps({"t": "h"}))
+                        print("💓 Ping sent")
                     except Exception as e:
                         print("⚠️ Ping error:", e)
                 time.sleep(30)
@@ -558,7 +552,7 @@ def _on_close(self, ws, code, msg):
             kwargs={"ping_interval": 30, "ping_timeout": 10},
             daemon=True,
         )
-        self.wst.start()      
+        self.wst.start()
     
     # ==========================
     # Start WebSocket for single symbol
@@ -684,6 +678,7 @@ def _on_close(self, ws, code, msg):
                 time.sleep(refresh)
         except KeyboardInterrupt:
             print("🛑 Chart stopped")
+
 
 
 
