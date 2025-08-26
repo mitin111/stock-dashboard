@@ -421,7 +421,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ Subscription error: {e}")
 
-    def subscribe_tokens(self, tokens):
+        def subscribe_tokens(self, tokens):
         """Subscribe multiple tokens in one go"""
         if not self.ws:
             print("⚠️ WebSocket not connected.")
@@ -437,34 +437,34 @@ class ProStocksAPI:
             print("❌ Subscription error:", e)
 
     def _on_message(self, ws, message):
-    try:
-        tick = json.loads(message)
-        print("📥 RAW:", tick)
+        try:
+            tick = json.loads(message)
+            print("📥 RAW:", tick)
 
-        # Login confirm
-        if tick.get("t") == "ck":
-            if tick.get("stat") == "Ok":
-                print("✅ WebSocket Login success")
-                if hasattr(self, "_sub_tokens") and self._sub_tokens:
-                    self.subscribe_tokens(self._sub_tokens)
+            # Login confirm
+            if tick.get("t") == "ck":
+                if tick.get("stat") == "Ok":
+                    print("✅ WebSocket Login success")
+                    if hasattr(self, "_sub_tokens") and self._sub_tokens:
+                        self.subscribe_tokens(self._sub_tokens)
+                else:
+                    print("❌ WebSocket Login failed:", tick)
+                return
+
+            # Tick data
+            elif tick.get("t") == "tk":
+                self.on_tick(tick)
+
+            # Error from server
+            elif tick.get("t") == "e":
+                print("❌ Error from server:", tick)
+
+            # Other messages
             else:
-                print("❌ WebSocket Login failed:", tick)
-            return
+                print("ℹ️ Other Msg:", tick)
 
-        # Tick data
-        elif tick.get("t") == "tk":
-            self.on_tick(tick)
-
-        # Error from server
-        elif tick.get("t") == "e":
-            print("❌ Error from server:", tick)
-
-        # Other messages
-        else:
-            print("ℹ️ Other Msg:", tick)
-
-    except Exception as e:
-        print("⚠️ Exception in _on_message:", e)
+        except Exception as e:
+            print("⚠️ Exception in _on_message:", e)
 
     def start_websocket_for_symbols(self, symbols):
         """Start WebSocket and subscribe to multiple symbols"""
@@ -638,6 +638,7 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
 
 
 
