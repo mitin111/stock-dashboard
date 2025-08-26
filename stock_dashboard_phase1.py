@@ -239,9 +239,6 @@ with tab5:
         """Callback when live tick arrives"""
         st.session_state.live_ticks.append(data)
 
-    def start_ws(symbols):
-        ps_api.start_ticks(symbols, tick_file="ticks.log")
-
     # --- UI ---
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
@@ -314,11 +311,10 @@ with tab5:
 
                         st.success(f"✅ TPSeries fetched for {call_count} scrips")
 
-                        # --- Start WebSocket in background ---
+                        # --- Start WebSocket ---
                         if symbols_for_ws:
-                            threading.Thread(
-                                target=start_ws, args=(symbols_for_ws,), daemon=True
-                            ).start()
+                            ps_api.on_tick_cb = on_tick   # callback set kare
+                            ps_api.start_ticks(symbols_for_ws, tick_file="ticks.log")
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
             # --- Live Ticks Viewer ---
@@ -354,4 +350,5 @@ def start_ws(ps_api, symbols):
     ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={ps_api.userid}&t={ps_api.session_token}&uid={ps_api.userid}"
     ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_open=on_open)
     threading.Thread(target=ws.run_forever, daemon=True).start()
+
 
