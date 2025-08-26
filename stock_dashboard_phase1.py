@@ -239,6 +239,9 @@ with tab5:
         """Callback when live tick arrives"""
         st.session_state.live_ticks.append(data)
 
+    def start_ws(symbols):
+        ps_api.connect_websocket(symbols, on_tick=on_tick)
+
     # --- UI ---
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
@@ -311,10 +314,11 @@ with tab5:
 
                         st.success(f"✅ TPSeries fetched for {call_count} scrips")
 
-                        # --- Start WebSocket ---
+                        # --- Start WebSocket in background ---
                         if symbols_for_ws:
-                            ps_api.on_tick_cb = on_tick   # callback set kare
-                            ps_api.start_ticks(symbols_for_ws, tick_file="ticks.log")
+                            threading.Thread(
+                                target=start_ws, args=(symbols_for_ws,), daemon=True
+                            ).start()
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
             # --- Live Ticks Viewer ---
