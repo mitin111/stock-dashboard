@@ -391,13 +391,13 @@ class ProStocksAPI:
 
         # Step 1: LOGIN packet bhejna zaroori hai
         login_req = {
-            "t": "c",                  # connection request
-            "uid": self.userid,        # e.g. A0588
-            "actid": self.userid,      # same as uid
-            "pwd": self.session_token, # ya feed_token (susertoken jo QuickAuth se mila tha)
-            "vc": self.vc,             # vendor code
-            "appkey": self.api_key,    # api key
-            "token": self.session_token  # same susertoken
+            "t": "c",             # connection request
+            "uid": self.userid,   # e.g. A0588
+            "actid": self.userid, # same as uid
+            "source": "API",
+            "apkversion": self.apkversion,
+            "uidtype": "Client",
+            "jKey": self.feed_token   # 👈 QuickAuth se mila susertoken
         }
         ws.send(json.dumps(login_req))
         print("🔑 Login packet sent")
@@ -422,38 +422,43 @@ class ProStocksAPI:
             print(f"❌ Subscription error: {e}")
 
     def subscribe_tokens(self, tokens):
-        """Subscribe multiple tokens in one go (correct ProStocks format)."""
+        """Subscribe multiple tokens in one go"""
         if not self.ws:
             print("⚠️ WebSocket not connected.")
             return
         try:
-            for token in self._sub_tokens:
-                sub_req = {"t": "t", "k": token}
-                self.ws.send(json.dumps(sub_req))
-                print(f"📡 Subscribed to {token}")
+            sub_req = {
+                "t": "t",
+                "k": "#".join(tokens)   # 👈 comma nahi, # separator use karo
+            }
+            self.ws.send(json.dumps(sub_req))
+            print(f"➡️ Subscribed tokens: {tokens}")
         except Exception as e:
             print("❌ Subscription error:", e)
 
     def _on_message(self, ws, message):
         try:
-            print("📥 RAW:", message)
             tick = json.loads(message)
-            self._tick_buffer.append(tick)
+            print("📥 RAW:", tick)
 
-            if tick.get("s") == "OK" or tick.get("stat") == "Ok":
-                print("✅ Login confirmed, subscribing tokens...")
-                if hasattr(self, "_sub_tokens") and self._sub_tokens:
-                    self.subscribe_tokens(self._sub_tokens)
-                return
+            # Login confirm
+            if tick.get("t") == "ck":
+                if tick.get("stat") == "Ok":
+                    print("✅ WebSocket Login success")
+                    if hasattr(self, "_sub_tokens") and self._sub_tokens:
+                        self.subscribe_tokens(self._sub_tokens)
+                    else:
+                        print("❌ WebSocket Login failed:", tick)
+                    return
+                 # Tick data
+                 elif tick.get("t") == "tk":
+                     self.on_tick(tick)
 
-            if tick.get("t") == "tk":  # tick data
-                if tick.get("t") == "tk":  # tick data
-                    self.on_tick(tick)
-                
-            elif tick.get("t") == "e":
-                print("❌ Error from server:", tick)
-            else:
-                print("ℹ️ Other Msg:", tick)
+                 elif tick.get("t") == "e":
+                     print("❌ Error from server:", tick)
+
+                 else:
+                     print("ℹ️ Other Msg:", tick)
 
         except Exception as e:
             print("❌ Tick parse error:", e)
@@ -630,6 +635,7 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
 
 
 
