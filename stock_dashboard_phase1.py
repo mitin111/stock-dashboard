@@ -177,26 +177,24 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries Data Preview")
+    st.subheader("📉 TPSeries + Live Tick Data")
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
+    import threading
 
+    # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
-        # === Remove duplicates & sort ===
         df = df.drop_duplicates(subset=['datetime'])
         df = df.sort_values("datetime")
 
-        # === Filter market hours (09:15 to 15:30) ===
         df = df[
             (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
         ]
 
-        # Single panel chart (no volume)
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
 
-        # Candlestick trace
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
             open=df['open'],
@@ -208,10 +206,9 @@ with tab5:
             name='Price'
         ))
 
-        # Layout settings for scroll & zoom
         fig.update_layout(
-            xaxis_rangeslider_visible=False,  # hide slider
-            dragmode='pan',                  # enable scroll
+            xaxis_rangeslider_visible=False,
+            dragmode='pan',
             hovermode='x unified',
             showlegend=False,
             template="plotly_dark",
@@ -220,45 +217,38 @@ with tab5:
             plot_bgcolor='black',
             paper_bgcolor='black',
             font=dict(color='white'),
+            title=f"{symbol} - TradingView-style Chart"
         )
 
-        # Grid lines
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
 
-        # Hide weekends & after-hours
         fig.update_xaxes(
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
                 dict(bounds=[15.5, 9.25], pattern="hour")
             ]
         )
-
-        # "Go to Latest" button
-        fig.update_layout(
-            updatemenus=[dict(
-                type="buttons",
-                direction="left",
-                x=1,
-                y=1.15,
-                buttons=[
-                    dict(
-                        label="Go to Latest",
-                        method="relayout",
-                        args=[{"xaxis.range": [df['datetime'].iloc[-50], df['datetime'].iloc[-1]]}]
-                    )
-                ]
-            )],
-            title=f"{symbol} - TradingView-style Chart"
-        )
-
         return fig
 
+    # --- Tick Storage ---
+    if "live_ticks" not in st.session_state:
+        st.session_state.live_ticks = []
+
+    def on_tick(data):
+        """Callback when live tick arrives"""
+        st.session_state.live_ticks.append(data)
+
+    def start_ws(symbols):
+        ps_api.connect_websocket(symbols, on_tick=on_tick)
+
+    # --- UI ---
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
         ps_api = st.session_state["ps_api"]
         wl_resp = ps_api.get_watchlists()
+
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
@@ -268,13 +258,13 @@ with tab5:
                 ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
             )
 
-            if st.button("🔁 Fetch TPSeries Data"):
-                with st.spinner("Fetching candle data for all scrips..."):
+            if st.button("🚀 Start TPSeries + Live Feed"):
+                with st.spinner("Fetching TPSeries + starting WebSocket..."):
                     wl_data = ps_api.get_watchlist(selected_watchlist)
                     if wl_data.get("stat") == "Ok":
                         scrips = wl_data.get("values", [])
+                        symbols_for_ws = []
                         call_count = 0
-                        delay_per_call = 1.1
 
                         for i, scrip in enumerate(scrips):
                             exch = scrip["exch"]
@@ -283,46 +273,36 @@ with tab5:
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
-                                # Store data in session_state
-                                session_key = f"tpseries_{tsym}"
-                                if session_key not in st.session_state:
-                                    df_candle = ps_api.fetch_full_tpseries(
-                                        exch, token,
-                                        interval=selected_interval,
-                                        chunk_days=5
-                                    )
-                                    st.session_state[session_key] = df_candle.copy()
-                                else:
-                                    df_candle = st.session_state[session_key]
-
+                                df_candle = ps_api.fetch_full_tpseries(
+                                    exch, token,
+                                    interval=selected_interval,
+                                    chunk_days=5
+                                )
                                 if not df_candle.empty:
-                                    # Convert datetime column
-                                    datetime_col = None
-                                    for col in ["datetime", "time", "date"]:
-                                        if col in df_candle.columns:
-                                            datetime_col = col
-                                            break
+                                    # Normalize datetime
+                                    if "datetime" not in df_candle.columns:
+                                        for col in ["time", "date"]:
+                                            if col in df_candle.columns:
+                                                df_candle.rename(columns={col: "datetime"}, inplace=True)
 
-                                    if datetime_col:
-                                        df_candle.rename(columns={datetime_col: "datetime"}, inplace=True)
-                                        df_candle["datetime"] = pd.to_datetime(
-                                            df_candle["datetime"],
-                                            format="%d-%m-%Y %H:%M:%S",
-                                            errors="coerce",
-                                            dayfirst=True
-                                        )
-                                        df_candle.dropna(subset=["datetime"], inplace=True)
-                                        df_candle.sort_values("datetime", inplace=True)
-                                    else:
-                                        st.warning(f"⚠️ Missing datetime column for {tsym}")
-                                        continue
+                                    df_candle["datetime"] = pd.to_datetime(
+                                        df_candle["datetime"],
+                                        format="%d-%m-%Y %H:%M:%S",
+                                        errors="coerce",
+                                        dayfirst=True
+                                    )
+                                    df_candle.dropna(subset=["datetime"], inplace=True)
+                                    df_candle.sort_values("datetime", inplace=True)
 
-                                    # Draw chart
+                                    # Plot chart
                                     fig = plot_tpseries_candles(df_candle, tsym)
                                     st.plotly_chart(fig, use_container_width=True)
 
-                                    # Show table
-                                    st.dataframe(df_candle, use_container_width=True, height=600)
+                                    # Table
+                                    st.dataframe(df_candle, use_container_width=True, height=500)
+
+                                    # Add to WS symbols
+                                    symbols_for_ws.append(f"{exch}|{token}")
 
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
@@ -331,10 +311,46 @@ with tab5:
                                 st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
                             call_count += 1
-                            time.sleep(delay_per_call)
 
-                        st.success(f"✅ Fetched TPSeries for {call_count} scrips in '{selected_watchlist}'")
-                    else:
-                        st.warning(wl_data.get("emsg", "Failed to load watchlist data."))
+                        st.success(f"✅ TPSeries fetched for {call_count} scrips")
+
+                        # --- Start WebSocket in background ---
+                        if symbols_for_ws:
+                            threading.Thread(
+                                target=start_ws, args=(symbols_for_ws,), daemon=True
+                            ).start()
+                            st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
+
+            # --- Live Ticks Viewer ---
+            if st.session_state.live_ticks:
+                st.subheader("📡 Live Ticks")
+                st.json(st.session_state.live_ticks[-5:])
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
+import websocket, threading, json
+
+def start_ws(ps_api, symbols):
+    def on_message(ws, message):
+        st.write("📩 Tick:", message)
+        with open("ticks_log.txt", "a") as f:
+            f.write(message + "\n")
+
+    def on_open(ws):
+        st.write("✅ WebSocket Connected")
+        login_pkt = {
+            "t": "c",
+            "uid": ps_api.userid,
+            "actid": ps_api.userid,
+            "susertoken": ps_api.session_token,
+            "source": "API"
+        }
+        ws.send(json.dumps(login_pkt))
+        # Multiple subscription ek hi packet me bhejna
+        sub_pkt = {"t": "t", "k": "#".join(symbols)}
+        ws.send(json.dumps(sub_pkt))
+        st.write(f"🔔 Subscribed to {symbols}")
+
+    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={ps_api.userid}&t={ps_api.session_token}&uid={ps_api.userid}"
+    ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_open=on_open)
+    threading.Thread(target=ws.run_forever, daemon=True).start()
