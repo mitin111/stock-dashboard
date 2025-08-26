@@ -318,123 +318,148 @@ class ProStocksAPI:
         return results
 
     # ---------------- WebSocket helpers ----------------
-    def _ws_on_message(self, ws, message):
+def _ws_on_message(self, ws, message):
+    try:
+        tick = json.loads(message)
+
+        # ✅ push to Streamlit queue
         try:
-            tick = json.loads(message)
-            if isinstance(tick, dict) and tick.get("t") == "ck":
-                if tick.get("s") == "OK":
-                    print("✅ WebSocket login OK")
-                    if getattr(self, "_sub_tokens", None):
-                        self.subscribe_tokens(self._sub_tokens)
-                else:
-                    print("❌ WebSocket login failed:", tick)
-                return
+            import streamlit as st
+            if "tick_queue" not in st.session_state:
+                import queue
+                st.session_state.tick_queue = queue.Queue()
+            st.session_state.tick_queue.put(tick)
+        except Exception as e:
+            print("⚠️ Streamlit queue error:", e)
 
-            print("📩 Tick:", tick)
-            if hasattr(self, "tick_file") and self.tick_file:
-                with open(self.tick_file, "a") as f:
-                    f.write(json.dumps(tick) + "\n")
+        if isinstance(tick, dict) and tick.get("t") == "ck":
+            if tick.get("s") == "OK":
+                print("✅ WebSocket login OK")
+                if getattr(self, "_sub_tokens", None):
+                    self.subscribe_tokens(self._sub_tokens)
+            else:
+                print("❌ WebSocket login failed:", tick)
+            return
 
-            if hasattr(self, "on_tick_cb") and self.on_tick_cb:
+        print("📩 Tick:", tick)
+        if hasattr(self, "tick_file") and self.tick_file:
+            with open(self.tick_file, "a") as f:
+                f.write(json.dumps(tick) + "\n")
+
+        if hasattr(self, "on_tick_cb") and self.on_tick_cb:
+            try:
+                self.on_tick_cb(tick)
+            except Exception as e:
+                print("⚠️ on_tick_cb error:", e)
+
+    except Exception as e:
+        print("⚠️ _ws_on_message parse error:", e)
+
+
+def _ws_on_open(self, ws):
+    self.is_ws_connected = True
+    print("✅ WebSocket connected")
+    login_pkt = {"t": "c", "uid": self.userid, "actid": self.userid, "susertoken": self.session_token, "source": "API"}
+    ws.send(json.dumps(login_pkt))
+    print("🔑 WS login sent")
+
+    try:
+        import streamlit as st
+        if "ws_status" not in st.session_state:
+            st.session_state.ws_status = ""
+        st.session_state.ws_status = f"✅ WebSocket Connected ({len(self._sub_tokens) if getattr(self, '_sub_tokens', None) else 0} symbols)"
+    except Exception:
+        pass
+
+
+def _ws_on_close(self, ws, code, msg):
+    self.is_ws_connected = False
+    print("❌ WebSocket closed:", code, msg)
+    try:
+        import streamlit as st
+        st.session_state.ws_status = "❌ WebSocket Disconnected"
+    except Exception:
+        pass
+
+
+def _ws_on_error(self, ws, error):
+    print("⚠️ WebSocket error:", error)
+    try:
+        import streamlit as st
+        st.session_state.ws_status = f"⚠️ WebSocket error: {error}"
+    except Exception:
+        pass
+
+
+def subscribe_tokens(self, tokens):
+    if not getattr(self, "ws", None):
+        print("⚠️ subscribe_tokens: WS not connected yet")
+        return
+    if not tokens:
+        print("⚠️ subscribe_tokens: Empty token list")
+        return
+    uniq, seen = [], set()
+    for k in tokens:
+        if k and k not in seen:
+            uniq.append(k)
+            seen.add(k)
+    sub_req = {"t": "t", "k": "#".join(uniq)}
+    try:
+        self.ws.send(json.dumps(sub_req))
+        print(f"📡 Subscribed: {uniq}")
+    except Exception as e:
+        print("❌ subscribe_tokens error:", e)
+
+
+def start_ticks(self, symbols, tick_file="ticks.log"):
+    if not self.session_token or not self.userid:
+        raise RuntimeError("Not logged in: call login() first and ensure session_token is set.")
+
+    if not symbols or not isinstance(symbols, (list, tuple)):
+        raise ValueError("symbols must be a non-empty list/tuple")
+
+    if isinstance(symbols[0], dict):
+        tokens = [f"{s['exch'].strip()}|{s['token'].strip()}" for s in symbols if s.get("exch") and s.get("token")]
+    else:
+        tokens = [str(s).strip() for s in symbols if s and isinstance(s, str)]
+
+    if not tokens:
+        raise ValueError("No valid symbols to subscribe")
+
+    self._sub_tokens = tokens
+    self.tick_file = tick_file
+    url = f"{self.ws_url}?u={self.userid}&t={self.session_token}"
+    print("🔗 Connecting WS:", url)
+
+    self.ws = websocket.WebSocketApp(
+        url,
+        on_open=self._ws_on_open,
+        on_message=self._ws_on_message,
+        on_error=self._ws_on_error,
+        on_close=self._ws_on_close,
+    )
+
+    def _send_heartbeat(wsobj):
+        while True:
+            if getattr(self, "is_ws_connected", False):
                 try:
-                    self.on_tick_cb(tick)
+                    wsobj.send(json.dumps({"t": "h"}))
                 except Exception as e:
-                    print("⚠️ on_tick_cb error:", e)
+                    print("⚠️ heartbeat error:", e)
+            time.sleep(30)
 
-        except Exception as e:
-            print("⚠️ _ws_on_message parse error:", e)
+    threading.Thread(target=_send_heartbeat, args=(self.ws,), daemon=True).start()
+    self._ws_thread = threading.Thread(
+        target=self.ws.run_forever, kwargs={"ping_interval": 30, "ping_timeout": 10}, daemon=True
+    )
+    self._ws_thread.start()
+    print("▶️ WS thread started")
 
-    def _ws_on_open(self, ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket connected")
-        login_pkt = {"t": "c", "uid": self.userid, "actid": self.userid, "susertoken": self.session_token, "source": "API"}
-        ws.send(json.dumps(login_pkt))
-        print("🔑 WS login sent")
-        try:
-            import streamlit as st
-            if "ws_status" not in st.session_state:
-                st.session_state.ws_status = ""
-            st.session_state.ws_status = f"✅ WebSocket Connected ({len(self._sub_tokens) if getattr(self, '_sub_tokens', None) else 0} symbols)"
-        except Exception:
-            pass
 
-    def _ws_on_close(self, ws, code, msg):
-        self.is_ws_connected = False
-        print("❌ WebSocket closed:", code, msg)
-        try:
-            import streamlit as st
-            st.session_state.ws_status = "❌ WebSocket Disconnected"
-        except Exception:
-            pass
-
-    def _ws_on_error(self, ws, error):
-        print("⚠️ WebSocket error:", error)
-        try:
-            import streamlit as st
-            st.session_state.ws_status = f"⚠️ WebSocket error: {error}"
-        except Exception:
-            pass
-
-    def subscribe_tokens(self, tokens):
-        if not getattr(self, "ws", None):
-            print("⚠️ subscribe_tokens: WS not connected yet")
-            return
-        if not tokens:
-            print("⚠️ subscribe_tokens: Empty token list")
-            return
-        uniq, seen = [], set()
-        for k in tokens:
-            if k and k not in seen:
-                uniq.append(k)
-                seen.add(k)
-        sub_req = {"t": "t", "k": "#".join(uniq)}
-        try:
-            self.ws.send(json.dumps(sub_req))
-            print(f"📡 Subscribed: {uniq}")
-        except Exception as e:
-            print("❌ subscribe_tokens error:", e)
-
-    def start_ticks(self, symbols, tick_file="ticks.log"):
-        if not self.session_token or not self.userid:
-            raise RuntimeError("Not logged in: call login() first and ensure session_token is set.")
-
-        if not symbols or not isinstance(symbols, (list, tuple)):
-            raise ValueError("symbols must be a non-empty list/tuple")
-
-        if isinstance(symbols[0], dict):
-            tokens = [f"{s['exch'].strip()}|{s['token'].strip()}" for s in symbols if s.get("exch") and s.get("token")]
-        else:
-            tokens = [str(s).strip() for s in symbols if s and isinstance(s, str)]
-
-        if not tokens:
-            raise ValueError("No valid symbols to subscribe")
-
-        self._sub_tokens = tokens
-        self.tick_file = tick_file
-        url = f"{self.ws_url}?u={self.userid}&t={self.session_token}"
-        print("🔗 Connecting WS:", url)
-
-        self.ws = websocket.WebSocketApp(url, on_open=self._ws_on_open, on_message=self._ws_on_message,
-                                         on_error=self._ws_on_error, on_close=self._ws_on_close)
-
-        def _send_heartbeat(wsobj):
-            while True:
-                if getattr(self, "is_ws_connected", False):
-                    try:
-                        wsobj.send(json.dumps({"t": "h"}))
-                    except Exception as e:
-                        print("⚠️ heartbeat error:", e)
-                time.sleep(30)
-
-        threading.Thread(target=_send_heartbeat, args=(self.ws,), daemon=True).start()
-        self._ws_thread = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 30, "ping_timeout": 10}, daemon=True)
-        self._ws_thread.start()
-        print("▶️ WS thread started")
-
-    def stop_ticks(self):
-        try:
-            if getattr(self, "ws", None):
-                self.ws.close()
-                print("🛑 WebSocket stop requested")
-        except Exception as e:
-            print("❌ stop_ticks error:", e)
+def stop_ticks(self):
+    try:
+        if getattr(self, "ws", None):
+            self.ws.close()
+            print("🛑 WebSocket stop requested")
+    except Exception as e:
+        print("❌ stop_ticks error:", e)
