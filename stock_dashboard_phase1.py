@@ -240,7 +240,7 @@ with tab5:
         st.session_state.live_ticks.append(data)
 
     def start_ws(symbols):
-        ps_api.connect_websocket(symbols, on_tick=on_tick)
+        ps_api.start_ticks(symbols, tick_file="ticks.log")
 
     # --- UI ---
     if "ps_api" not in st.session_state:
@@ -354,3 +354,4 @@ def start_ws(ps_api, symbols):
     ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={ps_api.userid}&t={ps_api.session_token}&uid={ps_api.userid}"
     ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_open=on_open)
     threading.Thread(target=ws.run_forever, daemon=True).start()
+
