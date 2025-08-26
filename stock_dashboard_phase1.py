@@ -258,7 +258,6 @@ with tab5:
                 "source": "API"
             }
             ws.send(json.dumps(login_pkt))
-            # Multiple subscription ek hi packet me bhejna
             sub_pkt = {"t": "t", "k": "#".join(symbols)}
             ws.send(json.dumps(sub_pkt))
             print(f"🔔 Subscribed to {symbols}")
@@ -348,13 +347,13 @@ with tab5:
             st.subheader("📡 Live Ticks")
             tick_placeholder = st.empty()
 
-            # Main Streamlit loop handles queue
+            # Drain queue & show last ticks
             last_ticks = []
             while not st.session_state.tick_queue.empty():
                 last_ticks.append(st.session_state.tick_queue.get())
 
             if last_ticks:
-                tick_placeholder.json(last_ticks[-5:])   # ✅ last 5 ticks
+                tick_placeholder.json(last_ticks[-5:])   # ✅ show last 5 ticks
             else:
                 st.info("⏳ Waiting for live ticks...")
         else:
