@@ -181,11 +181,14 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import threading, queue, json, websocket
+    import threading, queue, json, websocket, pandas as pd
 
     # --- Global Tick Queue (safe for Streamlit) ---
     if "tick_queue" not in st.session_state:
         st.session_state.tick_queue = queue.Queue()
+
+    if "ws_started" not in st.session_state:
+        st.session_state.ws_started = False
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
@@ -235,11 +238,11 @@ with tab5:
 
     # --- WebSocket Starter ---
     def start_ws(ps_api, symbols):
-        """Start WebSocket and push ticks into queue"""
+        """Start WebSocket and push ticks into queue (no Streamlit calls inside thread)"""
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                st.session_state.tick_queue.put(data)   # ✅ push into queue
+                st.session_state.tick_queue.put(data)   # ✅ push into queue only
                 with open("ticks_log.txt", "a") as f:
                     f.write(message + "\n")
             except Exception as e:
@@ -335,20 +338,22 @@ with tab5:
 
                         st.success(f"✅ TPSeries fetched for {call_count} scrips")
 
-                        # --- Start WebSocket ---
-                        if symbols_for_ws:
+                        # --- Start WebSocket only once ---
+                        if symbols_for_ws and not st.session_state.ws_started:
                             start_ws(ps_api, symbols_for_ws)
+                            st.session_state.ws_started = True
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
             # --- Live Ticks Viewer ---
             st.subheader("📡 Live Ticks")
             tick_placeholder = st.empty()
 
-            if not st.session_state.tick_queue.empty():
-                last_ticks = []
-                while not st.session_state.tick_queue.empty():
-                    last_ticks.append(st.session_state.tick_queue.get())
+            # Main Streamlit loop handles queue
+            last_ticks = []
+            while not st.session_state.tick_queue.empty():
+                last_ticks.append(st.session_state.tick_queue.get())
 
+            if last_ticks:
                 tick_placeholder.json(last_ticks[-5:])   # ✅ last 5 ticks
             else:
                 st.info("⏳ Waiting for live ticks...")
