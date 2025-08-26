@@ -181,7 +181,11 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import threading
+    import threading, queue, json, websocket
+
+    # --- Global Tick Queue (safe for Streamlit) ---
+    if "tick_queue" not in st.session_state:
+        st.session_state.tick_queue = queue.Queue()
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
@@ -194,7 +198,6 @@ with tab5:
         ]
 
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
             open=df['open'],
@@ -219,7 +222,6 @@ with tab5:
             font=dict(color='white'),
             title=f"{symbol} - TradingView-style Chart"
         )
-
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
 
@@ -231,13 +233,36 @@ with tab5:
         )
         return fig
 
-    # --- Tick Storage ---
-    if "live_ticks" not in st.session_state:
-        st.session_state.live_ticks = []
+    # --- WebSocket Starter ---
+    def start_ws(ps_api, symbols):
+        """Start WebSocket and push ticks into queue"""
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                st.session_state.tick_queue.put(data)   # ✅ push into queue
+                with open("ticks_log.txt", "a") as f:
+                    f.write(message + "\n")
+            except Exception as e:
+                print("on_message error:", e)
 
-    def on_tick(data):
-        """Callback when live tick arrives"""
-        st.session_state.live_ticks.append(data)
+        def on_open(ws):
+            print("✅ WebSocket Connected")
+            login_pkt = {
+                "t": "c",
+                "uid": ps_api.userid,
+                "actid": ps_api.userid,
+                "susertoken": ps_api.session_token,
+                "source": "API"
+            }
+            ws.send(json.dumps(login_pkt))
+            # Multiple subscription ek hi packet me bhejna
+            sub_pkt = {"t": "t", "k": "#".join(symbols)}
+            ws.send(json.dumps(sub_pkt))
+            print(f"🔔 Subscribed to {symbols}")
+
+        ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={ps_api.userid}&t={ps_api.session_token}&uid={ps_api.userid}"
+        ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_open=on_open)
+        threading.Thread(target=ws.run_forever, daemon=True).start()
 
     # --- UI ---
     if "ps_api" not in st.session_state:
@@ -300,7 +325,6 @@ with tab5:
 
                                     # Add to WS symbols
                                     symbols_for_ws.append(f"{exch}|{token}")
-
                                 else:
                                     st.warning(f"⚠️ No data for {tsym}")
 
@@ -313,42 +337,20 @@ with tab5:
 
                         # --- Start WebSocket ---
                         if symbols_for_ws:
-                            ps_api.on_tick_cb = on_tick   # callback set kare
-                            ps_api.start_ticks(symbols_for_ws, tick_file="ticks.log")
+                            start_ws(ps_api, symbols_for_ws)
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
             # --- Live Ticks Viewer ---
-            if st.session_state.live_ticks:
-                st.subheader("📡 Live Ticks")
-                st.json(st.session_state.live_ticks[-5:])
+            st.subheader("📡 Live Ticks")
+            tick_placeholder = st.empty()
+
+            if not st.session_state.tick_queue.empty():
+                last_ticks = []
+                while not st.session_state.tick_queue.empty():
+                    last_ticks.append(st.session_state.tick_queue.get())
+
+                tick_placeholder.json(last_ticks[-5:])   # ✅ last 5 ticks
+            else:
+                st.info("⏳ Waiting for live ticks...")
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-import websocket, threading, json
-
-def start_ws(ps_api, symbols):
-    def on_message(ws, message):
-        st.write("📩 Tick:", message)
-        with open("ticks_log.txt", "a") as f:
-            f.write(message + "\n")
-
-    def on_open(ws):
-        st.write("✅ WebSocket Connected")
-        login_pkt = {
-            "t": "c",
-            "uid": ps_api.userid,
-            "actid": ps_api.userid,
-            "susertoken": ps_api.session_token,
-            "source": "API"
-        }
-        ws.send(json.dumps(login_pkt))
-        # Multiple subscription ek hi packet me bhejna
-        sub_pkt = {"t": "t", "k": "#".join(symbols)}
-        ws.send(json.dumps(sub_pkt))
-        st.write(f"🔔 Subscribed to {symbols}")
-
-    ws_url = f"wss://starapi.prostocks.com/NorenWSTP/?u={ps_api.userid}&t={ps_api.session_token}&uid={ps_api.userid}"
-    ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_open=on_open)
-    threading.Thread(target=ws.run_forever, daemon=True).start()
-
-
