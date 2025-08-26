@@ -421,7 +421,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ Subscription error: {e}")
 
-        def subscribe_tokens(self, tokens):
+    def subscribe_tokens(self, tokens):
         """Subscribe multiple tokens in one go"""
         if not self.ws:
             print("⚠️ WebSocket not connected.")
@@ -638,6 +638,7 @@ def show_combined_chart(self, df_hist, interval="1min", refresh=10):
             time.sleep(refresh)
     except KeyboardInterrupt:
         print("🛑 Chart stopped")
+
 
 
 
