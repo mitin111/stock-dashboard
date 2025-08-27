@@ -182,11 +182,12 @@ with tab5:
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     import threading, queue
+    import pandas as pd
+    import time
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
-        df = df.drop_duplicates(subset=['datetime'])
-        df = df.sort_values("datetime")
+        df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
 
         # Market hours filter
         df = df[
@@ -266,8 +267,8 @@ with tab5:
                     if wl_data.get("stat") == "Ok":
                         scrips = wl_data.get("values", [])
                         symbols_for_ws = []
-                        call_count = 0
 
+                        # --- Fetch TPSeries and plot ---
                         for i, scrip in enumerate(scrips):
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
@@ -307,32 +308,31 @@ with tab5:
                             except Exception as e:
                                 st.warning(f"⚠️ {tsym}: Exception occurred - {e}")
 
-                            call_count += 1
-
-                        st.success(f"✅ TPSeries fetched for {call_count} scrips")
+                        st.success(f"✅ TPSeries fetched for {len(symbols_for_ws)} scrips")
 
                         # --- Start WebSocket in background ---
-                        if symbols_for_ws:
+                        if symbols_for_ws and "ws_started" not in st.session_state:
                             threading.Thread(
                                 target=start_ws, args=(symbols_for_ws,), daemon=True
                             ).start()
+                            st.session_state.ws_started = True
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-                            # --- Live ticks consume ---
-                            if "tick_queue" not in st.session_state:
-                                st.session_state.tick_queue = queue.Queue()
+            # --- Live ticks consume & periodic refresh ---
+            if "tick_queue" in st.session_state:
+                ticks = []
+                while not st.session_state.tick_queue.empty():
+                    ticks.append(st.session_state.tick_queue.get())
 
-                            ticks = []
-                            while not st.session_state.tick_queue.empty():
-                                ticks.append(st.session_state.tick_queue.get())
+                if ticks:
+                    df_ticks = pd.DataFrame(ticks)
+                    placeholder.dataframe(df_ticks.tail(10), use_container_width=True)
+                else:
+                    placeholder.write("⏳ Waiting for live ticks...")
 
-                            if ticks:
-                                df_ticks = pd.DataFrame(ticks)
-                                placeholder.dataframe(df_ticks.tail(10), use_container_width=True)
-                            else:
-                                placeholder.write("⏳ Waiting for live ticks...")
-
-                            st.rerun()
+            # --- Auto-refresh every 1 sec ---
+            time.sleep(1)
+            st.experimental_rerun()
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
