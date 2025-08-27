@@ -181,7 +181,7 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import threading
+    import threading, time
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
@@ -194,13 +194,10 @@ with tab5:
         ]
 
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-
         fig.add_trace(go.Candlestick(
             x=df['datetime'],
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
+            open=df['open'], high=df['high'],
+            low=df['low'], close=df['close'],
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name='Price'
@@ -222,7 +219,6 @@ with tab5:
 
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-
         fig.update_xaxes(
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
@@ -232,12 +228,12 @@ with tab5:
         return fig
 
     # --- Tick Storage ---
-    if "live_ticks" not in st.session_state:
-        st.session_state.live_ticks = []
+    if "last_tick" not in st.session_state:
+        st.session_state.last_tick = None
 
     def on_tick(data):
         """Callback when live tick arrives"""
-        st.session_state.live_ticks.append(data)
+        st.session_state.last_tick = data
 
     def start_ws(symbols):
         ps_api.connect_websocket(symbols, on_tick=on_tick)
@@ -258,6 +254,8 @@ with tab5:
                 ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
             )
 
+            placeholder = st.empty()   # 👈 live tick placeholder
+
             if st.button("🚀 Start TPSeries + Live Feed"):
                 with st.spinner("Fetching TPSeries + starting WebSocket..."):
                     wl_data = ps_api.get_watchlist(selected_watchlist)
@@ -267,9 +265,7 @@ with tab5:
                         call_count = 0
 
                         for i, scrip in enumerate(scrips):
-                            exch = scrip["exch"]
-                            token = scrip["token"]
-                            tsym = scrip["tsym"]
+                            exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
@@ -321,9 +317,14 @@ with tab5:
                             ).start()
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-            # --- Live Ticks Viewer ---
-            if st.session_state.live_ticks:
-                st.subheader("📡 Live Ticks")
-                st.json(st.session_state.live_ticks[-5:])
+                            # --- Polling loop for live feed ---
+                            for _ in range(100):  # ≈100 sec
+                                if st.session_state.last_tick:
+                                    placeholder.json(st.session_state.last_tick)
+                                else:
+                                    placeholder.write("⏳ Waiting for live ticks...")
+                                time.sleep(1)
+                                st.experimental_rerun()
+
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
