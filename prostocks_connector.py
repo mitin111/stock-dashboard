@@ -326,22 +326,32 @@ class ProStocksAPI:
                 if tick.get("s") in ["OK", "Ok"]:   # <-- FIXED ✅
                     print("✅ WebSocket login OK")
                     # re-subscribe after login ack if tokens present
-                    if self._sub_tokens:
+                    if hasattr(self, "_sub_tokens") and self._sub_tokens:
                         self.subscribe_tokens(self._sub_tokens)
                 else:
                     print("❌ WebSocket login failed:", tick)
                 return
 
-            print("📩 Tick received:", tick)   # 🔍 Debugging tick print
+            # 📩 Normal tick data
+            print("📩 Tick received:", tick)
+
+            # File me save karo
             with open(self.tick_file, "a") as f:
                 f.write(json.dumps(tick) + "\n")
-
-            # Callback fire karo agar diya gaya hai
-            if hasattr(self, "_on_tick") and self._on_tick:
+                
+            # Queue me bhejo (UI thread poll karega)
+            if "tick_queue" in st.session_state:
                 try:
-                    self._on_tick(tick)
+                    st.session_state.tick_queue.put(tick)
                 except Exception as e:
-                    print("❌ on_tick callback error:", e)
+                    print("⚠️ tick_queue push error:", e)
+
+             # Callback trigger
+             if hasattr(self, "_on_tick") and self._on_tick:
+                 try:
+                     self._on_tick(tick)
+                 except Exception as e:
+                     print("❌ on_tick callback error:", e)
                 
         except Exception as e:
             print("⚠️ _ws_on_message parse error:", e)
@@ -476,6 +486,7 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
 
