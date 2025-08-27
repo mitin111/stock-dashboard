@@ -181,7 +181,7 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import threading, time
+    import threading, time, queue
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
@@ -227,16 +227,9 @@ with tab5:
         )
         return fig
 
-    # --- Tick Storage ---
-    if "last_tick" not in st.session_state:
-        st.session_state.last_tick = None
-
-    def on_tick(data):
-        """Callback when live tick arrives"""
-        st.session_state.last_tick = data
-
+    # --- WebSocket Start Helper ---
     def start_ws(symbols):
-        ps_api.connect_websocket(symbols, on_tick=on_tick)
+        ps_api.connect_websocket(symbols)   # tick_queue already used inside connector
 
     # --- UI ---
     if "ps_api" not in st.session_state:
@@ -317,9 +310,17 @@ with tab5:
                             ).start()
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-                            # --- Show live ticks safely ---
-                            if st.session_state.last_tick:
-                                placeholder.json(st.session_state.last_tick)
+                            # --- Show live ticks safely (Queue consume) ---
+                            if "tick_queue" not in st.session_state:
+                                st.session_state.tick_queue = queue.Queue()
+
+                            ticks = []
+                            while not st.session_state.tick_queue.empty():
+                                ticks.append(st.session_state.tick_queue.get())
+
+                            if ticks:
+                                df_ticks = pd.DataFrame(ticks)
+                                placeholder.dataframe(df_ticks.tail(10), use_container_width=True)
                             else:
                                 placeholder.write("⏳ Waiting for live ticks...")
 
