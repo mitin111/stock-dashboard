@@ -318,6 +318,10 @@ class ProStocksAPI:
         return results
 
   # ---------------- WebSocket helpers ----------------
+    import queue
+    self.tick_queue = queue.Queue()   # ✅ global queue for ticks
+    self.tick_file = "ticks.log"      # ✅ default file to append ticks
+    
     def _ws_on_message(self, ws, message):
         try:
             tick = json.loads(message)
@@ -336,17 +340,12 @@ class ProStocksAPI:
             print("📩 Tick received:", tick)
 
             # ✅ File me append karo
-            if hasattr(self, "tick_file") and self.tick_file:
-                with open(self.tick_file, "a") as f:
-                    f.write(json.dumps(tick) + "\n")
+            with open(self.tick_file, "a") as f:
+                f.write(json.dumps(tick) + "\n")
                 
             # ✅ Queue me bhejo (safe for Streamlit consumer thread)
-            if hasattr(self, "tick_queue") and self.tick_queue:
-                try:
-                    self.tick_queue.put(tick, block=False)
-                except Exception as e:
-                    print("⚠️ tick_queue full/drop:", e)
-
+            self.tick_queue.put(tick)
+                
             # Callback trigger
             if hasattr(self, "_on_tick") and self._on_tick:
                 try:
@@ -487,6 +486,7 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
 
