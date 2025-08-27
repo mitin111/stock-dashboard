@@ -181,13 +181,14 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import threading, time, queue
+    import threading, queue
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
         df = df.drop_duplicates(subset=['datetime'])
         df = df.sort_values("datetime")
 
+        # Market hours filter
         df = df[
             (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
             (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
@@ -229,21 +230,16 @@ with tab5:
 
     # --- WebSocket Start Helper ---
     def start_ws(symbols):
-        # Tick queue init
         if "tick_queue" not in st.session_state:
             st.session_state.tick_queue = queue.Queue()
 
-        # Callback jo prostocks_connector call karega
         def on_tick_callback(tick):
             try:
                 st.session_state.tick_queue.put(tick)
             except Exception as e:
                 print("⚠️ tick_queue error:", e)
 
-        # Register callback
-        ps_api._on_tick = on_tick_callback  
-
-        # Start websocket
+        ps_api._on_tick = on_tick_callback
         ps_api.connect_websocket(symbols)
 
     # --- UI ---
@@ -283,7 +279,6 @@ with tab5:
                                     chunk_days=5
                                 )
                                 if not df_candle.empty:
-                                    # Normalize datetime
                                     if "datetime" not in df_candle.columns:
                                         for col in ["time", "date"]:
                                             if col in df_candle.columns:
@@ -298,11 +293,9 @@ with tab5:
                                     df_candle.dropna(subset=["datetime"], inplace=True)
                                     df_candle.sort_values("datetime", inplace=True)
 
-                                    # Plot chart
+                                    # Chart + Table
                                     fig = plot_tpseries_candles(df_candle, tsym)
                                     st.plotly_chart(fig, use_container_width=True)
-
-                                    # Table
                                     st.dataframe(df_candle, use_container_width=True, height=500)
 
                                     # Add to WS symbols
@@ -325,7 +318,7 @@ with tab5:
                             ).start()
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-                            # --- Show live ticks safely (Queue consume) ---
+                            # --- Live ticks consume ---
                             if "tick_queue" not in st.session_state:
                                 st.session_state.tick_queue = queue.Queue()
 
@@ -339,10 +332,7 @@ with tab5:
                             else:
                                 placeholder.write("⏳ Waiting for live ticks...")
 
-                            # ⏱ Auto-refresh every 1 sec (Streamlit safe)
                             st.rerun()
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-
