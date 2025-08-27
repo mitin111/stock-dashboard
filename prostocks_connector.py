@@ -346,12 +346,12 @@ class ProStocksAPI:
                 except Exception as e:
                     print("⚠️ tick_queue push error:", e)
 
-             # Callback trigger
-             if hasattr(self, "_on_tick") and self._on_tick:
-                 try:
-                     self._on_tick(tick)
-                 except Exception as e:
-                     print("❌ on_tick callback error:", e)
+            # Callback trigger
+            if hasattr(self, "_on_tick") and self._on_tick:
+                try:
+                    self._on_tick(tick)
+                except Exception as e:
+                    print("❌ on_tick callback error:", e)
                 
         except Exception as e:
             print("⚠️ _ws_on_message parse error:", e)
@@ -486,6 +486,7 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
 
