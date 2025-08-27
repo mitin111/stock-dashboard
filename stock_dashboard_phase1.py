@@ -183,17 +183,12 @@ with tab5:
     from plotly.subplots import make_subplots
     import threading, queue
     import pandas as pd
-    import time
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
         df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
-
-        # Market hours filter
-        df = df[
-            (df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-            (df['datetime'].dt.time <= pd.to_datetime("15:30").time())
-        ]
+        df = df[(df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
+                (df['datetime'].dt.time <= pd.to_datetime("15:30").time())]
 
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
         fig.add_trace(go.Candlestick(
@@ -218,15 +213,9 @@ with tab5:
             font=dict(color='white'),
             title=f"{symbol} - TradingView-style Chart"
         )
-
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-        fig.update_xaxes(
-            rangebreaks=[
-                dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour")
-            ]
-        )
+        fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"]), dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
     # --- WebSocket Start Helper ---
@@ -259,7 +248,8 @@ with tab5:
                 ["1", "3", "5", "10", "15", "30", "60", "120", "240"]
             )
 
-            placeholder = st.empty()   # 👈 live tick placeholder
+            placeholder_ticks = st.empty()   # Live tick table
+            placeholder_chart = st.empty()   # Live candle chart
 
             if st.button("🚀 Start TPSeries + Live Feed"):
                 with st.spinner("Fetching TPSeries + starting WebSocket..."):
@@ -268,7 +258,6 @@ with tab5:
                         scrips = wl_data.get("values", [])
                         symbols_for_ws = []
 
-                        # --- Fetch TPSeries and plot ---
                         for i, scrip in enumerate(scrips):
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
@@ -294,12 +283,11 @@ with tab5:
                                     df_candle.dropna(subset=["datetime"], inplace=True)
                                     df_candle.sort_values("datetime", inplace=True)
 
-                                    # Chart + Table
+                                    # Plot chart once
                                     fig = plot_tpseries_candles(df_candle, tsym)
-                                    st.plotly_chart(fig, use_container_width=True)
+                                    placeholder_chart.plotly_chart(fig, use_container_width=True)
                                     st.dataframe(df_candle, use_container_width=True, height=500)
 
-                                    # Add to WS symbols
                                     symbols_for_ws.append(f"{exch}|{token}")
 
                                 else:
@@ -310,29 +298,23 @@ with tab5:
 
                         st.success(f"✅ TPSeries fetched for {len(symbols_for_ws)} scrips")
 
-                        # --- Start WebSocket in background ---
+                        # Start WebSocket in background (once)
                         if symbols_for_ws and "ws_started" not in st.session_state:
-                            threading.Thread(
-                                target=start_ws, args=(symbols_for_ws,), daemon=True
-                            ).start()
+                            threading.Thread(target=start_ws, args=(symbols_for_ws,), daemon=True).start()
                             st.session_state.ws_started = True
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-            # --- Live ticks consume & periodic refresh ---
+            # --- Live tick consumer (non-blocking) ---
+            ticks = []
             if "tick_queue" in st.session_state:
-                ticks = []
                 while not st.session_state.tick_queue.empty():
                     ticks.append(st.session_state.tick_queue.get())
 
-                if ticks:
-                    df_ticks = pd.DataFrame(ticks)
-                    placeholder.dataframe(df_ticks.tail(10), use_container_width=True)
-                else:
-                    placeholder.write("⏳ Waiting for live ticks...")
-
-            # --- Auto-refresh every 1 sec ---
-            time.sleep(1)
-            st.experimental_rerun()
+            if ticks:
+                df_ticks = pd.DataFrame(ticks)
+                placeholder_ticks.dataframe(df_ticks.tail(10), use_container_width=True)
+            else:
+                placeholder_ticks.write("⏳ Waiting for live ticks...")
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
