@@ -323,7 +323,7 @@ class ProStocksAPI:
             tick = json.loads(message)
             # Optional: login-ack handle (ProStocks me 'ck' aata hai)
             if isinstance(tick, dict) and tick.get("t") == "ck":
-                if tick.get("stat") == "Ok":
+                if tick.get("s") in ["OK", "Ok"]:   # <-- FIXED ✅
                     print("✅ WebSocket login OK")
                     # re-subscribe after login ack if tokens present
                     if self._sub_tokens:
@@ -476,5 +476,6 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
