@@ -339,12 +339,8 @@ class ProStocksAPI:
             with open(self.tick_file, "a") as f:
                 f.write(json.dumps(tick) + "\n")
                 
-            # ✅ Queue forward (agar external UI thread poll kar raha hai)
-            if hasattr(self, "tick_queue") and self.tick_queue:
-                try:
-                    self.tick_queue.put(tick)
-                except Exception as e:
-                    print("⚠️ tick_queue push error:", e)
+            # Queue me bhejo (safe for Streamlit)
+            tick_queue.put(tick)
 
             # Callback trigger
             if hasattr(self, "_on_tick") and self._on_tick:
@@ -486,6 +482,7 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
 
