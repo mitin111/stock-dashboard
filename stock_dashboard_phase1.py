@@ -229,7 +229,22 @@ with tab5:
 
     # --- WebSocket Start Helper ---
     def start_ws(symbols):
-        ps_api.connect_websocket(symbols)   # tick_queue already used inside connector
+        # Tick queue init
+        if "tick_queue" not in st.session_state:
+            st.session_state.tick_queue = queue.Queue()
+
+        # Callback jo prostocks_connector call karega
+        def on_tick_callback(tick):
+            try:
+                st.session_state.tick_queue.put(tick)
+            except Exception as e:
+                print("⚠️ tick_queue error:", e)
+
+        # Register callback
+        ps_api._on_tick = on_tick_callback  
+
+        # Start websocket
+        ps_api.connect_websocket(symbols)
 
     # --- UI ---
     if "ps_api" not in st.session_state:
