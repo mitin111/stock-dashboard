@@ -466,12 +466,11 @@ class ProStocksAPI:
             print("❌ stop_ticks error:", e)
 
      def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
-         """
-         Wrapper so that dashboard call works.
-         Internally uses start_ticks.
-         """
-         # on_tick callback store kar lo (agar diya gaya hai)
-         self._on_tick = on_tick
-         return self.start_ticks(symbols, tick_file=tick_file)
-         
+        """
+        Wrapper so that dashboard call works.
+        Internally uses start_ticks.
+        """
+        # on_tick callback store kar lo (agar diya gaya hai)
+        self._on_tick = on_tick
+        return self.start_ticks(symbols, tick_file=tick_file)
 
