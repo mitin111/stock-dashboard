@@ -50,6 +50,11 @@ class ProStocksAPI:
         self.tick_file = "ticks.log"
         self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
 
+        # ✅ Tick Queue + File init YAHAN karna hai
+        import queue
+        self.tick_queue = queue.Queue()
+        self.tick_file = "ticks.log"
+
     # ---------------- Utils ----------------
     def sha256(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
@@ -318,10 +323,6 @@ class ProStocksAPI:
         return results
 
   # ---------------- WebSocket helpers ----------------
-    import queue
-    self.tick_queue = queue.Queue()   # ✅ global queue for ticks
-    self.tick_file = "ticks.log"      # ✅ default file to append ticks
-    
     def _ws_on_message(self, ws, message):
         try:
             tick = json.loads(message)
@@ -486,6 +487,7 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
 
