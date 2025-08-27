@@ -335,12 +335,17 @@ class ProStocksAPI:
             # 📩 Normal tick data
             print("📩 Tick received:", tick)
 
-            # File me save karo
-            with open(self.tick_file, "a") as f:
-                f.write(json.dumps(tick) + "\n")
+            # ✅ File me append karo
+            if hasattr(self, "tick_file") and self.tick_file:
+                with open(self.tick_file, "a") as f:
+                    f.write(json.dumps(tick) + "\n")
                 
-            # Queue me bhejo (safe for Streamlit)
-            tick_queue.put(tick)
+            # ✅ Queue me bhejo (safe for Streamlit consumer thread)
+            if hasattr(self, "tick_queue") and self.tick_queue:
+                try:
+                    self.tick_queue.put(tick, block=False)
+                except Exception as e:
+                    print("⚠️ tick_queue full/drop:", e)
 
             # Callback trigger
             if hasattr(self, "_on_tick") and self._on_tick:
@@ -482,6 +487,7 @@ class ProStocksAPI:
         # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
         return self.start_ticks(symbols, tick_file=tick_file)
+
 
 
 
