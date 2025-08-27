@@ -336,6 +336,10 @@ class ProStocksAPI:
             print("📩 Tick:", tick)
             with open(self.tick_file, "a") as f:
                 f.write(json.dumps(tick) + "\n")
+
+            if hasattr(self, "_on_tick") and self._on_tick:
+                self._on_tick(tick)
+                
         except Exception as e:
             print("⚠️ _ws_on_message parse error:", e)
 
@@ -460,3 +464,14 @@ class ProStocksAPI:
                 print("🛑 WebSocket stop requested")
         except Exception as e:
             print("❌ stop_ticks error:", e)
+
+     def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
+         """
+         Wrapper so that dashboard call works.
+         Internally uses start_ticks.
+         """
+         # on_tick callback store kar lo (agar diya gaya hai)
+         self._on_tick = on_tick
+         return self.start_ticks(symbols, tick_file=tick_file)
+         
+
