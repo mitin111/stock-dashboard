@@ -317,14 +317,15 @@ with tab5:
                             ).start()
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-                            # --- Polling loop for live feed ---
-                            for _ in range(100):  # ≈100 sec
-                                if st.session_state.last_tick:
-                                    placeholder.json(st.session_state.last_tick)
-                                else:
-                                    placeholder.write("⏳ Waiting for live ticks...")
-                                time.sleep(1)
-                                st.experimental_rerun()
+                            # --- Show live ticks safely ---
+                            if st.session_state.last_tick:
+                                placeholder.json(st.session_state.last_tick)
+                            else:
+                                placeholder.write("⏳ Waiting for live ticks...")
+
+                            # Auto-refresh every second
+                            time.sleep(1)
+                            st.rerun()
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
