@@ -340,9 +340,9 @@ with tab5:
                                 placeholder.write("⏳ Waiting for live ticks...")
 
                             # ⏱ Auto-refresh every 1 sec (Streamlit safe)
-                            st.experimental_singleton.clear()  # optional if caching issues
-                            st.experimental_rerun()  # <= isko replace karke st.rerun() karo
+                            st.rerun()
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
