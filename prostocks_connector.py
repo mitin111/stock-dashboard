@@ -484,9 +484,16 @@ class ProStocksAPI:
         Wrapper so that dashboard call works.
         Internally uses start_ticks.
         """
-        # on_tick callback store kar lo (agar diya gaya hai)
         self._on_tick = on_tick
-        return self.start_ticks(symbols, tick_file=tick_file)
+        self.start_ticks(symbols, tick_file=tick_file)
+
+        # Wait until WS connected (max 5 sec)
+        for _ in range(50):
+            if self.is_ws_connected:
+                return True
+            time.sleep(0.1)
+        return False    
+        
 
 
 
