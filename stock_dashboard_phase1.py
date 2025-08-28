@@ -174,7 +174,6 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
     final_df.sort_index(inplace=True)
     return final_df
-
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
@@ -304,17 +303,26 @@ with tab5:
                             st.session_state.ws_started = True
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-            # --- Live tick consumer (non-blocking) ---
+            # --- ✅ Refactored Live tick consumer (safe queue consume) ---
             ticks = []
             if "tick_queue" in st.session_state:
                 while not st.session_state.tick_queue.empty():
                     ticks.append(st.session_state.tick_queue.get())
 
             if ticks:
-                df_ticks = pd.DataFrame(ticks)
-                placeholder_ticks.dataframe(df_ticks.tail(10), use_container_width=True)
+                if "df_ticks" not in st.session_state:
+                    st.session_state.df_ticks = pd.DataFrame(ticks)
+                else:
+                    st.session_state.df_ticks = pd.concat(
+                        [st.session_state.df_ticks, pd.DataFrame(ticks)]
+                    ).tail(2000)  # ✅ keep last 2000 rows only
+
+                placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
             else:
-                placeholder_ticks.write("⏳ Waiting for live ticks...")
+                placeholder_ticks.info("⏳ Waiting for live ticks...")
+
+            # Force auto-refresh every 2s
+            st.experimental_rerun   # 👉 replace with st.rerun() if Streamlit >=1.25
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
