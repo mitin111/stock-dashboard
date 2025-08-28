@@ -322,10 +322,12 @@ with tab5:
                 placeholder_ticks.info("⏳ Waiting for live ticks...")
 
             # 👇 Add here
-            from streamlit_autorefresh import st_autorefresh
-            st_autorefresh(interval=2000, key="tab5_refresh")
-
+            if "ws_started" in st.session_state and st.session_state.ws_started:
+                from streamlit_autorefresh import st_autorefresh
+                st_autorefresh(interval=2000, key="tab5_refresh")
+           
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
 
