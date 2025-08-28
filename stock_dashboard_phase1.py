@@ -214,7 +214,8 @@ with tab5:
         )
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
         fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-        fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"]), dict(bounds=[15.5, 9.25], pattern="hour")])
+        fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"]),
+                                      dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
     # --- WebSocket Start Helper ---
@@ -282,7 +283,7 @@ with tab5:
                                     df_candle.dropna(subset=["datetime"], inplace=True)
                                     df_candle.sort_values("datetime", inplace=True)
 
-                                    # Plot chart once
+                                    # Plot chart once initially
                                     fig = plot_tpseries_candles(df_candle, tsym)
                                     placeholder_chart.plotly_chart(fig, use_container_width=True)
                                     st.dataframe(df_candle, use_container_width=True, height=500)
@@ -317,17 +318,20 @@ with tab5:
                         [st.session_state.df_ticks, pd.DataFrame(ticks)]
                     ).tail(2000)  # ✅ keep last 2000 rows only
 
+                # 🔹 Live tick table update
                 placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
+
+                # 🔹 Live chart update (only placeholder refresh)
+                df_latest = st.session_state.df_ticks.copy()
+                df_latest["datetime"] = pd.to_datetime(df_latest["datetime"], errors="coerce")
+                df_latest.dropna(subset=["datetime"], inplace=True)
+
+                if not df_latest.empty:
+                    fig = plot_tpseries_candles(df_latest, symbol="LIVE")
+                    placeholder_chart.plotly_chart(fig, use_container_width=True)
+
             else:
                 placeholder_ticks.info("⏳ Waiting for live ticks...")
 
-            # 👇 Add here
-            if "ws_started" in st.session_state and st.session_state.ws_started:
-                from streamlit_autorefresh import st_autorefresh
-                st_autorefresh(interval=2000, key="tab5_refresh")
-           
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
-
-
