@@ -304,19 +304,20 @@ with tab5:
                             st.session_state.ws_started = True
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-            # --- ✅ Safe Live Tick Consumer (MERGED HERE) ---
+            # --- ✅ Safe Live Tick Consumer (EDITED for Candles) ---
             if "tick_queue" in st.session_state:
                 ticks = []
                 while not st.session_state.tick_queue.empty():
                     ticks.append(st.session_state.tick_queue.get())
 
                 if ticks:
+                    # Tick DF सिर्फ table में दिखाने के लिए
                     if "df_ticks" not in st.session_state:
                         st.session_state.df_ticks = pd.DataFrame(ticks)
                     else:
                         st.session_state.df_ticks = pd.concat(
                             [st.session_state.df_ticks, pd.DataFrame(ticks)]
-                        ).tail(2000)   # ✅ keep last 2000 rows
+                        ).tail(2000)
 
                     # 🔹 Tick table update
                     placeholder_ticks.dataframe(
@@ -324,15 +325,21 @@ with tab5:
                         use_container_width=True
                     )
 
-                    # 🔹 Candle chart update
-                    df = st.session_state.df_ticks.copy()
-                    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-                    df.dropna(subset=["datetime"], inplace=True)
+                    # 🔹 Candle data API से लेना है
+                    for sym in symbols_for_ws:   # e.g. NSE|3456
+                        exch, token = sym.split("|")
 
-                    if not df.empty:
-                        fig = plot_tpseries_candles(df, "LIVE")
-                        placeholder_chart.plotly_chart(fig, use_container_width=True)
+                        closed = ps_api.get_closed_candles(token, selected_interval)
+                        current = ps_api.get_current_candle(token, selected_interval)
 
+                        if closed:
+                            if current:
+                                closed = closed + [current]
+                            df_candles = pd.DataFrame(closed)
+                            df_candles["datetime"] = pd.to_datetime(df_candles["time"], unit="s")
+
+                            fig = plot_tpseries_candles(df_candles, f"{exch}|{token}")
+                            placeholder_chart.plotly_chart(fig, use_container_width=True)
                 else:
                     placeholder_ticks.info("⏳ Waiting for live ticks...")
 
