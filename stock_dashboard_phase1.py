@@ -321,9 +321,11 @@ with tab5:
             else:
                 placeholder_ticks.info("⏳ Waiting for live ticks...")
 
-            # Force auto-refresh every 2s
-            st.rerun()   # Streamlit >=1.25
+            # 👇 Add here
+            from streamlit_autorefresh import st_autorefresh
+            st_autorefresh(interval=2000, key="tab5_refresh")
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
 
