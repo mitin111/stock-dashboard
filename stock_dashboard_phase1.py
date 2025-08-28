@@ -305,10 +305,20 @@ with tab5:
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
             # --- ✅ Refactored Live tick consumer (safe queue consume) ---
+            chart_placeholder = placeholder_chart  # alias for clarity
+
+            # Init tick queue
+            if "tick_queue" not in st.session_state:
+                import queue
+                st.session_state.tick_queue = queue.Queue()
+
             ticks = []
-            if "tick_queue" in st.session_state:
-                while not st.session_state.tick_queue.empty():
-                    ticks.append(st.session_state.tick_queue.get())
+            while True:
+                try:
+                    tick = st.session_state.tick_queue.get_nowait()
+                    ticks.append(tick)
+                except queue.Empty:
+                    break
 
             if ticks:
                 if "df_ticks" not in st.session_state:
@@ -316,19 +326,21 @@ with tab5:
                 else:
                     st.session_state.df_ticks = pd.concat(
                         [st.session_state.df_ticks, pd.DataFrame(ticks)]
-                    ).tail(2000)  # ✅ keep last 2000 rows only
+                    ).tail(2000)
 
-                # 🔹 Live tick table update
-                placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
+                # 🔹 Tick table update
+                placeholder_ticks.dataframe(
+                    st.session_state.df_ticks.tail(10), use_container_width=True
+                )
 
-                # 🔹 Live chart update (only placeholder refresh)
-                df_latest = st.session_state.df_ticks.copy()
-                df_latest["datetime"] = pd.to_datetime(df_latest["datetime"], errors="coerce")
-                df_latest.dropna(subset=["datetime"], inplace=True)
+                # 🔹 Chart update
+                df = st.session_state.df_ticks.copy()
+                df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+                df.dropna(subset=["datetime"], inplace=True)
 
-                if not df_latest.empty:
-                    fig = plot_tpseries_candles(df_latest, symbol="LIVE")
-                    placeholder_chart.plotly_chart(fig, use_container_width=True)
+                if not df.empty:
+                    fig = plot_tpseries_candles(df, "LIVE")
+                    chart_placeholder.plotly_chart(fig, use_container_width=True)
 
             else:
                 placeholder_ticks.info("⏳ Waiting for live ticks...")
