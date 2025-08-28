@@ -353,6 +353,12 @@ class ProStocksAPI:
                     self._on_tick(tick)
                 except Exception as e:
                     print("❌ on_tick callback error:", e)
+
+            # ✅ Live candle builder update
+            try:
+                self.build_live_candles_from_tick(tick)
+            except Exception as e:
+                print("⚠️ candle build error:", e)
                 
         except Exception as e:
             print("⚠️ _ws_on_message parse error:", e)
@@ -494,6 +500,7 @@ class ProStocksAPI:
             time.sleep(0.1)
         return False    
         
+
 
 
 
