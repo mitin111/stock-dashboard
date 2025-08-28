@@ -129,21 +129,51 @@ with tab3:
                 st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                 st.dataframe(df if not df.empty else pd.DataFrame())
             else:
-                st.session_state["last_error"] = wl_data.get("emsg", "Failed to load watchlist.")
+                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
         else:
-            st.session_state["last_error"] = wl_resp.get("emsg", "Could not fetch watchlists.")
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
     else:
         st.info("ℹ️ Please login to view live watchlist data.")
-
-    # ✅ Safe error render
-    if "last_error" in st.session_state:
-        st.warning(st.session_state["last_error"])
-        del st.session_state["last_error"]
 
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+# === Function: TPSeries fetch in daily chunks (fix for single candle issue) ===
+def fetch_full_tpseries(api, exch, token, interval, days=60):
+    final_df = pd.DataFrame()
+
+    # IST timezone
+    ist_offset = timedelta(hours=5, minutes=30)
+    today_ist = datetime.utcnow() + ist_offset
+    end_dt = today_ist
+    start_dt = end_dt - timedelta(days=days)
+
+    current_day = start_dt
+    while current_day <= end_dt:
+        day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
+        day_end = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
+
+        # Convert to epoch seconds (UTC)
+        st_epoch = int((day_start - ist_offset).timestamp())
+        et_epoch = int((day_end - ist_offset).timestamp())
+
+        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
+
+        if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
+            chunk_df = pd.DataFrame(resp["values"])
+            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
+            chunk_df.set_index("datetime", inplace=True)
+            final_df = pd.concat([final_df, chunk_df])
+        else:
+            # Weekend/holiday skip message
+            pass  
+
+        current_day += timedelta(days=1)
+        time.sleep(0.3)  # Avoid rate limit
+
+    final_df.sort_index(inplace=True)
+    return final_df
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
@@ -307,9 +337,4 @@ with tab5:
                     placeholder_ticks.info("⏳ Waiting for live ticks...")
 
         else:
-            st.session_state["last_error"] = wl_resp.get("emsg", "Could not fetch watchlists.")
-
-    # ✅ Safe error render
-    if "last_error" in st.session_state:
-        st.warning(st.session_state["last_error"])
-        del st.session_state["last_error"]
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
