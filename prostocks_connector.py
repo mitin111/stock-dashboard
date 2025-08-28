@@ -487,45 +487,46 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ stop_ticks error:", e)
 
-    def build_live_candles_from_tick(self, tick, intervals=[1,3,5,15,30,60]):
-    """
-    Build/update OHLCV candles from live ticks.
-    tick: dict from websocket
-    intervals: list of minute durations
-    """
-    try:
-        ts = int(tick.get("ft", 0))  # epoch seconds
-        price = float(tick.get("lp", 0) or 0)
-        volume = int(tick.get("v", 0) or 0)
+    def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
+        """
+        Build/update OHLCV candles from live ticks.
 
-        if not price:
-            return  # skip ticks without price
+        tick: dict from websocket
+        intervals: list of minute durations
+        """
+        try:
+            ts = int(tick.get("ft", 0))  # epoch seconds
+            price = float(tick.get("lp", 0) or 0)
+            volume = int(tick.get("v", 0) or 0)
 
-        for m in intervals:
-            bucket = ts - (ts % (m * 60))  # candle start time
-            key = f"{tick['e']}|{tick['tk']}|{m}"
+            if not price:
+                return  # skip ticks without price
 
-            if not hasattr(self, "candles"):
-                self.candles = {}
+            for m in intervals:
+                bucket = ts - (ts % (m * 60))  # candle start time
+                key = f"{tick['e']}|{tick['tk']}|{m}"
 
-            if key not in self.candles:
-                self.candles[key] = {
-                    "ts": bucket,
-                    "o": price,
-                    "h": price,
-                    "l": price,
-                    "c": price,
-                    "v": volume
-                }
-            else:
-                candle = self.candles[key]
-                candle["h"] = max(candle["h"], price)
-                candle["l"] = min(candle["l"], price)
-                candle["c"] = price
-                candle["v"] += volume
+                if not hasattr(self, "candles"):
+                    self.candles = {}
 
-    except Exception as e:
-        print(f"⚠️ build_live_candles_from_tick error: {e}")
+                if key not in self.candles:
+                    self.candles[key] = {
+                        "ts": bucket,
+                        "o": price,
+                        "h": price,
+                        "l": price,
+                        "c": price,
+                        "v": volume,
+                    }
+                else:
+                    candle = self.candles[key]
+                    candle["h"] = max(candle["h"], price)
+                    candle["l"] = min(candle["l"], price)
+                    candle["c"] = price
+                    candle["v"] += volume
+
+        except Exception as e:
+            print(f"⚠️ build_live_candles_from_tick error: {e}")
 
     def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
         """
@@ -540,17 +541,4 @@ class ProStocksAPI:
             if self.is_ws_connected:
                 return True
             time.sleep(0.1)
-        return False    
-        
-
-
-
-
-
-
-
-
-
-
-
-
+        return False
