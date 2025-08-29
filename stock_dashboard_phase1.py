@@ -181,7 +181,7 @@ with tab5:
 
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import threading, queue
+    import threading, queue, time
     import pandas as pd
     from datetime import datetime
 
@@ -225,7 +225,23 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (final version) ---
+    # --- Live Chart Thread for TradingView-style update ---
+    def start_live_chart(symbol_key, placeholder_chart):
+        def chart_updater():
+            while True:
+                ps = st.session_state.get("ps_api")
+                if ps and hasattr(ps, "candles") and symbol_key in ps.candles:
+                    df = pd.DataFrame(list(ps.candles[symbol_key].values()))
+                    if not df.empty:
+                        df["datetime"] = pd.to_datetime(df["ts"], unit="s")
+                        df.sort_values("datetime", inplace=True)
+                        df.rename(columns={"o":"open","h":"high","l":"low","c":"close","v":"volume"}, inplace=True)
+                        fig = plot_tpseries_candles(df, symbol_key)
+                        placeholder_chart.plotly_chart(fig, use_container_width=True)
+                time.sleep(1)
+        threading.Thread(target=chart_updater, daemon=True).start()
+
+    # --- Live candle builder ---
     def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
@@ -235,14 +251,13 @@ with tab5:
             ts_raw = tick.get("ft")
             if ts_raw is None:
                 return
-            ts = int(float(ts_raw))   # epoch seconds
+            ts = int(float(ts_raw))
 
             exch = tick.get("e", "").strip()
             tk = str(tick.get("tk", "")).strip()
             if not exch or not tk:
                 return
 
-            # ✅ Convert safely
             price_raw = tick.get("lp")
             try:
                 price = float(price_raw) if price_raw not in (None, "", "0") else None
@@ -265,17 +280,11 @@ with tab5:
             if key not in ps.candles:
                 ps.candles[key] = {}
 
-            # --- New candle start ---
             if bucket not in ps.candles[key]:
                 if price is None:
                     return
-                ps.candles[key][bucket] = {
-                    "ts": bucket,
-                    "o": price, "h": price, "l": price, "c": price,
-                    "v": vol,
-                }
+                ps.candles[key][bucket] = {"ts": bucket, "o": price, "h": price, "l": price, "c": price, "v": vol}
             else:
-                # --- Update running candle ---
                 cndl = ps.candles[key][bucket]
                 if price is not None:
                     cndl["c"] = float(price)
@@ -285,7 +294,7 @@ with tab5:
                         cndl["o"] = float(price)
                 cndl["v"] = int(cndl.get("v", 0)) + vol
 
-            # ✅ Extra: keep in session_state for live UI refresh
+            # Keep for UI reference
             if "live_candles" not in st.session_state:
                 st.session_state.live_candles = {}
             st.session_state.live_candles[key] = ps.candles[key]
@@ -339,11 +348,7 @@ with tab5:
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
-                                df_candle = ps_api.fetch_full_tpseries(
-                                    exch, token,
-                                    interval=selected_interval,
-                                    chunk_days=5
-                                )
+                                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
                                 if not df_candle.empty:
                                     if "datetime" not in df_candle.columns:
                                         for col in ["time", "date"]:
@@ -354,7 +359,7 @@ with tab5:
                                     df_candle.dropna(subset=["datetime"], inplace=True)
                                     df_candle.sort_values("datetime", inplace=True)
 
-                                    # Seed ps_api.candles
+                                    # Seed candles
                                     key = f"{exch}|{token}|{int(selected_interval)}"
                                     if not hasattr(ps_api, "candles") or ps_api.candles is None:
                                         ps_api.candles = {}
@@ -385,7 +390,14 @@ with tab5:
                             st.session_state.symbols_for_ws = symbols_for_ws
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-            # --- Live Tick Consumer + Chart Refresh ---
+                        # --- Start Live Chart Updater ---
+                        if "live_chart_started" not in st.session_state:
+                            for sym in symbols_for_ws:
+                                key = f"{sym}|{selected_interval}"
+                                start_live_chart(key, placeholder_chart)
+                            st.session_state.live_chart_started = True
+
+            # --- Tick Consumer (minimal) ---
             if "tick_queue" in st.session_state:
                 ticks = []
                 while not st.session_state.tick_queue.empty():
@@ -402,26 +414,6 @@ with tab5:
                         ).tail(2000)
 
                     placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
-
-                    # ✅ Chart refresh with live candles
-                    for sym in st.session_state.get("symbols_for_ws", []):
-                        try:
-                            exch, token = sym.split("|")
-                        except:
-                            continue
-                        key = f"{exch}|{token}|{int(selected_interval)}"
-                        if hasattr(ps_api, "candles") and key in ps_api.candles:
-                            df_candles = pd.DataFrame(list(ps_api.candles[key].values()))
-                            if df_candles.empty:
-                                continue
-                            df_candles["datetime"] = pd.to_datetime(df_candles["ts"], unit="s")
-                            df_candles.sort_values("datetime", inplace=True)
-                            df_candles.rename(columns={
-                                "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"
-                            }, inplace=True)
-
-                            fig = plot_tpseries_candles(df_candles, f"{exch}|{token}")
-                            placeholder_chart.plotly_chart(fig, use_container_width=True)
                 else:
                     placeholder_ticks.info("⏳ Waiting for live ticks...")
 
