@@ -225,7 +225,7 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (bucket aligned) ---
+    # --- Live candle builder (final version) ---
     def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
@@ -284,6 +284,11 @@ with tab5:
                     if "o" not in cndl or cndl["o"] is None:
                         cndl["o"] = float(price)
                 cndl["v"] = int(cndl.get("v", 0)) + vol
+
+            # ✅ Extra: keep in session_state for live UI refresh
+            if "live_candles" not in st.session_state:
+                st.session_state.live_candles = {}
+            st.session_state.live_candles[key] = ps.candles[key]
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
