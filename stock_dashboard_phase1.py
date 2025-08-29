@@ -224,7 +224,7 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (safe + only selected TF) ---
+    # --- Live candle builder (robust + bucket aligned) ---
     def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
@@ -235,13 +235,18 @@ with tab5:
             if ts_raw is None:
                 return
             ts = int(float(ts_raw))
-            price = float(tick.get("lp", 0) or 0)
-            vol = int(float(tick.get("v", 0) or 0))
 
             exch = tick.get("e", "").strip()
             tk = str(tick.get("tk", "")).strip()
             if not exch or not tk:
                 return
+
+            # Extract price + volume safely
+            price = tick.get("lp")
+            price = float(price) if price not in (None, "", "0") else None
+
+            vol = tick.get("v")
+            vol = int(float(vol)) if vol not in (None, "", "0") else 0
 
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
@@ -253,26 +258,23 @@ with tab5:
             if key not in ps.candles:
                 ps.candles[key] = {}
 
-            if bucket not in ps.candles[key]:
-                # ✅ new candle
-                ps.candles[key][bucket] = {
-                    "ts": bucket,
-                    "o": price, "h": price, "l": price, "c": price,
-                    "v": float(vol),
-                }
+            candle = ps.candles[key].get(bucket)
+            if not candle:
+                # ✅ New candle, only if price exists
+                if price is not None:
+                    ps.candles[key][bucket] = {
+                        "ts": bucket,
+                        "o": price, "h": price, "l": price, "c": price,
+                        "v": vol,
+                    }
             else:
-                # ✅ safe update existing candle
-                c = ps.candles[key][bucket]
-                c.setdefault("o", price)
-                c.setdefault("h", price)
-                c.setdefault("l", price)
-                c.setdefault("c", price)
-                c.setdefault("v", 0.0)
-
-                c["c"] = price
-                c["h"] = max(c["h"], price)
-                c["l"] = min(c["l"], price)
-                c["v"] += float(vol)
+                # ✅ Update existing candle safely
+                if price is not None:
+                    candle["c"] = price
+                    candle["h"] = max(candle.get("h", price), price)
+                    candle["l"] = min(candle.get("l", price), price)
+                if vol:
+                    candle["v"] = candle.get("v", 0) + vol
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
