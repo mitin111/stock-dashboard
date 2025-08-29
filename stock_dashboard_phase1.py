@@ -224,8 +224,8 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (updates ps_api.candles) ---
-    def build_live_candle_from_tick(tick):
+    # --- Live candle builder (safe + only selected TF) ---
+    def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
             if not ps:
@@ -246,29 +246,33 @@ with tab5:
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
 
-            # build for standard TFs
-            intervals = [1, 3, 5, 15, 30, 60]
-            for m in intervals:
-                bucket = ts - (ts % (m * 60))
-                key = f"{exch}|{tk}|{m}"
+            m = int(selected_interval)
+            bucket = ts - (ts % (m * 60))
+            key = f"{exch}|{tk}|{m}"
 
-                if key not in ps.candles:
-                    ps.candles[key] = {}
+            if key not in ps.candles:
+                ps.candles[key] = {}
 
-                candle = ps.candles[key].get(bucket)
-                if not candle:
-                    # ✅ new candle start
-                    ps.candles[key][bucket] = {
-                        "ts": bucket,
-                        "o": price, "h": price, "l": price, "c": price,
-                        "v": vol,
-                    }
-                else:
-                    # ✅ update existing candle
-                    candle["c"] = price
-                    candle["h"] = max(candle["h"], price)
-                    candle["l"] = min(candle["l"], price)
-                    candle["v"] = candle.get("v", 0) + vol
+            if bucket not in ps.candles[key]:
+                # ✅ new candle
+                ps.candles[key][bucket] = {
+                    "ts": bucket,
+                    "o": price, "h": price, "l": price, "c": price,
+                    "v": float(vol),
+                }
+            else:
+                # ✅ safe update existing candle
+                c = ps.candles[key][bucket]
+                c.setdefault("o", price)
+                c.setdefault("h", price)
+                c.setdefault("l", price)
+                c.setdefault("c", price)
+                c.setdefault("v", 0.0)
+
+                c["c"] = price
+                c["h"] = max(c["h"], price)
+                c["l"] = min(c["l"], price)
+                c["v"] += float(vol)
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
@@ -372,7 +376,7 @@ with tab5:
                 while not st.session_state.tick_queue.empty():
                     tick = st.session_state.tick_queue.get()
                     ticks.append(tick)
-                    build_live_candle_from_tick(tick)
+                    build_live_candle_from_tick(tick, selected_interval)
 
                 if ticks:
                     if "df_ticks" not in st.session_state:
