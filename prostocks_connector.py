@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import websocket
 import threading
+import queue
 
 load_dotenv()
 
@@ -530,5 +531,6 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
