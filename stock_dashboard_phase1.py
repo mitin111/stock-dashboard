@@ -235,17 +235,8 @@ with tab5:
             if ts_raw is None:
                 return
             ts = int(float(ts_raw))
-            lp = tick.get("lp")
-            if lp is None:
-                return
-            price = float(lp)
-
-            vol = 0
-            if "v" in tick and tick.get("v") is not None:
-                try:
-                    vol = int(float(tick.get("v")))
-                except:
-                    vol = 0
+            price = float(tick.get("lp", 0) or 0)
+            vol = int(float(tick.get("v", 0) or 0))
 
             exch = tick.get("e", "").strip()
             tk = str(tick.get("tk", "")).strip()
@@ -255,7 +246,7 @@ with tab5:
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
 
-            # Build for standard TFs
+            # build for standard TFs
             intervals = [1, 3, 5, 15, 30, 60]
             for m in intervals:
                 bucket = ts - (ts % (m * 60))
@@ -264,22 +255,23 @@ with tab5:
                 if key not in ps.candles:
                     ps.candles[key] = {}
 
-                if bucket not in ps.candles[key]:
-                    # New bucket
+                candle = ps.candles[key].get(bucket)
+                if not candle:
+                    # ✅ new candle start
                     ps.candles[key][bucket] = {
                         "ts": bucket,
                         "o": price, "h": price, "l": price, "c": price,
-                        "v": float(vol),
+                        "v": vol,
                     }
                 else:
-                    c = ps.candles[key][bucket]
-                    c["h"] = max(c["h"], price)
-                    c["l"] = min(c["l"], price)
-                    c["c"] = price
-                    c["v"] = c.get("v", 0) + float(vol)
+                    # ✅ update existing candle
+                    candle["c"] = price
+                    candle["h"] = max(candle["h"], price)
+                    candle["l"] = min(candle["l"], price)
+                    candle["v"] = candle.get("v", 0) + vol
 
         except Exception as e:
-            print("⚠️ build_live_candle_from_tick error:", e)
+            print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
 
     # --- WebSocket Start Helper ---
     def start_ws(symbols):
