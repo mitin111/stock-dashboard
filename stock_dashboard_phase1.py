@@ -235,17 +235,25 @@ with tab5:
             ts_raw = tick.get("ft")
             if ts_raw is None:
                 return
-            ts = int(float(ts_raw))   # already in seconds
+            ts = int(float(ts_raw))   # epoch seconds
 
             exch = tick.get("e", "").strip()
             tk = str(tick.get("tk", "")).strip()
             if not exch or not tk:
                 return
 
-            price = tick.get("lp")
-            price = float(price) if price not in (None, "", "0") else None
-            vol = tick.get("v")
-            vol = int(vol) if vol not in (None, "", "0") else 0
+            # ✅ Convert safely
+            price_raw = tick.get("lp")
+            try:
+                price = float(price_raw) if price_raw not in (None, "", "0") else None
+            except:
+                price = None
+
+            vol_raw = tick.get("v")
+            try:
+                vol = int(float(vol_raw)) if vol_raw not in (None, "", "0") else 0
+            except:
+                vol = 0
 
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
@@ -270,12 +278,12 @@ with tab5:
                 # --- Update running candle ---
                 cndl = ps.candles[key][bucket]
                 if price is not None:
-                    cndl["c"] = price
-                    cndl["h"] = max(cndl["h"], price)
-                    cndl["l"] = min(cndl["l"], price)
-                    if "o" not in cndl:
-                        cndl["o"] = price
-                cndl["v"] += vol
+                    cndl["c"] = float(price)
+                    cndl["h"] = max(float(cndl["h"]), float(price))
+                    cndl["l"] = min(float(cndl["l"]), float(price))
+                    if "o" not in cndl or cndl["o"] is None:
+                        cndl["o"] = float(price)
+                cndl["v"] = int(cndl.get("v", 0)) + vol
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
@@ -351,9 +359,9 @@ with tab5:
                                         ts_epoch = int(row["datetime"].timestamp())
                                         ps_api.candles[key][ts_epoch] = {
                                             "ts": ts_epoch,
-                                            "o": row["open"], "h": row["high"],
-                                            "l": row["low"], "c": row["close"],
-                                            "v": row.get("volume", 0),
+                                            "o": float(row["open"]), "h": float(row["high"]),
+                                            "l": float(row["low"]), "c": float(row["close"]),
+                                            "v": int(row.get("volume", 0)),
                                         }
 
                                     fig = plot_tpseries_candles(df_candle, tsym)
@@ -390,7 +398,7 @@ with tab5:
 
                     placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
 
-                    # ✅ Ye aapke bola hua part replace kiya gaya
+                    # ✅ Chart refresh with live candles
                     for sym in st.session_state.get("symbols_for_ws", []):
                         try:
                             exch, token = sym.split("|")
