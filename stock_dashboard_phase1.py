@@ -174,6 +174,7 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
     final_df.sort_index(inplace=True)
     return final_df
+    
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
@@ -234,7 +235,7 @@ with tab5:
             ts_raw = tick.get("ft")
             if ts_raw is None:
                 return
-            ts = int(float(ts_raw))
+            ts = int(float(ts_raw))   # already in seconds
 
             exch = tick.get("e", "").strip()
             tk = str(tick.get("tk", "")).strip()
@@ -246,7 +247,7 @@ with tab5:
             price = float(price) if price not in (None, "", "0") else None
 
             vol = tick.get("v")
-            vol = float(vol) if vol not in (None, "", "0") else 0.0
+            vol = int(vol) if vol not in (None, "", "0") else 0
 
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
@@ -258,29 +259,25 @@ with tab5:
             if key not in ps.candles:
                 ps.candles[key] = {}
 
-            # --- नया candle बनाना ---
+            # --- New candle ---
             if bucket not in ps.candles[key]:
                 if price is None:
-                    return  # ❌ price बिना candle मत बनाओ
+                    return  # ❌ price ke bina candle mat banao
                 ps.candles[key][bucket] = {
                     "ts": bucket,
                     "o": price, "h": price, "l": price, "c": price,
                     "v": vol,
                 }
-                return
-
-            # --- Existing candle update ---
-            c = ps.candles[key][bucket]
-
-            if price is not None:
-                c["c"] = price
-                c["h"] = max(c.get("h", price), price)
-                c["l"] = min(c.get("l", price), price)
-                if "o" not in c:
-                    c["o"] = price
-
-            if vol:
-                c["v"] = c.get("v", 0.0) + vol
+            else:
+                # --- Update running candle ---
+                cndl = ps.candles[key][bucket]
+                if price is not None:
+                    cndl["c"] = price
+                    cndl["h"] = max(cndl["h"], price)
+                    cndl["l"] = min(cndl["l"], price)
+                    if "o" not in cndl:
+                        cndl["o"] = price
+                cndl["v"] += vol
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
