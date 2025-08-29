@@ -183,7 +183,6 @@ with tab5:
     import threading, queue
     import pandas as pd
     from datetime import datetime
-    import time
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
@@ -225,12 +224,8 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (multiple TFs) ---
+    # --- Live candle builder (updates ps_api.candles) ---
     def build_live_candle_from_tick(tick):
-        """
-        Update in-memory OHLCV buckets for multiple timeframes from a single tick.
-        New bucket automatically starts when interval ends.
-        """
         try:
             ps = st.session_state.get("ps_api")
             if not ps:
@@ -244,6 +239,7 @@ with tab5:
             if lp is None:
                 return
             price = float(lp)
+
             vol = 0
             if "v" in tick and tick.get("v") is not None:
                 try:
@@ -259,18 +255,22 @@ with tab5:
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
 
-            # standard TFs
+            # Build for standard TFs
             intervals = [1, 3, 5, 15, 30, 60]
             for m in intervals:
-                bucket = ts - (ts % (m*60))
+                bucket = ts - (ts % (m * 60))
                 key = f"{exch}|{tk}|{m}"
 
                 if key not in ps.candles:
                     ps.candles[key] = {}
 
                 if bucket not in ps.candles[key]:
-                    # New bucket starts automatically
-                    ps.candles[key][bucket] = {"ts": bucket, "o": price, "h": price, "l": price, "c": price, "v": float(vol)}
+                    # New bucket
+                    ps.candles[key][bucket] = {
+                        "ts": bucket,
+                        "o": price, "h": price, "l": price, "c": price,
+                        "v": float(vol),
+                    }
                 else:
                     c = ps.candles[key][bucket]
                     c["h"] = max(c["h"], price)
@@ -306,9 +306,11 @@ with tab5:
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
             selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-            selected_interval = int(st.selectbox(
-                "Select Interval", ["1","3","5","10","15","30","60","120","240"], index=0
-            ))
+            selected_interval = st.selectbox(
+                "Select Interval",
+                ["1", "3", "5", "10", "15", "30", "60", "120", "240"],
+                index=0
+            )
 
             placeholder_ticks = st.empty()
             placeholder_chart = st.empty()
@@ -320,35 +322,44 @@ with tab5:
                         scrips = wl_data.get("values", [])
                         symbols_for_ws = []
 
-                        # Seed historical candles
-                        st.session_state.candles = {}
                         for i, scrip in enumerate(scrips):
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
-                                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
+                                df_candle = ps_api.fetch_full_tpseries(
+                                    exch, token,
+                                    interval=selected_interval,
+                                    chunk_days=5
+                                )
                                 if not df_candle.empty:
                                     if "datetime" not in df_candle.columns:
-                                        for col in ["time","date"]:
+                                        for col in ["time", "date"]:
                                             if col in df_candle.columns:
-                                                df_candle.rename(columns={col:"datetime"}, inplace=True)
-                                    df_candle["datetime"] = pd.to_datetime(df_candle["datetime"], errors='coerce')
+                                                df_candle.rename(columns={col: "datetime"}, inplace=True)
+
+                                    df_candle["datetime"] = pd.to_datetime(df_candle["datetime"], errors="coerce")
                                     df_candle.dropna(subset=["datetime"], inplace=True)
                                     df_candle.sort_values("datetime", inplace=True)
 
-                                    # Convert to ps_api.candles format
-                                    key = f"{exch}|{token}|{selected_interval}"
+                                    # Seed ps_api.candles
+                                    key = f"{exch}|{token}|{int(selected_interval)}"
+                                    if not hasattr(ps_api, "candles") or ps_api.candles is None:
+                                        ps_api.candles = {}
                                     if key not in ps_api.candles:
                                         ps_api.candles[key] = {}
-                                    for idx,row in df_candle.iterrows():
+                                    for idx, row in df_candle.iterrows():
                                         ts_epoch = int(row["datetime"].timestamp())
                                         ps_api.candles[key][ts_epoch] = {
                                             "ts": ts_epoch,
                                             "o": row["open"], "h": row["high"],
                                             "l": row["low"], "c": row["close"],
-                                            "v": row.get("volume",0)
+                                            "v": row.get("volume", 0),
                                         }
+
+                                    # Initial chart
+                                    fig = plot_tpseries_candles(df_candle, tsym)
+                                    placeholder_chart.plotly_chart(fig, use_container_width=True)
 
                                     symbols_for_ws.append(f"{exch}|{token}")
 
@@ -357,7 +368,6 @@ with tab5:
 
                         st.success(f"✅ TPSeries fetched for {len(symbols_for_ws)} scrips")
 
-                        # Start WebSocket
                         if symbols_for_ws and "ws_started" not in st.session_state:
                             threading.Thread(target=start_ws, args=(symbols_for_ws,), daemon=True).start()
                             st.session_state.ws_started = True
@@ -373,27 +383,30 @@ with tab5:
                     build_live_candle_from_tick(tick)
 
                 if ticks:
-                    # Update tick table
                     if "df_ticks" not in st.session_state:
                         st.session_state.df_ticks = pd.DataFrame(ticks)
                     else:
-                        st.session_state.df_ticks = pd.concat([st.session_state.df_ticks, pd.DataFrame(ticks)]).tail(2000)
+                        st.session_state.df_ticks = pd.concat(
+                            [st.session_state.df_ticks, pd.DataFrame(ticks)]
+                        ).tail(2000)
+
                     placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
 
-                    # Update live candles for selected TF
                     for sym in st.session_state.get("symbols_for_ws", []):
                         try:
                             exch, token = sym.split("|")
                         except:
                             continue
-                        key = f"{exch}|{token}|{selected_interval}"
+                        key = f"{exch}|{token}|{int(selected_interval)}"
                         if hasattr(ps_api, "candles") and key in ps_api.candles:
                             df_candles = pd.DataFrame(list(ps_api.candles[key].values()))
                             if df_candles.empty:
                                 continue
                             df_candles["datetime"] = pd.to_datetime(df_candles["ts"], unit="s")
                             df_candles.sort_values("datetime", inplace=True)
-                            df_candles.rename(columns={"o":"open","h":"high","l":"low","c":"close","v":"volume"}, inplace=True)
+                            df_candles.rename(columns={
+                                "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"
+                            }, inplace=True)
 
                             fig = plot_tpseries_candles(df_candles, f"{exch}|{token}")
                             placeholder_chart.plotly_chart(fig, use_container_width=True)
