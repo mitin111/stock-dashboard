@@ -413,83 +413,18 @@ class ProStocksAPI:
             print(f"📡 Subscribed: {uniq}")
         except Exception as e:
             print("❌ subscribe_tokens error:", e)
-
-    def start_ticks(self, symbols, tick_file="ticks.log"):
+   
+    def stop_ticks(self):
         """
-        Start WebSocket and record every incoming tick to `tick_file`.
-        `symbols` can be:
-          - ['NSE|26000','NSE|500209'] style strings, OR
-          - [{'exch':'NSE','token':'26000'}, ...] dicts.
-        Pre-requisite: call login() successfully to populate self.session_token.
+        Stop and close the active WebSocket connection.
         """
-        if not self.session_token or not self.userid:
-            raise RuntimeError("Not logged in: call login() first and ensure session_token is set.")
-
-        # normalize symbols
-        if not symbols or not isinstance(symbols, (list, tuple)):
-            raise ValueError("symbols must be a non-empty list/tuple")
-
-        if isinstance(symbols[0], dict):
-            tokens = []
-            for s in symbols:
-                exch = str(s.get("exch", "")).strip()
-                tok  = str(s.get("token", "")).strip()
-                if exch and tok:
-                    tokens.append(f"{exch}|{tok}")
-        else:
-            tokens = [str(s).strip() for s in symbols if s and isinstance(s, str)]
-
-        if not tokens:
-            raise ValueError("No valid symbols to subscribe")
-
-        self._sub_tokens = tokens
-        self.tick_file = tick_file
-
-        # Build WS URL (only u & t required)
-        url = f"{self.ws_url}?u={self.userid}&t={self.session_token}"
-        print("🔗 Connecting WS:", url)
-
-        self.ws = websocket.WebSocketApp(
-            url,
-            on_open=self._ws_on_open,
-            on_message=self._ws_on_message,
-            on_error=self._ws_on_error,
-            on_close=self._ws_on_close,
-        )
-
-        # optional heartbeat thread
-        def _send_heartbeat(wsobj):
-            while True:
-                if self.is_ws_connected:
-                    try:
-                        wsobj.send(json.dumps({"t": "h"}))  # heartbeat
-                        # print("💓 ping sent")
-                    except Exception as e:
-                        print("⚠️ heartbeat error:", e)
-                time.sleep(30)
-
-        threading.Thread(target=_send_heartbeat, args=(self.ws,), daemon=True).start()
-
-        # run forever in background
-        self._ws_thread = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"ping_interval": 30, "ping_timeout": 10},
-            daemon=True,
-        )
-        self._ws_thread.start()
-        print("▶️ WS thread started")
-
-   def stop_ticks(self):
-       """
-       Stop and close the active WebSocket connection.
-       """
-       try:
-           if hasattr(self, "ws") and self.ws:
-            self.ws.close()
-            self.is_ws_connected = False
-            print("🛑 WebSocket stop requested")
-       except Exception as e:
-           print("❌ stop_ticks error:", e)
+        try:
+            if hasattr(self, "ws") and self.ws:
+                self.ws.close()
+                self.is_ws_connected = False
+                print("🛑 WebSocket stop requested")
+        except Exception as e:
+            print("❌ stop_ticks error:", e)
 
     def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
         """
@@ -502,41 +437,41 @@ class ProStocksAPI:
             price = float(tick.get("lp", 0) or 0)
             volume = int(tick.get("v", 0) or 0)
 
-        if not price:
-            return  # skip ticks without price
+            if not price:
+                return  # skip ticks without price
 
-        exch = tick.get("e")
-        token = tick.get("tk")
+            exch = tick.get("e")
+            token = tick.get("tk")
 
-        for m in intervals:
-            # Candle start bucket timestamp
-            bucket = ts - (ts % (m * 60))
-            key = f"{exch}|{token}|{m}"
+            for m in intervals:
+                # Candle start bucket timestamp
+                bucket = ts - (ts % (m * 60))
+                key = f"{exch}|{token}|{m}"
 
-            # Init storage if not exists
-            if not hasattr(self, "candles"):
-                self.candles = {}
-            if key not in self.candles:
-                self.candles[key] = {}
+                # Init storage if not exists
+                if not hasattr(self, "candles"):
+                    self.candles = {}
+                if key not in self.candles:
+                    self.candles[key] = {}
 
-            # --- Create or update candle ---
-            if bucket not in self.candles[key]:
-                # New candle
-                self.candles[key][bucket] = {
-                    "ts": bucket,
-                    "o": price,
-                    "h": price,
-                    "l": price,
-                    "c": price,
-                    "v": volume,
-                }
-            else:
-                # Update existing candle
-                candle = self.candles[key][bucket]
-                candle["h"] = max(candle["h"], price)
-                candle["l"] = min(candle["l"], price)
-                candle["c"] = price
-                candle["v"] += volume
+                # --- Create or update candle ---
+                if bucket not in self.candles[key]:
+                    # New candle
+                    self.candles[key][bucket] = {
+                        "ts": bucket,
+                        "o": price,
+                        "h": price,
+                        "l": price,
+                        "c": price,
+                        "v": volume,
+                    }
+                else:
+                    # Update existing candle
+                    candle = self.candles[key][bucket]
+                    candle["h"] = max(candle["h"], price)
+                    candle["l"] = min(candle["l"], price)
+                    candle["c"] = price
+                    candle["v"] += volume
 
         except Exception as e:
             print(f"⚠️ build_live_candles_from_tick error: {e}, tick={tick}")
@@ -554,16 +489,14 @@ class ProStocksAPI:
 
             # Wait until WS connected (max 5 sec)
             for _ in range(50):
-            if getattr(self, "is_ws_connected", False):
-                print("✅ WebSocket connected")
-                return True
-            time.sleep(0.1)
+                if getattr(self, "is_ws_connected", False):
+                    print("✅ WebSocket connected")
+                    return True
+                time.sleep(0.1)
 
-        print("❌ WebSocket connect timeout")
-        return False
+            print("❌ WebSocket connect timeout")
+            return False
 
-       except Exception as e:
-           print("❌ connect_websocket error:", e)
-           return False
-
-        
+        except Exception as e:
+            print("❌ connect_websocket error:", e)
+            return False
