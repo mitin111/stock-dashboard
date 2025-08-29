@@ -479,28 +479,28 @@ class ProStocksAPI:
         self._ws_thread.start()
         print("▶️ WS thread started")
 
-def stop_ticks(self):
-    """
-    Stop and close the active WebSocket connection.
-    """
-    try:
-        if hasattr(self, "ws") and self.ws:
+   def stop_ticks(self):
+       """
+       Stop and close the active WebSocket connection.
+       """
+       try:
+           if hasattr(self, "ws") and self.ws:
             self.ws.close()
             self.is_ws_connected = False
             print("🛑 WebSocket stop requested")
-    except Exception as e:
-        print("❌ stop_ticks error:", e)
+       except Exception as e:
+           print("❌ stop_ticks error:", e)
 
-def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
-    """
-    Build/update OHLCV candles from live ticks.
-    - tick: dict from websocket {e, tk, lp, v, ft}
-    - intervals: list of minute durations [1,3,5,15,30,60]
-    """
-    try:
-        ts = int(tick.get("ft", 0))   # epoch seconds
-        price = float(tick.get("lp", 0) or 0)
-        volume = int(tick.get("v", 0) or 0)
+    def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
+        """
+        Build/update OHLCV candles from live ticks.
+        - tick: dict from websocket {e, tk, lp, v, ft}
+        - intervals: list of minute durations [1,3,5,15,30,60]
+        """
+        try:
+            ts = int(tick.get("ft", 0))   # epoch seconds
+            price = float(tick.get("lp", 0) or 0)
+            volume = int(tick.get("v", 0) or 0)
 
         if not price:
             return  # skip ticks without price
@@ -538,22 +538,22 @@ def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
                 candle["c"] = price
                 candle["v"] += volume
 
-    except Exception as e:
-        print(f"⚠️ build_live_candles_from_tick error: {e}, tick={tick}")
+        except Exception as e:
+            print(f"⚠️ build_live_candles_from_tick error: {e}, tick={tick}")
 
-def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
-    """
-    Connect to WebSocket and subscribe to given symbols.
-    - symbols: list of tokens like ['NSE|22', 'NSE|2885']
-    - on_tick: callback function to handle ticks
-    - tick_file: optional log file for raw ticks
-    """
-    try:
-        self._on_tick = on_tick
-        self.start_ticks(symbols, tick_file=tick_file)
+    def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
+        """
+        Connect to WebSocket and subscribe to given symbols.
+        - symbols: list of tokens like ['NSE|22', 'NSE|2885']
+        - on_tick: callback function to handle ticks
+        - tick_file: optional log file for raw ticks
+        """
+        try:
+            self._on_tick = on_tick
+            self.start_ticks(symbols, tick_file=tick_file)
 
-        # Wait until WS connected (max 5 sec)
-        for _ in range(50):
+            # Wait until WS connected (max 5 sec)
+            for _ in range(50):
             if getattr(self, "is_ws_connected", False):
                 print("✅ WebSocket connected")
                 return True
@@ -562,6 +562,8 @@ def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
         print("❌ WebSocket connect timeout")
         return False
 
-    except Exception as e:
-        print("❌ connect_websocket error:", e)
-        return False
+       except Exception as e:
+           print("❌ connect_websocket error:", e)
+           return False
+
+        
