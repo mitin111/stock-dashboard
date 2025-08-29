@@ -246,7 +246,7 @@ with tab5:
             price = float(price) if price not in (None, "", "0") else None
 
             vol = tick.get("v")
-            vol = int(float(vol)) if vol not in (None, "", "0") else 0
+            vol = float(vol) if vol not in (None, "", "0") else 0.0
 
             if not hasattr(ps, "candles") or ps.candles is None:
                 ps.candles = {}
@@ -258,23 +258,29 @@ with tab5:
             if key not in ps.candles:
                 ps.candles[key] = {}
 
-            candle = ps.candles[key].get(bucket)
-            if not candle:
-                # ✅ New candle, only if price exists
-                if price is not None:
-                    ps.candles[key][bucket] = {
-                        "ts": bucket,
-                        "o": price, "h": price, "l": price, "c": price,
-                        "v": vol,
-                    }
-            else:
-                # ✅ Update existing candle safely
-                if price is not None:
-                    candle["c"] = price
-                    candle["h"] = max(candle.get("h", price), price)
-                    candle["l"] = min(candle.get("l", price), price)
-                if vol:
-                    candle["v"] = candle.get("v", 0) + vol
+            # --- नया candle बनाना ---
+            if bucket not in ps.candles[key]:
+                if price is None:
+                    return  # ❌ price बिना candle मत बनाओ
+                ps.candles[key][bucket] = {
+                    "ts": bucket,
+                    "o": price, "h": price, "l": price, "c": price,
+                    "v": vol,
+                }
+                return
+
+            # --- Existing candle update ---
+            c = ps.candles[key][bucket]
+
+            if price is not None:
+                c["c"] = price
+                c["h"] = max(c.get("h", price), price)
+                c["l"] = min(c.get("l", price), price)
+                if "o" not in c:
+                    c["o"] = price
+
+            if vol:
+                c["v"] = c.get("v", 0.0) + vol
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
