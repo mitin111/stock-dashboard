@@ -225,7 +225,7 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (robust + bucket aligned) ---
+    # --- Live candle builder (bucket aligned) ---
     def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
@@ -242,10 +242,8 @@ with tab5:
             if not exch or not tk:
                 return
 
-            # Extract price + volume safely
             price = tick.get("lp")
             price = float(price) if price not in (None, "", "0") else None
-
             vol = tick.get("v")
             vol = int(vol) if vol not in (None, "", "0") else 0
 
@@ -259,10 +257,10 @@ with tab5:
             if key not in ps.candles:
                 ps.candles[key] = {}
 
-            # --- New candle ---
+            # --- New candle start ---
             if bucket not in ps.candles[key]:
                 if price is None:
-                    return  # ❌ price ke bina candle mat banao
+                    return
                 ps.candles[key][bucket] = {
                     "ts": bucket,
                     "o": price, "h": price, "l": price, "c": price,
@@ -358,7 +356,6 @@ with tab5:
                                             "v": row.get("volume", 0),
                                         }
 
-                                    # Initial chart
                                     fig = plot_tpseries_candles(df_candle, tsym)
                                     placeholder_chart.plotly_chart(fig, use_container_width=True)
 
@@ -393,6 +390,7 @@ with tab5:
 
                     placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
 
+                    # ✅ Ye aapke bola hua part replace kiya gaya
                     for sym in st.session_state.get("symbols_for_ws", []):
                         try:
                             exch, token = sym.split("|")
