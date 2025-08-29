@@ -500,3 +500,35 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ connect_websocket error:", e)
             return False
+
+    def start_ticks(self, symbols, tick_file="ticks.log"):
+        """
+        Start WebSocket connection and subscribe to symbols.
+        """
+        import websocket
+        import threading
+
+        self.tick_file = tick_file
+        self.tick_queue = queue.Queue()
+        self._sub_tokens = symbols  # store tokens for re-subscribe after login
+        self.is_ws_connected = False
+
+        def run_ws():
+            try:
+                ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+                self.ws = websocket.WebSocketApp(
+                    ws_url,
+                    on_message=self._ws_on_message,
+                    on_open=self._ws_on_open,
+                    on_error=self._ws_on_error,
+                    on_close=self._ws_on_close,
+                )
+                self.ws.run_forever(ping_interval=20, ping_timeout=10)
+            except Exception as e:
+                print("❌ start_ticks websocket error:", e)
+
+        # Run WebSocket in background
+        t = threading.Thread(target=run_ws, daemon=True)
+        t.start()
+
+
