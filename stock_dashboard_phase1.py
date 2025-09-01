@@ -292,7 +292,9 @@ with tab5:
             while True:
                 ps = st.session_state.get("ps_api")
                 if ps and hasattr(ps, "candles") and symbol_key in ps.candles:
-                    st.session_state.live_candles_data = ps.candles[symbol_key]
+                    if "live_candles_data" not in st.session_state:
+                        st.session_state.live_candles_data = {}
+                    st.session_state.live_candles_data[symbol_key] = ps.candles[symbol_key]  # ✅ Safe update
                 time.sleep(1)
         threading.Thread(target=run, daemon=True).start()
 
@@ -412,12 +414,14 @@ with tab5:
 
             # --- Main thread chart update ---
             if "live_candles_data" in st.session_state:
-                df = pd.DataFrame(list(st.session_state["live_candles_data"].values()))
-                df["datetime"] = pd.to_datetime(df["ts"], unit="s")
-                df.sort_values("datetime", inplace=True)
-                df.rename(columns={"o":"open","h":"high","l":"low","c":"close","v":"volume"}, inplace=True)
-                fig = plot_tpseries_candles(df, "SYMBOL")
-                placeholder_chart.plotly_chart(fig, use_container_width=True)
+                for key, candles in st.session_state["live_candles_data"].items():
+                    df = pd.DataFrame(list(candles.values()))
+                    if not df.empty:
+                        df["datetime"] = pd.to_datetime(df["ts"], unit="s")
+                        df.sort_values("datetime", inplace=True)
+                        df.rename(columns={"o":"open","h":"high","l":"low","c":"close","v":"volume"}, inplace=True)
+                        fig = plot_tpseries_candles(df, key)
+                        placeholder_chart.plotly_chart(fig, use_container_width=True)
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
