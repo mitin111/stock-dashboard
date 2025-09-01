@@ -267,7 +267,10 @@ with tab5:
             if bucket not in ps.candles[key]:
                 if price is None:
                     return
-                ps.candles[key][bucket] = {"ts": bucket, "o": price, "h": price, "l": price, "c": price, "v": vol}
+                ps.candles[key][bucket] = {
+                    "ts": bucket, "o": price, "h": price,
+                    "l": price, "c": price, "v": vol
+                }
             else:
                 cndl = ps.candles[key][bucket]
                 if price is not None:
@@ -278,7 +281,7 @@ with tab5:
                         cndl["o"] = float(price)
                 cndl["v"] = int(cndl.get("v", 0)) + vol
 
-            # Save for main thread UI update
+            # ✅ Save for main thread UI update
             if "live_candles" not in st.session_state:
                 st.session_state.live_candles = {}
             st.session_state.live_candles[key] = ps.candles[key]
@@ -307,7 +310,8 @@ with tab5:
 
         def on_tick_callback(tick):
             try:
-                st.session_state.tick_queue.put(tick)   # ✅ only queue push
+                # ✅ only queue push
+                st.session_state.tick_queue.put(tick)
             except Exception as e:
                 print("⚠️ tick_queue error:", e)
 
@@ -346,7 +350,11 @@ with tab5:
                             st.write(f"📦 {i+1}. {tsym} → {exch}|{token}")
 
                             try:
-                                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
+                                df_candle = ps_api.fetch_full_tpseries(
+                                    exch, token,
+                                    interval=selected_interval,
+                                    chunk_days=5
+                                )
                                 if not df_candle.empty:
                                     if "datetime" not in df_candle.columns:
                                         for col in ["time", "date"]:
@@ -366,8 +374,10 @@ with tab5:
                                         ts_epoch = int(row["datetime"].timestamp())
                                         ps_api.candles[key][ts_epoch] = {
                                             "ts": ts_epoch,
-                                            "o": float(row["open"]), "h": float(row["high"]),
-                                            "l": float(row["low"]), "c": float(row["close"]),
+                                            "o": float(row["open"]),
+                                            "h": float(row["high"]),
+                                            "l": float(row["low"]),
+                                            "c": float(row["close"]),
                                             "v": int(row.get("volume", 0)),
                                         }
 
