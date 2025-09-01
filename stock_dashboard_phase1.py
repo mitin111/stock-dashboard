@@ -225,7 +225,7 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder ---
+    # --- Live candle builder (NO UI here) ---
     def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
@@ -278,7 +278,7 @@ with tab5:
                         cndl["o"] = float(price)
                 cndl["v"] = int(cndl.get("v", 0)) + vol
 
-            # Keep for main thread UI update
+            # Save for main thread UI update
             if "live_candles" not in st.session_state:
                 st.session_state.live_candles = {}
             st.session_state.live_candles[key] = ps.candles[key]
@@ -307,7 +307,7 @@ with tab5:
 
         def on_tick_callback(tick):
             try:
-                st.session_state.tick_queue.put(tick)
+                st.session_state.tick_queue.put(tick)   # ✅ only queue push
             except Exception as e:
                 print("⚠️ tick_queue error:", e)
 
@@ -394,19 +394,17 @@ with tab5:
                                 start_live_chart(key)
                             st.session_state.live_chart_started = True
 
-            # --- Tick Consumer ---
+            # --- Tick Consumer (UI update runs here) ---
             if "tick_queue" in st.session_state:
                 ticks = []
                 while not st.session_state.tick_queue.empty():
                     tick = st.session_state.tick_queue.get()
 
                     if isinstance(tick, dict) and tick.get("type") == "candle_update":
-                        # Candle update push
                         if "live_candles_data" not in st.session_state:
                             st.session_state.live_candles_data = {}
                         st.session_state.live_candles_data[tick["symbol_key"]] = tick["candles"]
                     else:
-                        # Normal tick
                         ticks.append(tick)
                         build_live_candle_from_tick(tick, selected_interval)
 
