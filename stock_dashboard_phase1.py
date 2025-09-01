@@ -286,15 +286,17 @@ with tab5:
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
 
-    # --- Background thread for live candle data (no UI update!) ---
+    # --- Background thread for live candle data (queue only, no UI update) ---
     def start_live_chart(symbol_key):
         def run():
             while True:
                 ps = st.session_state.get("ps_api")
                 if ps and hasattr(ps, "candles") and symbol_key in ps.candles:
-                    if "live_candles_data" not in st.session_state:
-                        st.session_state.live_candles_data = {}
-                    st.session_state.live_candles_data[symbol_key] = ps.candles[symbol_key]  # ✅ Safe update
+                    st.session_state.tick_queue.put({
+                        "type": "candle_update",
+                        "symbol_key": symbol_key,
+                        "candles": ps.candles[symbol_key]
+                    })
                 time.sleep(1)
         threading.Thread(target=run, daemon=True).start()
 
@@ -397,8 +399,16 @@ with tab5:
                 ticks = []
                 while not st.session_state.tick_queue.empty():
                     tick = st.session_state.tick_queue.get()
-                    ticks.append(tick)
-                    build_live_candle_from_tick(tick, selected_interval)
+
+                    if isinstance(tick, dict) and tick.get("type") == "candle_update":
+                        # Candle update push
+                        if "live_candles_data" not in st.session_state:
+                            st.session_state.live_candles_data = {}
+                        st.session_state.live_candles_data[tick["symbol_key"]] = tick["candles"]
+                    else:
+                        # Normal tick
+                        ticks.append(tick)
+                        build_live_candle_from_tick(tick, selected_interval)
 
                 if ticks:
                     if "df_ticks" not in st.session_state:
