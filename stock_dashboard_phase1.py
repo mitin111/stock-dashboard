@@ -263,13 +263,10 @@ with tab5:
         ps_api._on_tick = on_tick_callback
         ps_api.connect_websocket(symbols)
 
-    # --- Thread-safe last candle updater ---
+    # --- Thread-safe last candle updater (SAFE VERSION) ---
     def update_last_candle(symbols_for_ws, selected_interval, placeholder_chart):
-        while True:
+        while st.session_state.get("live_feed", False):
             try:
-                if not ("live_feed" in st.session_state and st.session_state.live_feed):
-                    break
-
                 for sym in symbols_for_ws:
                     key = f"{sym}|{selected_interval}"
                     candles = ps_api.candles.get(key, {})
@@ -280,23 +277,30 @@ with tab5:
                     t = pd.to_datetime(last_candle["ts"], unit="s")
                     o, h, l, c = last_candle["o"], last_candle["h"], last_candle["l"], last_candle["c"]
 
-                    if len(st.session_state.live_fig.data[0].x) > 0 and st.session_state.live_fig.data[0].x[-1] == t:
+                    # agar last candle ka timestamp match kare to overwrite
+                    if (len(st.session_state.live_fig.data[0].x) > 0 and
+                        st.session_state.live_fig.data[0].x[-1] == t):
                         st.session_state.live_fig.data[0].open[-1] = o
                         st.session_state.live_fig.data[0].high[-1] = h
                         st.session_state.live_fig.data[0].low[-1] = l
                         st.session_state.live_fig.data[0].close[-1] = c
                     else:
+                        # naya candle append karo
                         st.session_state.live_fig.data[0].x += (t,)
                         st.session_state.live_fig.data[0].open += (o,)
                         st.session_state.live_fig.data[0].high += (h,)
                         st.session_state.live_fig.data[0].low += (l,)
                         st.session_state.live_fig.data[0].close += (c,)
 
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                # chart refresh karo main thread ke placeholder me
+                placeholder_chart.plotly_chart(
+                    st.session_state.live_fig, use_container_width=True
+                )
 
             except Exception as e:
                 print("⚠️ update_last_candle error:", e)
                 break
+
             time.sleep(1)
 
     # --- UI ---
