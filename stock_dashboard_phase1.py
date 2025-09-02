@@ -174,7 +174,7 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
     final_df.sort_index(inplace=True)
     return final_df
-    
+
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
@@ -325,7 +325,19 @@ with tab5:
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                             df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
                             if not df_candle.empty:
-                                df_candle["datetime"] = pd.to_datetime(df_candle["time"])
+                                # --- Safe datetime handling ---
+                                datetime_col = None
+                                for col in ["datetime", "time", "date"]:
+                                    if col in df_candle.columns:
+                                        datetime_col = col
+                                        break
+                                if datetime_col is None:
+                                    st.warning(f"⚠️ TPSeries datetime missing for {tsym}")
+                                    continue
+                                df_candle["datetime"] = pd.to_datetime(df_candle[datetime_col], errors="coerce")
+                                df_candle.dropna(subset=["datetime"], inplace=True)
+                                df_candle.sort_values("datetime", inplace=True)
+
                                 key = f"{exch}|{token}|{selected_interval}"
                                 if not hasattr(ps_api, "candles") or ps_api.candles is None:
                                     ps_api.candles = {}
@@ -337,6 +349,7 @@ with tab5:
                                         "l": float(row["low"]), "c": float(row["close"]),
                                         "v": int(row.get("volume",0))
                                     }
+
                                 # Load TPSeries into figure
                                 st.session_state.live_fig.data[0].x = df_candle["datetime"]
                                 st.session_state.live_fig.data[0].open = df_candle["open"]
