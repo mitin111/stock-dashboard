@@ -185,9 +185,6 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # ⏱️ Auto-refresh har 2 sec me
-    st_autorefresh(interval=2000, key="livechart_refresh")
-
     # --- Persistent Plotly Figure (only once banega) ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.Figure()
@@ -304,6 +301,9 @@ with tab5:
             placeholder_chart = st.empty()
 
             if st.button("🚀 Start TPSeries + Live Feed"):
+                from streamlit_autorefresh import st_autorefresh
+                st_autorefresh(interval=2000, key="livechart_refresh")
+                
                 with st.spinner("Fetching TPSeries + starting WebSocket..."):
                     wl_data = ps_api.get_watchlist(selected_watchlist)
                     if wl_data.get("stat") == "Ok":
@@ -446,3 +446,4 @@ with tab5:
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
