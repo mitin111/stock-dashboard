@@ -179,7 +179,6 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
 
-    from streamlit_autorefresh import st_autorefresh
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd
@@ -312,8 +311,6 @@ with tab5:
 
             # --- If live feed is ON ---
             if st.session_state.live_feed:
-                st_autorefresh(interval=2000, key="livechart_refresh")
-
                 with st.spinner("Fetching TPSeries + starting WebSocket..."):
                     wl_data = ps_api.get_watchlist(selected_watchlist)
                     if wl_data.get("stat") == "Ok":
