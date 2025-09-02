@@ -181,7 +181,6 @@ with tab5:
 
     from streamlit_autorefresh import st_autorefresh
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
     import threading, queue, time
     import pandas as pd
     from datetime import datetime
@@ -189,28 +188,16 @@ with tab5:
     # ⏱️ Auto-refresh har 2 sec me
     st_autorefresh(interval=2000, key="livechart_refresh")
 
-    # --- Helper: Plot Candles ---
-    def plot_tpseries_candles(df, symbol):
-        if df.empty:
-            fig = go.Figure()
-            fig.update_layout(title=f"{symbol} - No data", template="plotly_dark", height=450)
-            return fig
-
-        df = df.drop_duplicates(subset=['datetime']).sort_values("datetime")
-        df = df[(df['datetime'].dt.time >= pd.to_datetime("09:15").time()) &
-                (df['datetime'].dt.time <= pd.to_datetime("15:30").time())]
-
-        fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-        fig.add_trace(go.Candlestick(
-            x=df['datetime'],
-            open=df['open'], high=df['high'],
-            low=df['low'], close=df['close'],
+    # --- Persistent Plotly Figure (only once banega) ---
+    if "live_fig" not in st.session_state:
+        st.session_state.live_fig = go.Figure()
+        st.session_state.live_fig.add_trace(go.Candlestick(
+            x=[], open=[], high=[], low=[], close=[],
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
-            name='Price'
+            name="Price"
         ))
-
-        fig.update_layout(
+        st.session_state.live_fig.update_layout(
             xaxis_rangeslider_visible=False,
             dragmode='pan',
             hovermode='x unified',
@@ -221,13 +208,8 @@ with tab5:
             plot_bgcolor='black',
             paper_bgcolor='black',
             font=dict(color='white'),
-            title=f"{symbol} - TradingView-style Chart"
+            title="TradingView-style Live Chart"
         )
-        fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='gray')
-        fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='gray', fixedrange=False)
-        fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"]),
-                                      dict(bounds=[15.5, 9.25], pattern="hour")])
-        return fig
 
     # --- Safe live candle builder (NO st.* here) ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
@@ -303,7 +285,6 @@ with tab5:
     else:
         ps_api = st.session_state["ps_api"]
 
-        # One queue for UI thread consumption
         if "ui_queue" not in st.session_state:
             st.session_state.ui_queue = queue.Queue()
         ui_queue = st.session_state.ui_queue
@@ -365,8 +346,13 @@ with tab5:
                                             "v": int(row.get("volume", 0)),
                                         }
 
-                                    fig = plot_tpseries_candles(df_candle, tsym)
-                                    placeholder_chart.plotly_chart(fig, use_container_width=True)
+                                    # ✅ Initial TPSeries load into persistent fig
+                                    st.session_state.live_fig.data[0].x = df_candle["datetime"]
+                                    st.session_state.live_fig.data[0].open = df_candle["open"]
+                                    st.session_state.live_fig.data[0].high = df_candle["high"]
+                                    st.session_state.live_fig.data[0].low = df_candle["low"]
+                                    st.session_state.live_fig.data[0].close = df_candle["close"]
+                                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
                                     symbols_for_ws.append(f"{exch}|{token}")
 
@@ -441,7 +427,7 @@ with tab5:
             else:
                 placeholder_ticks.info("⏳ Waiting for live ticks...")
 
-            # --- Main thread chart update ---
+            # --- Main thread chart update (Persistent fig) ---
             if "live_candles_data" in st.session_state:
                 for key, candles in st.session_state["live_candles_data"].items():
                     df = pd.DataFrame(list(candles.values()))
@@ -449,8 +435,14 @@ with tab5:
                         df["datetime"] = pd.to_datetime(df["ts"], unit="s")
                         df.sort_values("datetime", inplace=True)
                         df.rename(columns={"o":"open","h":"high","l":"low","c":"close","v":"volume"}, inplace=True)
-                        fig = plot_tpseries_candles(df, key)
-                        placeholder_chart.plotly_chart(fig, use_container_width=True)
+
+                        st.session_state.live_fig.data[0].x = df["datetime"]
+                        st.session_state.live_fig.data[0].open = df["open"]
+                        st.session_state.live_fig.data[0].high = df["high"]
+                        st.session_state.live_fig.data[0].low = df["low"]
+                        st.session_state.live_fig.data[0].close = df["close"]
+
+                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
