@@ -285,7 +285,8 @@ with tab5:
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             try:
-                ui_queue.put(tick)   # safe push
+                build_live_candle_from_tick(tick, selected_interval, ui_queue)
+                ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ ui_queue put error:", e)
 
@@ -418,6 +419,9 @@ with tab5:
                             cndl["l"] = min(cndl["l"], price)
                         cndl["v"] += vol
 
+                elif isinstance(tick, dict) and tick.get("type") == "raw_tick_display":
+                    ticks.append(tick["data"])
+
                 else:
                     ticks.append(tick)
 
@@ -446,3 +450,4 @@ with tab5:
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
