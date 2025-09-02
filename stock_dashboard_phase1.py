@@ -180,7 +180,7 @@ with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
 
     import plotly.graph_objects as go
-    import threading, queue, time
+    import threading, time
     import pandas as pd
     from datetime import datetime
 
@@ -189,36 +189,29 @@ with tab5:
         st.session_state.candles = pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
     if "live_feed" not in st.session_state:
-        st.session_state.live_feed = False   # default: WS band hai
+        st.session_state.live_feed = False  # default: WS off
 
-    if "live_fig" not in st.session_state:
-        st.session_state.live_fig = go.Figure()
-        st.session_state.live_fig.add_trace(go.Candlestick(
-            x=[], open=[], high=[], low=[], close=[],
-            increasing_line_color='#26a69a',
-            decreasing_line_color='#ef5350',
-            name="Price"
-        ))
-        st.session_state.live_fig.update_layout(
-            xaxis_rangeslider_visible=False,
-            dragmode='pan',
-            hovermode='x unified',
-            showlegend=False,
-            template="plotly_dark",
-            height=700,
-            margin=dict(l=50, r=50, t=50, b=50),
-            plot_bgcolor='black',
-            paper_bgcolor='black',
-            font=dict(color='white'),
-            title="TradingView-style Live Chart"
-        )
+    # --- Helper: Parse TPSeries API response ---
+    def parse_tpseries(response):
+        df = pd.DataFrame(response)
+        df = df.rename(columns={
+            "time": "time",
+            "into": "open",
+            "inth": "high",
+            "intl": "low",
+            "intc": "close",
+            "intv": "volume"
+        })
+        df["time"] = pd.to_datetime(df["time"])
+        df[["open","high","low","close","volume"]] = df[["open","high","low","close","volume"]].astype(float)
+        return df
 
-    # --- Background updater: only last candle update ---
+    # --- Background updater: update last candle only ---
     def update_last_candle(placeholder_chart):
         while st.session_state.get("live_feed", False):
             try:
-                tick = get_live_tick()  # <-- tumhara websocket tick fetch yaha aayega
-                if not st.session_state.candles.empty and tick:
+                tick = get_live_tick()  # <-- tumhara websocket tick function
+                if tick and not st.session_state.candles.empty:
                     st.session_state.candles.at[
                         st.session_state.candles.index[-1], "close"
                     ] = tick["ltp"]
@@ -232,7 +225,7 @@ with tab5:
                         st.session_state.candles.index[-1], "volume"
                     ] += tick["volume"]
 
-                    # Chart redraw karo
+                    # redraw chart
                     fig = go.Figure(data=[go.Candlestick(
                         x=st.session_state.candles["time"],
                         open=st.session_state.candles["open"],
@@ -260,6 +253,7 @@ with tab5:
     else:
         ps_api = st.session_state["ps_api"]
 
+        # --- Watchlist / Interval selection ---
         wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
@@ -278,21 +272,31 @@ with tab5:
             if st.button("▶️ Start Live Feed"):
                 st.session_state.live_feed = True
                 if st.session_state.candles.empty:
-                    # Initial TPSeries candles load (example NSE:22)
-                    st.session_state.candles = fetch_full_tpseries(
-                        ps_api, "NSE", "22", selected_interval, days=5
-                    ).reset_index().rename(columns={"datetime": "time"})
-                threading.Thread(
-                    target=update_last_candle,
-                    args=(placeholder_chart,),
-                    daemon=True
-                ).start()
+                    # Initial TPSeries load
+                    raw_tp = fetch_full_tpseries(ps_api, "NSE", "22", selected_interval, days=5)
+                    if raw_tp:
+                        st.session_state.candles = parse_tpseries(raw_tp)
+                        st.success(f"✅ TPSeries loaded: {len(st.session_state.candles)} candles")
+                    else:
+                        st.warning("⚠️ No TPSeries data")
+                # start background updater
+                threading.Thread(target=update_last_candle, args=(placeholder_chart,), daemon=True).start()
                 st.success("✅ Live feed started")
 
             if st.button("⏹ Stop Live Feed"):
                 st.session_state.live_feed = False
 
-            # --- Chart draw (first load ke liye) ---
+            # --- Tick display ---
+            ticks = []  # if you want to show latest tick table
+            if "ui_queue" in st.session_state:
+                while not st.session_state.ui_queue.empty():
+                    ticks.append(st.session_state.ui_queue.get())
+            if ticks:
+                st.dataframe(pd.DataFrame(ticks).tail(10), use_container_width=True)
+            else:
+                placeholder_ticks.info("⏳ Waiting for live ticks...")
+
+            # --- Initial chart draw ---
             if not st.session_state.candles.empty:
                 fig = go.Figure(data=[go.Candlestick(
                     x=st.session_state.candles["time"],
@@ -309,5 +313,6 @@ with tab5:
                     height=600
                 )
                 placeholder_chart.plotly_chart(fig, use_container_width=True)
+
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
