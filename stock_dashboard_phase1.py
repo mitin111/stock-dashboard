@@ -208,6 +208,10 @@ with tab5:
             title="TradingView-style Live Chart"
         )
 
+    # --- Session flag for live feed ---
+    if "live_feed" not in st.session_state:
+        st.session_state.live_feed = False
+
     # --- Safe live candle builder (NO st.* here) ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
@@ -300,10 +304,16 @@ with tab5:
             placeholder_ticks = st.empty()
             placeholder_chart = st.empty()
 
+            # --- Control buttons ---
             if st.button("🚀 Start TPSeries + Live Feed"):
-                from streamlit_autorefresh import st_autorefresh
+                st.session_state.live_feed = True
+            if st.button("🛑 Stop Live Feed"):
+                st.session_state.live_feed = False
+
+            # --- If live feed is ON ---
+            if st.session_state.live_feed:
                 st_autorefresh(interval=2000, key="livechart_refresh")
-                
+
                 with st.spinner("Fetching TPSeries + starting WebSocket..."):
                     wl_data = ps_api.get_watchlist(selected_watchlist)
                     if wl_data.get("stat") == "Ok":
@@ -446,4 +456,3 @@ with tab5:
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
