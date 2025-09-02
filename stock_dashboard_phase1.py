@@ -179,11 +179,15 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data")
 
+    from streamlit_autorefresh import st_autorefresh
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     import threading, queue, time
     import pandas as pd
     from datetime import datetime
+
+    # ⏱️ Auto-refresh har 2 sec me
+    st_autorefresh(interval=2000, key="livechart_refresh")
 
     # --- Helper: Plot Candles ---
     def plot_tpseries_candles(df, symbol):
@@ -450,4 +454,3 @@ with tab5:
 
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-
