@@ -184,29 +184,16 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- Step 1: Persistent Candles + Chart Placeholder ---
-    if "candles" not in st.session_state:
-        st.session_state.candles = pd.DataFrame(columns=["time","open","high","low","close","volume"])
-
-    if "chart_placeholder" not in st.session_state:
-        st.session_state.chart_placeholder = st.empty()
-
-    # --- Step 2: Update Functions ---
-    def update_chart():
-        df = st.session_state.candles
-        if df.empty:
-            return
-        fig = go.Figure(data=[go.Candlestick(
-            x=df["time"],
-            open=df["open"],
-            high=df["high"],
-            low=df["low"],
-            close=df["close"],
+    # --- Persistent Plotly Figure (only once banega) ---
+    if "live_fig" not in st.session_state:
+        st.session_state.live_fig = go.Figure()
+        st.session_state.live_fig.add_trace(go.Candlestick(
+            x=[], open=[], high=[], low=[], close=[],
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name="Price"
-        )])
-        fig.update_layout(
+        ))
+        st.session_state.live_fig.update_layout(
             xaxis_rangeslider_visible=False,
             dragmode='pan',
             hovermode='x unified',
@@ -219,19 +206,80 @@ with tab5:
             font=dict(color='white'),
             title="TradingView-style Live Chart"
         )
-        st.session_state.chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-    def on_new_candle(candle):
-        st.session_state.candles = pd.concat(
-            [st.session_state.candles, pd.DataFrame([candle])],
-            ignore_index=True
-        )
-        update_chart()
-
-    # --- Session flags ---
+    # --- Session flag for live feed ---
     if "live_feed" not in st.session_state:
         st.session_state.live_feed = False
 
+    # --- Safe live candle builder (NO st.* here) ---
+    def build_live_candle_from_tick(tick, selected_interval, ui_queue):
+        try:
+            ts_raw = tick.get("ft")
+            if ts_raw is None:
+                return
+            ts = int(float(ts_raw))
+
+            exch = (tick.get("e") or "").strip()
+            tk = str(tick.get("tk") or "").strip()
+            if not exch or not tk:
+                return
+
+            price_raw = tick.get("lp")
+            try:
+                price = float(price_raw) if price_raw not in (None, "", "0") else None
+            except:
+                price = None
+
+            vol_raw = tick.get("v")
+            try:
+                vol = int(float(vol_raw)) if vol_raw not in (None, "", "0") else 0
+            except:
+                vol = 0
+
+            m = int(selected_interval)
+            bucket = ts - (ts % (m * 60))
+            key = f"{exch}|{tk}|{m}"
+
+            ui_queue.put({
+                "type": "raw_tick",
+                "symbol_key": key,
+                "bucket": bucket,
+                "price": price,
+                "volume": vol,
+                "timestamp": ts
+            })
+        except Exception as e:
+            print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
+
+    # --- Background thread for live candle data ---
+    def start_live_chart(symbol_key, ps_api, ui_queue):
+        def run():
+            while True:
+                try:
+                    if hasattr(ps_api, "candles") and symbol_key in getattr(ps_api, "candles", {}):
+                        ui_queue.put({
+                            "type": "candle_update",
+                            "symbol_key": symbol_key,
+                            "candles": ps_api.candles[symbol_key]
+                        })
+                except Exception as e:
+                    print("⚠️ live_chart thread error:", e)
+                time.sleep(1)
+        threading.Thread(target=run, daemon=True).start()
+
+    # --- WebSocket Start Helper ---
+    def start_ws(symbols, ps_api, ui_queue):
+        def on_tick_callback(tick):
+            try:
+                build_live_candle_from_tick(tick, selected_interval, ui_queue)
+                ui_queue.put({"type": "raw_tick_display", "data": tick})
+            except Exception as e:
+                print("⚠️ ui_queue put error:", e)
+
+        ps_api._on_tick = on_tick_callback
+        ps_api.connect_websocket(symbols)
+
+    # --- UI ---
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
@@ -253,6 +301,7 @@ with tab5:
             )
 
             placeholder_ticks = st.empty()
+            placeholder_chart = st.empty()
 
             # --- Control buttons ---
             if st.button("🚀 Start TPSeries + Live Feed"):
@@ -279,7 +328,6 @@ with tab5:
                                     chunk_days=5
                                 )
                                 if not df_candle.empty:
-                                    # --- Normalize ---
                                     if "datetime" not in df_candle.columns:
                                         for col in ["time", "date"]:
                                             if col in df_candle.columns:
@@ -289,16 +337,29 @@ with tab5:
                                     df_candle.dropna(subset=["datetime"], inplace=True)
                                     df_candle.sort_values("datetime", inplace=True)
 
-                                    # --- Convert to candles DF ---
-                                    df_candle.rename(columns={
-                                        "datetime":"time","open":"open","high":"high",
-                                        "low":"low","close":"close","volume":"volume"
-                                    }, inplace=True)
-                                    df_candle = df_candle[["time","open","high","low","close","volume"]]
+                                    key = f"{exch}|{token}|{int(selected_interval)}"
+                                    if not hasattr(ps_api, "candles") or ps_api.candles is None:
+                                        ps_api.candles = {}
+                                    if key not in ps_api.candles:
+                                        ps_api.candles[key] = {}
+                                    for idx, row in df_candle.iterrows():
+                                        ts_epoch = int(row["datetime"].timestamp())
+                                        ps_api.candles[key][ts_epoch] = {
+                                            "ts": ts_epoch,
+                                            "o": float(row["open"]),
+                                            "h": float(row["high"]),
+                                            "l": float(row["low"]),
+                                            "c": float(row["close"]),
+                                            "v": int(row.get("volume", 0)),
+                                        }
 
-                                    # ✅ Initial TPSeries load into persistent candles
-                                    st.session_state.candles = df_candle.copy()
-                                    update_chart()
+                                    # ✅ Initial TPSeries load into persistent fig
+                                    st.session_state.live_fig.data[0].x = df_candle["datetime"]
+                                    st.session_state.live_fig.data[0].open = df_candle["open"]
+                                    st.session_state.live_fig.data[0].high = df_candle["high"]
+                                    st.session_state.live_fig.data[0].low = df_candle["low"]
+                                    st.session_state.live_fig.data[0].close = df_candle["close"]
+                                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
                                     symbols_for_ws.append(f"{exch}|{token}")
 
@@ -307,62 +368,90 @@ with tab5:
 
                         st.success(f"✅ TPSeries fetched for {len(symbols_for_ws)} scrips")
 
-                        # --- Start WebSocket ---
                         if symbols_for_ws and "ws_started" not in st.session_state:
-                            def on_tick_callback(tick):
-                                try:
-                                    key = f"{tick.get('e')}|{tick.get('tk')}|{selected_interval}"
-                                    if "live_candles" not in st.session_state:
-                                        st.session_state.live_candles = {}
-                                    if key not in st.session_state.live_candles:
-                                        st.session_state.live_candles[key] = {}
-
-                                    ts = int(float(tick.get("ft")))
-                                    bucket = ts - (ts % (int(selected_interval) * 60))
-                                    price = float(tick.get("lp") or 0)
-                                    vol = int(float(tick.get("v") or 0))
-
-                                    if bucket not in st.session_state.live_candles[key]:
-                                        st.session_state.live_candles[key][bucket] = {
-                                            "ts": bucket, "o": price, "h": price,
-                                            "l": price, "c": price, "v": vol
-                                        }
-                                    else:
-                                        cndl = st.session_state.live_candles[key][bucket]
-                                        if price > 0:
-                                            cndl["c"] = price
-                                            cndl["h"] = max(cndl["h"], price)
-                                            cndl["l"] = min(cndl["l"], price)
-                                        cndl["v"] += vol
-
-                                    # --- Call new candle update ---
-                                    cndl = st.session_state.live_candles[key][bucket]
-                                    new_candle = {
-                                        "time": datetime.fromtimestamp(cndl["ts"]),
-                                        "open": cndl["o"],
-                                        "high": cndl["h"],
-                                        "low": cndl["l"],
-                                        "close": cndl["c"],
-                                        "volume": cndl["v"]
-                                    }
-                                    on_new_candle(new_candle)
-
-                                except Exception as e:
-                                    print("⚠️ on_tick_callback error:", e)
-
                             threading.Thread(
-                                target=ps_api.connect_websocket, args=(symbols_for_ws,),
-                                daemon=True
+                                target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
                             ).start()
-                            ps_api._on_tick = on_tick_callback
                             st.session_state.ws_started = True
+                            st.session_state.symbols_for_ws = symbols_for_ws
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-            # --- Tick display (last 10) ---
-            if "df_ticks" in st.session_state and not st.session_state.df_ticks.empty:
+                        if "live_chart_started" not in st.session_state:
+                            for sym in symbols_for_ws:
+                                key = f"{sym}|{selected_interval}"
+                                start_live_chart(key, ps_api, ui_queue)
+                            st.session_state.live_chart_started = True
+
+            # --- Tick Consumer (UI update runs here) ---
+            ticks = []
+            while not ui_queue.empty():
+                tick = ui_queue.get()
+
+                if isinstance(tick, dict) and tick.get("type") == "candle_update":
+                    if "live_candles_data" not in st.session_state:
+                        st.session_state.live_candles_data = {}
+                    st.session_state.live_candles_data[tick["symbol_key"]] = tick["candles"]
+
+                elif isinstance(tick, dict) and tick.get("type") == "raw_tick":
+                    key = tick["symbol_key"]
+                    bucket = tick["bucket"]
+                    price = tick["price"]
+                    vol = tick["volume"]
+
+                    if "live_candles" not in st.session_state:
+                        st.session_state.live_candles = {}
+                    if key not in st.session_state.live_candles:
+                        st.session_state.live_candles[key] = {}
+
+                    if bucket not in st.session_state.live_candles[key]:
+                        st.session_state.live_candles[key][bucket] = {
+                            "ts": bucket, "o": price, "h": price,
+                            "l": price, "c": price, "v": vol
+                        }
+                    else:
+                        cndl = st.session_state.live_candles[key][bucket]
+                        if price is not None:
+                            cndl["c"] = price
+                            cndl["h"] = max(cndl["h"], price)
+                            cndl["l"] = min(cndl["l"], price)
+                        cndl["v"] += vol
+
+                elif isinstance(tick, dict) and tick.get("type") == "raw_tick_display":
+                    ticks.append(tick["data"])
+
+                else:
+                    ticks.append(tick)
+
+            if ticks:
+                if "df_ticks" not in st.session_state:
+                    st.session_state.df_ticks = pd.DataFrame(ticks)
+                else:
+                    st.session_state.df_ticks = pd.concat(
+                        [st.session_state.df_ticks, pd.DataFrame(ticks)]
+                    ).tail(2000)
+
                 placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
             else:
                 placeholder_ticks.info("⏳ Waiting for live ticks...")
 
+            # --- Main thread chart update (Persistent fig) ---
+            if "live_candles_data" in st.session_state:
+                for key, candles in st.session_state["live_candles_data"].items():
+                    df = pd.DataFrame(list(candles.values()))
+                    if not df.empty:
+                        df["datetime"] = pd.to_datetime(df["ts"], unit="s")
+                        df.sort_values("datetime", inplace=True)
+                        df.rename(columns={"o":"open","h":"high","l":"low","c":"close","v":"volume"}, inplace=True)
+
+                        st.session_state.live_fig.data[0].x = df["datetime"]
+                        st.session_state.live_fig.data[0].open = df["open"]
+                        st.session_state.live_fig.data[0].high = df["high"]
+                        st.session_state.live_fig.data[0].low = df["low"]
+                        st.session_state.live_fig.data[0].close = df["close"]
+
+                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+
+
