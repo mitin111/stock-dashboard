@@ -225,7 +225,7 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (NO UI here) ---
+    # --- Live candle builder (NO UI update here, just queue push) ---
     def build_live_candle_from_tick(tick, selected_interval):
         try:
             ps = st.session_state.get("ps_api")
@@ -254,37 +254,20 @@ with tab5:
             except:
                 vol = 0
 
-            if not hasattr(ps, "candles") or ps.candles is None:
-                ps.candles = {}
-
             m = int(selected_interval)
             bucket = ts - (ts % (m * 60))
             key = f"{exch}|{tk}|{m}"
 
-            if key not in ps.candles:
-                ps.candles[key] = {}
-
-            if bucket not in ps.candles[key]:
-                if price is None:
-                    return
-                ps.candles[key][bucket] = {
-                    "ts": bucket, "o": price, "h": price,
-                    "l": price, "c": price, "v": vol
-                }
-            else:
-                cndl = ps.candles[key][bucket]
-                if price is not None:
-                    cndl["c"] = float(price)
-                    cndl["h"] = max(float(cndl["h"]), float(price))
-                    cndl["l"] = min(float(cndl["l"]), float(price))
-                    if "o" not in cndl or cndl["o"] is None:
-                        cndl["o"] = float(price)
-                cndl["v"] = int(cndl.get("v", 0)) + vol
-
-            # ✅ Save for main thread UI update
-            if "live_candles" not in st.session_state:
-                st.session_state.live_candles = {}
-            st.session_state.live_candles[key] = ps.candles[key]
+            # ✅ Push into queue for UI consumer
+            if "tick_queue" in st.session_state:
+                st.session_state.tick_queue.put({
+                    "type": "raw_tick",
+                    "symbol_key": key,
+                    "bucket": bucket,
+                    "price": price,
+                    "volume": vol,
+                    "timestamp": ts
+                })
 
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
@@ -310,8 +293,7 @@ with tab5:
 
         def on_tick_callback(tick):
             try:
-                # ✅ only queue push
-                st.session_state.tick_queue.put(tick)
+                st.session_state.tick_queue.put(tick)  # ✅ only queue push
             except Exception as e:
                 print("⚠️ tick_queue error:", e)
 
@@ -414,9 +396,33 @@ with tab5:
                         if "live_candles_data" not in st.session_state:
                             st.session_state.live_candles_data = {}
                         st.session_state.live_candles_data[tick["symbol_key"]] = tick["candles"]
+
+                    elif isinstance(tick, dict) and tick.get("type") == "raw_tick":
+                        key = tick["symbol_key"]
+                        bucket = tick["bucket"]
+                        price = tick["price"]
+                        vol = tick["volume"]
+
+                        if "live_candles" not in st.session_state:
+                            st.session_state.live_candles = {}
+                        if key not in st.session_state.live_candles:
+                            st.session_state.live_candles[key] = {}
+
+                        if bucket not in st.session_state.live_candles[key]:
+                            st.session_state.live_candles[key][bucket] = {
+                                "ts": bucket, "o": price, "h": price,
+                                "l": price, "c": price, "v": vol
+                            }
+                        else:
+                            cndl = st.session_state.live_candles[key][bucket]
+                            if price is not None:
+                                cndl["c"] = price
+                                cndl["h"] = max(cndl["h"], price)
+                                cndl["l"] = min(cndl["l"], price)
+                            cndl["v"] += vol
+
                     else:
                         ticks.append(tick)
-                        build_live_candle_from_tick(tick, selected_interval)
 
                 if ticks:
                     if "df_ticks" not in st.session_state:
