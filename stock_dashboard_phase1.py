@@ -225,20 +225,16 @@ with tab5:
                                       dict(bounds=[15.5, 9.25], pattern="hour")])
         return fig
 
-    # --- Live candle builder (NO UI update here, just queue push) ---
-    def build_live_candle_from_tick(tick, selected_interval):
+    # --- Safe live candle builder (NO st.* here) ---
+    def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
-            ps = st.session_state.get("ps_api")
-            if not ps:
-                return
-
             ts_raw = tick.get("ft")
             if ts_raw is None:
                 return
             ts = int(float(ts_raw))
 
-            exch = tick.get("e", "").strip()
-            tk = str(tick.get("tk", "")).strip()
+            exch = (tick.get("e") or "").strip()
+            tk = str(tick.get("tk") or "").strip()
             if not exch or not tk:
                 return
 
@@ -258,44 +254,40 @@ with tab5:
             bucket = ts - (ts % (m * 60))
             key = f"{exch}|{tk}|{m}"
 
-            # ✅ Push into queue for UI consumer
-            if "tick_queue" in st.session_state:
-                st.session_state.tick_queue.put({
-                    "type": "raw_tick",
-                    "symbol_key": key,
-                    "bucket": bucket,
-                    "price": price,
-                    "volume": vol,
-                    "timestamp": ts
-                })
-
+            ui_queue.put({
+                "type": "raw_tick",
+                "symbol_key": key,
+                "bucket": bucket,
+                "price": price,
+                "volume": vol,
+                "timestamp": ts
+            })
         except Exception as e:
             print(f"⚠️ build_live_candle_from_tick error: {e}, tick={tick}")
 
-    # --- Background thread for live candle data (queue only, no UI update) ---
-    def start_live_chart(symbol_key):
+    # --- Background thread for live candle data ---
+    def start_live_chart(symbol_key, ps_api, ui_queue):
         def run():
             while True:
-                ps = st.session_state.get("ps_api")
-                if ps and hasattr(ps, "candles") and symbol_key in ps.candles:
-                    st.session_state.tick_queue.put({
-                        "type": "candle_update",
-                        "symbol_key": symbol_key,
-                        "candles": ps.candles[symbol_key]
-                    })
+                try:
+                    if hasattr(ps_api, "candles") and symbol_key in getattr(ps_api, "candles", {}):
+                        ui_queue.put({
+                            "type": "candle_update",
+                            "symbol_key": symbol_key,
+                            "candles": ps_api.candles[symbol_key]
+                        })
+                except Exception as e:
+                    print("⚠️ live_chart thread error:", e)
                 time.sleep(1)
         threading.Thread(target=run, daemon=True).start()
 
     # --- WebSocket Start Helper ---
-    def start_ws(symbols):
-        if "tick_queue" not in st.session_state:
-            st.session_state.tick_queue = queue.Queue()
-
+    def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             try:
-                st.session_state.tick_queue.put(tick)  # ✅ only queue push
+                ui_queue.put(tick)   # safe push
             except Exception as e:
-                print("⚠️ tick_queue error:", e)
+                print("⚠️ ui_queue put error:", e)
 
         ps_api._on_tick = on_tick_callback
         ps_api.connect_websocket(symbols)
@@ -305,8 +297,13 @@ with tab5:
         st.warning("⚠️ Please login first using your API credentials.")
     else:
         ps_api = st.session_state["ps_api"]
-        wl_resp = ps_api.get_watchlists()
 
+        # One queue for UI thread consumption
+        if "ui_queue" not in st.session_state:
+            st.session_state.ui_queue = queue.Queue()
+        ui_queue = st.session_state.ui_queue
+
+        wl_resp = ps_api.get_watchlists()
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
@@ -374,67 +371,67 @@ with tab5:
                         st.success(f"✅ TPSeries fetched for {len(symbols_for_ws)} scrips")
 
                         if symbols_for_ws and "ws_started" not in st.session_state:
-                            threading.Thread(target=start_ws, args=(symbols_for_ws,), daemon=True).start()
+                            threading.Thread(
+                                target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
+                            ).start()
                             st.session_state.ws_started = True
                             st.session_state.symbols_for_ws = symbols_for_ws
                             st.info(f"🔗 WebSocket started for {len(symbols_for_ws)} symbols")
 
-                        # Start Live Chart Threads
                         if "live_chart_started" not in st.session_state:
                             for sym in symbols_for_ws:
                                 key = f"{sym}|{selected_interval}"
-                                start_live_chart(key)
+                                start_live_chart(key, ps_api, ui_queue)
                             st.session_state.live_chart_started = True
 
             # --- Tick Consumer (UI update runs here) ---
-            if "tick_queue" in st.session_state:
-                ticks = []
-                while not st.session_state.tick_queue.empty():
-                    tick = st.session_state.tick_queue.get()
+            ticks = []
+            while not ui_queue.empty():
+                tick = ui_queue.get()
 
-                    if isinstance(tick, dict) and tick.get("type") == "candle_update":
-                        if "live_candles_data" not in st.session_state:
-                            st.session_state.live_candles_data = {}
-                        st.session_state.live_candles_data[tick["symbol_key"]] = tick["candles"]
+                if isinstance(tick, dict) and tick.get("type") == "candle_update":
+                    if "live_candles_data" not in st.session_state:
+                        st.session_state.live_candles_data = {}
+                    st.session_state.live_candles_data[tick["symbol_key"]] = tick["candles"]
 
-                    elif isinstance(tick, dict) and tick.get("type") == "raw_tick":
-                        key = tick["symbol_key"]
-                        bucket = tick["bucket"]
-                        price = tick["price"]
-                        vol = tick["volume"]
+                elif isinstance(tick, dict) and tick.get("type") == "raw_tick":
+                    key = tick["symbol_key"]
+                    bucket = tick["bucket"]
+                    price = tick["price"]
+                    vol = tick["volume"]
 
-                        if "live_candles" not in st.session_state:
-                            st.session_state.live_candles = {}
-                        if key not in st.session_state.live_candles:
-                            st.session_state.live_candles[key] = {}
+                    if "live_candles" not in st.session_state:
+                        st.session_state.live_candles = {}
+                    if key not in st.session_state.live_candles:
+                        st.session_state.live_candles[key] = {}
 
-                        if bucket not in st.session_state.live_candles[key]:
-                            st.session_state.live_candles[key][bucket] = {
-                                "ts": bucket, "o": price, "h": price,
-                                "l": price, "c": price, "v": vol
-                            }
-                        else:
-                            cndl = st.session_state.live_candles[key][bucket]
-                            if price is not None:
-                                cndl["c"] = price
-                                cndl["h"] = max(cndl["h"], price)
-                                cndl["l"] = min(cndl["l"], price)
-                            cndl["v"] += vol
-
+                    if bucket not in st.session_state.live_candles[key]:
+                        st.session_state.live_candles[key][bucket] = {
+                            "ts": bucket, "o": price, "h": price,
+                            "l": price, "c": price, "v": vol
+                        }
                     else:
-                        ticks.append(tick)
+                        cndl = st.session_state.live_candles[key][bucket]
+                        if price is not None:
+                            cndl["c"] = price
+                            cndl["h"] = max(cndl["h"], price)
+                            cndl["l"] = min(cndl["l"], price)
+                        cndl["v"] += vol
 
-                if ticks:
-                    if "df_ticks" not in st.session_state:
-                        st.session_state.df_ticks = pd.DataFrame(ticks)
-                    else:
-                        st.session_state.df_ticks = pd.concat(
-                            [st.session_state.df_ticks, pd.DataFrame(ticks)]
-                        ).tail(2000)
-
-                    placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
                 else:
-                    placeholder_ticks.info("⏳ Waiting for live ticks...")
+                    ticks.append(tick)
+
+            if ticks:
+                if "df_ticks" not in st.session_state:
+                    st.session_state.df_ticks = pd.DataFrame(ticks)
+                else:
+                    st.session_state.df_ticks = pd.concat(
+                        [st.session_state.df_ticks, pd.DataFrame(ticks)]
+                    ).tail(2000)
+
+                placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
+            else:
+                placeholder_ticks.info("⏳ Waiting for live ticks...")
 
             # --- Main thread chart update ---
             if "live_candles_data" in st.session_state:
