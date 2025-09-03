@@ -213,7 +213,8 @@ with tab5:
 
     # --- Minimal last-candle updater ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
-        if tick is None: return
+        if tick is None:
+            return
 
         ts = int(float(tick.get("ft", 0)))
         price = float(tick.get("lp", 0))
@@ -229,7 +230,7 @@ with tab5:
             st.session_state.live_candles[key] = {}
 
         fig = st.session_state.live_fig
-        # --- Convert figure data to lists if not already ---
+        # --- Ensure lists ---
         fig.data[0].x = list(fig.data[0].x)
         fig.data[0].open = list(fig.data[0].open)
         fig.data[0].high = list(fig.data[0].high)
@@ -241,7 +242,7 @@ with tab5:
                 "ts": bucket_ts, "o": price, "h": price,
                 "l": price, "c": price, "v": vol
             }
-            # Append new candle to figure
+            # Append new candle
             fig.data[0].x.append(pd.to_datetime(bucket_ts, unit="s"))
             fig.data[0].open.append(price)
             fig.data[0].high.append(price)
@@ -339,7 +340,7 @@ with tab5:
                         symbols_for_ws = []
                         for scrip in scrips:
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
-                            df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
+                            df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=60)
                             if not df_candle.empty:
                                 # --- Safe datetime handling ---
                                 datetime_col = None
