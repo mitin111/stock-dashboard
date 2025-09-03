@@ -294,16 +294,16 @@ with tab5:
     # --- Start WS helper ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            print("📩 Raw tick arrived:", tick)  # ✅ Debug print
+            print("📩 Raw tick arrived (Tab5):", tick)  # ✅ Debug print
             try:
                 build_live_candle_from_tick(tick, selected_interval, ui_queue)
                 ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
-        ps_api._on_tick = on_tick_callback
-        ps_api.connect_websocket(symbols)
-        print("▶ start_ws called")
+        # ✅ Proper callback registration
+        ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
+        print("▶ start_ws called from Tab5 with callback")
 
     # --- UI: main logic ---
     if "ps_api" not in st.session_state:
@@ -423,7 +423,7 @@ with tab5:
         )
 
         if ticks_display:
-            df_ticks_show = pd.DataFrame(ticks_display[-50:])
+            df_ticks_show = pd.DataFrame(ticks_display[-50:])  # last 50 ticks
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
