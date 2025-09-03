@@ -183,6 +183,7 @@ with tab5:
     import threading, queue, time
     import pandas as pd
     from datetime import datetime
+    from streamlit_autorefresh import st_autorefresh
 
     # --- Persistent Plotly Figure (only once) ---
     if "live_fig" not in st.session_state:
@@ -388,24 +389,33 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer loop ---
-    processed_count = 0
-    ticks_display = []
-    while st.session_state.live_feed:
+    # --- Refactored Consumer (non-blocking) ---
+    if st.session_state.live_feed:
+        # Auto-refresh every 1 second
+        st_autorefresh(interval=1000, key="ws_autorefresh")
+
+        # --- Status update ---
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {ui_queue.qsize()} | processed: {processed_count}"
+            f"queue: {st.session_state.ui_queue.qsize()} | "
+            f"processed: {st.session_state.get('processed_count', 0)}"
         )
 
-        while not ui_queue.empty():
-            item = ui_queue.get()
+        # --- Process items from queue ---
+        if "processed_count" not in st.session_state:
+            st.session_state.processed_count = 0
+
+        ticks_display = st.session_state.get("ticks_display", [])
+
+        while not st.session_state.ui_queue.empty():
+            item = st.session_state.ui_queue.get()
             try:
                 if isinstance(item, dict) and item.get("type") == "raw_tick":
                     raw = item.get("data")
                     if raw:
                         update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
-                        processed_count += 1
+                        st.session_state.processed_count += 1
                 elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
                     ticks_display.append(item["data"])
                 else:
@@ -413,10 +423,12 @@ with tab5:
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
+        # Store back
+        st.session_state.ticks_display = ticks_display
+
+        # --- Show ticks ---
         if ticks_display:
             df_ticks_show = pd.DataFrame(ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
-
-        time.sleep(0.5)
