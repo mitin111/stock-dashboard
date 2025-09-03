@@ -216,8 +216,12 @@ with tab5:
         if tick is None:
             return
 
+        lp = tick.get("lp")
+        if lp is None:
+            return   # skip tick if no last price
+        price = float(lp)
+
         ts = int(float(tick.get("ft", 0)))
-        price = float(tick.get("lp", 0))
         vol = int(float(tick.get("v", 0)))
 
         m = int(selected_interval)
@@ -275,23 +279,8 @@ with tab5:
     # --- Background: build tick dict for UI ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
-            ts = int(float(tick.get("ft", 0)))
-            exch = tick.get("e", "")
-            tk = str(tick.get("tk", ""))
-            price = float(tick.get("lp", 0))
-            vol = int(float(tick.get("v", 0)))
-            bucket = ts - (ts % (int(selected_interval) * 60))
-            key = f"{exch}|{tk}|{selected_interval}"
-
-            ui_queue.put({
-                "type": "raw_tick",
-                "symbol_key": key,
-                "bucket": bucket,
-                "price": price,
-                "volume": vol,
-                "timestamp": ts
-            })
-            ui_queue.put({"type": "raw_tick_display", "data": tick})
+            # Sirf raw API tick bhejo
+            ui_queue.put({"type": "raw_tick", "data": tick})
         except Exception as e:
             print("⚠️ build_live_candle_from_tick error:", e)
 
@@ -386,7 +375,7 @@ with tab5:
                 while not ui_queue.empty():
                     tick = ui_queue.get()
                     if isinstance(tick, dict) and tick.get("type") == "raw_tick":
-                        update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+                        update_last_candle_from_tick(tick["data"], selected_interval, placeholder_chart)
                     elif isinstance(tick, dict) and tick.get("type") == "raw_tick_display":
                         ticks.append(tick["data"])
                     else:
