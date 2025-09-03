@@ -209,10 +209,15 @@ with tab5:
 
     # --- Minimal last-candle updater ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
-        if not tick or not tick.get("lp"):
+        if not tick:
             return
+            
+        price_str = tick.get("lp") or tick.get("c")
+        if not price_str:
+            return
+            
         try:
-            price = float(tick["lp"])
+            price = float(price_str)
         except:
             return
 
@@ -395,3 +400,4 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
+
