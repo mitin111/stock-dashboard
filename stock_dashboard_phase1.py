@@ -294,6 +294,7 @@ with tab5:
     # --- Start WS helper ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
+            print("📩 Raw tick arrived:", tick)  # ✅ Debug print
             try:
                 build_live_candle_from_tick(tick, selected_interval, ui_queue)
                 ui_queue.put({"type": "raw_tick_display", "data": tick})
@@ -391,17 +392,8 @@ with tab5:
 
     # --- Consumer (no autorefresh, no blink) ---
     if st.session_state.live_feed:
-        # --- Status update ---
-        placeholder_status.info(
-            f"WS started: {st.session_state.get('ws_started', False)} | "
-            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {st.session_state.ui_queue.qsize()} | "
-            f"processed: {st.session_state.get('processed_count', 0)}"
-        )
-
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
-
         ticks_display = st.session_state.get("ticks_display", [])
 
         while not st.session_state.ui_queue.empty():
@@ -421,6 +413,14 @@ with tab5:
                 print("⚠️ consumer loop error:", e)
 
         st.session_state.ticks_display = ticks_display
+
+        # --- Status update ---
+        placeholder_status.info(
+            f"WS started: {st.session_state.get('ws_started', False)} | "
+            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
+            f"queue: {st.session_state.ui_queue.qsize()} | "
+            f"processed: {st.session_state.processed_count}"
+        )
 
         if ticks_display:
             df_ticks_show = pd.DataFrame(ticks_display[-50:])
