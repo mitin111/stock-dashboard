@@ -228,17 +228,25 @@ with tab5:
         if key not in st.session_state.live_candles:
             st.session_state.live_candles[key] = {}
 
+        fig = st.session_state.live_fig
+        # --- Convert figure data to lists if not already ---
+        fig.data[0].x = list(fig.data[0].x)
+        fig.data[0].open = list(fig.data[0].open)
+        fig.data[0].high = list(fig.data[0].high)
+        fig.data[0].low = list(fig.data[0].low)
+        fig.data[0].close = list(fig.data[0].close)
+
         if bucket_ts not in st.session_state.live_candles[key]:
             st.session_state.live_candles[key][bucket_ts] = {
                 "ts": bucket_ts, "o": price, "h": price,
                 "l": price, "c": price, "v": vol
             }
             # Append new candle to figure
-            st.session_state.live_fig.data[0].x += (pd.to_datetime(bucket_ts, unit="s"),)
-            st.session_state.live_fig.data[0].open += (price,)
-            st.session_state.live_fig.data[0].high += (price,)
-            st.session_state.live_fig.data[0].low += (price,)
-            st.session_state.live_fig.data[0].close += (price,)
+            fig.data[0].x.append(pd.to_datetime(bucket_ts, unit="s"))
+            fig.data[0].open.append(price)
+            fig.data[0].high.append(price)
+            fig.data[0].low.append(price)
+            fig.data[0].close.append(price)
         else:
             # Update last candle
             cndl = st.session_state.live_candles[key][bucket_ts]
@@ -248,12 +256,20 @@ with tab5:
             cndl["v"] += vol
 
             idx = -1
-            st.session_state.live_fig.data[0].open[idx] = cndl["o"]
-            st.session_state.live_fig.data[0].high[idx] = cndl["h"]
-            st.session_state.live_fig.data[0].low[idx] = cndl["l"]
-            st.session_state.live_fig.data[0].close[idx] = cndl["c"]
+            fig.data[0].open[idx] = cndl["o"]
+            fig.data[0].high[idx] = cndl["h"]
+            fig.data[0].low[idx] = cndl["l"]
+            fig.data[0].close[idx] = cndl["c"]
 
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        # --- Limit last 200 candles ---
+        max_candles = 200
+        fig.data[0].x = fig.data[0].x[-max_candles:]
+        fig.data[0].open = fig.data[0].open[-max_candles:]
+        fig.data[0].high = fig.data[0].high[-max_candles:]
+        fig.data[0].low = fig.data[0].low[-max_candles:]
+        fig.data[0].close = fig.data[0].close[-max_candles:]
+
+        placeholder_chart.plotly_chart(fig, use_container_width=True)
 
     # --- Background: build tick dict for UI ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
@@ -351,11 +367,11 @@ with tab5:
                                     }
 
                                 # Load TPSeries into figure
-                                st.session_state.live_fig.data[0].x = df_candle["datetime"]
-                                st.session_state.live_fig.data[0].open = df_candle["open"]
-                                st.session_state.live_fig.data[0].high = df_candle["high"]
-                                st.session_state.live_fig.data[0].low = df_candle["low"]
-                                st.session_state.live_fig.data[0].close = df_candle["close"]
+                                st.session_state.live_fig.data[0].x = list(df_candle["datetime"])
+                                st.session_state.live_fig.data[0].open = list(df_candle["open"])
+                                st.session_state.live_fig.data[0].high = list(df_candle["high"])
+                                st.session_state.live_fig.data[0].low = list(df_candle["low"])
+                                st.session_state.live_fig.data[0].close = list(df_candle["close"])
                                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                                 symbols_for_ws.append(f"{exch}|{token}")
 
@@ -363,24 +379,27 @@ with tab5:
                             threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
                             st.session_state.ws_started = True
 
-            # --- Tick Consumer (update last candle only) ---
+            # --- Tick Consumer: continuously in main thread ---
             ticks = []
-            while not ui_queue.empty():
-                tick = ui_queue.get()
-                if isinstance(tick, dict) and tick.get("type") == "raw_tick":
-                    update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
-                elif isinstance(tick, dict) and tick.get("type") == "raw_tick_display":
-                    ticks.append(tick["data"])
-                else:
-                    ticks.append(tick)
+            while st.session_state.live_feed:
+                while not ui_queue.empty():
+                    tick = ui_queue.get()
+                    if isinstance(tick, dict) and tick.get("type") == "raw_tick":
+                        update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+                    elif isinstance(tick, dict) and tick.get("type") == "raw_tick_display":
+                        ticks.append(tick["data"])
+                    else:
+                        ticks.append(tick)
 
-            if ticks:
-                if "df_ticks" not in st.session_state:
-                    st.session_state.df_ticks = pd.DataFrame(ticks)
+                if ticks:
+                    if "df_ticks" not in st.session_state:
+                        st.session_state.df_ticks = pd.DataFrame(ticks)
+                    else:
+                        st.session_state.df_ticks = pd.concat([st.session_state.df_ticks, pd.DataFrame(ticks)]).tail(2000)
+                    placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
                 else:
-                    st.session_state.df_ticks = pd.concat([st.session_state.df_ticks, pd.DataFrame(ticks)]).tail(2000)
-                placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
-            else:
-                placeholder_ticks.info("⏳ Waiting for live ticks...")
+                    placeholder_ticks.info("⏳ Waiting for live ticks...")
+
+                time.sleep(0.5)
         else:
             st.warning(wl_resp.get("emsg","Could not fetch watchlists."))
