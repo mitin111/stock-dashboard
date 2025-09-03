@@ -269,19 +269,13 @@ with tab5:
 
         placeholder_chart.plotly_chart(fig, use_container_width=True)
 
-    # --- WS forwarder ---
-    def build_live_candle_from_tick(tick, selected_interval, ui_queue):
-        try:
-            ui_queue.put({"type": "raw_tick", "data": tick})
-        except Exception as e:
-            print("⚠️ build_live_candle_from_tick error:", e)
-
-    # --- Start WS helper ---
+    # --- WS forwarder (Fix 2 safety forward included) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                build_live_candle_from_tick(tick, selected_interval, ui_queue)
+                # ✅ Always push to UI queue (safety forward)
+                ui_queue.put({"type": "raw_tick", "data": tick})
                 ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
