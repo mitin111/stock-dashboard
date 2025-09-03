@@ -209,23 +209,24 @@ with tab5:
 
     # --- Minimal last-candle updater (uses raw API tick) ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
-        # tick = raw API tick dict
         if not tick:
             return
 
         lp = tick.get("lp")
-        if lp is None:
-            return   # nothing to update
+        if lp is None:   # skip tf ticks without price
+            return
 
         try:
             price = float(lp)
         except:
             return
 
+        # time handling
         ft = tick.get("ft")
-        if ft is None:
-            return
-        ts = int(float(ft))
+        if ft:
+            ts = int(float(ft))
+        else:
+            ts = int(time.time())  # fallback current epoch
 
         v_raw = tick.get("v")
         vol = int(float(v_raw)) if v_raw is not None else 0
@@ -240,7 +241,6 @@ with tab5:
             st.session_state.live_candles[key] = {}
 
         fig = st.session_state.live_fig
-        # ensure lists (Plotly stores tuples sometimes)
         fig.data[0].x = list(fig.data[0].x)
         fig.data[0].open = list(fig.data[0].open)
         fig.data[0].high = list(fig.data[0].high)
@@ -248,7 +248,7 @@ with tab5:
         fig.data[0].close = list(fig.data[0].close)
 
         if bucket_ts not in st.session_state.live_candles[key]:
-            # New live bucket -> append
+            # New candle
             st.session_state.live_candles[key][bucket_ts] = {
                 "ts": bucket_ts, "o": price, "h": price,
                 "l": price, "c": price, "v": vol
@@ -259,7 +259,7 @@ with tab5:
             fig.data[0].low.append(price)
             fig.data[0].close.append(price)
         else:
-            # Update last candle
+            # Update existing candle
             cndl = st.session_state.live_candles[key][bucket_ts]
             cndl["c"] = price
             cndl["h"] = max(cndl["h"], price)
@@ -267,14 +267,13 @@ with tab5:
             cndl["v"] += vol
 
             idx = -1
-            # protect index errors
             if len(fig.data[0].close) > 0:
                 fig.data[0].open[idx] = cndl["o"]
                 fig.data[0].high[idx] = cndl["h"]
                 fig.data[0].low[idx] = cndl["l"]
                 fig.data[0].close[idx] = cndl["c"]
 
-        # limit length
+        # keep last 200 candles
         max_candles = 200
         fig.data[0].x = fig.data[0].x[-max_candles:]
         fig.data[0].open = fig.data[0].open[-max_candles:]
@@ -287,7 +286,6 @@ with tab5:
     # --- Background forwarder: put RAW tick to UI queue ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
-            # forward raw tick object
             ui_queue.put({"type": "raw_tick", "data": tick})
         except Exception as e:
             print("⚠️ build_live_candle_from_tick error:", e)
@@ -295,11 +293,9 @@ with tab5:
     # --- Start WS helper ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            # this runs inside ps_api websocket thread
             try:
                 build_live_candle_from_tick(tick, selected_interval, ui_queue)
-                # also forward a small display copy (optional)
-                ui_queue.put({"type":"raw_tick_display","data": tick})
+                ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
@@ -314,7 +310,6 @@ with tab5:
 
     ps_api = st.session_state["ps_api"]
 
-    # ensure ui_queue exists
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
@@ -329,15 +324,13 @@ with tab5:
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
     selected_interval = st.selectbox("Select Interval", ["1","3","5","10","15","30","60","120","240"], index=0)
 
-    # Control buttons
     if st.button("🚀 Start TPSeries + Live Feed"):
         st.session_state.live_feed = True
-        st.session_state.ws_started = False  # reset flag
+        st.session_state.ws_started = False
 
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
 
-    # If live_feed turned on, do initial load + start ws (once)
     if st.session_state.live_feed and not st.session_state.get("ws_started", False):
         with st.spinner("Fetching TPSeries (60 days) and starting WS..."):
             scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
@@ -354,7 +347,6 @@ with tab5:
                     st.info(f"No TPSeries for {tsym}")
                     continue
 
-                # safe datetime handling
                 datetime_col = None
                 for col in ["datetime", "time", "date"]:
                     if col in df_candle.columns:
@@ -363,6 +355,7 @@ with tab5:
                 if datetime_col is None:
                     st.warning(f"⚠️ TPSeries datetime missing for {tsym}")
                     continue
+
                 df_candle["datetime"] = pd.to_datetime(df_candle[datetime_col], errors="coerce")
                 df_candle.dropna(subset=["datetime"], inplace=True)
                 df_candle.sort_values("datetime", inplace=True)
@@ -379,7 +372,6 @@ with tab5:
                         "v": int(row.get("volume", 0))
                     }
 
-                # set figure using lists
                 st.session_state.live_fig.data[0].x = list(df_candle["datetime"])
                 st.session_state.live_fig.data[0].open = list(df_candle["open"])
                 st.session_state.live_fig.data[0].high = list(df_candle["high"])
@@ -389,7 +381,6 @@ with tab5:
 
                 symbols_for_ws.append(f"{exch}|{token}")
 
-            # start websocket thread
             if symbols_for_ws:
                 threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
                 st.session_state.ws_started = True
@@ -397,19 +388,16 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer loop (runs in main thread while live_feed True) ---
-    # This will keep UI responsive and show queue size in status
+    # --- Consumer loop ---
     processed_count = 0
     ticks_display = []
     while st.session_state.live_feed:
-        # show status
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
             f"queue: {ui_queue.qsize()} | processed: {processed_count}"
         )
 
-        # consume available items quickly
         while not ui_queue.empty():
             item = ui_queue.get()
             try:
@@ -425,12 +413,10 @@ with tab5:
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
-        # update recent tick table
         if ticks_display:
-            df_ticks_show = pd.DataFrame(ticks_display[-50:])  # small window
+            df_ticks_show = pd.DataFrame(ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
 
-        # small sleep so Streamlit can update UI
         time.sleep(0.5)
