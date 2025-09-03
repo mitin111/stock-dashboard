@@ -207,29 +207,17 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Minimal last-candle updater (uses raw API tick) ---
+    # --- Minimal last-candle updater ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
-        if not tick:
+        if not tick or not tick.get("lp"):
             return
-
-        lp = tick.get("lp")
-        if lp is None:
-            return
-
         try:
-            price = float(lp)
+            price = float(tick["lp"])
         except:
             return
 
-        # time handling
-        ft = tick.get("ft")
-        if ft:
-            ts = int(float(ft))
-        else:
-            ts = int(time.time())  # fallback current epoch
-
-        v_raw = tick.get("v")
-        vol = int(float(v_raw)) if v_raw is not None else 0
+        ts = int(float(tick.get("ft", time.time())))
+        vol = int(float(tick.get("v", 0)))
 
         m = int(selected_interval)
         bucket_ts = ts - (ts % (m * 60))
@@ -265,26 +253,23 @@ with tab5:
             cndl["h"] = max(cndl["h"], price)
             cndl["l"] = min(cndl["l"], price)
             cndl["v"] += vol
-
             idx = -1
-            if len(fig.data[0].close) > 0:
+            if fig.data[0].close:
                 fig.data[0].open[idx] = cndl["o"]
                 fig.data[0].high[idx] = cndl["h"]
                 fig.data[0].low[idx] = cndl["l"]
                 fig.data[0].close[idx] = cndl["c"]
 
         # keep last 200 candles
-        max_candles = 200
-        fig.data[0].x = fig.data[0].x[-max_candles:]
-        fig.data[0].open = fig.data[0].open[-max_candles:]
-        fig.data[0].high = fig.data[0].high[-max_candles:]
-        fig.data[0].low = fig.data[0].low[-max_candles:]
-        fig.data[0].close = fig.data[0].close[-max_candles:]
+        fig.data[0].x = fig.data[0].x[-200:]
+        fig.data[0].open = fig.data[0].open[-200:]
+        fig.data[0].high = fig.data[0].high[-200:]
+        fig.data[0].low = fig.data[0].low[-200:]
+        fig.data[0].close = fig.data[0].close[-200:]
 
-        # ✅ Update chart only, no refresh blink
         placeholder_chart.plotly_chart(fig, use_container_width=True)
 
-    # --- Background forwarder ---
+    # --- WS forwarder ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
             ui_queue.put({"type": "raw_tick", "data": tick})
@@ -294,22 +279,20 @@ with tab5:
     # --- Start WS helper ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            print("📩 Raw tick arrived (Tab5):", tick)  # ✅ Debug print
+            print("📩 Raw tick arrived (Tab5):", tick)
             try:
                 build_live_candle_from_tick(tick, selected_interval, ui_queue)
                 ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
-        # ✅ Proper callback registration
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
         print("▶ start_ws called from Tab5 with callback")
 
-    # --- UI: main logic ---
+    # --- UI logic ---
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first using your API credentials.")
         st.stop()
-
     ps_api = st.session_state["ps_api"]
 
     if "ui_queue" not in st.session_state:
@@ -329,7 +312,6 @@ with tab5:
     if st.button("🚀 Start TPSeries + Live Feed"):
         st.session_state.live_feed = True
         st.session_state.ws_started = False
-
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
 
@@ -344,21 +326,14 @@ with tab5:
                 except Exception as e:
                     st.warning(f"TPSeries fetch error for {tsym}: {e}")
                     continue
-
                 if df_candle is None or df_candle.empty:
                     st.info(f"No TPSeries for {tsym}")
                     continue
 
-                datetime_col = None
-                for col in ["datetime", "time", "date"]:
-                    if col in df_candle.columns:
-                        datetime_col = col
-                        break
-                if datetime_col is None:
-                    st.warning(f"⚠️ TPSeries datetime missing for {tsym}")
-                    continue
-
-                df_candle["datetime"] = pd.to_datetime(df_candle[datetime_col], errors="coerce")
+                df_candle["datetime"] = pd.to_datetime(
+                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]], 
+                    errors="coerce"
+                )
                 df_candle.dropna(subset=["datetime"], inplace=True)
                 df_candle.sort_values("datetime", inplace=True)
 
@@ -366,7 +341,7 @@ with tab5:
                 if not hasattr(ps_api, "candles") or ps_api.candles is None:
                     ps_api.candles = {}
                 ps_api.candles[key] = {}
-                for idx, row in df_candle.iterrows():
+                for _, row in df_candle.iterrows():
                     ts_epoch = int(row["datetime"].timestamp())
                     ps_api.candles[key][ts_epoch] = {
                         "ts": ts_epoch, "o": float(row["open"]), "h": float(row["high"]),
@@ -390,7 +365,7 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer (no autorefresh, no blink) ---
+    # --- Consumer (no blink refresh) ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
@@ -399,22 +374,16 @@ with tab5:
         while not st.session_state.ui_queue.empty():
             item = st.session_state.ui_queue.get()
             try:
-                if isinstance(item, dict) and item.get("type") == "raw_tick":
-                    raw = item.get("data")
-                    if raw:
-                        # ✅ Only update candle, chart won't blink
-                        update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
-                        st.session_state.processed_count += 1
-                elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
+                if item.get("type") == "raw_tick":
+                    update_last_candle_from_tick(item["data"], selected_interval, placeholder_chart)
+                    st.session_state.processed_count += 1
+                elif item.get("type") == "raw_tick_display":
                     ticks_display.append(item["data"])
-                else:
-                    ticks_display.append(item)
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
         st.session_state.ticks_display = ticks_display
 
-        # --- Status update ---
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -423,7 +392,7 @@ with tab5:
         )
 
         if ticks_display:
-            df_ticks_show = pd.DataFrame(ticks_display[-50:])  # last 50 ticks
+            df_ticks_show = pd.DataFrame(ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
