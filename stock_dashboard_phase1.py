@@ -183,7 +183,6 @@ with tab5:
     import threading, queue, time
     import pandas as pd
     from datetime import datetime
-    from streamlit_autorefresh import st_autorefresh
 
     # --- Persistent Plotly Figure (only once) ---
     if "live_fig" not in st.session_state:
@@ -214,7 +213,7 @@ with tab5:
             return
 
         lp = tick.get("lp")
-        if lp is None:   # skip tf ticks without price
+        if lp is None:
             return
 
         try:
@@ -282,9 +281,10 @@ with tab5:
         fig.data[0].low = fig.data[0].low[-max_candles:]
         fig.data[0].close = fig.data[0].close[-max_candles:]
 
+        # ✅ Update chart only, no refresh blink
         placeholder_chart.plotly_chart(fig, use_container_width=True)
 
-    # --- Background forwarder: put RAW tick to UI queue ---
+    # --- Background forwarder ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
             ui_queue.put({"type": "raw_tick", "data": tick})
@@ -389,11 +389,8 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Refactored Consumer (non-blocking) ---
+    # --- Consumer (no autorefresh, no blink) ---
     if st.session_state.live_feed:
-        # Auto-refresh every 1 second
-        st_autorefresh(interval=1000, key="ws_autorefresh")
-
         # --- Status update ---
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -402,7 +399,6 @@ with tab5:
             f"processed: {st.session_state.get('processed_count', 0)}"
         )
 
-        # --- Process items from queue ---
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
 
@@ -414,6 +410,7 @@ with tab5:
                 if isinstance(item, dict) and item.get("type") == "raw_tick":
                     raw = item.get("data")
                     if raw:
+                        # ✅ Only update candle, chart won't blink
                         update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
                         st.session_state.processed_count += 1
                 elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
@@ -423,10 +420,8 @@ with tab5:
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
-        # Store back
         st.session_state.ticks_display = ticks_display
 
-        # --- Show ticks ---
         if ticks_display:
             df_ticks_show = pd.DataFrame(ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
