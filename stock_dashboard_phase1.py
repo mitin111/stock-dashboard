@@ -269,12 +269,12 @@ with tab5:
 
         placeholder_chart.plotly_chart(fig, use_container_width=True)
 
-    # --- WS forwarder (Fix 2 safety forward included) ---
+    # --- WS forwarder (callback pushes directly to UI queue) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                # ✅ Always push to UI queue (safety forward)
+                # ✅ Always push to UI queue (both types)
                 ui_queue.put({"type": "raw_tick", "data": tick})
                 ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
@@ -359,7 +359,7 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer (no blink refresh, persistent ticks) ---
+    # --- Consumer ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
