@@ -216,13 +216,19 @@ with tab5:
         if tick is None:
             return
 
+        # LP safety
         lp = tick.get("lp")
         if lp is None:
-            return   # skip tick if no last price
+            return  # skip if no last price
         price = float(lp)
 
-        ts = int(float(tick.get("ft", 0)))
-        vol = int(float(tick.get("v", 0)))
+        # TS & VOL safety
+        ft = tick.get("ft")
+        if ft is None:
+            return
+        ts = int(float(ft))
+        v_raw = tick.get("v")
+        vol = int(float(v_raw)) if v_raw is not None else 0
 
         m = int(selected_interval)
         bucket_ts = ts - (ts % (m * 60))
@@ -266,7 +272,7 @@ with tab5:
             fig.data[0].low[idx] = cndl["l"]
             fig.data[0].close[idx] = cndl["c"]
 
-        # --- Limit last 200 candles ---
+        # --- Limit last 200 candles on chart (keeps UI snappy) ---
         max_candles = 200
         fig.data[0].x = fig.data[0].x[-max_candles:]
         fig.data[0].open = fig.data[0].open[-max_candles:]
@@ -276,7 +282,7 @@ with tab5:
 
         placeholder_chart.plotly_chart(fig, use_container_width=True)
 
-    # --- Background: build tick dict for UI ---
+    # --- Background: forward RAW tick to UI queue ---
     def build_live_candle_from_tick(tick, selected_interval, ui_queue):
         try:
             # Sirf raw API tick bhejo
@@ -329,6 +335,7 @@ with tab5:
                         symbols_for_ws = []
                         for scrip in scrips:
                             exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
+                            # 60-day TPSeries
                             df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=60)
                             if not df_candle.empty:
                                 # --- Safe datetime handling ---
@@ -353,10 +360,10 @@ with tab5:
                                     ps_api.candles[key][ts_epoch] = {
                                         "ts": ts_epoch, "o": float(row["open"]), "h": float(row["high"]),
                                         "l": float(row["low"]), "c": float(row["close"]),
-                                        "v": int(row.get("volume",0))
+                                        "v": int(row.get("volume", 0))
                                     }
 
-                                # Load TPSeries into figure
+                                # Load TPSeries into figure (lists, not tuples)
                                 st.session_state.live_fig.data[0].x = list(df_candle["datetime"])
                                 st.session_state.live_fig.data[0].open = list(df_candle["open"])
                                 st.session_state.live_fig.data[0].high = list(df_candle["high"])
@@ -375,7 +382,10 @@ with tab5:
                 while not ui_queue.empty():
                     tick = ui_queue.get()
                     if isinstance(tick, dict) and tick.get("type") == "raw_tick":
+                        # pass ACTUAL raw API tick
                         update_last_candle_from_tick(tick["data"], selected_interval, placeholder_chart)
+                        # Optionally keep a small sample of recent raw ticks for display
+                        ticks.append(tick["data"])
                     elif isinstance(tick, dict) and tick.get("type") == "raw_tick_display":
                         ticks.append(tick["data"])
                     else:
@@ -385,11 +395,14 @@ with tab5:
                     if "df_ticks" not in st.session_state:
                         st.session_state.df_ticks = pd.DataFrame(ticks)
                     else:
-                        st.session_state.df_ticks = pd.concat([st.session_state.df_ticks, pd.DataFrame(ticks)]).tail(2000)
+                        st.session_state.df_ticks = pd.concat(
+                            [st.session_state.df_ticks, pd.DataFrame(ticks)]
+                        ).tail(2000)
                     placeholder_ticks.dataframe(st.session_state.df_ticks.tail(10), use_container_width=True)
+                    ticks = []  # reset so we don't duplicate next loop
                 else:
                     placeholder_ticks.info("⏳ Waiting for live ticks...")
 
                 time.sleep(0.5)
         else:
-            st.warning(wl_resp.get("emsg","Could not fetch watchlists."))
+            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
