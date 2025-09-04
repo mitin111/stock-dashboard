@@ -367,7 +367,7 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer (✅ replaced loop) ---
+    # --- Consumer (✅ FIXED LOOP) ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
@@ -381,7 +381,11 @@ with tab5:
             except queue.Empty:
                 break
             else:
-                update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+                # ✅ Update candle only if price info present
+                if tick.get("lp") or tick.get("c"):
+                    update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+
+                # ✅ Always keep tick in display
                 st.session_state.ticks_display.append(tick)
                 st.session_state.ticks_display = st.session_state.ticks_display[-200:]
                 st.session_state.processed_count += 1
