@@ -184,6 +184,10 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
+    # --- Init UI Queue (✅ FIX) ---
+    if "ui_queue" not in st.session_state:
+        st.session_state.ui_queue = queue.Queue()
+
     # --- Persistent Plotly Figure ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.Figure()
@@ -211,11 +215,9 @@ with tab5:
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
         if not tick:
             return
-
         price_str = tick.get("lp") or tick.get("c")
         if not price_str:
             return
-
         try:
             price = float(price_str)
         except:
@@ -279,9 +281,10 @@ with tab5:
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                ui_queue.put(tick, block=False)  # ✅ FIXED: push tick directly to queue
+                ui_queue.put(tick, block=False)
+                print(f"✅ Tick pushed to UI queue: {tick.get('lp')}")
             except Exception as e:
-                print("⚠️ Queue put error:", e)
+                print(f"⚠️ on_tick_callback error: {e}")
 
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
         print("▶ start_ws called from Tab5 with callback")
@@ -291,9 +294,6 @@ with tab5:
         st.warning("⚠️ Please login first using your API credentials.")
         st.stop()
     ps_api = st.session_state["ps_api"]
-
-    if "ui_queue" not in st.session_state:
-        st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
 
     wl_resp = ps_api.get_watchlists()
@@ -304,7 +304,8 @@ with tab5:
     raw_watchlists = wl_resp["values"]
     watchlists = sorted(raw_watchlists, key=int)
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-    selected_interval = st.selectbox("Select Interval", ["1","3","5","10","15","30","60","120","240"], index=0)
+    selected_interval = st.selectbox("Select Interval",
+                                     ["1","3","5","10","15","30","60","120","240"], index=0)
 
     if st.button("🚀 Start TPSeries + Live Feed"):
         st.session_state.live_feed = True
@@ -319,7 +320,9 @@ with tab5:
             for scrip in scrips:
                 exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                 try:
-                    df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=60)
+                    df_candle = ps_api.fetch_full_tpseries(exch, token,
+                                                           interval=selected_interval,
+                                                           chunk_days=60)
                 except Exception as e:
                     st.warning(f"TPSeries fetch error for {tsym}: {e}")
                     continue
@@ -356,7 +359,9 @@ with tab5:
                 symbols_for_ws.append(f"{exch}|{token}")
 
             if symbols_for_ws:
-                threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
+                threading.Thread(target=start_ws,
+                                 args=(symbols_for_ws, ps_api, ui_queue),
+                                 daemon=True).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
             else:
@@ -369,7 +374,7 @@ with tab5:
         if "ticks_display" not in st.session_state:
             st.session_state.ticks_display = []
 
-        # ✅ Pull ticks from queue
+        processed = 0
         try:
             while True:
                 tick = st.session_state.ui_queue.get_nowait()
@@ -377,6 +382,7 @@ with tab5:
                 st.session_state.ticks_display.append(tick)
                 st.session_state.ticks_display = st.session_state.ticks_display[-200:]
                 st.session_state.processed_count += 1
+                processed += 1
         except queue.Empty:
             pass
 
@@ -385,7 +391,7 @@ with tab5:
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
             f"queue: {st.session_state.ui_queue.qsize()} | "
-            f"processed: {st.session_state.processed_count} | "
+            f"processed: {processed} | "
             f"display_len: {len(st.session_state.ticks_display)}"
         )
 
