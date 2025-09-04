@@ -211,11 +211,11 @@ with tab5:
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
         if not tick:
             return
-            
+
         price_str = tick.get("lp") or tick.get("c")
         if not price_str:
             return
-            
+
         try:
             price = float(price_str)
         except:
@@ -279,7 +279,6 @@ with tab5:
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                # ✅ Always push to UI queue (both types)
                 ui_queue.put({"type": "raw_tick", "data": tick})
                 ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
@@ -330,7 +329,7 @@ with tab5:
                     continue
 
                 df_candle["datetime"] = pd.to_datetime(
-                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]], 
+                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]],
                     errors="coerce"
                 )
                 df_candle.dropna(subset=["datetime"], inplace=True)
@@ -381,8 +380,7 @@ with tab5:
                         st.session_state.processed_count += 1
                 elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
                     st.session_state.ticks_display.append(item["data"])
-                else:
-                    st.session_state.ticks_display.append(item)
+                    st.session_state.ticks_display = st.session_state.ticks_display[-200:]
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
@@ -399,4 +397,4 @@ with tab5:
             df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
-            placeholder_ticks.info("⏳ Waiting for live ticks...")
+            placeholder_ticks.info("⏳ Waiting for first ticks...")
