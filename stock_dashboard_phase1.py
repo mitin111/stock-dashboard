@@ -397,6 +397,7 @@ with tab5:
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
             f"queue: {st.session_state.ui_queue.qsize()} | "
             f"processed: {processed} | "
+            f"processed (total): {st.session_state.processed_count} | "
             f"display_len: {len(st.session_state.ticks_display)}"
         )
 
@@ -406,3 +407,4 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
