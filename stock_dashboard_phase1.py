@@ -215,7 +215,8 @@ with tab5:
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
         if not tick:
             return
-        price_str = tick.get("lp") or tick.get("c")
+        # pick available price
+        price_str = tick.get("lp") or tick.get("c") or tick.get("o") or tick.get("h") or tick.get("l")
         if not price_str:
             return
         try:
@@ -382,8 +383,8 @@ with tab5:
             except queue.Empty:
                 break
             else:
-                if tick.get("lp") or tick.get("c"):
-                    update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+                # ✅ accept all ticks
+                update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
 
                 st.session_state.ticks_display.append(tick)
                 st.session_state.ticks_display = st.session_state.ticks_display[-200:]
