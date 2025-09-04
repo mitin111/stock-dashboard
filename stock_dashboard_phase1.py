@@ -287,8 +287,7 @@ with tab5:
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                ui_queue.put_nowait({"type": "raw_tick", "data": tick})
-                ui_queue.put_nowait({"type": "raw_tick_display", "data": tick})
+                ui_queue.put_nowait(tick)   # ✅ only one item per tick
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
@@ -386,19 +385,13 @@ with tab5:
             except Exception:
                 break
 
-        for item in queue_items:
-            print("🔄 Consuming from queue:", item)
+        for raw in queue_items:
+            print("🔄 Consuming tick:", raw)
             try:
-                if isinstance(item, dict) and item.get("type") == "raw_tick":
-                    raw = item.get("data")
-                    if raw:
-                        ok = update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
-                        if ok:
-                            st.session_state.processed_count += 1
-                elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
-                    st.session_state.ticks_display.append(item["data"])
-                else:
-                    st.session_state.ticks_display.append(item)
+                ok = update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
+                if ok:
+                    st.session_state.processed_count += 1
+                st.session_state.ticks_display.append(raw)
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
@@ -416,5 +409,3 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
-
-
