@@ -375,17 +375,16 @@ with tab5:
             st.session_state.ticks_display = []
 
         processed = 0
-        while True:
+        max_drain = 50  # ✅ avoid blocking Streamlit run
+        for _ in range(max_drain):
             try:
                 tick = st.session_state.ui_queue.get_nowait()
             except queue.Empty:
                 break
             else:
-                # ✅ Update candle only if price info present
                 if tick.get("lp") or tick.get("c"):
                     update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
 
-                # ✅ Always keep tick in display
                 st.session_state.ticks_display.append(tick)
                 st.session_state.ticks_display = st.session_state.ticks_display[-200:]
                 st.session_state.processed_count += 1
