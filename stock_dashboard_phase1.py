@@ -184,7 +184,7 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- Init UI Queue (✅ FIX) ---
+    # --- Init UI Queue ---
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
 
@@ -276,7 +276,7 @@ with tab5:
 
         placeholder_chart.plotly_chart(fig, use_container_width=True)
 
-    # --- WS forwarder (callback pushes directly to UI queue) ---
+    # --- WS forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
@@ -367,7 +367,7 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer (✅ FIXED LOOP) ---
+    # --- Consumer ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
@@ -396,15 +396,14 @@ with tab5:
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
             f"queue: {st.session_state.ui_queue.qsize()} | "
-            f"processed: {processed} | "
+            f"processed (this run): {processed} | "
             f"processed (total): {st.session_state.processed_count} | "
             f"display_len: {len(st.session_state.ticks_display)}"
         )
 
-        # ✅ Always show last ticks
+        # ✅ Show ticks or waiting
         if st.session_state.ticks_display:
             df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for first ticks...")
-
