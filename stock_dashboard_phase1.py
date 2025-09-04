@@ -211,22 +211,13 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Minimal last-candle updater ---
+    # --- Minimal last-candle updater with fallback for missing price ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
         if not tick:
-            return
-        # pick available price
-        price_str = tick.get("lp") or tick.get("c") or tick.get("o") or tick.get("h") or tick.get("l")
-        if not price_str:
-            return
-        try:
-            price = float(price_str)
-        except:
             return
 
         ts = int(float(tick.get("ft", time.time())))
         vol = int(float(tick.get("v", 0)))
-
         m = int(selected_interval)
         bucket_ts = ts - (ts % (m * 60))
         key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
@@ -242,6 +233,14 @@ with tab5:
         fig.data[0].high = list(fig.data[0].high)
         fig.data[0].low = list(fig.data[0].low)
         fig.data[0].close = list(fig.data[0].close)
+
+        # --- Price fallback: lp -> c -> last candle close ---
+        last_close = fig.data[0].close[-1] if fig.data[0].close else 0
+        price_str = tick.get("lp") or tick.get("c")
+        try:
+            price = float(price_str) if price_str else last_close
+        except:
+            price = last_close
 
         if bucket_ts not in st.session_state.live_candles[key]:
             # New candle
@@ -268,7 +267,7 @@ with tab5:
                 fig.data[0].low[idx] = cndl["l"]
                 fig.data[0].close[idx] = cndl["c"]
 
-        # keep last 200 candles
+        # Keep last 200 candles
         fig.data[0].x = fig.data[0].x[-200:]
         fig.data[0].open = fig.data[0].open[-200:]
         fig.data[0].high = fig.data[0].high[-200:]
