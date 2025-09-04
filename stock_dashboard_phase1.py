@@ -282,12 +282,12 @@ with tab5:
         placeholder_chart.plotly_chart(fig, use_container_width=True)
         return True
 
-    # --- WS forwarder (explicitly binds ui_queue) ---
-    def start_ws(symbols, ps_api, ui_queue):
+    # --- WS forwarder (always use session_state queue) ---
+    def start_ws(symbols, ps_api):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                ui_queue.put_nowait(tick)   # ✅ only one item per tick
+                st.session_state.ui_queue.put_nowait(tick)   # ✅ always same queue
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
@@ -302,7 +302,6 @@ with tab5:
 
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
-    ui_queue = st.session_state.ui_queue
 
     wl_resp = ps_api.get_watchlists()
     if wl_resp.get("stat") != "Ok":
@@ -364,7 +363,11 @@ with tab5:
                 symbols_for_ws.append(f"{exch}|{token}")
 
             if symbols_for_ws:
-                threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
+                threading.Thread(
+                    target=start_ws,
+                    args=(symbols_for_ws, ps_api),  # ✅ no ui_queue arg anymore
+                    daemon=True
+                ).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
             else:
@@ -377,11 +380,10 @@ with tab5:
         if "ticks_display" not in st.session_state:
             st.session_state.ticks_display = []
 
-        # Drain queue first
         queue_items = []
-        while not ui_queue.empty():
+        while not st.session_state.ui_queue.empty():
             try:
-                queue_items.append(ui_queue.get_nowait())
+                queue_items.append(st.session_state.ui_queue.get_nowait())
             except Exception:
                 break
 
@@ -395,7 +397,6 @@ with tab5:
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
-        # --- Status update ---
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -403,7 +404,6 @@ with tab5:
             f"processed: {st.session_state.processed_count}"
         )
 
-        # ✅ Always show last ticks
         if st.session_state.ticks_display:
             df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
