@@ -184,6 +184,11 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
+    # --- Global queue (safe across threads) ---
+    if "ui_queue" not in st.session_state:
+        import queue
+        st.session_state.ui_queue = queue.Queue()
+
     # --- Persistent Plotly Figure (only once) ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.Figure()
@@ -282,12 +287,12 @@ with tab5:
         placeholder_chart.plotly_chart(fig, use_container_width=True)
         return True
 
-    # --- WS forwarder (always use session_state queue) ---
+    # --- WS forwarder (always push to st.session_state.ui_queue) ---
     def start_ws(symbols, ps_api):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                st.session_state.ui_queue.put_nowait(tick)   # ✅ always same queue
+                st.session_state.ui_queue.put_nowait(tick)   # ✅ push into queue
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
@@ -299,9 +304,6 @@ with tab5:
         st.warning("⚠️ Please login first using your API credentials.")
         st.stop()
     ps_api = st.session_state["ps_api"]
-
-    if "ui_queue" not in st.session_state:
-        st.session_state.ui_queue = queue.Queue()
 
     wl_resp = ps_api.get_watchlists()
     if wl_resp.get("stat") != "Ok":
@@ -365,7 +367,7 @@ with tab5:
             if symbols_for_ws:
                 threading.Thread(
                     target=start_ws,
-                    args=(symbols_for_ws, ps_api),  # ✅ no ui_queue arg anymore
+                    args=(symbols_for_ws, ps_api),
                     daemon=True
                 ).start()
                 st.session_state.ws_started = True
