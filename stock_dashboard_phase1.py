@@ -279,10 +279,9 @@ with tab5:
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                ui_queue.put({"type": "raw_tick", "data": tick})
-                ui_queue.put({"type": "raw_tick_display", "data": tick})
+                ui_queue.put(tick, block=False)  # ✅ FIXED: push tick directly to queue
             except Exception as e:
-                print("⚠️ on_tick_callback error:", e)
+                print("⚠️ Queue put error:", e)
 
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
         print("▶ start_ws called from Tab5 with callback")
@@ -370,19 +369,16 @@ with tab5:
         if "ticks_display" not in st.session_state:
             st.session_state.ticks_display = []
 
-        while not st.session_state.ui_queue.empty():
-            item = st.session_state.ui_queue.get_nowait()
-            try:
-                if isinstance(item, dict) and item.get("type") == "raw_tick":
-                    raw = item.get("data")
-                    if raw:
-                        update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
-                        st.session_state.processed_count += 1
-                elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
-                    st.session_state.ticks_display.append(item["data"])
-                    st.session_state.ticks_display = st.session_state.ticks_display[-200:]
-            except Exception as e:
-                print("⚠️ consumer loop error:", e)
+        # ✅ Pull ticks from queue
+        try:
+            while True:
+                tick = st.session_state.ui_queue.get_nowait()
+                update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+                st.session_state.ticks_display.append(tick)
+                st.session_state.ticks_display = st.session_state.ticks_display[-200:]
+                st.session_state.processed_count += 1
+        except queue.Empty:
+            pass
 
         # --- Status update ---
         placeholder_status.info(
