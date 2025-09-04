@@ -256,13 +256,11 @@ with tab5:
             # Update existing candle
             cndl = st.session_state.live_candles[key][bucket_ts]
             if ttype == "tk":
-                # full tick → update everything
                 cndl["c"] = price
                 cndl["h"] = max(cndl["h"], price)
                 cndl["l"] = min(cndl["l"], price)
                 cndl["v"] += vol
             elif ttype == "tf":
-                # fast tick → only close + volume
                 cndl["c"] = price
                 if vol:
                     cndl["v"] += vol
@@ -284,14 +282,13 @@ with tab5:
         placeholder_chart.plotly_chart(fig, use_container_width=True)
         return True
 
-    # --- WS forwarder (callback pushes directly to UI queue) ---
+    # --- WS forwarder (explicitly binds ui_queue) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                # ✅ Always push to UI queue (both types)
-                ui_queue.put({"type": "raw_tick", "data": tick})
-                ui_queue.put({"type": "raw_tick_display", "data": tick})
+                ui_queue.put_nowait({"type": "raw_tick", "data": tick})
+                ui_queue.put_nowait({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
@@ -340,7 +337,7 @@ with tab5:
                     continue
 
                 df_candle["datetime"] = pd.to_datetime(
-                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]], 
+                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]],
                     errors="coerce"
                 )
                 df_candle.dropna(subset=["datetime"], inplace=True)
@@ -383,6 +380,7 @@ with tab5:
 
         while not st.session_state.ui_queue.empty():
             item = st.session_state.ui_queue.get_nowait()
+            print("🔄 Consuming from queue:", item)  # ✅ Debug line
             try:
                 if isinstance(item, dict) and item.get("type") == "raw_tick":
                     raw = item.get("data")
