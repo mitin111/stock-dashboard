@@ -184,7 +184,7 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- Persistent Plotly Figure (only once) ---
+    # --- Persistent Plotly Figure ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.Figure()
         st.session_state.live_fig.add_trace(go.Candlestick(
@@ -389,7 +389,8 @@ with tab5:
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
             f"queue: {st.session_state.ui_queue.qsize()} | "
-            f"processed: {st.session_state.processed_count}"
+            f"processed: {st.session_state.processed_count} | "
+            f"display_len: {len(st.session_state.ticks_display)}"
         )
 
         # ✅ Always show last ticks
