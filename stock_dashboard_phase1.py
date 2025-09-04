@@ -184,9 +184,10 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- Init UI Queue ---
+    # --- Init shared UI Queue ---
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
+    ui_queue = st.session_state.ui_queue
 
     # --- Persistent Plotly Figure ---
     if "live_fig" not in st.session_state:
@@ -211,8 +212,8 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Minimal last-candle updater with fallback for missing price ---
-    def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
+    # --- Update last candle from tick without blinking ---
+    def update_last_candle_from_tick(tick, selected_interval):
         if not tick:
             return
 
@@ -222,6 +223,7 @@ with tab5:
         bucket_ts = ts - (ts % (m * 60))
         key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
 
+        # Initialize live_candles
         if "live_candles" not in st.session_state:
             st.session_state.live_candles = {}
         if key not in st.session_state.live_candles:
@@ -234,7 +236,7 @@ with tab5:
         fig.data[0].low = list(fig.data[0].low)
         fig.data[0].close = list(fig.data[0].close)
 
-        # --- Price fallback: lp -> c -> last candle close ---
+        # --- Price fallback ---
         last_close = fig.data[0].close[-1] if fig.data[0].close else 0
         price_str = tick.get("lp") or tick.get("c")
         try:
@@ -274,45 +276,41 @@ with tab5:
         fig.data[0].low = fig.data[0].low[-200:]
         fig.data[0].close = fig.data[0].close[-200:]
 
-        placeholder_chart.plotly_chart(fig, use_container_width=True)
-
     # --- WS forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            print("📩 Raw tick arrived (Tab5):", tick)
             try:
                 ui_queue.put(tick, block=False)
-                print(f"✅ Tick pushed to UI queue: {tick.get('lp')}")
             except Exception as e:
-                print(f"⚠️ on_tick_callback error: {e}")
+                print(f"⚠️ WS callback error: {e}")
 
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-        print("▶ start_ws called from Tab5 with callback")
+        print("▶ WS started with callback")
 
     # --- UI logic ---
     if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first using your API credentials.")
+        st.warning("⚠️ Please login first.")
         st.stop()
     ps_api = st.session_state["ps_api"]
-    ui_queue = st.session_state.ui_queue
 
     wl_resp = ps_api.get_watchlists()
     if wl_resp.get("stat") != "Ok":
         st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
         st.stop()
-
     raw_watchlists = wl_resp["values"]
     watchlists = sorted(raw_watchlists, key=int)
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
     selected_interval = st.selectbox("Select Interval",
                                      ["1","3","5","10","15","30","60","120","240"], index=0)
 
+    # --- Start / Stop buttons ---
     if st.button("🚀 Start TPSeries + Live Feed"):
         st.session_state.live_feed = True
         st.session_state.ws_started = False
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
 
+    # --- Start WS and load TPSeries if not already started ---
     if st.session_state.live_feed and not st.session_state.get("ws_started", False):
         with st.spinner("Fetching TPSeries (60 days) and starting WS..."):
             scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
@@ -320,9 +318,7 @@ with tab5:
             for scrip in scrips:
                 exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                 try:
-                    df_candle = ps_api.fetch_full_tpseries(exch, token,
-                                                           interval=selected_interval,
-                                                           chunk_days=60)
+                    df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=60)
                 except Exception as e:
                     st.warning(f"TPSeries fetch error for {tsym}: {e}")
                     continue
@@ -349,6 +345,7 @@ with tab5:
                         "v": int(row.get("volume", 0))
                     }
 
+                # Initialize live_fig with historical TPSeries
                 st.session_state.live_fig.data[0].x = list(df_candle["datetime"])
                 st.session_state.live_fig.data[0].open = list(df_candle["open"])
                 st.session_state.live_fig.data[0].high = list(df_candle["high"])
@@ -367,7 +364,7 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer ---
+    # --- Consumer loop: read ticks and update chart & table ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
@@ -375,32 +372,36 @@ with tab5:
             st.session_state.ticks_display = []
 
         processed = 0
-        max_drain = 50  # ✅ avoid blocking Streamlit run
+        max_drain = 50
         for _ in range(max_drain):
             try:
-                tick = st.session_state.ui_queue.get_nowait()
+                tick = ui_queue.get_nowait()
             except queue.Empty:
                 break
             else:
-                # ✅ accept all ticks
-                update_last_candle_from_tick(tick, selected_interval, placeholder_chart)
+                # Update candle without redraw per tick
+                update_last_candle_from_tick(tick, selected_interval)
 
+                # Append tick to display
                 st.session_state.ticks_display.append(tick)
                 st.session_state.ticks_display = st.session_state.ticks_display[-200:]
                 st.session_state.processed_count += 1
                 processed += 1
 
-        # --- Status update ---
+        # --- Draw chart only once per rerun ---
+        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
+        # --- Status ---
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {st.session_state.ui_queue.qsize()} | "
+            f"queue: {ui_queue.qsize()} | "
             f"processed (this run): {processed} | "
             f"processed (total): {st.session_state.processed_count} | "
             f"display_len: {len(st.session_state.ticks_display)}"
         )
 
-        # ✅ Show ticks or waiting
+        # --- Show ticks ---
         if st.session_state.ticks_display:
             df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
