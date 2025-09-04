@@ -371,22 +371,30 @@ with tab5:
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer ---
+    # --- Consumer (safe queue drain) ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
         if "ticks_display" not in st.session_state:
             st.session_state.ticks_display = []
 
-        while not st.session_state.ui_queue.empty():
-            item = st.session_state.ui_queue.get_nowait()
-            print("🔄 Consuming from queue:", item)  # ✅ Debug line
+        # Drain queue first
+        queue_items = []
+        while not ui_queue.empty():
+            try:
+                queue_items.append(ui_queue.get_nowait())
+            except Exception:
+                break
+
+        for item in queue_items:
+            print("🔄 Consuming from queue:", item)
             try:
                 if isinstance(item, dict) and item.get("type") == "raw_tick":
                     raw = item.get("data")
                     if raw:
-                        update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
-                        st.session_state.processed_count += 1
+                        ok = update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
+                        if ok:
+                            st.session_state.processed_count += 1
                 elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
                     st.session_state.ticks_display.append(item["data"])
                 else:
@@ -398,7 +406,7 @@ with tab5:
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {st.session_state.ui_queue.qsize()} | "
+            f"queue drained: {len(queue_items)} | "
             f"processed: {st.session_state.processed_count}"
         )
 
@@ -408,3 +416,5 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
+
+
