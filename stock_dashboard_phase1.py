@@ -207,22 +207,23 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Minimal last-candle updater ---
+    # --- Updated last-candle updater ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
         if not tick:
-            return
-            
+            return False
+
+        ttype = tick.get("t", "")
         price_str = tick.get("lp") or tick.get("c")
         if not price_str:
-            return
-            
+            return False
+
         try:
             price = float(price_str)
         except:
-            return
+            return False
 
         ts = int(float(tick.get("ft", time.time())))
-        vol = int(float(tick.get("v", 0)))
+        vol = int(float(tick.get("v", 0))) if "v" in tick else 0
 
         m = int(selected_interval)
         bucket_ts = ts - (ts % (m * 60))
@@ -254,10 +255,18 @@ with tab5:
         else:
             # Update existing candle
             cndl = st.session_state.live_candles[key][bucket_ts]
-            cndl["c"] = price
-            cndl["h"] = max(cndl["h"], price)
-            cndl["l"] = min(cndl["l"], price)
-            cndl["v"] += vol
+            if ttype == "tk":
+                # full tick → update everything
+                cndl["c"] = price
+                cndl["h"] = max(cndl["h"], price)
+                cndl["l"] = min(cndl["l"], price)
+                cndl["v"] += vol
+            elif ttype == "tf":
+                # fast tick → only close + volume
+                cndl["c"] = price
+                if vol:
+                    cndl["v"] += vol
+
             idx = -1
             if fig.data[0].close:
                 fig.data[0].open[idx] = cndl["o"]
@@ -273,6 +282,7 @@ with tab5:
         fig.data[0].close = fig.data[0].close[-200:]
 
         placeholder_chart.plotly_chart(fig, use_container_width=True)
+        return True
 
     # --- WS forwarder (callback pushes directly to UI queue) ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -400,4 +410,3 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for live ticks...")
-
