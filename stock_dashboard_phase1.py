@@ -184,11 +184,6 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- Global queue (safe across threads) ---
-    if "ui_queue" not in st.session_state:
-        import queue
-        st.session_state.ui_queue = queue.Queue()
-
     # --- Persistent Plotly Figure (only once) ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.Figure()
@@ -212,23 +207,22 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Updated last-candle updater ---
+    # --- Minimal last-candle updater ---
     def update_last_candle_from_tick(tick, selected_interval, placeholder_chart):
         if not tick:
-            return False
-
-        ttype = tick.get("t", "")
+            return
+            
         price_str = tick.get("lp") or tick.get("c")
         if not price_str:
-            return False
-
+            return
+            
         try:
             price = float(price_str)
         except:
-            return False
+            return
 
         ts = int(float(tick.get("ft", time.time())))
-        vol = int(float(tick.get("v", 0))) if "v" in tick else 0
+        vol = int(float(tick.get("v", 0)))
 
         m = int(selected_interval)
         bucket_ts = ts - (ts % (m * 60))
@@ -260,16 +254,10 @@ with tab5:
         else:
             # Update existing candle
             cndl = st.session_state.live_candles[key][bucket_ts]
-            if ttype == "tk":
-                cndl["c"] = price
-                cndl["h"] = max(cndl["h"], price)
-                cndl["l"] = min(cndl["l"], price)
-                cndl["v"] += vol
-            elif ttype == "tf":
-                cndl["c"] = price
-                if vol:
-                    cndl["v"] += vol
-
+            cndl["c"] = price
+            cndl["h"] = max(cndl["h"], price)
+            cndl["l"] = min(cndl["l"], price)
+            cndl["v"] += vol
             idx = -1
             if fig.data[0].close:
                 fig.data[0].open[idx] = cndl["o"]
@@ -285,14 +273,15 @@ with tab5:
         fig.data[0].close = fig.data[0].close[-200:]
 
         placeholder_chart.plotly_chart(fig, use_container_width=True)
-        return True
 
-    # --- WS forwarder (always push to st.session_state.ui_queue) ---
-    def start_ws(symbols, ps_api):
+    # --- WS forwarder (callback pushes directly to UI queue) ---
+    def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             print("📩 Raw tick arrived (Tab5):", tick)
             try:
-                st.session_state.ui_queue.put_nowait(tick)   # ✅ push into queue
+                # ✅ Always push to UI queue (both types)
+                ui_queue.put({"type": "raw_tick", "data": tick})
+                ui_queue.put({"type": "raw_tick_display", "data": tick})
             except Exception as e:
                 print("⚠️ on_tick_callback error:", e)
 
@@ -304,6 +293,10 @@ with tab5:
         st.warning("⚠️ Please login first using your API credentials.")
         st.stop()
     ps_api = st.session_state["ps_api"]
+
+    if "ui_queue" not in st.session_state:
+        st.session_state.ui_queue = queue.Queue()
+    ui_queue = st.session_state.ui_queue
 
     wl_resp = ps_api.get_watchlists()
     if wl_resp.get("stat") != "Ok":
@@ -337,7 +330,7 @@ with tab5:
                     continue
 
                 df_candle["datetime"] = pd.to_datetime(
-                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]],
+                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]], 
                     errors="coerce"
                 )
                 df_candle.dropna(subset=["datetime"], inplace=True)
@@ -365,47 +358,43 @@ with tab5:
                 symbols_for_ws.append(f"{exch}|{token}")
 
             if symbols_for_ws:
-                threading.Thread(
-                    target=start_ws,
-                    args=(symbols_for_ws, ps_api),
-                    daemon=True
-                ).start()
+                threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer (safe queue drain) ---
+    # --- Consumer ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
         if "ticks_display" not in st.session_state:
             st.session_state.ticks_display = []
 
-        queue_items = []
         while not st.session_state.ui_queue.empty():
+            item = st.session_state.ui_queue.get_nowait()
             try:
-                queue_items.append(st.session_state.ui_queue.get_nowait())
-            except Exception:
-                break
-
-        for raw in queue_items:
-            print("🔄 Consuming tick:", raw)
-            try:
-                ok = update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
-                if ok:
-                    st.session_state.processed_count += 1
-                st.session_state.ticks_display.append(raw)
+                if isinstance(item, dict) and item.get("type") == "raw_tick":
+                    raw = item.get("data")
+                    if raw:
+                        update_last_candle_from_tick(raw, selected_interval, placeholder_chart)
+                        st.session_state.processed_count += 1
+                elif isinstance(item, dict) and item.get("type") == "raw_tick_display":
+                    st.session_state.ticks_display.append(item["data"])
+                else:
+                    st.session_state.ticks_display.append(item)
             except Exception as e:
                 print("⚠️ consumer loop error:", e)
 
+        # --- Status update ---
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue drained: {len(queue_items)} | "
+            f"queue: {st.session_state.ui_queue.qsize()} | "
             f"processed: {st.session_state.processed_count}"
         )
 
+        # ✅ Always show last ticks
         if st.session_state.ticks_display:
             df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
