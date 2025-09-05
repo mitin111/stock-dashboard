@@ -213,85 +213,48 @@ with tab5:
     placeholder_chart = st.empty()
 
     # -----------------------------
-    # Update candle from live tick
+    # Update candle from live tick (in-place update)
     # -----------------------------
     def update_last_candle_from_tick(tick: dict, interval: int):
-        if not tick:
-            return
-
         try:
-            ts = int(float(tick.get("ft", time.time())))
-        except:
-            ts = int(time.time())
+            price = float(tick.get("lp") or tick.get("bp1") or tick.get("sp1") or 0)
+            ts = int(tick.get("ft", 0))
 
-        try:
-            vol = int(float(tick.get("v", 0) or 0))
-        except:
-            vol = 0
+            if price == 0 or ts == 0:
+                return
 
-        m = int(interval)
-        bucket_ts = ts - (ts % (m * 60))
-        key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
+            bucket_ts = (ts // (int(interval) * 60)) * (int(interval) * 60)
 
-        if "live_candles" not in st.session_state:
-            st.session_state.live_candles = {}
-        if key not in st.session_state.live_candles:
-            st.session_state.live_candles[key] = {}
+            # agar last candle isi bucket ki hai → update
+            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == pd.to_datetime(bucket_ts, unit="s"):
+                st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
+                st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
+                st.session_state.ohlc_c[-1] = price
+            else:
+                # nai candle push karo
+                st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
+                st.session_state.ohlc_o.append(price)
+                st.session_state.ohlc_h.append(price)
+                st.session_state.ohlc_l.append(price)
+                st.session_state.ohlc_c.append(price)
 
-        # --- Maintain OHLC arrays in session ---
-        if "ohlc_x" not in st.session_state:
-            st.session_state.ohlc_x = []
-            st.session_state.ohlc_o = []
-            st.session_state.ohlc_h = []
-            st.session_state.ohlc_l = []
-            st.session_state.ohlc_c = []
+            # sirf last 200 hi rakho
+            st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
+            st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
+            st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
+            st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
+            st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
 
-        # --- Price ---
-        last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
-        price_str = tick.get("lp") or tick.get("c") or None
-        try:
-            price = float(price_str) if price_str else last_close
-        except:
-            price = last_close
+            # 🔥 update chart ke trace arrays
+            fig = st.session_state.live_fig
+            fig.data[0].x = st.session_state.ohlc_x
+            fig.data[0].open = st.session_state.ohlc_o
+            fig.data[0].high = st.session_state.ohlc_h
+            fig.data[0].low = st.session_state.ohlc_l
+            fig.data[0].close = st.session_state.ohlc_c
 
-        if bucket_ts not in st.session_state.live_candles[key]:
-            # New candle
-            st.session_state.live_candles[key][bucket_ts] = {
-                "ts": bucket_ts, "o": price, "h": price,
-                "l": price, "c": price, "v": vol
-            }
-            st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
-            st.session_state.ohlc_o.append(price)
-            st.session_state.ohlc_h.append(price)
-            st.session_state.ohlc_l.append(price)
-            st.session_state.ohlc_c.append(price)
-        else:
-            # Update existing candle
-            cndl = st.session_state.live_candles[key][bucket_ts]
-            cndl["c"] = price
-            cndl["h"] = max(float(cndl["h"]), price)
-            cndl["l"] = min(float(cndl["l"]), price)
-            cndl["v"] += vol
-
-            st.session_state.ohlc_o[-1] = cndl["o"]
-            st.session_state.ohlc_h[-1] = cndl["h"]
-            st.session_state.ohlc_l[-1] = cndl["l"]
-            st.session_state.ohlc_c[-1] = cndl["c"]
-
-        # Keep only last 200
-        st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
-        st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
-        st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
-        st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
-        st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
-
-        # --- Re-assign to Plotly trace ---
-        fig = st.session_state.live_fig
-        fig.data[0].x = st.session_state.ohlc_x
-        fig.data[0].open = st.session_state.ohlc_o
-        fig.data[0].high = st.session_state.ohlc_h
-        fig.data[0].low = st.session_state.ohlc_l
-        fig.data[0].close = st.session_state.ohlc_c
+        except Exception as e:
+            st.error(f"Update candle error: {e}")
 
     # --- WS forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -349,18 +312,6 @@ with tab5:
                 )
                 df_candle.dropna(subset=["datetime"], inplace=True)
                 df_candle.sort_values("datetime", inplace=True)
-
-                key = f"{exch}|{token}|{selected_interval}"
-                if not hasattr(ps_api, "candles") or ps_api.candles is None:
-                    ps_api.candles = {}
-                ps_api.candles[key] = {}
-                for _, row in df_candle.iterrows():
-                    ts_epoch = int(row["datetime"].timestamp())
-                    ps_api.candles[key][ts_epoch] = {
-                        "ts": ts_epoch, "o": float(row["open"]), "h": float(row["high"]),
-                        "l": float(row["low"]), "c": float(row["close"]),
-                        "v": int(row.get("volume", 0))
-                    }
 
                 # Initialize session OHLC arrays + live_fig with historical TPSeries
                 st.session_state.ohlc_x = list(df_candle["datetime"])
