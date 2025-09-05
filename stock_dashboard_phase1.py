@@ -179,6 +179,10 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (debug mode)")
 
+    # 🔄 Auto-refresh har 1 sec
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=1000, key="chart_refresh")
+
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd
@@ -191,7 +195,7 @@ with tab5:
 
     # --- Persistent Plotly Figure ---
     if "live_fig" not in st.session_state:
-        st.session_state.live_fig = go.Figure()
+        st.session_state.live_fig = go.FigureWidget()
         st.session_state.live_fig.add_trace(go.Candlestick(
             x=[], open=[], high=[], low=[], close=[],
             increasing_line_color='#26a69a',
@@ -285,13 +289,13 @@ with tab5:
         st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
         st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
 
-        # --- Re-assign to Plotly trace ---
-        fig = st.session_state.live_fig
-        fig.data[0].x = st.session_state.ohlc_x
-        fig.data[0].open = st.session_state.ohlc_o
-        fig.data[0].high = st.session_state.ohlc_h
-        fig.data[0].low = st.session_state.ohlc_l
-        fig.data[0].close = st.session_state.ohlc_c
+        # --- Update Plotly trace ---
+        trace = st.session_state.live_fig.data[0]
+        trace.x = st.session_state.ohlc_x
+        trace.open = st.session_state.ohlc_o
+        trace.high = st.session_state.ohlc_h
+        trace.low = st.session_state.ohlc_l
+        trace.close = st.session_state.ohlc_c
 
     # --- WS forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -324,6 +328,7 @@ with tab5:
     if st.button("🚀 Start TPSeries + Live Feed"):
         st.session_state.live_feed = True
         st.session_state.ws_started = False
+        st.session_state.chart_rendered = False
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
 
@@ -369,12 +374,16 @@ with tab5:
                 st.session_state.ohlc_l = list(df_candle["low"].astype(float))
                 st.session_state.ohlc_c = list(df_candle["close"].astype(float))
 
-                st.session_state.live_fig.data[0].x = st.session_state.ohlc_x
-                st.session_state.live_fig.data[0].open = st.session_state.ohlc_o
-                st.session_state.live_fig.data[0].high = st.session_state.ohlc_h
-                st.session_state.live_fig.data[0].low = st.session_state.ohlc_l
-                st.session_state.live_fig.data[0].close = st.session_state.ohlc_c
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                trace = st.session_state.live_fig.data[0]
+                trace.x = st.session_state.ohlc_x
+                trace.open = st.session_state.ohlc_o
+                trace.high = st.session_state.ohlc_h
+                trace.low = st.session_state.ohlc_l
+                trace.close = st.session_state.ohlc_c
+
+                if not st.session_state.get("chart_rendered", False):
+                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                    st.session_state.chart_rendered = True
 
                 symbols_for_ws.append(f"{exch}|{token}")
 
@@ -411,8 +420,8 @@ with tab5:
                 st.session_state.processed_count += 1
                 processed += 1
 
-        # --- Draw chart only once per rerun ---
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        # ❌ Chart dobara render nahi karna (blink avoid)
+        # sirf trace update ho raha hai above function me
 
         # --- Status ---
         placeholder_status.info(
