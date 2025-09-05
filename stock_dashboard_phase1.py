@@ -219,12 +219,10 @@ with tab5:
     def update_last_candle_from_tick(tick: dict, interval: int):
         if not tick:
             return
-
         try:
             ts = int(float(tick.get("ft", time.time())))
         except:
             ts = int(time.time())
-
         try:
             vol = int(float(tick.get("v", 0) or 0))
         except:
@@ -301,7 +299,6 @@ with tab5:
                 ui_queue.put(tick, block=False)
             except Exception as e:
                 print(f"⚠️ WS callback error: {e}")
-
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
         print("▶ WS started with callback")
 
@@ -318,26 +315,27 @@ with tab5:
     raw_watchlists = wl_resp["values"]
     watchlists = sorted(raw_watchlists, key=int)
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-    selected_interval = st.selectbox("Select Interval",
-                                     ["1","3","5","10","15","30","60","120","240"], index=0)
+    selected_interval = st.selectbox(
+        "Select Interval",
+        ["1","3","5","10","15","30","60","120","240"], index=0
+    )
 
-    # --- Start / Stop buttons ---
+    # --- Start button (merged snippet) ---
     if st.button("🚀 Start TPSeries + Live Feed"):
+        # Reset states
         st.session_state.live_feed = True
         st.session_state.ws_started = False
         st.session_state.chart_rendered = False
-    if st.button("🛑 Stop Live Feed"):
-        st.session_state.live_feed = False
 
-    # --- Start WS and load TPSeries if not already started ---
-    if st.session_state.live_feed and not st.session_state.get("ws_started", False):
         with st.spinner("Fetching TPSeries (60 days) and starting WS..."):
             scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
             symbols_for_ws = []
             for scrip in scrips:
                 exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                 try:
-                    df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=60)
+                    df_candle = ps_api.fetch_full_tpseries(
+                        exch, token, interval=selected_interval, chunk_days=60
+                    )
                 except Exception as e:
                     st.warning(f"TPSeries fetch error for {tsym}: {e}")
                     continue
@@ -345,6 +343,7 @@ with tab5:
                     st.info(f"No TPSeries for {tsym}")
                     continue
 
+                # --- TPSeries prep ---
                 df_candle["datetime"] = pd.to_datetime(
                     df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]],
                     errors="coerce"
@@ -352,6 +351,7 @@ with tab5:
                 df_candle.dropna(subset=["datetime"], inplace=True)
                 df_candle.sort_values("datetime", inplace=True)
 
+                # Save candles dict
                 key = f"{exch}|{token}|{selected_interval}"
                 if not hasattr(ps_api, "candles") or ps_api.candles is None:
                     ps_api.candles = {}
@@ -364,7 +364,7 @@ with tab5:
                         "v": int(row.get("volume", 0))
                     }
 
-                # Initialize session OHLC arrays + live_fig with historical TPSeries
+                # Init arrays + chart
                 st.session_state.ohlc_x = list(df_candle["datetime"])
                 st.session_state.ohlc_o = list(df_candle["open"].astype(float))
                 st.session_state.ohlc_h = list(df_candle["high"].astype(float))
@@ -384,14 +384,20 @@ with tab5:
 
                 symbols_for_ws.append(f"{exch}|{token}")
 
+            # --- Start WebSocket ---
             if symbols_for_ws:
-                threading.Thread(target=start_ws,
-                                 args=(symbols_for_ws, ps_api, ui_queue),
-                                 daemon=True).start()
+                threading.Thread(
+                    target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
+                ).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
+                st.info("📡 WebSocket Live Feed started...")
             else:
                 st.info("No symbols to start WS for.")
+
+    # --- Stop button ---
+    if st.button("🛑 Stop Live Feed"):
+        st.session_state.live_feed = False
 
     # --- Consumer loop: read ticks and update chart & table ---
     if st.session_state.live_feed:
@@ -437,4 +443,3 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for first ticks...")
-
