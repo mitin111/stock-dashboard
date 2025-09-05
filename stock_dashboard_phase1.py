@@ -213,7 +213,7 @@ with tab5:
     placeholder_chart = st.empty()
 
     # -----------------------------
-    # Update candle from live tick (in-place update)
+    # Update candle from live tick (non-blinking update)
     # -----------------------------
     def update_last_candle_from_tick(tick: dict, interval: int):
         try:
@@ -224,15 +224,16 @@ with tab5:
                 return
 
             bucket_ts = (ts // (int(interval) * 60)) * (int(interval) * 60)
+            bucket_time = pd.to_datetime(bucket_ts, unit="s")
 
             # agar last candle isi bucket ki hai → update
-            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == pd.to_datetime(bucket_ts, unit="s"):
+            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == bucket_time:
                 st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
                 st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
                 st.session_state.ohlc_c[-1] = price
             else:
                 # nai candle push karo
-                st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
+                st.session_state.ohlc_x.append(bucket_time)
                 st.session_state.ohlc_o.append(price)
                 st.session_state.ohlc_h.append(price)
                 st.session_state.ohlc_l.append(price)
@@ -245,7 +246,7 @@ with tab5:
             st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
             st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
 
-            # 🔥 update chart ke trace arrays
+            # 🔥 update chart ke trace arrays (without re-creating fig)
             fig = st.session_state.live_fig
             fig.data[0].x = st.session_state.ohlc_x
             fig.data[0].open = st.session_state.ohlc_o
