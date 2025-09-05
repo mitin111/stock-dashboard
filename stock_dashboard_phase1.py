@@ -395,14 +395,13 @@ with tab5:
             st.session_state.ticks_display = []
 
         processed = 0
-        max_drain = 50
-        for _ in range(max_drain):
+        max_drain = 200  # drain more ticks per run
+        while True:
             try:
                 tick = ui_queue.get_nowait()
             except queue.Empty:
                 break
             else:
-                # Update candle
                 update_last_candle_from_tick(tick, selected_interval)
 
                 # Append tick to display
@@ -411,8 +410,9 @@ with tab5:
                 st.session_state.processed_count += 1
                 processed += 1
 
-        # --- Draw chart only once per rerun ---
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        # 🔥 Update chart only if new ticks processed
+        if processed > 0:
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True, key="livechart")
 
         # --- Status ---
         placeholder_status.info(
