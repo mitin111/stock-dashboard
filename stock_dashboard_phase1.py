@@ -202,7 +202,7 @@ with tab5:
             xaxis_rangeslider_visible=False,
             template="plotly_dark",
             height=700,
-            transition_duration=0  # 👈 blink reduce
+            transition_duration=0
         )
         st.session_state.ohlc_x = []
         st.session_state.ohlc_o = []
@@ -301,7 +301,7 @@ with tab5:
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
     selected_interval = st.selectbox("Select Interval", ["1","3","5","15","30","60"], index=0)
 
-    # --- Start Button (fixed) ---
+    # --- Start Button (fixed + immediate render) ---
     if st.button("🚀 Start TPSeries + Live Feed"):
         if "feed_started" not in st.session_state or not st.session_state.feed_started:
             st.session_state.feed_started = True
@@ -311,7 +311,7 @@ with tab5:
                 scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
                 symbols_for_ws = []
 
-                for scrip in scrips[:1]:  # 👈 demo: only first scrip
+                for scrip in scrips[:1]:  # 👈 only first scrip for demo
                     exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
                     df_candle = ps_api.fetch_full_tpseries(
                         exch, token, interval=selected_interval, chunk_days=5
@@ -319,25 +319,24 @@ with tab5:
                     if df_candle is None or df_candle.empty:
                         continue
 
-                    # ✅ Normalize datetime
                     df_candle = normalize_datetime(df_candle)
 
-                    # Seed OHLC state
+                    # Seed OHLC
                     st.session_state.ohlc_x = list(df_candle["datetime"])
                     st.session_state.ohlc_o = list(df_candle["open"].astype(float))
                     st.session_state.ohlc_h = list(df_candle["high"].astype(float))
                     st.session_state.ohlc_l = list(df_candle["low"].astype(float))
                     st.session_state.ohlc_c = list(df_candle["close"].astype(float))
 
-                    # Update figure
+                    # Immediate render
                     trace = st.session_state.live_fig.data[0]
                     trace.x = st.session_state.ohlc_x
                     trace.open = st.session_state.ohlc_o
                     trace.high = st.session_state.ohlc_h
                     trace.low = st.session_state.ohlc_l
                     trace.close = st.session_state.ohlc_c
-
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
                     symbols_for_ws.append(f"{exch}|{token}")
 
                 if symbols_for_ws:
@@ -355,7 +354,7 @@ with tab5:
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
 
-    # --- Auto-consumer (only last tick refresh) ---
+    # --- Auto-consumer (process last tick only) ---
     if st.session_state.live_feed:
         processed = 0
         last_tick = None
