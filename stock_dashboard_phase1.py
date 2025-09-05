@@ -218,9 +218,7 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # -----------------------------
-    # Helper: Normalize datetime
-    # -----------------------------
+    # --- Helper: Normalize datetime ---
     def normalize_datetime(df_candle: pd.DataFrame):
         time_col = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
         if not time_col:
@@ -230,9 +228,7 @@ with tab5:
         df_candle.sort_values("datetime", inplace=True)
         return df_candle
 
-    # -----------------------------
-    # Update last candle from tick
-    # -----------------------------
+    # --- Update last candle from tick ---
     def update_last_candle_from_tick(tick: dict, interval: int):
         if not tick:
             return
@@ -248,14 +244,12 @@ with tab5:
             price = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0
 
         if not st.session_state.ohlc_x:
-            # First candle
             st.session_state.ohlc_x.append(pd.to_datetime(ts, unit="s"))
             st.session_state.ohlc_o.append(price)
             st.session_state.ohlc_h.append(price)
             st.session_state.ohlc_l.append(price)
             st.session_state.ohlc_c.append(price)
         else:
-            # Update existing last candle
             st.session_state.ohlc_c[-1] = price
             st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
             st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
@@ -301,60 +295,63 @@ with tab5:
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
     selected_interval = st.selectbox("Select Interval", ["1","3","5","15","30","60"], index=0)
 
-    # --- Start Button (fixed + immediate render) ---
-    if st.button("🚀 Start TPSeries + Live Feed"):
-        if "feed_started" not in st.session_state or not st.session_state.feed_started:
-            st.session_state.feed_started = True
-            st.session_state.live_feed = True
+    # --- Start Feed (idempotent) ---
+    if "feed_started" not in st.session_state or not st.session_state.feed_started:
+        st.session_state.feed_started = False
 
-            with st.spinner("Fetching TPSeries + starting WS..."):
-                scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-                symbols_for_ws = []
+    if st.button("🚀 Start TPSeries + Live Feed") and not st.session_state.feed_started:
+        st.session_state.feed_started = True
+        st.session_state.live_feed = True
 
-                for scrip in scrips[:1]:  # 👈 only first scrip for demo
-                    exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
-                    df_candle = ps_api.fetch_full_tpseries(
-                        exch, token, interval=selected_interval, chunk_days=5
-                    )
-                    if df_candle is None or df_candle.empty:
-                        continue
+        with st.spinner("Fetching TPSeries + starting WS..."):
+            scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
+            symbols_for_ws = []
 
-                    df_candle = normalize_datetime(df_candle)
+            for scrip in scrips[:1]:  # demo: only first scrip
+                exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
+                df_candle = ps_api.fetch_full_tpseries(
+                    exch, token, interval=selected_interval, chunk_days=5
+                )
+                if df_candle is None or df_candle.empty:
+                    continue
 
-                    # Seed OHLC
-                    st.session_state.ohlc_x = list(df_candle["datetime"])
-                    st.session_state.ohlc_o = list(df_candle["open"].astype(float))
-                    st.session_state.ohlc_h = list(df_candle["high"].astype(float))
-                    st.session_state.ohlc_l = list(df_candle["low"].astype(float))
-                    st.session_state.ohlc_c = list(df_candle["close"].astype(float))
+                df_candle = normalize_datetime(df_candle)
 
-                    # Immediate render
-                    trace = st.session_state.live_fig.data[0]
-                    trace.x = st.session_state.ohlc_x
-                    trace.open = st.session_state.ohlc_o
-                    trace.high = st.session_state.ohlc_h
-                    trace.low = st.session_state.ohlc_l
-                    trace.close = st.session_state.ohlc_c
-                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                st.session_state.ohlc_x = list(df_candle["datetime"])
+                st.session_state.ohlc_o = list(df_candle["open"].astype(float))
+                st.session_state.ohlc_h = list(df_candle["high"].astype(float))
+                st.session_state.ohlc_l = list(df_candle["low"].astype(float))
+                st.session_state.ohlc_c = list(df_candle["close"].astype(float))
 
-                    symbols_for_ws.append(f"{exch}|{token}")
+                trace = st.session_state.live_fig.data[0]
+                trace.x = st.session_state.ohlc_x
+                trace.open = st.session_state.ohlc_o
+                trace.high = st.session_state.ohlc_h
+                trace.low = st.session_state.ohlc_l
+                trace.close = st.session_state.ohlc_c
+                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-                if symbols_for_ws:
-                    if "ws_thread" not in st.session_state:
-                        st.session_state.ws_thread = threading.Thread(
-                            target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
-                        )
-                        st.session_state.ws_thread.start()
+                symbols_for_ws.append(f"{exch}|{token}")
 
-                    st.session_state.ws_started = True
-                    st.session_state.symbols_for_ws = symbols_for_ws
-                    st.success("✅ TPSeries + WS Live feed started!")
+            # Start WS only if not already running
+            if symbols_for_ws and ("ws_thread" not in st.session_state or not st.session_state.ws_thread.is_alive()):
+                st.session_state.ws_thread = threading.Thread(
+                    target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
+                )
+                st.session_state.ws_thread.start()
+                st.session_state.ws_started = True
+                st.session_state.symbols_for_ws = symbols_for_ws
+                st.success("✅ TPSeries + WS Live feed started!")
+
+    elif st.session_state.feed_started:
+        st.info("📡 Feed running. Chart updating with live ticks...")
 
     # --- Stop Button ---
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
+        st.session_state.feed_started = False
 
-    # --- Auto-consumer (process last tick only) ---
+    # --- Auto-consumer (process ticks) ---
     if st.session_state.live_feed:
         processed = 0
         last_tick = None
