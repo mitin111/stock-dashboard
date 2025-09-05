@@ -212,18 +212,27 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Update last candle from tick without blinking ---
-    def update_last_candle_from_tick(tick, selected_interval):
+    # -----------------------------
+    # Update candle from live tick
+    # -----------------------------
+    def update_last_candle_from_tick(tick: dict, interval: int):
         if not tick:
             return
 
-        ts = int(float(tick.get("ft", time.time())))
-        vol = int(float(tick.get("v", 0)))
-        m = int(selected_interval)
+        try:
+            ts = int(float(tick.get("ft", time.time())))
+        except:
+            ts = int(time.time())
+
+        try:
+            vol = int(float(tick.get("v", 0) or 0))
+        except:
+            vol = 0
+
+        m = int(interval)
         bucket_ts = ts - (ts % (m * 60))
         key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
 
-        # Initialize live_candles
         if "live_candles" not in st.session_state:
             st.session_state.live_candles = {}
         if key not in st.session_state.live_candles:
@@ -236,9 +245,9 @@ with tab5:
         fig.data[0].low = list(fig.data[0].low)
         fig.data[0].close = list(fig.data[0].close)
 
-        # --- Price fallback ---
-        last_close = fig.data[0].close[-1] if fig.data[0].close else 0
-        price_str = tick.get("lp") or tick.get("c")
+        # --- Price ---
+        last_close = float(fig.data[0].close[-1]) if fig.data[0].close else 0.0
+        price_str = tick.get("lp") or tick.get("c") or None
         try:
             price = float(price_str) if price_str else last_close
         except:
@@ -259,17 +268,16 @@ with tab5:
             # Update existing candle
             cndl = st.session_state.live_candles[key][bucket_ts]
             cndl["c"] = price
-            cndl["h"] = max(cndl["h"], price)
-            cndl["l"] = min(cndl["l"], price)
+            cndl["h"] = max(float(cndl["h"]), price)
+            cndl["l"] = min(float(cndl["l"]), price)
             cndl["v"] += vol
-            idx = -1
             if fig.data[0].close:
-                fig.data[0].open[idx] = cndl["o"]
-                fig.data[0].high[idx] = cndl["h"]
-                fig.data[0].low[idx] = cndl["l"]
-                fig.data[0].close[idx] = cndl["c"]
+                fig.data[0].open[-1] = cndl["o"]
+                fig.data[0].high[-1] = cndl["h"]
+                fig.data[0].low[-1] = cndl["l"]
+                fig.data[0].close[-1] = cndl["c"]
 
-        # Keep last 200 candles
+        # Trim last 200
         fig.data[0].x = fig.data[0].x[-200:]
         fig.data[0].open = fig.data[0].open[-200:]
         fig.data[0].high = fig.data[0].high[-200:]
@@ -379,7 +387,7 @@ with tab5:
             except queue.Empty:
                 break
             else:
-                # Update candle without redraw per tick
+                # Update candle
                 update_last_candle_from_tick(tick, selected_interval)
 
                 # Append tick to display
