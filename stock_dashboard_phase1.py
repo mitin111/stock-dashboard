@@ -193,6 +193,7 @@ with tab5:
     placeholder_status = st.empty()
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
+    placeholder_ticks.info("⏳ Waiting for first ticks...")
 
     # --- Login check ---
     if "ps_api" not in st.session_state:
@@ -309,12 +310,13 @@ with tab5:
         trace.low = st.session_state.ohlc_l
         trace.close = st.session_state.ohlc_c
 
-    # --- Tick Consumer Thread ---
+    # --- Tick Consumer Thread with live metrics ---
     if "consumer_thread" not in st.session_state or not st.session_state.consumer_thread.is_alive():
-        def live_tick_consumer(live_feed_flag, ui_queue, placeholder_ticks, placeholder_status):
+        def live_tick_consumer(live_feed_flag, ui_queue, placeholder_ticks, placeholder_status, symbols_count):
             while live_feed_flag["active"]:
                 last_tick = None
                 processed = 0
+                display_len = len(st.session_state.ohlc_x)
                 while not ui_queue.empty():
                     try:
                         tick = ui_queue.get_nowait()
@@ -326,33 +328,37 @@ with tab5:
                 # Update placeholders
                 if last_tick:
                     placeholder_ticks.json(last_tick)
-                    placeholder_status.info(f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}")
-                else:
-                    placeholder_status.info("⏳ Waiting for ticks...")
+                placeholder_status.info(
+                    f"WS started: {live_feed_flag['active']} | "
+                    f"symbols: {symbols_count} | "
+                    f"queue: {ui_queue.qsize()} | "
+                    f"processed: {processed} | "
+                    f"display_len: {display_len}"
+                )
                 time.sleep(0.5)
 
-        st.session_state.consumer_thread = threading.Thread(
-            target=live_tick_consumer,
-            args=(st.session_state.live_feed_flag, ui_queue, placeholder_ticks, placeholder_status),
-            daemon=True
-        )
-        st.session_state.consumer_thread.start()
-
-    # --- WebSocket starter ---
-    def start_ws(symbols, ps_api, ui_queue):
-        def on_tick_callback(tick):
-            try:
-                ui_queue.put(tick, block=False)
-            except:
-                pass
-        ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-
     # --- Start / Stop Feed Buttons ---
+    scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
+    symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
+
     if st.button("🚀 Start TPSeries + Live Feed"):
         st.session_state.live_feed_flag["active"] = True
-        scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-        symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
         if symbols_for_ws:
+            st.session_state.consumer_thread = threading.Thread(
+                target=live_tick_consumer,
+                args=(st.session_state.live_feed_flag, ui_queue, placeholder_ticks, placeholder_status, len(symbols_for_ws)),
+                daemon=True
+            )
+            st.session_state.consumer_thread.start()
+
+            def start_ws(symbols, ps_api, ui_queue):
+                def on_tick_callback(tick):
+                    try:
+                        ui_queue.put(tick, block=False)
+                    except:
+                        pass
+                ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
+
             threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
             st.info(f"📡 Live feed started for {len(symbols_for_ws)} symbols.")
         else:
