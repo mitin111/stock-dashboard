@@ -183,7 +183,6 @@ with tab5:
     import threading, queue, time
     import pandas as pd
     from datetime import datetime
-    from streamlit_autorefresh import st_autorefresh
 
     # --- Shared UI Queue ---
     if "ui_queue" not in st.session_state:
@@ -248,7 +247,7 @@ with tab5:
         df_candle.sort_values("datetime", inplace=True)
         return df_candle
 
-    def update_last_candle_from_tick(tick: dict, interval: int):
+    def update_last_candle_from_tick(tick: dict):
         if not tick:
             return
         try:
@@ -274,11 +273,8 @@ with tab5:
             st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
 
         # Limit size
-        st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
-        st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
-        st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
-        st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
-        st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
+        for attr in ["ohlc_x","ohlc_o","ohlc_h","ohlc_l","ohlc_c"]:
+            st.session_state[attr] = st.session_state[attr][-200:]
 
         # Blink-free update using FigureWidget
         fig = st.session_state.live_fig
@@ -342,23 +338,30 @@ with tab5:
         st.session_state.live_feed = False
         st.session_state.feed_started = False
 
-    # --- Tick Processing (blink-free) ---
+    # --- Tick Consumer Thread (blink-free + status update) ---
     if st.session_state.live_feed:
-        processed = 0
-        last_tick = None
-        while not ui_queue.empty():
-            tick = ui_queue.get_nowait()
-            update_last_candle_from_tick(tick, selected_interval)
-            processed += 1
-            last_tick = tick
+        if "consumer_thread" not in st.session_state or not st.session_state.consumer_thread.is_alive():
+            def live_tick_consumer():
+                while st.session_state.live_feed:
+                    processed = 0
+                    last_tick = None
+                    while not ui_queue.empty():
+                        try:
+                            tick = ui_queue.get_nowait()
+                            update_last_candle_from_tick(tick)
+                            last_tick = tick
+                            processed += 1
+                        except queue.Empty:
+                            break
 
-        if processed > 0:
-            # Blink-free: FigureWidget is already updated
-            if last_tick:
-                placeholder_ticks.json(last_tick)
-            placeholder_status.info(f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}")
-        else:
-            placeholder_status.info("⏳ Waiting for ticks...")
+                    # Update placeholders in main thread
+                    if last_tick:
+                        placeholder_ticks.json(last_tick)
+                        placeholder_status.info(f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}")
+                    else:
+                        placeholder_status.info("⏳ Waiting for ticks...")
 
-    # --- Auto-refresh every 1s for placeholder updates ---
-    st_autorefresh(interval=1000, key="tab5_autorefresh")
+                    time.sleep(0.5)  # poll interval
+
+            st.session_state.consumer_thread = threading.Thread(target=live_tick_consumer, daemon=True)
+            st.session_state.consumer_thread.start()
