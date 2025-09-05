@@ -195,7 +195,7 @@ with tab5:
 
     # --- Persistent Plotly Figure ---
     if "live_fig" not in st.session_state:
-        st.session_state.live_fig = go.FigureWidget()
+        st.session_state.live_fig = go.Figure()
         st.session_state.live_fig.add_trace(go.Candlestick(
             x=[], open=[], high=[], low=[], close=[],
             increasing_line_color='#26a69a',
@@ -205,7 +205,8 @@ with tab5:
         st.session_state.live_fig.update_layout(
             xaxis_rangeslider_visible=False,
             template="plotly_dark",
-            height=700
+            height=700,
+            transition_duration=0   # 👈 blink reduce
         )
 
     if "live_feed" not in st.session_state:
@@ -420,8 +421,8 @@ with tab5:
                 st.session_state.processed_count += 1
                 processed += 1
 
-        # ❌ Chart dobara render nahi karna (blink avoid)
-        # sirf trace update ho raha hai above function me
+        # --- Chart render ---
+        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         # --- Status ---
         placeholder_status.info(
