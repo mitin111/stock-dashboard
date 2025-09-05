@@ -189,11 +189,57 @@ with tab5:
         st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
 
-    # --- Persistent Plotly FigureWidget ---
+    # --- Placeholders ---
+    placeholder_status = st.empty()
+    placeholder_ticks = st.empty()
+    placeholder_chart = st.empty()
+
+    # --- Login check ---
+    if "ps_api" not in st.session_state:
+        st.warning("⚠️ Please login first.")
+        st.stop()
+    ps_api = st.session_state["ps_api"]
+
+    # --- Watchlist selection ---
+    wl_resp = ps_api.get_watchlists()
+    if wl_resp.get("stat") != "Ok":
+        st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+        st.stop()
+    raw_watchlists = wl_resp["values"]
+    watchlists = sorted(raw_watchlists, key=int)
+    selected_watchlist = st.selectbox("Select Watchlist", watchlists)
+    selected_interval = st.selectbox("Select Interval", ["1","3","5","10","15","30","60","120","240"], index=0)
+
+    # --- Persistent FigureWidget & initial candles ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.FigureWidget()
+        st.session_state.ohlc_x = []
+        st.session_state.ohlc_o = []
+        st.session_state.ohlc_h = []
+        st.session_state.ohlc_l = []
+        st.session_state.ohlc_c = []
+
+        # --- Fetch initial TPSeries (first scrip demo) ---
+        scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
+        if scrips:
+            s = scrips[0]
+            df_candle = ps_api.fetch_full_tpseries(s["exch"], s["token"], interval=selected_interval, chunk_days=60)
+            if df_candle is not None and not df_candle.empty:
+                df_candle["datetime"] = pd.to_datetime(df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]])
+                df_candle.sort_values("datetime", inplace=True)
+                st.session_state.ohlc_x = list(df_candle["datetime"])
+                st.session_state.ohlc_o = list(df_candle["open"].astype(float))
+                st.session_state.ohlc_h = list(df_candle["high"].astype(float))
+                st.session_state.ohlc_l = list(df_candle["low"].astype(float))
+                st.session_state.ohlc_c = list(df_candle["close"].astype(float))
+
+        # --- Add FigureWidget trace with initial data ---
         st.session_state.live_fig.add_candlestick(
-            x=[], open=[], high=[], low=[], close=[],
+            x=st.session_state.ohlc_x,
+            open=st.session_state.ohlc_o,
+            high=st.session_state.ohlc_h,
+            low=st.session_state.ohlc_l,
+            close=st.session_state.ohlc_c,
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name="Price"
@@ -202,18 +248,10 @@ with tab5:
             xaxis_rangeslider_visible=False,
             template="plotly_dark",
             height=700,
-            transition_duration=0  # blink-free
+            transition_duration=0
         )
-        st.session_state.ohlc_x = []
-        st.session_state.ohlc_o = []
-        st.session_state.ohlc_h = []
-        st.session_state.ohlc_l = []
-        st.session_state.ohlc_c = []
 
-    # --- Placeholders ---
-    placeholder_status = st.empty()
-    placeholder_ticks = st.empty()
-    placeholder_chart = st.empty()
+    # --- Render initial chart ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     # --- Thread-safe live flag ---
@@ -224,14 +262,8 @@ with tab5:
     def update_last_candle_from_tick(tick: dict, interval: int = 1):
         if not tick:
             return
-        try:
-            ts = int(float(tick.get("ft", time.time())))
-        except:
-            ts = int(time.time())
-        try:
-            vol = int(float(tick.get("v", 0) or 0))
-        except:
-            vol = 0
+        ts = int(float(tick.get("ft", time.time())))
+        vol = int(float(tick.get("v", 0) or 0))
         m = int(interval)
         bucket_ts = ts - (ts % (m * 60))
         key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
@@ -240,14 +272,6 @@ with tab5:
             st.session_state.live_candles = {}
         if key not in st.session_state.live_candles:
             st.session_state.live_candles[key] = {}
-
-        # --- Maintain OHLC arrays ---
-        if "ohlc_x" not in st.session_state:
-            st.session_state.ohlc_x = []
-            st.session_state.ohlc_o = []
-            st.session_state.ohlc_h = []
-            st.session_state.ohlc_l = []
-            st.session_state.ohlc_c = []
 
         last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
         price = float(tick.get("lp") or tick.get("c") or last_close)
@@ -294,7 +318,7 @@ with tab5:
                 while not ui_queue.empty():
                     try:
                         tick = ui_queue.get_nowait()
-                        update_last_candle_from_tick(tick)
+                        update_last_candle_from_tick(tick, interval=int(selected_interval))
                         last_tick = tick
                         processed += 1
                     except queue.Empty:
@@ -322,22 +346,6 @@ with tab5:
             except:
                 pass
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-
-    # --- Login check ---
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first.")
-        st.stop()
-    ps_api = st.session_state["ps_api"]
-
-    # --- Watchlist selection ---
-    wl_resp = ps_api.get_watchlists()
-    if wl_resp.get("stat") != "Ok":
-        st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-        st.stop()
-    raw_watchlists = wl_resp["values"]
-    watchlists = sorted(raw_watchlists, key=int)
-    selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-    selected_interval = st.selectbox("Select Interval", ["1","3","5","10","15","30","60","120","240"], index=0)
 
     # --- Start / Stop Feed Buttons ---
     if st.button("🚀 Start TPSeries + Live Feed"):
