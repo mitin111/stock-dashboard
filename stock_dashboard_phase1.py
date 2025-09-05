@@ -219,6 +219,18 @@ with tab5:
     placeholder_chart = st.empty()
 
     # -----------------------------
+    # Helper: Normalize datetime
+    # -----------------------------
+    def normalize_datetime(df_candle: pd.DataFrame):
+        time_col = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
+        if not time_col:
+            raise KeyError("No date/time column found in TPSeries data")
+        df_candle["datetime"] = pd.to_datetime(df_candle[time_col[0]], errors="coerce")
+        df_candle.dropna(subset=["datetime"], inplace=True)
+        df_candle.sort_values("datetime", inplace=True)
+        return df_candle
+
+    # -----------------------------
     # Update last candle from tick
     # -----------------------------
     def update_last_candle_from_tick(tick: dict, interval: int):
@@ -305,9 +317,8 @@ with tab5:
                 if df_candle is None or df_candle.empty:
                     continue
 
-                df_candle["datetime"] = pd.to_datetime(df_candle["time"], errors="coerce")
-                df_candle.dropna(subset=["datetime"], inplace=True)
-                df_candle.sort_values("datetime", inplace=True)
+                # ✅ Normalize datetime with helper
+                df_candle = normalize_datetime(df_candle)
 
                 st.session_state.ohlc_x = list(df_candle["datetime"])
                 st.session_state.ohlc_o = list(df_candle["open"].astype(float))
@@ -340,6 +351,7 @@ with tab5:
     # --- Auto-consumer (only last tick refresh) ---
     if st.session_state.live_feed:
         processed = 0
+        last_tick = None
         while not ui_queue.empty():
             try:
                 tick = ui_queue.get_nowait()
@@ -351,7 +363,8 @@ with tab5:
 
         if processed > 0:
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-            placeholder_ticks.json(last_tick)
+            if last_tick:
+                placeholder_ticks.json(last_tick)
             placeholder_status.info(
                 f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}"
             )
