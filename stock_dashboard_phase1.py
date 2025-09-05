@@ -183,14 +183,13 @@ with tab5:
     import threading, queue, time
     import pandas as pd
     from datetime import datetime
-    from streamlit_autorefresh import st_autorefresh
 
     # --- Shared UI Queue ---
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
 
-    # --- Persistent FigureWidget for blink-free update ---
+    # --- Persistent FigureWidget ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.FigureWidget()
         st.session_state.live_fig.add_candlestick(
@@ -210,43 +209,19 @@ with tab5:
         st.session_state.ohlc_l = []
         st.session_state.ohlc_c = []
 
-    # --- State flags ---
-    if "live_feed" not in st.session_state:
-        st.session_state.live_feed = False
-        st.session_state.feed_started = False
-        st.session_state.ws_started = False
-
-    # --- Thread-safe flag for background consumer ---
-    if "live_feed_flag" not in st.session_state:
-        st.session_state.live_feed_flag = {"active": st.session_state.live_feed}
-
     # --- Placeholders ---
     placeholder_status = st.empty()
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-    # --- Require login ---
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first.")
-        st.stop()
-    ps_api = st.session_state["ps_api"]
-
-    # --- Watchlist selection ---
-    wl_resp = ps_api.get_watchlists()
-    if wl_resp.get("stat") != "Ok":
-        st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-        st.stop()
-    raw_watchlists = wl_resp["values"]
-    watchlists = sorted(raw_watchlists, key=int)
-    selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-    selected_interval = st.selectbox("Select Interval", ["1","3","5","15","30","60"], index=0)
+    # --- Thread-safe live flag ---
+    if "live_feed_flag" not in st.session_state:
+        st.session_state.live_feed_flag = {"active": False}
 
     # --- Helpers ---
     def normalize_datetime(df_candle: pd.DataFrame):
         time_col = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
-        if not time_col:
-            raise KeyError("No date/time column found in TPSeries data")
         df_candle["datetime"] = pd.to_datetime(df_candle[time_col[0]], errors="coerce")
         df_candle.dropna(subset=["datetime"], inplace=True)
         df_candle.sort_values("datetime", inplace=True)
@@ -255,16 +230,8 @@ with tab5:
     def update_last_candle_from_tick(tick: dict):
         if not tick:
             return
-        try:
-            ts = int(float(tick.get("ft", time.time())))
-        except:
-            ts = int(time.time())
-
-        price_str = tick.get("lp") or tick.get("c") or None
-        try:
-            price = float(price_str) if price_str else st.session_state.ohlc_c[-1]
-        except:
-            price = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0
+        ts = int(float(tick.get("ft", time.time())))
+        price = float(tick.get("lp") or tick.get("c") or st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0)
 
         if not st.session_state.ohlc_x:
             st.session_state.ohlc_x.append(pd.to_datetime(ts, unit="s"))
@@ -284,7 +251,7 @@ with tab5:
         st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
         st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
 
-        # Blink-free update using FigureWidget
+        # Directly update FigureWidget (blink-free)
         fig = st.session_state.live_fig
         fig.data[0].x = st.session_state.ohlc_x
         fig.data[0].open = st.session_state.ohlc_o
@@ -292,68 +259,12 @@ with tab5:
         fig.data[0].low = st.session_state.ohlc_l
         fig.data[0].close = st.session_state.ohlc_c
 
-    def start_ws(symbols, ps_api, ui_queue):
-        def on_tick_callback(tick):
-            try:
-                ui_queue.put(tick, block=False)
-            except:
-                pass
-        ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-
-    # --- Start Feed Button ---
-    if st.button("🚀 Start TPSeries + Live Feed") and not st.session_state.feed_started:
-        st.session_state.feed_started = True
-        st.session_state.live_feed = True
-        st.session_state.live_feed_flag["active"] = True
-
-        with st.spinner("Fetching TPSeries + starting WS..."):
-            scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-            symbols_for_ws = []
-
-            for scrip in scrips[:1]:  # demo
-                exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
-                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
-                if df_candle is None or df_candle.empty:
-                    continue
-
-                df_candle = normalize_datetime(df_candle)
-
-                st.session_state.ohlc_x = list(df_candle["datetime"])
-                st.session_state.ohlc_o = list(df_candle["open"].astype(float))
-                st.session_state.ohlc_h = list(df_candle["high"].astype(float))
-                st.session_state.ohlc_l = list(df_candle["low"].astype(float))
-                st.session_state.ohlc_c = list(df_candle["close"].astype(float))
-
-                # Immediate render
-                st.session_state.live_fig.data[0].x = st.session_state.ohlc_x
-                st.session_state.live_fig.data[0].open = st.session_state.ohlc_o
-                st.session_state.live_fig.data[0].high = st.session_state.ohlc_h
-                st.session_state.live_fig.data[0].low = st.session_state.ohlc_l
-                st.session_state.live_fig.data[0].close = st.session_state.ohlc_c
-
-                symbols_for_ws.append(f"{exch}|{token}")
-
-            if symbols_for_ws and ("ws_thread" not in st.session_state or not st.session_state.ws_thread.is_alive()):
-                st.session_state.ws_thread = threading.Thread(
-                    target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
-                )
-                st.session_state.ws_thread.start()
-                st.session_state.ws_started = True
-                st.session_state.symbols_for_ws = symbols_for_ws
-                st.success("✅ TPSeries + WS Live feed started!")
-
-    # --- Stop Feed ---
-    if st.button("🛑 Stop Live Feed"):
-        st.session_state.live_feed = False
-        st.session_state.feed_started = False
-        st.session_state.live_feed_flag["active"] = False
-
-    # --- Tick Consumer Thread (thread-safe + blink-free) ---
+    # --- Tick Consumer Thread ---
     if "consumer_thread" not in st.session_state or not st.session_state.consumer_thread.is_alive():
         def live_tick_consumer(live_feed_flag, ui_queue, placeholder_ticks, placeholder_status):
             while live_feed_flag["active"]:
-                processed = 0
                 last_tick = None
+                processed = 0
                 while not ui_queue.empty():
                     try:
                         tick = ui_queue.get_nowait()
@@ -362,14 +273,12 @@ with tab5:
                         processed += 1
                     except queue.Empty:
                         break
-
-                # UI updates in main thread
+                # UI placeholders (blink-free)
                 if last_tick:
                     placeholder_ticks.json(last_tick)
                     placeholder_status.info(f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}")
                 else:
                     placeholder_status.info("⏳ Waiting for ticks...")
-
                 time.sleep(0.5)
 
         st.session_state.consumer_thread = threading.Thread(
@@ -378,6 +287,3 @@ with tab5:
             daemon=True
         )
         st.session_state.consumer_thread.start()
-
-    # --- Auto-refresh every 1s for placeholder updates ---
-    st_autorefresh(interval=1000, key="tab5_autorefresh")
