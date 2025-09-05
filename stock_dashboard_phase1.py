@@ -238,15 +238,16 @@ with tab5:
         if key not in st.session_state.live_candles:
             st.session_state.live_candles[key] = {}
 
-        fig = st.session_state.live_fig
-        fig.data[0].x = list(fig.data[0].x)
-        fig.data[0].open = list(fig.data[0].open)
-        fig.data[0].high = list(fig.data[0].high)
-        fig.data[0].low = list(fig.data[0].low)
-        fig.data[0].close = list(fig.data[0].close)
+        # --- Maintain OHLC arrays in session ---
+        if "ohlc_x" not in st.session_state:
+            st.session_state.ohlc_x = []
+            st.session_state.ohlc_o = []
+            st.session_state.ohlc_h = []
+            st.session_state.ohlc_l = []
+            st.session_state.ohlc_c = []
 
         # --- Price ---
-        last_close = float(fig.data[0].close[-1]) if fig.data[0].close else 0.0
+        last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
         price_str = tick.get("lp") or tick.get("c") or None
         try:
             price = float(price_str) if price_str else last_close
@@ -259,11 +260,11 @@ with tab5:
                 "ts": bucket_ts, "o": price, "h": price,
                 "l": price, "c": price, "v": vol
             }
-            fig.data[0].x.append(pd.to_datetime(bucket_ts, unit="s"))
-            fig.data[0].open.append(price)
-            fig.data[0].high.append(price)
-            fig.data[0].low.append(price)
-            fig.data[0].close.append(price)
+            st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
+            st.session_state.ohlc_o.append(price)
+            st.session_state.ohlc_h.append(price)
+            st.session_state.ohlc_l.append(price)
+            st.session_state.ohlc_c.append(price)
         else:
             # Update existing candle
             cndl = st.session_state.live_candles[key][bucket_ts]
@@ -271,18 +272,26 @@ with tab5:
             cndl["h"] = max(float(cndl["h"]), price)
             cndl["l"] = min(float(cndl["l"]), price)
             cndl["v"] += vol
-            if fig.data[0].close:
-                fig.data[0].open[-1] = cndl["o"]
-                fig.data[0].high[-1] = cndl["h"]
-                fig.data[0].low[-1] = cndl["l"]
-                fig.data[0].close[-1] = cndl["c"]
 
-        # Trim last 200
-        fig.data[0].x = fig.data[0].x[-200:]
-        fig.data[0].open = fig.data[0].open[-200:]
-        fig.data[0].high = fig.data[0].high[-200:]
-        fig.data[0].low = fig.data[0].low[-200:]
-        fig.data[0].close = fig.data[0].close[-200:]
+            st.session_state.ohlc_o[-1] = cndl["o"]
+            st.session_state.ohlc_h[-1] = cndl["h"]
+            st.session_state.ohlc_l[-1] = cndl["l"]
+            st.session_state.ohlc_c[-1] = cndl["c"]
+
+        # Keep only last 200
+        st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
+        st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
+        st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
+        st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
+        st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
+
+        # --- Re-assign to Plotly trace ---
+        fig = st.session_state.live_fig
+        fig.data[0].x = st.session_state.ohlc_x
+        fig.data[0].open = st.session_state.ohlc_o
+        fig.data[0].high = st.session_state.ohlc_h
+        fig.data[0].low = st.session_state.ohlc_l
+        fig.data[0].close = st.session_state.ohlc_c
 
     # --- WS forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -353,12 +362,18 @@ with tab5:
                         "v": int(row.get("volume", 0))
                     }
 
-                # Initialize live_fig with historical TPSeries
-                st.session_state.live_fig.data[0].x = list(df_candle["datetime"])
-                st.session_state.live_fig.data[0].open = list(df_candle["open"])
-                st.session_state.live_fig.data[0].high = list(df_candle["high"])
-                st.session_state.live_fig.data[0].low = list(df_candle["low"])
-                st.session_state.live_fig.data[0].close = list(df_candle["close"])
+                # Initialize session OHLC arrays + live_fig with historical TPSeries
+                st.session_state.ohlc_x = list(df_candle["datetime"])
+                st.session_state.ohlc_o = list(df_candle["open"].astype(float))
+                st.session_state.ohlc_h = list(df_candle["high"].astype(float))
+                st.session_state.ohlc_l = list(df_candle["low"].astype(float))
+                st.session_state.ohlc_c = list(df_candle["close"].astype(float))
+
+                st.session_state.live_fig.data[0].x = st.session_state.ohlc_x
+                st.session_state.live_fig.data[0].open = st.session_state.ohlc_o
+                st.session_state.live_fig.data[0].high = st.session_state.ohlc_h
+                st.session_state.live_fig.data[0].low = st.session_state.ohlc_l
+                st.session_state.live_fig.data[0].close = st.session_state.ohlc_c
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
                 symbols_for_ws.append(f"{exch}|{token}")
