@@ -179,10 +179,6 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (debug mode)")
 
-    # 🔄 Auto-refresh har 1 sec
-    from streamlit_autorefresh import st_autorefresh
-    st_autorefresh(interval=1000, key="chart_refresh")
-
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd
@@ -421,8 +417,9 @@ with tab5:
                 st.session_state.processed_count += 1
                 processed += 1
 
-        # --- Chart render ---
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        # ✅ Sirf agar naya tick mila (processed > 0) to chart redraw karo
+        if processed > 0:
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         # --- Status ---
         placeholder_status.info(
@@ -440,3 +437,4 @@ with tab5:
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
