@@ -211,6 +211,7 @@ with tab5:
         st.session_state.ohlc_l = []
         st.session_state.ohlc_c = []
 
+    # --- State flags ---
     if "live_feed" not in st.session_state:
         st.session_state.live_feed = False
         st.session_state.feed_started = False
@@ -318,9 +319,11 @@ with tab5:
                 st.session_state.ohlc_l = list(df_candle["low"].astype(float))
                 st.session_state.ohlc_c = list(df_candle["close"].astype(float))
 
+                # Immediate chart render
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                 symbols_for_ws.append(f"{exch}|{token}")
 
+            # WS Thread (only once)
             if symbols_for_ws and ("ws_thread" not in st.session_state or not st.session_state.ws_thread.is_alive()):
                 st.session_state.ws_thread = threading.Thread(
                     target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
@@ -335,7 +338,7 @@ with tab5:
         st.session_state.live_feed = False
         st.session_state.feed_started = False
 
-    # --- Auto-refresh for live ticks ---
+    # --- Tick Processing (blink-free) ---
     if st.session_state.live_feed:
         processed = 0
         last_tick = None
@@ -355,5 +358,5 @@ with tab5:
         else:
             placeholder_status.info("⏳ Waiting for ticks...")
 
-    # --- Auto-refresh every 1s for Streamlit ---
+    # --- Auto-refresh every 1s to update placeholders without full tab reload ---
     st_autorefresh(interval=1000, key="tab5_autorefresh")
