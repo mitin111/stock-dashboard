@@ -177,7 +177,7 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries + Live Tick Data (debug mode)")
+    st.subheader("📉 TPSeries + Live Tick Data (blink-free)")
 
     import plotly.graph_objects as go
     import threading, queue, time
@@ -190,20 +190,19 @@ with tab5:
         st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
 
-    # --- Persistent Figure ---
+    # --- Persistent FigureWidget for blink-free update ---
     if "live_fig" not in st.session_state:
-        st.session_state.live_fig = go.Figure()
-        st.session_state.live_fig.add_trace(go.Candlestick(
+        st.session_state.live_fig = go.FigureWidget()
+        st.session_state.live_fig.add_candlestick(
             x=[], open=[], high=[], low=[], close=[],
             increasing_line_color='#26a69a',
             decreasing_line_color='#ef5350',
             name="Price"
-        ))
+        )
         st.session_state.live_fig.update_layout(
             xaxis_rangeslider_visible=False,
             template="plotly_dark",
-            height=700,
-            transition_duration=0
+            height=700
         )
         st.session_state.ohlc_x = []
         st.session_state.ohlc_o = []
@@ -221,6 +220,7 @@ with tab5:
     placeholder_status = st.empty()
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
+    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     # --- Require login ---
     if "ps_api" not in st.session_state:
@@ -280,13 +280,13 @@ with tab5:
         st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
         st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
 
-        # Update trace
-        trace = st.session_state.live_fig.data[0]
-        trace.x = st.session_state.ohlc_x
-        trace.open = st.session_state.ohlc_o
-        trace.high = st.session_state.ohlc_h
-        trace.low = st.session_state.ohlc_l
-        trace.close = st.session_state.ohlc_c
+        # Blink-free update using FigureWidget
+        fig = st.session_state.live_fig
+        fig.data[0].x = st.session_state.ohlc_x
+        fig.data[0].open = st.session_state.ohlc_o
+        fig.data[0].high = st.session_state.ohlc_h
+        fig.data[0].low = st.session_state.ohlc_l
+        fig.data[0].close = st.session_state.ohlc_c
 
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
@@ -319,11 +319,15 @@ with tab5:
                 st.session_state.ohlc_l = list(df_candle["low"].astype(float))
                 st.session_state.ohlc_c = list(df_candle["close"].astype(float))
 
-                # Immediate chart render
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                # Immediate render
+                st.session_state.live_fig.data[0].x = st.session_state.ohlc_x
+                st.session_state.live_fig.data[0].open = st.session_state.ohlc_o
+                st.session_state.live_fig.data[0].high = st.session_state.ohlc_h
+                st.session_state.live_fig.data[0].low = st.session_state.ohlc_l
+                st.session_state.live_fig.data[0].close = st.session_state.ohlc_c
+
                 symbols_for_ws.append(f"{exch}|{token}")
 
-            # WS Thread (only once)
             if symbols_for_ws and ("ws_thread" not in st.session_state or not st.session_state.ws_thread.is_alive()):
                 st.session_state.ws_thread = threading.Thread(
                     target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
@@ -349,14 +353,12 @@ with tab5:
             last_tick = tick
 
         if processed > 0:
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+            # Blink-free: FigureWidget is already updated
             if last_tick:
                 placeholder_ticks.json(last_tick)
-            placeholder_status.info(
-                f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}"
-            )
+            placeholder_status.info(f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}")
         else:
             placeholder_status.info("⏳ Waiting for ticks...")
 
-    # --- Auto-refresh every 1s to update placeholders without full tab reload ---
+    # --- Auto-refresh every 1s for placeholder updates ---
     st_autorefresh(interval=1000, key="tab5_autorefresh")
