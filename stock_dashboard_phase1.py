@@ -184,12 +184,12 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- Init shared UI Queue ---
+    # --- Shared UI Queue ---
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
 
-    # --- Persistent Plotly Figure ---
+    # --- Persistent Figure ---
     if "live_fig" not in st.session_state:
         st.session_state.live_fig = go.Figure()
         st.session_state.live_fig.add_trace(go.Candlestick(
@@ -202,19 +202,24 @@ with tab5:
             xaxis_rangeslider_visible=False,
             template="plotly_dark",
             height=700,
-            transition_duration=0   # 👈 blink reduce
+            transition_duration=0  # 👈 blink reduce
         )
+        st.session_state.ohlc_x = []
+        st.session_state.ohlc_o = []
+        st.session_state.ohlc_h = []
+        st.session_state.ohlc_l = []
+        st.session_state.ohlc_c = []
 
     if "live_feed" not in st.session_state:
         st.session_state.live_feed = False
 
-    # --- Debug placeholders ---
+    # --- Placeholders ---
     placeholder_status = st.empty()
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
     # -----------------------------
-    # Update candle from live tick
+    # Update last candle from tick
     # -----------------------------
     def update_last_candle_from_tick(tick: dict, interval: int):
         if not tick:
@@ -223,68 +228,34 @@ with tab5:
             ts = int(float(tick.get("ft", time.time())))
         except:
             ts = int(time.time())
-        try:
-            vol = int(float(tick.get("v", 0) or 0))
-        except:
-            vol = 0
 
-        m = int(interval)
-        bucket_ts = ts - (ts % (m * 60))
-        key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
-
-        if "live_candles" not in st.session_state:
-            st.session_state.live_candles = {}
-        if key not in st.session_state.live_candles:
-            st.session_state.live_candles[key] = {}
-
-        # --- Maintain OHLC arrays in session ---
-        if "ohlc_x" not in st.session_state:
-            st.session_state.ohlc_x = []
-            st.session_state.ohlc_o = []
-            st.session_state.ohlc_h = []
-            st.session_state.ohlc_l = []
-            st.session_state.ohlc_c = []
-
-        # --- Price ---
-        last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
         price_str = tick.get("lp") or tick.get("c") or None
         try:
-            price = float(price_str) if price_str else last_close
+            price = float(price_str) if price_str else st.session_state.ohlc_c[-1]
         except:
-            price = last_close
+            price = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0
 
-        if bucket_ts not in st.session_state.live_candles[key]:
-            # New candle
-            st.session_state.live_candles[key][bucket_ts] = {
-                "ts": bucket_ts, "o": price, "h": price,
-                "l": price, "c": price, "v": vol
-            }
-            st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
+        if not st.session_state.ohlc_x:
+            # First candle
+            st.session_state.ohlc_x.append(pd.to_datetime(ts, unit="s"))
             st.session_state.ohlc_o.append(price)
             st.session_state.ohlc_h.append(price)
             st.session_state.ohlc_l.append(price)
             st.session_state.ohlc_c.append(price)
         else:
-            # Update existing candle
-            cndl = st.session_state.live_candles[key][bucket_ts]
-            cndl["c"] = price
-            cndl["h"] = max(float(cndl["h"]), price)
-            cndl["l"] = min(float(cndl["l"]), price)
-            cndl["v"] += vol
+            # Update existing last candle
+            st.session_state.ohlc_c[-1] = price
+            st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
+            st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
 
-            st.session_state.ohlc_o[-1] = cndl["o"]
-            st.session_state.ohlc_h[-1] = cndl["h"]
-            st.session_state.ohlc_l[-1] = cndl["l"]
-            st.session_state.ohlc_c[-1] = cndl["c"]
-
-        # Keep only last 200
+        # Limit size
         st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
         st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
         st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
         st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
         st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
 
-        # --- Update Plotly trace ---
+        # Update trace
         trace = st.session_state.live_fig.data[0]
         trace.x = st.session_state.ohlc_x
         trace.open = st.session_state.ohlc_o
@@ -292,7 +263,7 @@ with tab5:
         trace.low = st.session_state.ohlc_l
         trace.close = st.session_state.ohlc_c
 
-    # --- WS forwarder ---
+    # --- WebSocket forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             try:
@@ -302,12 +273,13 @@ with tab5:
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
         print("▶ WS started with callback")
 
-    # --- UI logic ---
+    # --- Require login ---
     if "ps_api" not in st.session_state:
         st.warning("⚠️ Please login first.")
         st.stop()
     ps_api = st.session_state["ps_api"]
 
+    # --- Watchlist selection ---
     wl_resp = ps_api.get_watchlists()
     if wl_resp.get("stat") != "Ok":
         st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
@@ -315,56 +287,28 @@ with tab5:
     raw_watchlists = wl_resp["values"]
     watchlists = sorted(raw_watchlists, key=int)
     selected_watchlist = st.selectbox("Select Watchlist", watchlists)
-    selected_interval = st.selectbox(
-        "Select Interval",
-        ["1","3","5","10","15","30","60","120","240"], index=0
-    )
+    selected_interval = st.selectbox("Select Interval", ["1","3","5","15","30","60"], index=0)
 
-    # --- Start button (merged snippet) ---
+    # --- Start Button ---
     if st.button("🚀 Start TPSeries + Live Feed"):
-        # Reset states
         st.session_state.live_feed = True
         st.session_state.ws_started = False
         st.session_state.chart_rendered = False
 
-        with st.spinner("Fetching TPSeries (60 days) and starting WS..."):
+        with st.spinner("Fetching TPSeries + starting WS..."):
             scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
             symbols_for_ws = []
-            for scrip in scrips:
+
+            for scrip in scrips[:1]:  # 👈 only first scrip for demo
                 exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
-                try:
-                    df_candle = ps_api.fetch_full_tpseries(
-                        exch, token, interval=selected_interval, chunk_days=60
-                    )
-                except Exception as e:
-                    st.warning(f"TPSeries fetch error for {tsym}: {e}")
-                    continue
+                df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=5)
                 if df_candle is None or df_candle.empty:
-                    st.info(f"No TPSeries for {tsym}")
                     continue
 
-                # --- TPSeries prep ---
-                df_candle["datetime"] = pd.to_datetime(
-                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]],
-                    errors="coerce"
-                )
+                df_candle["datetime"] = pd.to_datetime(df_candle["time"], errors="coerce")
                 df_candle.dropna(subset=["datetime"], inplace=True)
                 df_candle.sort_values("datetime", inplace=True)
 
-                # Save candles dict
-                key = f"{exch}|{token}|{selected_interval}"
-                if not hasattr(ps_api, "candles") or ps_api.candles is None:
-                    ps_api.candles = {}
-                ps_api.candles[key] = {}
-                for _, row in df_candle.iterrows():
-                    ts_epoch = int(row["datetime"].timestamp())
-                    ps_api.candles[key][ts_epoch] = {
-                        "ts": ts_epoch, "o": float(row["open"]), "h": float(row["high"]),
-                        "l": float(row["low"]), "c": float(row["close"]),
-                        "v": int(row.get("volume", 0))
-                    }
-
-                # Init arrays + chart
                 st.session_state.ohlc_x = list(df_candle["datetime"])
                 st.session_state.ohlc_o = list(df_candle["open"].astype(float))
                 st.session_state.ohlc_h = list(df_candle["high"].astype(float))
@@ -378,68 +322,38 @@ with tab5:
                 trace.low = st.session_state.ohlc_l
                 trace.close = st.session_state.ohlc_c
 
-                if not st.session_state.get("chart_rendered", False):
-                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                    st.session_state.chart_rendered = True
-
+                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                 symbols_for_ws.append(f"{exch}|{token}")
 
-            # --- Start WebSocket ---
             if symbols_for_ws:
                 threading.Thread(
                     target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True
                 ).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
-                st.info("📡 WebSocket Live Feed started...")
-            else:
-                st.info("No symbols to start WS for.")
+                st.success("📡 WS Live Feed started")
 
-    # --- Stop button ---
+    # --- Stop Button ---
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed = False
 
-    # --- Consumer loop: read ticks and update chart & table ---
+    # --- Auto-consumer (only last tick refresh) ---
     if st.session_state.live_feed:
-        if "processed_count" not in st.session_state:
-            st.session_state.processed_count = 0
-        if "ticks_display" not in st.session_state:
-            st.session_state.ticks_display = []
-
         processed = 0
-        max_drain = 50
-        for _ in range(max_drain):
+        while not ui_queue.empty():
             try:
                 tick = ui_queue.get_nowait()
+                update_last_candle_from_tick(tick, selected_interval)
+                processed += 1
+                last_tick = tick
             except queue.Empty:
                 break
-            else:
-                # Update candle
-                update_last_candle_from_tick(tick, selected_interval)
 
-                # Append tick to display
-                st.session_state.ticks_display.append(tick)
-                st.session_state.ticks_display = st.session_state.ticks_display[-200:]
-                st.session_state.processed_count += 1
-                processed += 1
-
-        # ✅ Sirf agar naya tick mila (processed > 0) to chart redraw karo
         if processed > 0:
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-        # --- Status ---
-        placeholder_status.info(
-            f"WS started: {st.session_state.get('ws_started', False)} | "
-            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {ui_queue.qsize()} | "
-            f"processed (this run): {processed} | "
-            f"processed (total): {st.session_state.processed_count} | "
-            f"display_len: {len(st.session_state.ticks_display)}"
-        )
-
-        # --- Show ticks ---
-        if st.session_state.ticks_display:
-            df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
-            placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
+            placeholder_ticks.json(last_tick)
+            placeholder_status.info(
+                f"Ticks processed: {processed} | Total candles: {len(st.session_state.ohlc_x)}"
+            )
         else:
-            placeholder_ticks.info("⏳ Waiting for first ticks...")
+            placeholder_status.info("⏳ Waiting for ticks...")
