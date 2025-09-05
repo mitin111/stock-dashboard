@@ -212,86 +212,150 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
+    # --- helpers to robustly parse tick fields ---
+    def parse_tick_basic(tick):
+        """
+        Return (ts:int, price:float, vol:int, exch:str, token:str)
+        Robustly tries several common tick field names.
+        """
+        # timestamp candidates
+        now = int(time.time())
+        ts = None
+        for k in ("ft", "lt", "t", "time", "ts", "epoch"):
+            v = tick.get(k)
+            if v is None:
+                continue
+            try:
+                ts = int(float(v))
+                break
+            except:
+                continue
+        if ts is None:
+            ts = now
+
+        # price candidates
+        price = None
+        for k in ("lp", "ltp", "c", "lastprice", "last", "p"):
+            v = tick.get(k)
+            if v is None:
+                continue
+            try:
+                price = float(v)
+                break
+            except:
+                continue
+        if price is None:
+            price = 0.0
+
+        # volume
+        vol = 0
+        for k in ("v", "volume", "vol"):
+            v = tick.get(k)
+            if v is None:
+                continue
+            try:
+                vol = int(float(v))
+                break
+            except:
+                continue
+
+        exch = tick.get("e") or tick.get("exch") or tick.get("exchange") or ""
+        token = tick.get("tk") or tick.get("token") or tick.get("tokenid") or tick.get("tkn") or tick.get("tokenId") or tick.get("tsym") or tick.get("tradingsymbol") or ""
+
+        return ts, price, vol, exch, token
+
     # -----------------------------
-    # Update candle from live tick
+    # Update candle from live tick (per-key OHLC storage)
     # -----------------------------
     def update_last_candle_from_tick(tick: dict, interval: int):
         if not tick:
             return
-
         try:
-            ts = int(float(tick.get("ft", time.time())))
-        except:
-            ts = int(time.time())
+            ts, price, vol, exch, token = parse_tick_basic(tick)
+            m = int(interval)
+            bucket_secs = m * 60
+            bucket_ts = (ts // bucket_secs) * bucket_secs
+            bucket_time = pd.to_datetime(bucket_ts, unit="s")
 
-        try:
-            vol = int(float(tick.get("v", 0) or 0))
-        except:
-            vol = 0
+            key = f"{exch}|{token}|{m}"
 
-        m = int(interval)
-        bucket_ts = ts - (ts % (m * 60))
-        key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
+            # Ensure per-key storage exists
+            if "ohlc" not in st.session_state:
+                st.session_state.ohlc = {}
+            if key not in st.session_state.ohlc:
+                st.session_state.ohlc[key] = {"x": [], "o": [], "h": [], "l": [], "c": []}
 
-        if "live_candles" not in st.session_state:
-            st.session_state.live_candles = {}
-        if key not in st.session_state.live_candles:
-            st.session_state.live_candles[key] = {}
+            ohlc = st.session_state.ohlc[key]
 
-        # --- Maintain OHLC arrays in session ---
-        if "ohlc_x" not in st.session_state:
-            st.session_state.ohlc_x = []
-            st.session_state.ohlc_o = []
-            st.session_state.ohlc_h = []
-            st.session_state.ohlc_l = []
-            st.session_state.ohlc_c = []
+            # find index of bucket_time if exists
+            idx = None
+            for i, t in enumerate(ohlc["x"]):
+                # compare as datetimes
+                if pd.to_datetime(t) == bucket_time:
+                    idx = i
+                    break
 
-        # --- Price ---
-        last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
-        price_str = tick.get("lp") or tick.get("c") or None
-        try:
-            price = float(price_str) if price_str else last_close
-        except:
-            price = last_close
+            if idx is None:
+                # append new candle
+                ohlc["x"].append(bucket_time)
+                ohlc["o"].append(price)
+                ohlc["h"].append(price)
+                ohlc["l"].append(price)
+                ohlc["c"].append(price)
+            else:
+                # update existing candle at idx
+                ohlc["h"][idx] = max(float(ohlc["h"][idx]), price)
+                ohlc["l"][idx] = min(float(ohlc["l"][idx]), price)
+                ohlc["c"][idx] = price
 
-        if bucket_ts not in st.session_state.live_candles[key]:
-            # New candle
-            st.session_state.live_candles[key][bucket_ts] = {
-                "ts": bucket_ts, "o": price, "h": price,
-                "l": price, "c": price, "v": vol
-            }
-            st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
-            st.session_state.ohlc_o.append(price)
-            st.session_state.ohlc_h.append(price)
-            st.session_state.ohlc_l.append(price)
-            st.session_state.ohlc_c.append(price)
-        else:
-            # Update existing candle
-            cndl = st.session_state.live_candles[key][bucket_ts]
-            cndl["c"] = price
-            cndl["h"] = max(float(cndl["h"]), price)
-            cndl["l"] = min(float(cndl["l"]), price)
-            cndl["v"] += vol
+            # trim to last 200
+            for k in ("x", "o", "h", "l", "c"):
+                ohlc[k] = ohlc[k][-200:]
 
-            st.session_state.ohlc_o[-1] = cndl["o"]
-            st.session_state.ohlc_h[-1] = cndl["h"]
-            st.session_state.ohlc_l[-1] = cndl["l"]
-            st.session_state.ohlc_c[-1] = cndl["c"]
+            # If this key is the active one being shown, update the figure trace
+            if st.session_state.get("active_ohlc_key") == key:
+                fig = st.session_state.live_fig
+                fig.data[0].x = ohlc["x"]
+                fig.data[0].open = ohlc["o"]
+                fig.data[0].high = ohlc["h"]
+                fig.data[0].low = ohlc["l"]
+                fig.data[0].close = ohlc["c"]
 
-        # Keep only last 200
-        st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
-        st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
-        st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
-        st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
-        st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
+        except Exception as e:
+            # log error without crashing UI
+            print("update_last_candle_from_tick error:", e)
+            # optional: st.error(f"Update candle error: {e}")
 
-        # --- Re-assign to Plotly trace ---
-        fig = st.session_state.live_fig
-        fig.data[0].x = st.session_state.ohlc_x
-        fig.data[0].open = st.session_state.ohlc_o
-        fig.data[0].high = st.session_state.ohlc_h
-        fig.data[0].low = st.session_state.ohlc_l
-        fig.data[0].close = st.session_state.ohlc_c
+    # --- Sirf last tick per symbol process karna (drain queue, keep last for each key) ---
+    def consume_last_tick(interval):
+        if "ui_queue" not in st.session_state:
+            return
+        q = st.session_state.ui_queue
+        if q.empty():
+            return
+
+        last_by_key = {}
+        # drain quickly, remember last tick per symbol+interval
+        while True:
+            try:
+                tick = q.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                ts, price, vol, exch, token = parse_tick_basic(tick)
+                key = f"{exch}|{token}|{int(interval)}"
+                last_by_key[key] = tick
+            except Exception as e:
+                print("consume_last_tick parse error:", e)
+                continue
+
+        # process only the last tick for each key
+        if "ticks_display" not in st.session_state:
+            st.session_state.ticks_display = []
+        for k, t in last_by_key.items():
+            update_last_candle_from_tick(t, interval)
+            st.session_state.ticks_display.append(t)
+        st.session_state.ticks_display = st.session_state.ticks_display[-200:]
 
     # --- WS forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -300,7 +364,6 @@ with tab5:
                 ui_queue.put(tick, block=False)
             except Exception as e:
                 print(f"⚠️ WS callback error: {e}")
-
         ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
         print("▶ WS started with callback")
 
@@ -332,8 +395,13 @@ with tab5:
         with st.spinner("Fetching TPSeries (60 days) and starting WS..."):
             scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
             symbols_for_ws = []
+
+            # ensure per-key ohlc dict exists
+            if "ohlc" not in st.session_state:
+                st.session_state.ohlc = {}
+
             for scrip in scrips:
-                exch, token, tsym = scrip["exch"], scrip["token"], scrip["tsym"]
+                exch, token, tsym = scrip.get("exch"), scrip.get("token"), scrip.get("tsym")
                 try:
                     df_candle = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, chunk_days=60)
                 except Exception as e:
@@ -343,90 +411,99 @@ with tab5:
                     st.info(f"No TPSeries for {tsym}")
                     continue
 
-                df_candle["datetime"] = pd.to_datetime(
-                    df_candle[df_candle.columns[df_candle.columns.str.contains("date|time")][0]],
-                    errors="coerce"
-                )
+                # robust datetime detection
+                date_cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
+                if not date_cols:
+                    st.info(f"No datetime column found for {tsym}")
+                    continue
+
+                df_candle["datetime"] = pd.to_datetime(df_candle[date_cols[0]], errors="coerce")
                 df_candle.dropna(subset=["datetime"], inplace=True)
                 df_candle.sort_values("datetime", inplace=True)
 
-                key = f"{exch}|{token}|{selected_interval}"
+                key = f"{exch}|{token}|{int(selected_interval)}"
+                # store into per-key ohlc dict
+                st.session_state.ohlc[key] = {
+                    "x": list(df_candle["datetime"]),
+                    "o": list(df_candle["open"].astype(float)),
+                    "h": list(df_candle["high"].astype(float)),
+                    "l": list(df_candle["low"].astype(float)),
+                    "c": list(df_candle["close"].astype(float)),
+                }
+
+                # also keep ps_api.candles if you used earlier (optional)
                 if not hasattr(ps_api, "candles") or ps_api.candles is None:
                     ps_api.candles = {}
                 ps_api.candles[key] = {}
                 for _, row in df_candle.iterrows():
-                    ts_epoch = int(row["datetime"].timestamp())
+                    ts_epoch = int(pd.to_datetime(row["datetime"]).timestamp())
                     ps_api.candles[key][ts_epoch] = {
                         "ts": ts_epoch, "o": float(row["open"]), "h": float(row["high"]),
                         "l": float(row["low"]), "c": float(row["close"]),
                         "v": int(row.get("volume", 0))
                     }
 
-                # Initialize session OHLC arrays + live_fig with historical TPSeries
-                st.session_state.ohlc_x = list(df_candle["datetime"])
-                st.session_state.ohlc_o = list(df_candle["open"].astype(float))
-                st.session_state.ohlc_h = list(df_candle["high"].astype(float))
-                st.session_state.ohlc_l = list(df_candle["low"].astype(float))
-                st.session_state.ohlc_c = list(df_candle["close"].astype(float))
-
-                st.session_state.live_fig.data[0].x = st.session_state.ohlc_x
-                st.session_state.live_fig.data[0].open = st.session_state.ohlc_o
-                st.session_state.live_fig.data[0].high = st.session_state.ohlc_h
-                st.session_state.live_fig.data[0].low = st.session_state.ohlc_l
-                st.session_state.live_fig.data[0].close = st.session_state.ohlc_c
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-                symbols_for_ws.append(f"{exch}|{token}")
+                # set chart for this key later (we'll default to first)
+                symbols_for_ws.append(key)
 
             if symbols_for_ws:
+                # pick the first as active (or keep previously active)
+                if "active_ohlc_key" not in st.session_state:
+                    st.session_state.active_ohlc_key = symbols_for_ws[0]
+                st.session_state.symbols_for_ws = symbols_for_ws
                 threading.Thread(target=start_ws,
-                                 args=(symbols_for_ws, ps_api, ui_queue),
+                                 args=( [k.rsplit("|",2)[0] + "|" + k.rsplit("|",2)[1] for k in symbols_for_ws],
+                                        ps_api, ui_queue),
                                  daemon=True).start()
                 st.session_state.ws_started = True
-                st.session_state.symbols_for_ws = symbols_for_ws
             else:
                 st.info("No symbols to start WS for.")
 
-    # --- Consumer loop: read ticks and update chart & table ---
+    # Optional: let user choose which symbol's chart to view (useful if watchlist has many)
+    if st.session_state.get("symbols_for_ws"):
+        sel_chart_key = st.selectbox("Chart symbol (which scrip to show)", st.session_state.symbols_for_ws,
+                                     index=st.session_state.symbols_for_ws.index(st.session_state.get("active_ohlc_key")) if st.session_state.get("active_ohlc_key") in st.session_state.get("symbols_for_ws",[]) else 0)
+        st.session_state.active_ohlc_key = sel_chart_key
+
+    # --- Consumer loop: process only last tick per symbol and update chart/table ---
     if st.session_state.live_feed:
         if "processed_count" not in st.session_state:
             st.session_state.processed_count = 0
         if "ticks_display" not in st.session_state:
             st.session_state.ticks_display = []
 
-        processed = 0
-        max_drain = 50
-        for _ in range(max_drain):
-            try:
-                tick = ui_queue.get_nowait()
-            except queue.Empty:
-                break
-            else:
-                # Update candle
-                update_last_candle_from_tick(tick, selected_interval)
+        # Drain queue and only use last tick per symbol
+        consume_last_tick(selected_interval)
 
-                # Append tick to display
-                st.session_state.ticks_display.append(tick)
-                st.session_state.ticks_display = st.session_state.ticks_display[-200:]
-                st.session_state.processed_count += 1
-                processed += 1
+        # Draw chart for active key
+        active_key = st.session_state.get("active_ohlc_key")
+        if active_key and "ohlc" in st.session_state and active_key in st.session_state.ohlc:
+            ohlc = st.session_state.ohlc[active_key]
+            st.session_state.live_fig.data[0].x = ohlc["x"]
+            st.session_state.live_fig.data[0].open = ohlc["o"]
+            st.session_state.live_fig.data[0].high = ohlc["h"]
+            st.session_state.live_fig.data[0].low = ohlc["l"]
+            st.session_state.live_fig.data[0].close = ohlc["c"]
 
-        # --- Draw chart only once per rerun ---
+        # render chart once per rerun
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-        # --- Status ---
+        # status
+        qsize = st.session_state.ui_queue.qsize() if "ui_queue" in st.session_state else 0
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {ui_queue.qsize()} | "
-            f"processed (this run): {processed} | "
-            f"processed (total): {st.session_state.processed_count} | "
+            f"queue: {qsize} | "
             f"display_len: {len(st.session_state.ticks_display)}"
         )
 
-        # --- Show ticks ---
+        # show last ticks
         if st.session_state.ticks_display:
             df_ticks_show = pd.DataFrame(st.session_state.ticks_display[-50:])
             placeholder_ticks.dataframe(df_ticks_show.tail(10), use_container_width=True)
         else:
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+    else:
+        if "live_fig" in st.session_state:
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        placeholder_status.info("Live feed stopped.")
