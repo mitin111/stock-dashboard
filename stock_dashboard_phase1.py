@@ -187,36 +187,6 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # --- after imports ---
-    # FULL holidays (normalize to date)
-    FULL_HOLIDAYS_2025 = pd.to_datetime([
-        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
-        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
-        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
-    ]).normalize()
-
-    # strings for Plotly rangebreaks in YYYY-MM-DD
-    FULL_HOLIDAY_STR_2025 = [d.strftime("%Y-%m-%d") for d in FULL_HOLIDAYS_2025]
-
-    # Special sessions: date -> (start_time, end_time) (use 24h format)
-    SPECIAL_SESSIONS = {
-        "2025-10-21": ("18:15", "19:15"),  # example Muhurat
-    }
-
-    # Robust parser
-    def normalize_datetime(df_candle: pd.DataFrame):
-        cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
-        if not cols:
-            raise KeyError("No date/time column found in TPSeries data")
-        s = df_candle[cols[0]].astype(str).str.strip()
-        dt = pd.to_datetime(s, format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
-        if dt.isna().all():
-            dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
-        df_candle["datetime"] = dt
-        df_candle.dropna(subset=["datetime"], inplace=True)
-        df_candle.sort_values("datetime", inplace=True)
-        return df_candle
-
     # ✅ Guard clause: ps_api + selected_watchlist check
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
         st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
@@ -321,8 +291,7 @@ with tab5:
             rangeslider_visible=False,
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour"),
-                dict(values=FULL_HOLIDAY_STR_2025)
+                dict(bounds=[15.5, 9.25], pattern="hour")
             ]    
         )    
 
@@ -330,6 +299,15 @@ with tab5:
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     # --- Helpers ---
+    def normalize_datetime(df_candle: pd.DataFrame):
+        cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
+        if not cols:
+            raise KeyError("No date/time column found in TPSeries data")
+        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce")
+        df_candle.dropna(subset=["datetime"], inplace=True)
+        df_candle.sort_values("datetime", inplace=True)
+        return df_candle
+
     def _update_local_ohlc_from_df(df_candle):
         st.session_state.ohlc_x = list(df_candle["datetime"])
         st.session_state.ohlc_o = list(df_candle["open"].astype(float))
@@ -435,69 +413,46 @@ with tab5:
             except Exception as e:
                 st.warning(f"TPSeries fetch failed: {e}")
                 df = None
-
             if df is not None and not df.empty:
-                # robust parse
                 try:
                     df = normalize_datetime(df)
                 except Exception:
                     timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
                     if timecols:
-                        df["datetime"] = pd.to_datetime(df[timecols[0]].astype(str), errors="coerce", dayfirst=True)
+                        df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
-
                 if "datetime" in df.columns and not df["datetime"].isna().all():
-                    _dt_norm = df["datetime"].dt.normalize()
-                    df = df[~_dt_norm.isin(FULL_HOLIDAYS_2025)]
-
-                    df = df[
-                        ((df["datetime"].dt.dayofweek < 5) &
-                         (df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
-                         (df["datetime"].dt.time <= pd.to_datetime("15:30").time()))
-                        |
-                        (_dt_norm.isin(pd.to_datetime(list(SPECIAL_SESSIONS.keys()))))
-                    ]
-
+                    full_holidays = pd.to_datetime([
+                        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
+                        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
+                        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
+                    ])
+                    special_sessions = pd.to_datetime([
+                        "2025-10-21"  # Example: Diwali Muhurat trading
+                    ])
+                    df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
+                    df = df[(df["datetime"].dt.dayofweek < 5) |
+                            (df["datetime"].dt.normalize().isin(special_sessions))]
+                    
+                    df = df[(df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
+                            (df["datetime"].dt.time <= pd.to_datetime("15:30").time())]
                     if not df.empty:
                         df = df.set_index("datetime")
-                        full_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq=f"{selected_interval}min")
+                        full_range = pd.date_range(
+                            start=df.index.min(),
+                            end=df.index.max(),
+                            freq=f"{selected_interval}min"
+                        )
                         df = df.reindex(full_range).rename_axis("datetime").reset_index()
-                        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-
                         for col in ["open", "high", "low", "close"]:
-                            if col in df.columns:
-                                df[col] = pd.to_numeric(df[col], errors="coerce").ffill()
-                            else:
-                                df[col] = pd.NA
+                            df[col] = df[col].ffill()
 
-                        if "volume" in df.columns:
-                            df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
-                        elif "v" in df.columns:
-                            df["volume"] = pd.to_numeric(df["v"], errors="coerce").fillna(0)
-                        else:
-                            df["volume"] = 0
-
-                        _dt_norm = df["datetime"].dt.normalize()
-                        df = df[~_dt_norm.isin(FULL_HOLIDAYS_2025)]
-                        df = df[(df["datetime"].dt.dayofweek < 5) | (_dt_norm.isin(pd.to_datetime(list(SPECIAL_SESSIONS.keys()))))]
-
-                        market_mask = (df["datetime"].dt.time >= pd.to_datetime("09:15").time()) & (df["datetime"].dt.time <= pd.to_datetime("15:30").time())
-
-                        special_mask = pd.Series(False, index=df.index)
-                        for d, (t1, t2) in SPECIAL_SESSIONS.items():
-                            start = pd.to_datetime(f"{d} {t1}")
-                            end = pd.to_datetime(f"{d} {t2}")
-                            special_mask |= (df["datetime"] >= start) & (df["datetime"] <= end)
-
-                        df = df[market_mask | special_mask]
+                        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
                         df = df[df["volume"] > 0]
-
-                    if not df.empty:
-                        _update_local_ohlc_from_df(df)
-                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                    else:
-                        st.warning("No valid TPSeries candles after calendar filter.")
+                       
+                    _update_local_ohlc_from_df(df)
+                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         if symbols_for_ws:
             if not st.session_state.ws_started:
@@ -513,6 +468,7 @@ with tab5:
         st.session_state.ws_started = False
         st.info("🛑 Live feed stopped.")
 
+    # --- Drain ui_queue in main thread and update chart ---
     processed = 0
     last_tick = None
     max_drain = 200
