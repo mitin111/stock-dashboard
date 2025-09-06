@@ -429,40 +429,32 @@ with tab5:
                         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
                         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
                         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
-                    ])
+                    ]).normalize()
                     special_sessions = pd.to_datetime([
                         "2025-10-21"  # Example: Diwali Muhurat trading
-                    ])
-                    df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
-                    df = df[(df["datetime"].dt.dayofweek < 5) |
-                            (df["datetime"].dt.normalize().isin(special_sessions))]
-                    
-                    df = df[(df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
-                            (df["datetime"].dt.time <= pd.to_datetime("15:30").time())]
-                    if not df.empty:
-                        df = df.set_index("datetime")
-                        biz_day = CustomBusinessDay(holidays=full_holidays)
-                        trading_days = pd.bdate_range(
-                            start=df.index.min().normalize(),
-                            end=df.index.max().normalize(),
-                            freq=biz_day
-                        )
-                        full_range = []
-                        for day in trading_days:
-                            if day in special_sessions or day.weekday() < 5:
-                                minutes = pd.date_range(
-                                    start=day + pd.Timedelta("09:15:00"),
-                                    end=day + pd.Timedelta("15:30:00"),
-                                    freq=f"{selected_interval}min"
-                                )
-                                full_range.extend(minutes)
-                        full_range = pd.DatetimeIndex(full_range)
-                        df = df.reindex(full_range).rename_axis("datetime").reset_index()
-                        for col in ["open", "high", "low", "close"]:
-                            df[col] = df[col].ffill()
-                        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
-                        df = df[df["volume"] > 0]
-       
+                    ]).normalize()
+                    biz_day = CustomBusinessDay(holidays=full_holidays)
+                    trading_days = pd.bdate_range(
+                        start=df.index.min().normalize(),
+                        end=df.index.max().normalize(),
+                        freq=biz_day
+                    )
+                    full_range = []
+                    for day in trading_days:
+                        if day in special_sessions or day.weekday() < 5:
+                            minutes = pd.date_range(
+                                start=day + pd.Timedelta("09:15:00"),
+                                end=day + pd.Timedelta("15:30:00"),
+                                freq=f"{selected_interval}min"
+                            )
+                            full_range.extend(minutes)
+                    full_range = pd.DatetimeIndex(full_range)
+                    df = df.reindex(full_range).rename_axis("datetime").reset_index()
+                    for col in ["open","high","low","close"]:
+                        df[col] = df[col].ffill()
+                    df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
+                    df = df[df["volume"] > 0]
+
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                     
@@ -510,4 +502,5 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
