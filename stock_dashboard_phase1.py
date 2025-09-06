@@ -193,7 +193,20 @@ with tab5:
 
     ps_api = st.session_state.ps_api
     available_watchlists = [st.session_state.selected_watchlist]
-    selected_interval = st.session_state.get("selected_interval", "1")
+    selected_watchlist = st.selectbox("📁 Select Watchlist for Live Feed", available_watchlists, index=0)
+
+    interval_options = ["1","3","5","10","15","30","60","120","240"]
+
+    default_interval = st.session_state.get("saved_interval", "1")
+    selected_interval = st.selectbox(
+        "⏱️ Candle Interval (minutes)",
+        interval_options,
+        index=interval_options.index(default_interval)
+    )
+
+    if st.button("💾 Save Interval"):
+        st.session_state.saved_interval = selected_interval
+        st.success(f"Interval saved: {selected_interval} min")
 
     # --- Shared UI Queue ---
     if "ui_queue" not in st.session_state:
@@ -438,5 +451,6 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
