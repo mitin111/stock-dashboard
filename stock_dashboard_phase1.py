@@ -123,6 +123,7 @@ with tab3:
             selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
+            st.session_state.all_watchlists = watchlists
             st.session_state.selected_watchlist = selected_wl
 
             wl_data = ps_api.get_watchlist(selected_wl)
@@ -192,8 +193,16 @@ with tab5:
         st.stop()
 
     ps_api = st.session_state.ps_api
-    available_watchlists = [st.session_state.selected_watchlist]
-    selected_watchlist = st.selectbox("📁 Select Watchlist for Live Feed", available_watchlists, index=0)
+    watchlists = st.session_state.get("all_watchlists", [])
+    wl_labels = [f"Watchlist {wl}" for wl in watchlists]
+    current_wl = st.session_state.get("selected_watchlist", watchlists[0])
+    selected_label = st.selectbox(
+        "📁 Select Watchlist for Live Feed",
+        wl_labels,
+        index=wl_labels.index(f"Watchlist {current_wl}") if current_wl in watchlists else 0
+    )
+    selected_watchlist = dict(zip(wl_labels, watchlists))[selected_label]
+    st.session_state.selected_watchlist = selected_watchlist
 
     interval_options = ["1","3","5","10","15","30","60","120","240"]
 
@@ -451,6 +460,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
