@@ -185,6 +185,7 @@ with tab5:
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd
+    pd.set_option('future.no_silent_downcasting', True)  # 👈 Add this line
     from datetime import datetime
 
     # ✅ Guard clause: ps_api + selected_watchlist check
@@ -510,6 +511,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
