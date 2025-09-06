@@ -192,7 +192,7 @@ with tab5:
         st.stop()
 
     ps_api = st.session_state.ps_api
-    selected_watchlist = st.session_state.selected_watchlist
+    available_watchlists = [st.session_state.selected_watchlist]
     selected_interval = st.session_state.get("selected_interval", "1")
 
     # --- Shared UI Queue ---
@@ -438,4 +438,5 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
