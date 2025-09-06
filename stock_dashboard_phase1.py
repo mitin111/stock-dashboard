@@ -423,6 +423,8 @@ with tab5:
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
                 if "datetime" in df.columns and not df["datetime"].isna().all():
+                    from pandas.tseries.offsets import CustomBusinessDay
+                    
                     full_holidays = pd.to_datetime([
                         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
                         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
@@ -439,21 +441,31 @@ with tab5:
                             (df["datetime"].dt.time <= pd.to_datetime("15:30").time())]
                     if not df.empty:
                         df = df.set_index("datetime")
-                        full_range = pd.date_range(
-                            start=df.index.min(),
-                            end=df.index.max(),
-                            freq=f"{selected_interval}min"
+                        biz_day = CustomBusinessDay(holidays=full_holidays)
+                        trading_days = pd.bdate_range(
+                            start=df.index.min().normalize(),
+                            end=df.index.max().normalize(),
+                            freq=biz_day
                         )
+                        full_range = []
+                        for day in trading_days:
+                            if day in special_sessions or day.weekday() < 5:
+                                minutes = pd.date_range(
+                                    start=day + pd.Timedelta("09:15:00"),
+                                    end=day + pd.Timedelta("15:30:00"),
+                                    freq=f"{selected_interval}min"
+                                )
+                                full_range.extend(minutes)
+                        full_range = pd.DatetimeIndex(full_range)
                         df = df.reindex(full_range).rename_axis("datetime").reset_index()
                         for col in ["open", "high", "low", "close"]:
                             df[col] = df[col].ffill()
-
                         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
                         df = df[df["volume"] > 0]
-                       
+       
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
+                    
         if symbols_for_ws:
             if not st.session_state.ws_started:
                 threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
@@ -498,3 +510,4 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
