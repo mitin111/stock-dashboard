@@ -434,6 +434,10 @@ with tab5:
                         "2025-10-21"  # Example: Diwali Muhurat trading
                     ]).normalize()
                     biz_day = CustomBusinessDay(holidays=full_holidays)
+
+                    df = df.copy()
+                    df.index = pd.to_datetime(df.index)
+                    
                     trading_days = pd.bdate_range(
                         start=df.index.min().normalize(),
                         end=df.index.max().normalize(),
@@ -502,5 +506,6 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
