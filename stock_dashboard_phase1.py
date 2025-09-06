@@ -437,7 +437,7 @@ with tab5:
                         for col in ["open", "high", "low", "close"]:
                             df[col] = df[col].ffill()
 
-                        df["volume"] = df["volume"].fillna(0)
+                        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
                         df = df[df["volume"] > 0]
                        
                     _update_local_ohlc_from_df(df)
@@ -487,6 +487,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
