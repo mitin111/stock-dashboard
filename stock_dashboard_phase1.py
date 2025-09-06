@@ -422,21 +422,45 @@ with tab5:
                         df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
+
+                # ✅ Apply NSE holiday + session rules
                 if "datetime" in df.columns and not df["datetime"].isna().all():
+                    # Full-day holidays
                     full_holidays = pd.to_datetime([
                         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
                         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
                         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
                     ])
-                    special_sessions = pd.to_datetime([
-                        "2025-10-21"  # Example: Diwali Muhurat trading
-                    ])
+
+                    # Unexpected closures (manual override)
+                    adhoc_closures = pd.to_datetime([])
+
+                    # Special session dict (date → (start,end))
+                    special_sessions = {
+                        "2025-10-21": ("18:15", "19:15"),  # Diwali Muhurat example
+                    }
+
+                    # Remove full holidays + closures
                     df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
-                    df = df[(df["datetime"].dt.dayofweek < 5) |
-                            (df["datetime"].dt.normalize().isin(special_sessions))]
-                    
-                    df = df[(df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
-                            (df["datetime"].dt.time <= pd.to_datetime("15:30").time())]
+                    df = df[~df["datetime"].dt.normalize().isin(adhoc_closures)]
+
+                    # Normal weekday session
+                    weekday_mask = (
+                        (df["datetime"].dt.dayofweek < 5) &
+                        (df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
+                        (df["datetime"].dt.time <= pd.to_datetime("15:30").time())
+                    )
+
+                    # Special sessions
+                    special_mask = pd.Series(False, index=df.index)
+                    for d, (t1, t2) in special_sessions.items():
+                        start = pd.to_datetime(f"{d} {t1}")
+                        end = pd.to_datetime(f"{d} {t2}")
+                        special_mask |= (df["datetime"] >= start) & (df["datetime"] <= end)
+
+                    # Keep only valid rows
+                    df = df[weekday_mask | special_mask]
+
                     if not df.empty:
                         df = df.set_index("datetime")
                         full_range = pd.date_range(
@@ -450,7 +474,7 @@ with tab5:
 
                         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
                         df = df[df["volume"] > 0]
-                       
+
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
@@ -498,15 +522,3 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
-
-
-
-
-
-
-
-
-
-
-
-
