@@ -434,11 +434,11 @@ with tab5:
                             freq=f"{selected_interval}min"
                         )
                         df = df.reindex(full_range).rename_axis("datetime").reset_index()
-                        df["open"].fillna(method="ffill", inplace=True)
-                        df["high"].fillna(method="ffill", inplace=True)
-                        df["low"].fillna(method="ffill", inplace=True)
-                        df["close"].fillna(method="ffill", inplace=True)
-                        df["volume"].fillna(0, inplace=True)
+                        for col in ["open", "high", "low", "close"]:
+                            df[col] = df[col].ffill()
+
+                        df["volume"] = df["volume"].fillna(0)
+                       
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
@@ -486,6 +486,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
