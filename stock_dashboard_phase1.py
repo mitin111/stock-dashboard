@@ -123,6 +123,8 @@ with tab3:
             selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
             selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
+            st.session_state.selected_watchlist = selected_wl
+
             wl_data = ps_api.get_watchlist(selected_wl)
             if wl_data.get("stat") == "Ok":
                 df = pd.DataFrame(wl_data["values"])
@@ -436,3 +438,4 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
