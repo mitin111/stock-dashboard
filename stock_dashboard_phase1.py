@@ -187,7 +187,20 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
-    # ✅ Guard clause: ps_api + selected_watchlist check
+    # --- Holiday & session constants ---
+    FULL_HOLIDAYS_2025 = pd.to_datetime([
+        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
+        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
+        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
+    ]).normalize()
+
+    FULL_HOLIDAY_STR_2025 = [d.strftime("%Y-%m-%d") for d in FULL_HOLIDAYS_2025]
+
+    SPECIAL_SESSIONS = {
+        "2025-10-21": ("18:15", "19:15"),  # Example Diwali Muhurat
+    }
+
+    # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
         st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
         st.stop()
@@ -205,14 +218,12 @@ with tab5:
     st.session_state.selected_watchlist = selected_watchlist
 
     interval_options = ["1","3","5","10","15","30","60","120","240"]
-
     default_interval = st.session_state.get("saved_interval", "1")
     selected_interval = st.selectbox(
         "⏱️ Candle Interval (minutes)",
         interval_options,
         index=interval_options.index(default_interval)
     )
-
     if st.button("💾 Save Interval"):
         st.session_state.saved_interval = selected_interval
         st.success(f"Interval saved: {selected_interval} min")
@@ -224,11 +235,7 @@ with tab5:
 
     # --- Ensure basic session_state keys ---
     for key, default in {
-        "ohlc_x": [],
-        "ohlc_o": [],
-        "ohlc_h": [],
-        "ohlc_l": [],
-        "ohlc_c": [],
+        "ohlc_x": [], "ohlc_o": [], "ohlc_h": [], "ohlc_l": [], "ohlc_c": [],
         "live_feed_flag": {"active": False},
         "ws_started": False,
         "symbols_for_ws": []
@@ -241,7 +248,7 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Try to use FigureWidget (blink-free updates) ---
+    # --- Try FigureWidget (blink-free updates) ---
     USE_FIGWIDGET = True
     try:
         _ = go.FigureWidget
@@ -251,7 +258,6 @@ with tab5:
     if "live_fig_type" not in st.session_state:
         st.session_state.live_fig_type = "figwidget" if USE_FIGWIDGET else "figure"
 
-    # --- Create figure once (persistent) ---
     if "live_fig" not in st.session_state:
         if st.session_state.live_fig_type == "figwidget":
             st.session_state.live_fig = go.FigureWidget()
@@ -290,10 +296,11 @@ with tab5:
             tickangle=0,
             rangeslider_visible=False,
             rangebreaks=[
-                dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour")
-            ]    
-        )    
+                dict(bounds=["sat", "mon"]),                 # weekends
+                dict(bounds=[15.5, 9.25], pattern="hour"),   # off-hours
+                dict(values=FULL_HOLIDAY_STR_2025)           # holidays
+            ]
+        )
 
     # --- Render chart once ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -303,7 +310,11 @@ with tab5:
         cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
         if not cols:
             raise KeyError("No date/time column found in TPSeries data")
-        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce")
+        s = df_candle[cols[0]].astype(str).str.strip()
+        dt = pd.to_datetime(s, format="%d-%m-%Y %H:%M:%S", errors="coerce", dayfirst=True)
+        if dt.isna().all():
+            dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
+        df_candle["datetime"] = dt
         df_candle.dropna(subset=["datetime"], inplace=True)
         df_candle.sort_values("datetime", inplace=True)
         return df_candle
@@ -334,74 +345,7 @@ with tab5:
                 name="Price"
             ))
 
-    def update_last_candle_from_tick_local(tick: dict, interval: int = 1):
-        if not tick:
-            return
-        try:
-            ts = int(float(tick.get("ft", time.time())))
-        except:
-            ts = int(time.time())
-        vol = int(float(tick.get("v", 0) or 0))
-        m = int(interval)
-        bucket_ts = ts - (ts % (m * 60))
-        key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
-
-        if "live_candles" not in st.session_state:
-            st.session_state.live_candles = {}
-        if key not in st.session_state.live_candles:
-            st.session_state.live_candles[key] = {}
-
-        last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
-        price = float(tick.get("lp") or tick.get("c") or last_close)
-
-        if bucket_ts not in st.session_state.live_candles[key]:
-            st.session_state.live_candles[key][bucket_ts] = {"ts": bucket_ts, "o": price, "h": price, "l": price, "c": price, "v": vol}
-            st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
-            st.session_state.ohlc_o.append(price)
-            st.session_state.ohlc_h.append(price)
-            st.session_state.ohlc_l.append(price)
-            st.session_state.ohlc_c.append(price)
-        else:
-            cndl = st.session_state.live_candles[key][bucket_ts]
-            cndl["c"] = price
-            cndl["h"] = max(cndl["h"], price)
-            cndl["l"] = min(cndl["l"], price)
-            cndl["v"] += vol
-            st.session_state.ohlc_o[-1] = cndl["o"]
-            st.session_state.ohlc_h[-1] = cndl["h"]
-            st.session_state.ohlc_l[-1] = cndl["l"]
-            st.session_state.ohlc_c[-1] = cndl["c"]
-
-        # keep only last 200
-        st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
-        st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
-        st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
-        st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
-        st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
-
-        try:
-            trace = st.session_state.live_fig.data[0]
-            trace.x = st.session_state.ohlc_x
-            trace.open = st.session_state.ohlc_o
-            trace.high = st.session_state.ohlc_h
-            trace.low = st.session_state.ohlc_l
-            trace.close = st.session_state.ohlc_c
-        except Exception:
-            pass
-
-    # --- WebSocket forwarder (THREAD) ---
-    def start_ws(symbols, ps_api, ui_queue):
-        def on_tick_callback(tick):
-            try:
-                ui_queue.put(tick, block=False)
-            except Exception:
-                pass
-        try:
-            ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-        except Exception as e:
-            st.error(f"WS start error: {e}")
-
-    # --- Load TPSeries once + chart render when Start pressed ---
+    # --- Start TPSeries + Live Feed ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
@@ -413,66 +357,48 @@ with tab5:
             except Exception as e:
                 st.warning(f"TPSeries fetch failed: {e}")
                 df = None
+
             if df is not None and not df.empty:
                 try:
                     df = normalize_datetime(df)
                 except Exception:
                     timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
                     if timecols:
-                        df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
+                        df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce", dayfirst=True)
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
 
-                # ✅ Apply NSE holiday + session rules
                 if "datetime" in df.columns and not df["datetime"].isna().all():
-                    # Full-day holidays
-                    full_holidays = pd.to_datetime([
-                        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
-                        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
-                        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
-                    ])
+                    _dt_norm = df["datetime"].dt.normalize()
 
-                    # Unexpected closures (manual override)
-                    adhoc_closures = pd.to_datetime([])
+                    # drop holidays
+                    df = df[~_dt_norm.isin(FULL_HOLIDAYS_2025)]
 
-                    # Special session dict (date → (start,end))
-                    special_sessions = {
-                        "2025-10-21": ("18:15", "19:15"),  # Diwali Muhurat example
-                    }
-
-                    # Remove full holidays + closures
-                    df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
-                    df = df[~df["datetime"].dt.normalize().isin(adhoc_closures)]
-
-                    # Normal weekday session
+                    # weekday normal session
                     weekday_mask = (
                         (df["datetime"].dt.dayofweek < 5) &
                         (df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
                         (df["datetime"].dt.time <= pd.to_datetime("15:30").time())
                     )
 
-                    # Special sessions
+                    # special session mask
                     special_mask = pd.Series(False, index=df.index)
-                    for d, (t1, t2) in special_sessions.items():
+                    for d, (t1, t2) in SPECIAL_SESSIONS.items():
                         start = pd.to_datetime(f"{d} {t1}")
                         end = pd.to_datetime(f"{d} {t2}")
                         special_mask |= (df["datetime"] >= start) & (df["datetime"] <= end)
 
-                    # Keep only valid rows
                     df = df[weekday_mask | special_mask]
 
                     if not df.empty:
                         df = df.set_index("datetime")
-                        full_range = pd.date_range(
-                            start=df.index.min(),
-                            end=df.index.max(),
-                            freq=f"{selected_interval}min"
-                        )
+                        full_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq=f"{selected_interval}min")
                         df = df.reindex(full_range).rename_axis("datetime").reset_index()
-                        for col in ["open", "high", "low", "close"]:
-                            df[col] = df[col].ffill()
 
-                        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
+                        for col in ["open", "high", "low", "close"]:
+                            df[col] = pd.to_numeric(df[col], errors="coerce").ffill()
+
+                        df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce").fillna(0)
                         df = df[df["volume"] > 0]
 
                     _update_local_ohlc_from_df(df)
@@ -486,39 +412,3 @@ with tab5:
                 st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
         else:
             st.info("No symbols to start WS for.")
-
-    if st.button("🛑 Stop Live Feed"):
-        st.session_state.live_feed_flag["active"] = False
-        st.session_state.ws_started = False
-        st.info("🛑 Live feed stopped.")
-
-    # --- Drain ui_queue in main thread and update chart ---
-    processed = 0
-    last_tick = None
-    max_drain = 200
-    for _ in range(max_drain):
-        try:
-            tick = ui_queue.get_nowait()
-        except queue.Empty:
-            break
-        else:
-            update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-            processed += 1
-            last_tick = tick
-
-    if processed > 0:
-        if st.session_state.live_fig_type != "figwidget":
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-        if last_tick:
-            placeholder_ticks.json(last_tick)
-
-    placeholder_status.info(
-        f"WS started: {st.session_state.get('ws_started', False)} | "
-        f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-        f"queue: {ui_queue.qsize()} | "
-        f"processed (this run): {processed} | "
-        f"display_len: {len(st.session_state.ohlc_x)}"
-    )
-
-    if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
-        placeholder_ticks.info("⏳ Waiting for first ticks...")
