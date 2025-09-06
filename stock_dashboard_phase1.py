@@ -453,7 +453,9 @@ with tab5:
                             )
                             full_range.extend(minutes)
                     full_range = pd.DatetimeIndex(full_range)
-                    df = df.reindex(full_range).rename_axis("datetime").reset_index()
+                    df = df.reindex(full_range)
+                    df.index.name = "datetime"
+                    df = df.reset_index()
                     for col in ["open","high","low","close"]:
                         df[col] = df[col].ffill()
                     df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
@@ -506,6 +508,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
