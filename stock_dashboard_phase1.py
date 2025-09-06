@@ -188,7 +188,7 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)  # 👈 Add this line
     from datetime import datetime
 
-    # ✅ Guard clause: ps_api + selected_watchlist check
+    # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
         st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
         st.stop()
@@ -206,14 +206,12 @@ with tab5:
     st.session_state.selected_watchlist = selected_watchlist
 
     interval_options = ["1","3","5","10","15","30","60","120","240"]
-
     default_interval = st.session_state.get("saved_interval", "1")
     selected_interval = st.selectbox(
         "⏱️ Candle Interval (minutes)",
         interval_options,
         index=interval_options.index(default_interval)
     )
-
     if st.button("💾 Save Interval"):
         st.session_state.saved_interval = selected_interval
         st.success(f"Interval saved: {selected_interval} min")
@@ -225,14 +223,10 @@ with tab5:
 
     # --- Ensure basic session_state keys ---
     for key, default in {
-        "ohlc_x": [],
-        "ohlc_o": [],
-        "ohlc_h": [],
-        "ohlc_l": [],
-        "ohlc_c": [],
+        "ohlc_x": [], "ohlc_o": [], "ohlc_h": [],
+        "ohlc_l": [], "ohlc_c": [],
         "live_feed_flag": {"active": False},
-        "ws_started": False,
-        "symbols_for_ws": []
+        "ws_started": False, "symbols_for_ws": []
     }.items():
         if key not in st.session_state:
             st.session_state[key] = default
@@ -293,8 +287,8 @@ with tab5:
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
                 dict(bounds=[15.5, 9.25], pattern="hour")
-            ]    
-        )    
+            ]
+        )
 
     # --- Render chart once ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -335,61 +329,6 @@ with tab5:
                 name="Price"
             ))
 
-    def update_last_candle_from_tick_local(tick: dict, interval: int = 1):
-        if not tick:
-            return
-        try:
-            ts = int(float(tick.get("ft", time.time())))
-        except:
-            ts = int(time.time())
-        vol = int(float(tick.get("v", 0) or 0))
-        m = int(interval)
-        bucket_ts = ts - (ts % (m * 60))
-        key = f"{tick.get('e')}|{tick.get('tk')}|{m}"
-
-        if "live_candles" not in st.session_state:
-            st.session_state.live_candles = {}
-        if key not in st.session_state.live_candles:
-            st.session_state.live_candles[key] = {}
-
-        last_close = st.session_state.ohlc_c[-1] if st.session_state.ohlc_c else 0.0
-        price = float(tick.get("lp") or tick.get("c") or last_close)
-
-        if bucket_ts not in st.session_state.live_candles[key]:
-            st.session_state.live_candles[key][bucket_ts] = {"ts": bucket_ts, "o": price, "h": price, "l": price, "c": price, "v": vol}
-            st.session_state.ohlc_x.append(pd.to_datetime(bucket_ts, unit="s"))
-            st.session_state.ohlc_o.append(price)
-            st.session_state.ohlc_h.append(price)
-            st.session_state.ohlc_l.append(price)
-            st.session_state.ohlc_c.append(price)
-        else:
-            cndl = st.session_state.live_candles[key][bucket_ts]
-            cndl["c"] = price
-            cndl["h"] = max(cndl["h"], price)
-            cndl["l"] = min(cndl["l"], price)
-            cndl["v"] += vol
-            st.session_state.ohlc_o[-1] = cndl["o"]
-            st.session_state.ohlc_h[-1] = cndl["h"]
-            st.session_state.ohlc_l[-1] = cndl["l"]
-            st.session_state.ohlc_c[-1] = cndl["c"]
-
-        # keep only last 200
-        st.session_state.ohlc_x = st.session_state.ohlc_x[-200:]
-        st.session_state.ohlc_o = st.session_state.ohlc_o[-200:]
-        st.session_state.ohlc_h = st.session_state.ohlc_h[-200:]
-        st.session_state.ohlc_l = st.session_state.ohlc_l[-200:]
-        st.session_state.ohlc_c = st.session_state.ohlc_c[-200:]
-
-        try:
-            trace = st.session_state.live_fig.data[0]
-            trace.x = st.session_state.ohlc_x
-            trace.open = st.session_state.ohlc_o
-            trace.high = st.session_state.ohlc_h
-            trace.low = st.session_state.ohlc_l
-            trace.close = st.session_state.ohlc_c
-        except Exception:
-            pass
-
     # --- WebSocket forwarder (THREAD) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
@@ -414,6 +353,7 @@ with tab5:
             except Exception as e:
                 st.warning(f"TPSeries fetch failed: {e}")
                 df = None
+
             if df is not None and not df.empty:
                 try:
                     df = normalize_datetime(df)
@@ -423,27 +363,27 @@ with tab5:
                         df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
+
+                # ✅ Reindex block (safe)
                 if "datetime" in df.columns and not df["datetime"].isna().all():
                     from pandas.tseries.offsets import CustomBusinessDay
-                    
+
                     full_holidays = pd.to_datetime([
                         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
                         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
                         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
                     ]).normalize()
-                    special_sessions = pd.to_datetime([
-                        "2025-10-21"  # Example: Diwali Muhurat trading
-                    ]).normalize()
+                    special_sessions = pd.to_datetime(["2025-10-21"]).normalize()
                     biz_day = CustomBusinessDay(holidays=full_holidays)
 
-                    df = df.copy()
-                    df.index = pd.to_datetime(df.index)
-                    
+                    df = df.set_index("datetime")
+
                     trading_days = pd.bdate_range(
                         start=df.index.min().normalize(),
                         end=df.index.max().normalize(),
                         freq=biz_day
                     )
+
                     full_range = []
                     for day in trading_days:
                         if day in special_sessions or day.weekday() < 5:
@@ -453,20 +393,24 @@ with tab5:
                                 freq=f"{selected_interval}min"
                             )
                             full_range.extend(minutes)
+
                     full_range = pd.DatetimeIndex(full_range)
+
+                    # Safe reindex
                     df = df.reindex(full_range)
-                    if "datetime" in df.columns:
-                        df = df.drop(columns=["datetime"])
                     df.index.name = "datetime"
                     df = df.reset_index()
+
                     for col in ["open","high","low","close"]:
                         df[col] = pd.to_numeric(df[col].ffill(), errors="coerce")
                     df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
-                    df = df[df["volume"] > 0]
+
+                    # ⚠️ optional filter, comment for testing
+                    # df = df[df["volume"] > 0]
 
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                    
+
         if symbols_for_ws:
             if not st.session_state.ws_started:
                 threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
@@ -511,14 +455,3 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
-
-
-
-
-
-
-
-
-
-
-
