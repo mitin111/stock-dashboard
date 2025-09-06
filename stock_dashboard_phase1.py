@@ -284,7 +284,12 @@ with tab5:
             height=700,
             transition_duration=0
         )
-        st.session_state.live_fig.update_xaxes(type="category")  # ✅ gaps remove
+        st.session_state.live_fig.update_xaxes(
+            type="date",
+            tickformat="%d-%m %H:%M",
+            tickangle=45,
+            rangeslider_visible=False
+        )    
 
     # --- Render chart once ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -464,6 +469,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
