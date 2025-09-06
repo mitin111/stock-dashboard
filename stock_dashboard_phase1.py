@@ -423,7 +423,18 @@ with tab5:
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
                 if "datetime" in df.columns and not df["datetime"].isna().all():
-                    df = df[df["datetime"].dt.dayofweek < 5]  # Mon-Fri
+                    full_holidays = pd.to_datetime([
+                        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
+                        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
+                        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
+                    ])
+                    special_sessions = pd.to_datetime([
+                        "2025-10-21"  # Example: Diwali Muhurat trading
+                    ])
+                    df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
+                    df = df[(df["datetime"].dt.dayofweek < 5) |
+                            (df["datetime"].dt.normalize().isin(special_sessions))]
+                    
                     df = df[(df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
                             (df["datetime"].dt.time <= pd.to_datetime("15:30").time())]
                     if not df.empty:
@@ -487,6 +498,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
