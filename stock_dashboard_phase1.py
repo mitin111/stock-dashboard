@@ -287,8 +287,12 @@ with tab5:
         st.session_state.live_fig.update_xaxes(
             type="date",
             tickformat="%d-%m %H:%M",
-            tickangle=45,
-            rangeslider_visible=False
+            tickangle=0,
+            rangeslider_visible=False,
+            rangebreaks=[
+                dict(bounds=["sat", "mon"]),
+                dict(bounds=[15.5, 9.25], pattern="hour")
+            ]    
         )    
 
     # --- Render chart once ---
@@ -469,6 +473,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
