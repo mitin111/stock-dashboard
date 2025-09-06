@@ -284,6 +284,7 @@ with tab5:
             height=700,
             transition_duration=0
         )
+        st.session_state.live_fig.update_xaxes(type="category")  # ✅ gaps remove
 
     # --- Render chart once ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -413,6 +414,9 @@ with tab5:
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
                 if "datetime" in df.columns and not df["datetime"].isna().all():
+                    df = df[df["datetime"].dt.dayofweek < 5]  # Mon-Fri
+                    df = df[(df["datetime"].dt.time >= pd.to_datetime("09:15").time()) &
+                            (df["datetime"].dt.time <= pd.to_datetime("15:30").time())]
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
@@ -460,6 +464,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
