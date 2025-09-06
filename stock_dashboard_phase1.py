@@ -454,6 +454,8 @@ with tab5:
                             full_range.extend(minutes)
                     full_range = pd.DatetimeIndex(full_range)
                     df = df.reindex(full_range)
+                    if "datetime" in df.columns:
+                        df = df.drop(columns=["datetime"])
                     df.index.name = "datetime"
                     df = df.reset_index()
                     for col in ["open","high","low","close"]:
@@ -508,6 +510,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
