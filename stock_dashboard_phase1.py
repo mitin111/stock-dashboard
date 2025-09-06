@@ -184,6 +184,15 @@ with tab5:
     import pandas as pd
     from datetime import datetime
 
+    # ✅ Guard clause: ps_api + selected_watchlist check
+    if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
+        st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
+        st.stop()
+
+    ps_api = st.session_state.ps_api
+    selected_watchlist = st.session_state.selected_watchlist
+    selected_interval = st.session_state.get("selected_interval", "1")
+
     # --- Shared UI Queue ---
     if "ui_queue" not in st.session_state:
         st.session_state.ui_queue = queue.Queue()
