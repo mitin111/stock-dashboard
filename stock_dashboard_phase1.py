@@ -188,6 +188,13 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime
 
+    # --- Always keep datetime index ---
+    df.index = pd.to_datetime(df.index)      # ensure datetime index
+    df.index = df.index.tz_localize(None)    # remove timezone if any
+    
+    df = df.copy()
+    df["datetime"] = df.index
+
     # --- Define Indian market holidays (global) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
@@ -418,8 +425,12 @@ with tab5:
                 if "datetime" in df.columns:
                     df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
                     df = df.drop_duplicates(subset="datetime", keep="last")
-                    df = df.sort_values("datetime").reset_index(drop=True)
-
+                    df = df.sort_values("datetime")
+                    df = df.reset_index(drop=False)
+                    df.rename(columns={"index":"datetime"}, inplace=True)
+                    df["datetime"] = pd.to_datetime(df["datetime"])
+                    df.set_index("datetime", inplace=True)
+     
                 # Convert OHLC properly
                 for col in ["open","high","low","close"]:
                     df[col] = pd.to_numeric(df[col].ffill(), errors="coerce")
@@ -471,6 +482,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
