@@ -293,6 +293,44 @@ with tab5:
     # --- Render chart once ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
+    # --- Candle updater from tick ---
+    def update_last_candle_from_tick_local(tick, interval=1):
+        try:
+            ts = int(tick.get("ft") or tick.get("time"))  # epoch seconds
+            dt = datetime.fromtimestamp(ts, tz=pd.Timestamp.now().tz)
+
+            # Align to interval
+            minute = (dt.minute // interval) * interval
+            candle_time = dt.replace(second=0, microsecond=0, minute=minute)
+
+            price = float(tick["lp"])
+            vol = float(tick.get("v", 0))
+
+            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
+                # Update current candle
+                st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
+                st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
+                st.session_state.ohlc_c[-1] = price
+                st.session_state.ohlc_x[-1] = candle_time
+            else:
+                # Create new candle
+                st.session_state.ohlc_x.append(candle_time)
+                st.session_state.ohlc_o.append(price)
+                st.session_state.ohlc_h.append(price)
+                st.session_state.ohlc_l.append(price)
+                st.session_state.ohlc_c.append(price)
+
+            # Update trace
+            trace = st.session_state.live_fig.data[0]
+            trace.x = st.session_state.ohlc_x
+            trace.open = st.session_state.ohlc_o
+            trace.high = st.session_state.ohlc_h
+            trace.low = st.session_state.ohlc_l
+            trace.close = st.session_state.ohlc_c
+
+        except Exception as e:
+            placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
+
     # --- Helpers ---
     def normalize_datetime(df_candle: pd.DataFrame):
         cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
@@ -404,9 +442,6 @@ with tab5:
                     for col in ["open","high","low","close"]:
                         df[col] = pd.to_numeric(df[col].ffill(), errors="coerce")
                     df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
-
-                    # ⚠️ optional filter, comment for testing
-                    # df = df[df["volume"] > 0]
 
                     _update_local_ohlc_from_df(df)
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
