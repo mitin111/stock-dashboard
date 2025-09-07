@@ -385,11 +385,11 @@ with tab5:
                 decreasing_line_color='#ef5350',
                 name="Price"
             ))
-             # ✅ PATCH: Save last historical datetime for overlap guard
-             if len(st.session_state.ohlc_x) > 0:
-                 st.session_state.last_tp_dt = st.session_state.ohlc_x[-1]
-             else:
-                 st.session_state.last_tp_dt = None
+            # ✅ PATCH: Save last historical datetime for overlap guard
+            if len(st.session_state.ohlc_x) > 0:
+                st.session_state.last_tp_dt = st.session_state.ohlc_x[-1]
+            else:
+                st.session_state.last_tp_dt = None
 
     # --- WebSocket forwarder (THREAD) ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -485,6 +485,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
