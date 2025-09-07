@@ -188,13 +188,6 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime
 
-    # --- Always keep datetime index ---
-    df.index = pd.to_datetime(df.index)      # ensure datetime index
-    df.index = df.index.tz_localize(None)    # remove timezone if any
-    
-    df = df.copy()
-    df["datetime"] = df.index
-
     # --- Define Indian market holidays (global) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
@@ -482,6 +475,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
