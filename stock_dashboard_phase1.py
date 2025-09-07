@@ -195,7 +195,12 @@ with tab5:
         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
     ]).normalize()
 
-    holiday_breaks = full_holidays.to_pydatetime().tolist()
+    holiday_breaks = []
+    for h in full_holidays:
+        times = pd.date_range(h + pd.Timedelta(hours=9, minutes=15),
+                              h + pd.Timedelta(hours=15, minutes=30),
+                              freq="5min")   # agar tumhara interval 5 min hai
+        holiday_breaks.extend(times.to_pydatetime().tolist())
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -464,5 +469,6 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
