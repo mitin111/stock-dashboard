@@ -296,8 +296,7 @@ with tab5:
             rangeslider_visible=False,
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour"),
-                dict(values=holiday_breaks)
+                dict(bounds=[15.5, 9.25], pattern="hour")
             ]
         )
 
@@ -505,6 +504,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
