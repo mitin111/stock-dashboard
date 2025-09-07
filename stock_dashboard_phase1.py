@@ -423,7 +423,7 @@ with tab5:
                 if "datetime" in df.columns:
                     df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
                     df = df.drop_duplicates(subset="datetime", keep="last")
-                    df = df.sort_values("datetime").reset_index(drop=True)
+                    df = df.reset_index(drop=True)
                     df["datetime"] = pd.to_datetime(df["datetime"])
                     df.set_index("datetime", inplace=True)
      
@@ -478,6 +478,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
