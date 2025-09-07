@@ -195,6 +195,8 @@ with tab5:
         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
     ]).normalize()
 
+    holiday_breaks = full_holidays.date.tolist()
+
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
         st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
@@ -293,7 +295,8 @@ with tab5:
             rangeslider_visible=False,
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),           # weekends
-                dict(bounds=[15.5, 9.25], pattern="hour")  # market hours
+                dict(bounds=[15.5, 9.25], pattern="hour"),    # market close
+                dict(values=holiday_breaks)
             ]
         )
 
@@ -461,3 +464,4 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
