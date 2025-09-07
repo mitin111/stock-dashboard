@@ -196,6 +196,7 @@ with tab5:
     ]).normalize()
 
     special_sessions = pd.to_datetime(["2025-10-21"]).normalize()
+    holiday_breaks = full_holidays.to_pydatetime().tolist()
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -296,7 +297,7 @@ with tab5:
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
                 dict(bounds=[15.5, 9.25], pattern="hour"),
-                dict(values=full_holidays.to_pydatetime().tolist())
+                dict(values=holiday_breaks))
             ]
         )
 
@@ -411,6 +412,10 @@ with tab5:
                         df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
+                # ✅ Clean holidays & duplicates
+                if "datetime" in df.columns:
+                    df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
+                    df = df.drop_duplicates(subset="datetime", keep="last")
 
                 # ✅ Reindex block (safe)
                 if "datetime" in df.columns and not df["datetime"].isna().all():
@@ -500,6 +505,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
