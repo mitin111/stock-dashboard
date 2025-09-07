@@ -352,7 +352,7 @@ with tab5:
         return df_candle
 
     def _update_local_ohlc_from_df(df_candle):
-        if "datetime" not in df_candle.columns:
+        if not isinstance(df_candle.index, pd.DatetimeIndex):
             raise KeyError("❌ datetime column missing in DataFrame")
         st.session_state.ohlc_x = list(df_candle["datetime"])
         st.session_state.ohlc_o = list(df_candle["open"].astype(float))
@@ -473,6 +473,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
