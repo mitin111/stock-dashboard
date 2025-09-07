@@ -188,6 +188,15 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)  # 👈 Add this line
     from datetime import datetime
 
+    # --- Define Indian market holidays (global) ---
+    full_holidays = pd.to_datetime([
+        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
+        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
+        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
+    ]).normalize()
+
+    special_sessions = pd.to_datetime(["2025-10-21"]).normalize()
+
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
         st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
@@ -491,6 +500,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
