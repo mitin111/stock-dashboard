@@ -185,7 +185,7 @@ with tab5:
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd
-    pd.set_option('future.no_silent_downcasting', True)  # 👈 Add this line
+    pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime
 
     # --- Define Indian market holidays (global) ---
@@ -194,9 +194,6 @@ with tab5:
         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
     ]).normalize()
-
-    special_sessions = pd.to_datetime(["2025-10-21"]).normalize()
-    holiday_breaks = full_holidays.to_pydatetime().tolist()
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -295,8 +292,8 @@ with tab5:
             tickangle=0,
             rangeslider_visible=False,
             rangebreaks=[
-                dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour")
+                dict(bounds=["sat", "mon"]),           # weekends
+                dict(bounds=[15.5, 9.25], pattern="hour")  # market hours
             ]
         )
 
@@ -309,7 +306,6 @@ with tab5:
             ts = int(tick.get("ft") or tick.get("time"))  # epoch seconds
             dt = datetime.fromtimestamp(ts, tz=pd.Timestamp.now().tz)
 
-            # Align to interval
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
 
@@ -317,20 +313,16 @@ with tab5:
             vol = float(tick.get("v", 0))
 
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
-                # Update current candle
                 st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
                 st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
                 st.session_state.ohlc_c[-1] = price
-                st.session_state.ohlc_x[-1] = candle_time
             else:
-                # Create new candle
                 st.session_state.ohlc_x.append(candle_time)
                 st.session_state.ohlc_o.append(price)
                 st.session_state.ohlc_h.append(price)
                 st.session_state.ohlc_l.append(price)
                 st.session_state.ohlc_c.append(price)
 
-            # Update trace
             trace = st.session_state.live_fig.data[0]
             trace.x = st.session_state.ohlc_x
             trace.open = st.session_state.ohlc_o
@@ -389,7 +381,7 @@ with tab5:
         except Exception as e:
             st.error(f"WS start error: {e}")
 
-    # --- Load TPSeries once + chart render when Start pressed ---
+    # --- Load TPSeries once + chart render ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
@@ -411,54 +403,21 @@ with tab5:
                         df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
                         df.dropna(subset=["datetime"], inplace=True)
                         df.sort_values("datetime", inplace=True)
-                # ✅ Clean holidays & duplicates
+
+                # ✅ Clean holidays & duplicates (final fix)
                 if "datetime" in df.columns:
                     df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
                     df = df.drop_duplicates(subset="datetime", keep="last")
+                    df = df.reset_index(drop=True)
 
-                # ✅ Reindex block (safe)
-                if "datetime" in df.columns and not df["datetime"].isna().all():
-                    from pandas.tseries.offsets import CustomBusinessDay
+                # Convert OHLC properly
+                for col in ["open","high","low","close"]:
+                    df[col] = pd.to_numeric(df[col].ffill(), errors="coerce")
+                df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce").fillna(0)
 
-                    full_holidays = pd.to_datetime([
-                        "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
-                        "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
-                        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
-                    ]).normalize()
-                    special_sessions = pd.to_datetime(["2025-10-21"]).normalize()
-                    biz_day = CustomBusinessDay(holidays=full_holidays)
-
-                    df = df.set_index("datetime")
-
-                    trading_days = pd.bdate_range(
-                        start=df.index.min().normalize(),
-                        end=df.index.max().normalize(),
-                        freq=biz_day
-                    )
-
-                    full_range = []
-                    for day in trading_days:
-                        if day in special_sessions or day.weekday() < 5:
-                            minutes = pd.date_range(
-                                start=day + pd.Timedelta("09:15:00"),
-                                end=day + pd.Timedelta("15:30:00"),
-                                freq=f"{selected_interval}min"
-                            )
-                            full_range.extend(minutes)
-
-                    full_range = pd.DatetimeIndex(full_range)
-
-                    # Safe reindex
-                    df = df.reindex(full_range)
-                    df.index.name = "datetime"
-                    df = df.reset_index()
-
-                    for col in ["open","high","low","close"]:
-                        df[col] = pd.to_numeric(df[col].ffill(), errors="coerce")
-                    df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
-
-                    _update_local_ohlc_from_df(df)
-                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                # Update chart
+                _update_local_ohlc_from_df(df)
+                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         if symbols_for_ws:
             if not st.session_state.ws_started:
@@ -474,11 +433,10 @@ with tab5:
         st.session_state.ws_started = False
         st.info("🛑 Live feed stopped.")
 
-    # --- Drain ui_queue in main thread and update chart ---
+    # --- Drain ui_queue ---
     processed = 0
     last_tick = None
-    max_drain = 200
-    for _ in range(max_drain):
+    for _ in range(200):
         try:
             tick = ui_queue.get_nowait()
         except queue.Empty:
@@ -497,17 +455,9 @@ with tab5:
     placeholder_status.info(
         f"WS started: {st.session_state.get('ws_started', False)} | "
         f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-        f"queue: {ui_queue.qsize()} | "
-        f"processed (this run): {processed} | "
+        f"queue: {ui_queue.qsize()} | processed: {processed} | "
         f"display_len: {len(st.session_state.ohlc_x)}"
     )
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
-
-
-
-
-
-
-
