@@ -359,7 +359,7 @@ with tab5:
         else: 
             raise KeyError("❌ datetime column missing in DataFrame")
             
-        st.session_state.ohlc_x = list(df_candle["datetime"])
+        st.session_state.ohlc_x = x_vals
         st.session_state.ohlc_o = list(df_candle["open"].astype(float))
         st.session_state.ohlc_h = list(df_candle["high"].astype(float))
         st.session_state.ohlc_l = list(df_candle["low"].astype(float))
@@ -478,6 +478,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
