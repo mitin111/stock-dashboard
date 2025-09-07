@@ -316,6 +316,8 @@ with tab5:
 
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
+            if st.session_state.get("last_tp_dt") and candle_time <= st.session_state.last_tp_dt:
+                 return
 
             price = float(tick["lp"])
             vol = float(tick.get("v", 0))
@@ -383,6 +385,11 @@ with tab5:
                 decreasing_line_color='#ef5350',
                 name="Price"
             ))
+             # ✅ PATCH: Save last historical datetime for overlap guard
+             if len(st.session_state.ohlc_x) > 0:
+                 st.session_state.last_tp_dt = st.session_state.ohlc_x[-1]
+             else:
+                 st.session_state.last_tp_dt = None
 
     # --- WebSocket forwarder (THREAD) ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -478,6 +485,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
