@@ -319,9 +319,15 @@ with tab5:
             if st.session_state.get("last_tp_dt") and candle_time <= st.session_state.last_tp_dt:
                  return
 
-            price = float(tick["lp"])
+            # ✅ Step 2 — Normalize Tick (last price as close)
+            if "lp" in tick:
+                last_price = float(tick["lp"])
+            else:
+                last_price = None
+                
+            price = last_price if last_price is not None else None
             vol = float(tick.get("v", 0))
-
+            
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
                 st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
                 st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
@@ -498,6 +504,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
