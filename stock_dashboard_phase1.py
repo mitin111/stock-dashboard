@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from datetime import timezone
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import pytz
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
@@ -514,6 +515,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
