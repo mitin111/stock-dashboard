@@ -286,7 +286,6 @@ with tab5:
         transition_duration=0,
         title=f"{selected_watchlist} - TradingView-style Chart"
     )
-    df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize("Asia/Kolkata", nonexistent='shift_forward', ambiguous='NaT')
     st.session_state.live_fig.update_xaxes(
         showgrid=True, gridwidth=0.5, gridcolor="gray",
         type="date", tickformat="%d-%m %H:%M", tickangle=0,
@@ -512,6 +511,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
