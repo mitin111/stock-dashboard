@@ -442,15 +442,8 @@ with tab5:
                     "low": "min",
                     "close": "last",
                     "volume": "sum"
-                })
+                }).dropna(subset=["close"])   # ❌ remove empty candles
 
-                # Fill missing OHLC (carry forward)
-                df["open"].fillna(method="ffill", inplace=True)
-                df["high"].fillna(df["open"], inplace=True)
-                df["low"].fillna(df["open"], inplace=True)
-                df["close"].fillna(df["open"], inplace=True)
-                df["volume"].fillna(0, inplace=True)
-     
                 # Convert OHLC properly
                 for col in ["open","high","low","close","volume"]:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -501,6 +494,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
