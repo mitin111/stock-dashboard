@@ -434,6 +434,10 @@ with tab5:
                     df["datetime"] = pd.to_datetime(df["datetime"])
                     df.set_index("datetime", inplace=True)
 
+                # ✅ Map lp → close if needed
+                if "lp" in df.columns and "close" not in df.columns:
+                    df["close"] = df["lp"]
+
                 # ✅ Resample to continuous intervals (fix gaps)
                 interval_str = f"{selected_interval}T"  # e.g. "5T"
                 df = df.resample(interval_str).agg({
@@ -494,6 +498,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
