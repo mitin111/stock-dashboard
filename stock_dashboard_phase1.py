@@ -473,7 +473,6 @@ with tab5:
                     df["volume"] = df["volume"].fillna(0)
                     
                 # Update chart
-                _update_local_ohlc_from_df(df)
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         if symbols_for_ws:
@@ -503,12 +502,6 @@ with tab5:
             processed += 1
             last_tick = tick
 
-    if processed > 0:
-        if st.session_state.live_fig_type != "figwidget":
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-        if last_tick:
-            placeholder_ticks.json(last_tick)
-
     placeholder_status.info(
         f"WS started: {st.session_state.get('ws_started', False)} | "
         f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -518,3 +511,4 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
