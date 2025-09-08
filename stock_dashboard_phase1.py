@@ -316,10 +316,7 @@ with tab5:
             buttons=[dict(
                 label="Go to Latest",
                 method="relayout",
-                args=[{"xaxis.range": [
-                    st.session_state.ohlc_x[-50] if len(st.session_state.ohlc_x) > 50 else st.session_state.ohlc_x[0],
-                    st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
-                ]}]
+                args=[{"xaxis.range": [start_range, end_range]}]
             )]
         )]
     )
@@ -511,4 +508,5 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
