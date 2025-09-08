@@ -251,6 +251,10 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
+    # --- Load TPSeries once + chart render ---
+    scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
+    symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
+
     # --- Try to use FigureWidget (blink-free updates) ---
     USE_FIGWIDGET = True
     try:
@@ -354,8 +358,9 @@ with tab5:
             trace.high = st.session_state.ohlc_h
             trace.low = st.session_state.ohlc_l
             trace.close = st.session_state.ohlc_c
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
+            if not USE_FIGWIDGET:
+                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+            
         except Exception as e:
             try:
                 placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
@@ -419,10 +424,28 @@ with tab5:
             except Exception:
                 pass
         try:
-            ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
+            ws = ps_api.connect_websocket(
+                symbols,
+                on_tick=on_tick_callback,
+                tick_file="ticks_tab5.log"
+            )
+            # --- Heartbeat thread (ping every 20 sec) ---
+            def heartbeat():
+                while st.session_state.live_feed_flag.get("active", False):
+                    try:
+                        # Some APIs need ws.send("ping"), others ws.ping()
+                        if hasattr(ws, "ping"):
+                            ws.ping()
+                        else:
+                            ws.send("ping")
+                    except Exception as e:
+                        print(f"⚠️ WS heartbeat failed: {e}")
+                        break
+                    time.sleep(20)  # keep-alive interval
+            threading.Thread(target=heartbeat, daemon=True).start()
         except Exception as e:
             st.error(f"WS start error: {e}")
-
+            
     # --- Load TPSeries once + chart render ---
 scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
 symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
@@ -524,3 +547,4 @@ if st.session_state.live_feed_flag.get("active", False):
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
