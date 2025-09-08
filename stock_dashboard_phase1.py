@@ -306,15 +306,21 @@ with tab5:
 
         st.session_state.live_fig.update_layout(
             xaxis_rangeslider_visible=False,
+            dragmode="pan",
+            hovermode="x unified",
+            showlegend=False,
             template="plotly_dark",
             height=700,
+            margin=dict(l=50, r=50, t=50, b=50),
+            plot_bgcolor="black",
+            paper_bgcolor="black",
+            font=dict(color="white"),
             transition_duration=0,
-            margin=dict(l=10, r=10, t=25, b=10)  # thoda compact layout
+            title=f"{symbol} - TradingView-style Chart"
         )
         st.session_state.live_fig.update_xaxes(
-            type="date",
-            tickformat="%d-%m %H:%M",
-            tickangle=0,
+            showgrid=True, gridwidth=0.5, gridcolor="gray",
+            type="date", tickformat="%d-%m %H:%M", tickangle=0,
             rangeslider_visible=False,
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
@@ -322,7 +328,26 @@ with tab5:
                 dict(values=holiday_breaks)
             ]
         )
-
+        st.session_state.live_fig.update_yaxes(
+            showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
+        )
+        st.session_state.live_fig.update_layout(
+            updatemenus=[dict(
+                type="buttons",
+                direction="left",
+                x=1,
+                y=1.15,
+                buttons=[dict(
+                    label="Go to Latest",
+                    method="relayout",
+                    args=[{"xaxis.range": [
+                        st.session_state.ohlc_x[-50] if len(st.session_state.ohlc_x) > 50 else st.session_state.ohlc_x[0],
+                        st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
+                    ]}]
+                )]
+            )]
+        )    
+ 
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     # --- Helpers ---
@@ -538,5 +563,6 @@ with tab5:
 
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
