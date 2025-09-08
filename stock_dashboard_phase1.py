@@ -331,10 +331,8 @@ with tab5:
                 except ValueError:
                     last_price = None
                 
-            price = last_price if last_price is not None else None
-            if price is None:
-                return  # ❌ invalid tick, skip
-            vol = float(tick.get("v", 0))
+            price = last_price
+            vol = float(tick.get("v", 0)) if tick.get("v") not in (None, "") else 0
             
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
                 st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
@@ -353,10 +351,11 @@ with tab5:
             trace.high = st.session_state.ohlc_h
             trace.low = st.session_state.ohlc_l
             trace.close = st.session_state.ohlc_c
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         except Exception as e:
-            if "placeholder_ticks" in st.session_state:
-                st.session_state.placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
+            try:
+                placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
             else:
                 st.error(f"⚠️ Candle update error: {e}")
            
@@ -402,6 +401,7 @@ with tab5:
                 decreasing_line_color='#ef5350',
                 name="Price"
             ))
+            
             # ✅ PATCH: Save last historical datetime for overlap guard
             if len(st.session_state.ohlc_x) > 0:
                 st.session_state.last_tp_dt = st.session_state.ohlc_x[-1]
@@ -456,18 +456,21 @@ with tab5:
                     df["close"] = df["lp"]
 
                 # ✅ Resample to continuous intervals (fix gaps)
-                interval_str = f"{selected_interval}T"  # e.g. "5T"
+                interval_str = f"{selected_interval}min"
                 df = df.resample(interval_str).agg({
                     "open": "first",
                     "high": "max",
                     "low": "min",
                     "close": "last",
                     "volume": "sum"
-                }).dropna(subset=["close"])   # ❌ remove empty candles
+                })
+
+                df.dropna(subset=["open", "high", "low", "close"], inplace=True)
 
                 # Convert OHLC properly
                 for col in ["open","high","low","close","volume"]:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
+                    df["volume"] = df["volume"].fillna(0)
                     
                 # Update chart
                 _update_local_ohlc_from_df(df)
@@ -515,23 +518,3 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
