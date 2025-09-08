@@ -299,6 +299,15 @@ with tab5:
     st.session_state.live_fig.update_yaxes(
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
     )
+
+    if len(st.session_state.ohlc_x) > 50:
+        start_range = st.session_state.ohlc_x[-50]
+    elif len(st.session_state.ohlc_x) > 0:
+        start_range = st.session_state.ohlc_x[0]
+    else:
+        start_range = None
+    end_range = st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
+    
     st.session_state.live_fig.update_layout(
         updatemenus=[dict(
             type="buttons",
@@ -502,3 +511,4 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
