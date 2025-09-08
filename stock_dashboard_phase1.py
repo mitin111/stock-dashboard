@@ -308,7 +308,7 @@ with tab5:
             xaxis_rangeslider_visible=False,
             template="plotly_dark",
             height=700,
-            transition_duration=0
+            transition_duration=0,
             margin=dict(l=10, r=10, t=25, b=10)  # thoda compact layout
         )
         st.session_state.live_fig.update_xaxes(
@@ -538,4 +538,5 @@ with tab5:
 
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
