@@ -189,6 +189,18 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime
 
+    # --- Initialize session state defaults ---
+    if "live_feed_flag" not in st.session_state:
+        st.session_state.live_feed_flag = {"active": False}
+    if "ws_started" not in st.session_state:
+        st.session_state.ws_started = False
+    if "ohlc_x" not in st.session_state:
+        st.session_state.ohlc_x, st.session_state.ohlc_o, st.session_state.ohlc_h, st.session_state.ohlc_l, st.session_state.ohlc_c = [], [], [], [], []
+    if "live_fig" not in st.session_state:
+        st.session_state.live_fig = go.Figure()
+    if "last_tp_dt" not in st.session_state:
+        st.session_state.last_tp_dt = None
+
     # --- Define Indian market holidays (global) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
@@ -297,6 +309,7 @@ with tab5:
             template="plotly_dark",
             height=700,
             transition_duration=0
+            margin=dict(l=10, r=10, t=25, b=10)  # thoda compact layout
         )
         st.session_state.live_fig.update_xaxes(
             type="date",
@@ -417,18 +430,19 @@ with tab5:
         try:
             ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
 
-            def heartbeat():
-                while st.session_state.live_feed_flag.get("active", False):
+            def heartbeat(ws):
+                while True:
+                    active = st.session_state.get("live_feed_flag", {}).get("active", False)
+                    if not active:
+                        break
                     try:
-                        if hasattr(ws, "ping"):
-                            ws.ping()
-                        else:
-                            ws.send("ping")
+                        ws.send("ping")
                     except Exception as e:
                         print(f"⚠️ WS heartbeat failed: {e}")
                         break
-                    time.sleep(20)
-            threading.Thread(target=heartbeat, daemon=True).start()
+                    time.sleep(20)    
+                        
+            threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
             st.error(f"WS start error: {e}")
 
@@ -524,3 +538,4 @@ with tab5:
 
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
