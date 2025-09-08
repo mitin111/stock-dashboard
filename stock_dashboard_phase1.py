@@ -356,7 +356,7 @@ with tab5:
         except Exception as e:
             try:
                 placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
-            else:
+            except Exception:
                 st.error(f"⚠️ Candle update error: {e}")
            
     # --- Helpers ---
@@ -511,4 +511,5 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
