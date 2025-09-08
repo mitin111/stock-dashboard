@@ -185,7 +185,7 @@ with tab5:
 
     import plotly.graph_objects as go
     import threading, queue, time
-    import pandas as pd
+    import pandas as pd, pytz
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime
 
@@ -200,7 +200,7 @@ with tab5:
     for h in full_holidays:
         times = pd.date_range(h + pd.Timedelta(hours=9, minutes=15),
                               h + pd.Timedelta(hours=15, minutes=30),
-                              freq="5min")   # agar tumhara interval 5 min hai
+                              freq="5min")
         holiday_breaks.extend(times.to_pydatetime().tolist())
 
     # ✅ Guard clause
@@ -241,7 +241,8 @@ with tab5:
         "ohlc_x": [], "ohlc_o": [], "ohlc_h": [],
         "ohlc_l": [], "ohlc_c": [],
         "live_feed_flag": {"active": False},
-        "ws_started": False, "symbols_for_ws": []
+        "ws_started": False, "symbols_for_ws": [],
+        "last_tp_dt": None
     }.items():
         if key not in st.session_state:
             st.session_state[key] = default
@@ -251,11 +252,11 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Load TPSeries once + chart render ---
+    # --- Load scrips ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
-    # --- Try to use FigureWidget (blink-free updates) ---
+    # --- Figure init (blink-free updates) ---
     USE_FIGWIDGET = True
     try:
         _ = go.FigureWidget
@@ -265,7 +266,6 @@ with tab5:
     if "live_fig_type" not in st.session_state:
         st.session_state.live_fig_type = "figwidget" if USE_FIGWIDGET else "figure"
 
-    # --- Create figure once (persistent) ---
     if "live_fig" not in st.session_state:
         if st.session_state.live_fig_type == "figwidget":
             st.session_state.live_fig = go.FigureWidget()
@@ -304,92 +304,39 @@ with tab5:
             tickangle=0,
             rangeslider_visible=False,
             rangebreaks=[
-                dict(bounds=["sat", "mon"]),           # weekends
-                dict(bounds=[15.5, 9.25], pattern="hour"),    # market close
+                dict(bounds=["sat", "mon"]),
+                dict(bounds=[15.5, 9.25], pattern="hour"),
                 dict(values=holiday_breaks)
             ]
         )
 
-    # --- Render chart once ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-    # --- Candle updater from tick ---
-    def update_last_candle_from_tick_local(tick, interval=1):
-        try:
-            ts = int(tick.get("ft") or tick.get("time") or 0)
-            if ts == 0:
-                return
-            dt = datetime.fromtimestamp(ts, tz=pytz.timezone("Asia/Kolkata"))
-
-            # --- Candle Time Slot ---
-            minute = (dt.minute // interval) * interval
-            candle_time = dt.replace(second=0, microsecond=0, minute=minute)
-            if st.session_state.get("last_tp_dt") and candle_time <= st.session_state.last_tp_dt:
-                 return
-
-            # --- Normalize Price ---
-            last_price = None
-            if "lp" in tick and tick["lp"] not in (None, "", "NA"):
-                try:
-                    last_price = float(tick["lp"])
-                except ValueError:
-                    last_price = None
-                
-            price = last_price
-            if price is None:
-                return   # ⛔ skip tick if no valid price
-                
-            vol = float(tick.get("v", 0)) if tick.get("v") not in (None, "") else 0
-            
-            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
-                st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
-                st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
-                st.session_state.ohlc_c[-1] = price
-            else:
-                st.session_state.ohlc_x.append(candle_time)
-                st.session_state.ohlc_o.append(price)
-                st.session_state.ohlc_h.append(price)
-                st.session_state.ohlc_l.append(price)
-                st.session_state.ohlc_c.append(price)
-
-            trace = st.session_state.live_fig.data[0]
-            trace.x = st.session_state.ohlc_x
-            trace.open = st.session_state.ohlc_o
-            trace.high = st.session_state.ohlc_h
-            trace.low = st.session_state.ohlc_l
-            trace.close = st.session_state.ohlc_c
-            if not USE_FIGWIDGET:
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-            
-        except Exception as e:
-            try:
-                placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
-            except Exception:
-                st.error(f"⚠️ Candle update error: {e}")
-           
     # --- Helpers ---
     def normalize_datetime(df_candle: pd.DataFrame):
         cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
         if not cols:
             raise KeyError("No date/time column found in TPSeries data")
-        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce")
+        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce", utc=True)
         df_candle.dropna(subset=["datetime"], inplace=True)
+        df_candle["datetime"] = df_candle["datetime"].dt.tz_convert("Asia/Kolkata")
         df_candle.sort_values("datetime", inplace=True)
         return df_candle
 
     def _update_local_ohlc_from_df(df_candle):
         if isinstance(df_candle.index, pd.DatetimeIndex):
-            x_vals = list(df_candle.index)
+            x_vals = list(df_candle.index.tz_convert("Asia/Kolkata"))
         elif "datetime" in df_candle.columns:
-            x_vals = list(pd.to_datetime(df_candle["datetime"], errors="coerce"))
-        else: 
+            x_vals = list(pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata"))
+        else:
             raise KeyError("❌ datetime column missing in DataFrame")
-            
+
         st.session_state.ohlc_x = x_vals
         st.session_state.ohlc_o = list(df_candle["open"].astype(float))
         st.session_state.ohlc_h = list(df_candle["high"].astype(float))
         st.session_state.ohlc_l = list(df_candle["low"].astype(float))
         st.session_state.ohlc_c = list(df_candle["close"].astype(float))
+
         try:
             trace = st.session_state.live_fig.data[0]
             trace.x = st.session_state.ohlc_x
@@ -409,14 +356,58 @@ with tab5:
                 decreasing_line_color='#ef5350',
                 name="Price"
             ))
-            
-            # ✅ PATCH: Save last historical datetime for overlap guard
-            if len(st.session_state.ohlc_x) > 0:
-                st.session_state.last_tp_dt = st.session_state.ohlc_x[-1]
-            else:
-                st.session_state.last_tp_dt = None
 
-    # --- WebSocket forwarder (THREAD) ---
+        # ✅ Save last historical datetime
+        st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
+
+    def update_last_candle_from_tick_local(tick, interval=1):
+        try:
+            ts = int(tick.get("ft") or tick.get("time") or 0)
+            if ts == 0:
+                return
+            dt = datetime.fromtimestamp(ts, tz=pytz.UTC).astimezone(pytz.timezone("Asia/Kolkata"))
+
+            # --- Candle slot ---
+            minute = (dt.minute // interval) * interval
+            candle_time = dt.replace(second=0, microsecond=0, minute=minute)
+
+            if st.session_state.last_tp_dt and candle_time <= st.session_state.last_tp_dt:
+                return
+
+            price = None
+            if "lp" in tick and tick["lp"] not in (None, "", "NA"):
+                try:
+                    price = float(tick["lp"])
+                except ValueError:
+                    price = None
+            if price is None:
+                return
+
+            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
+                st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
+                st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
+                st.session_state.ohlc_c[-1] = price
+            else:
+                st.session_state.ohlc_x.append(candle_time)
+                st.session_state.ohlc_o.append(price)
+                st.session_state.ohlc_h.append(price)
+                st.session_state.ohlc_l.append(price)
+                st.session_state.ohlc_c.append(price)
+                st.session_state.last_tp_dt = candle_time
+
+            trace = st.session_state.live_fig.data[0]
+            trace.x = st.session_state.ohlc_x
+            trace.open = st.session_state.ohlc_o
+            trace.high = st.session_state.ohlc_h
+            trace.low = st.session_state.ohlc_l
+            trace.close = st.session_state.ohlc_c
+            if not USE_FIGWIDGET:
+                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
+        except Exception as e:
+            placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
+
+    # --- WebSocket forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             try:
@@ -424,16 +415,11 @@ with tab5:
             except Exception:
                 pass
         try:
-            ws = ps_api.connect_websocket(
-                symbols,
-                on_tick=on_tick_callback,
-                tick_file="ticks_tab5.log"
-            )
-            # --- Heartbeat thread (ping every 20 sec) ---
+            ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
+
             def heartbeat():
                 while st.session_state.live_feed_flag.get("active", False):
                     try:
-                        # Some APIs need ws.send("ping"), others ws.ping()
                         if hasattr(ws, "ping"):
                             ws.ping()
                         else:
@@ -441,110 +427,100 @@ with tab5:
                     except Exception as e:
                         print(f"⚠️ WS heartbeat failed: {e}")
                         break
-                    time.sleep(20)  # keep-alive interval
+                    time.sleep(20)
             threading.Thread(target=heartbeat, daemon=True).start()
         except Exception as e:
             st.error(f"WS start error: {e}")
-            
-    # --- Load TPSeries once + chart render ---
-scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
-# ✅ Start feed only if not already active
-if st.session_state.live_feed_flag.get("active", False) == False:
-    if st.button("🚀 Start TPSeries + Live Feed"):
-        st.session_state.live_feed_flag["active"] = True
+    # --- Start Feed ---
+    if not st.session_state.live_feed_flag.get("active", False):
+        if st.button("🚀 Start TPSeries + Live Feed"):
+            st.session_state.live_feed_flag["active"] = True
 
-        # --- Fetch TPSeries for first symbol ---
-        if scrips:
-            s = scrips[0]
-            try:
-                df = ps_api.fetch_full_tpseries(
-                    s["exch"], s["token"], interval=selected_interval, chunk_days=60
-                )
-            except Exception as e:
-                st.warning(f"TPSeries fetch failed: {e}")
-                df = None
-
-            if df is not None and not df.empty:
+            if scrips:
+                s = scrips[0]
                 try:
-                    df = normalize_datetime(df)
-                except Exception:
-                    timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
-                    if timecols:
-                        df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce")
-                        df.dropna(subset=["datetime"], inplace=True)
-                        df.sort_values("datetime", inplace=True)
+                    df = ps_api.fetch_full_tpseries(
+                        s["exch"], s["token"], interval=selected_interval, chunk_days=60
+                    )
+                except Exception as e:
+                    st.warning(f"TPSeries fetch failed: {e}")
+                    df = None
 
-                # ✅ Clean holidays & duplicates
-                if "datetime" in df.columns:
-                    df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
-                    df = df.drop_duplicates(subset="datetime", keep="last")
-                    df = df.reset_index(drop=True)
-                    df["datetime"] = pd.to_datetime(df["datetime"])
-                    df.set_index("datetime", inplace=True)
+                if df is not None and not df.empty:
+                    try:
+                        df = normalize_datetime(df)
+                    except Exception:
+                        timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
+                        if timecols:
+                            df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce", utc=True)
+                            df.dropna(subset=["datetime"], inplace=True)
+                            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+                            df.sort_values("datetime", inplace=True)
 
-                # ✅ Map lp → close if needed
-                if "lp" in df.columns and "close" not in df.columns:
-                    df["close"] = df["lp"]
+                    if "datetime" in df.columns:
+                        df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
+                        df = df.drop_duplicates(subset="datetime", keep="last")
+                        df = df.reset_index(drop=True)
+                        df.set_index("datetime", inplace=True)
 
-                # ✅ Resample to selected interval
-                interval_str = f"{selected_interval}min"
-                df = df.resample(interval_str).agg({
-                    "open": "first",
-                    "high": "max",
-                    "low": "min",
-                    "close": "last",
-                    "volume": "sum"
-                })
-                df.dropna(subset=["open","high","low","close"], inplace=True)
-                for col in ["open","high","low","close","volume"]:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-                df["volume"] = df["volume"].fillna(0)
+                    if "lp" in df.columns and "close" not in df.columns:
+                        df["close"] = df["lp"]
 
-                # --- Update chart with historical data ---
-                _update_local_ohlc_from_df(df)
+                    interval_str = f"{selected_interval}min"
+                    df = df.resample(interval_str).agg({
+                        "open": "first",
+                        "high": "max",
+                        "low": "min",
+                        "close": "last",
+                        "volume": "sum"
+                    })
+                    df.dropna(subset=["open","high","low","close"], inplace=True)
+                    for col in ["open","high","low","close","volume"]:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                    df["volume"] = df["volume"].fillna(0)
 
-        # --- Start WebSocket only once ---
-        if symbols_for_ws and not st.session_state.ws_started:
-            threading.Thread(
-                target=start_ws,
-                args=(symbols_for_ws, ps_api, ui_queue),
-                daemon=True
-            ).start()
-            st.session_state.ws_started = True
-            st.session_state.symbols_for_ws = symbols_for_ws
-            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
-        elif not symbols_for_ws:
-            st.info("No symbols to start WS for.")
+                    _update_local_ohlc_from_df(df)
 
-# --- Stop Live Feed ---
-if st.button("🛑 Stop Live Feed"):
-    st.session_state.live_feed_flag["active"] = False
-    st.session_state.ws_started = False
-    st.info("🛑 Live feed stopped.")
+            if symbols_for_ws and not st.session_state.ws_started:
+                threading.Thread(
+                    target=start_ws,
+                    args=(symbols_for_ws, ps_api, ui_queue),
+                    daemon=True
+                ).start()
+                st.session_state.ws_started = True
+                st.session_state.symbols_for_ws = symbols_for_ws
+                st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
+            elif not symbols_for_ws:
+                st.info("No symbols to start WS for.")
 
-# --- Drain ui_queue if feed active ---
-if st.session_state.live_feed_flag.get("active", False):
-    processed = 0
-    last_tick = None
-    for _ in range(200):
-        try:
-            tick = ui_queue.get_nowait()
-        except queue.Empty:
-            break
-        else:
-            update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-            processed += 1
-            last_tick = tick
+    # --- Stop Feed ---
+    if st.button("🛑 Stop Live Feed"):
+        st.session_state.live_feed_flag["active"] = False
+        st.session_state.ws_started = False
+        st.session_state.last_tp_dt = None   # ✅ reset overlap guard
+        st.info("🛑 Live feed stopped.")
 
-    placeholder_status.info(
-        f"WS started: {st.session_state.get('ws_started', False)} | "
-        f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-        f"queue: {ui_queue.qsize()} | processed: {processed} | "
-        f"display_len: {len(st.session_state.ohlc_x)}"
-    )
+    # --- Drain queue ---
+    if st.session_state.live_feed_flag.get("active", False):
+        processed = 0
+        last_tick = None
+        for _ in range(200):
+            try:
+                tick = ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            else:
+                update_last_candle_from_tick_local(tick, interval=int(selected_interval))
+                processed += 1
+                last_tick = tick
 
-    if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
-        placeholder_ticks.info("⏳ Waiting for first ticks...")
+        placeholder_status.info(
+            f"WS started: {st.session_state.get('ws_started', False)} | "
+            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
+            f"queue: {ui_queue.qsize()} | processed: {processed} | "
+            f"display_len: {len(st.session_state.ohlc_x)}"
+        )
 
+        if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
+            placeholder_ticks.info("⏳ Waiting for first ticks...")
