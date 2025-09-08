@@ -190,16 +190,16 @@ with tab5:
     from datetime import datetime
 
     # --- Initialize session state defaults ---
-    if "live_feed_flag" not in st.session_state:
-        st.session_state.live_feed_flag = {"active": False}
-    if "ws_started" not in st.session_state:
-        st.session_state.ws_started = False
-    if "ohlc_x" not in st.session_state:
-        st.session_state.ohlc_x, st.session_state.ohlc_o, st.session_state.ohlc_h, st.session_state.ohlc_l, st.session_state.ohlc_c = [], [], [], [], []
-    if "live_fig" not in st.session_state:
-        st.session_state.live_fig = go.Figure()
-    if "last_tp_dt" not in st.session_state:
-        st.session_state.last_tp_dt = None
+    for key, default in {
+        "live_feed_flag": {"active": False},
+        "ws_started": False,
+        "ohlc_x": [], "ohlc_o": [], "ohlc_h": [], "ohlc_l": [], "ohlc_c": [],
+        "live_fig": None,
+        "last_tp_dt": None,
+        "symbols_for_ws": []
+    }.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
 
     # --- Define Indian market holidays (global) ---
     full_holidays = pd.to_datetime([
@@ -248,17 +248,6 @@ with tab5:
         st.session_state.ui_queue = queue.Queue()
     ui_queue = st.session_state.ui_queue
 
-    # --- Ensure basic session_state keys ---
-    for key, default in {
-        "ohlc_x": [], "ohlc_o": [], "ohlc_h": [],
-        "ohlc_l": [], "ohlc_c": [],
-        "live_feed_flag": {"active": False},
-        "ws_started": False, "symbols_for_ws": [],
-        "last_tp_dt": None
-    }.items():
-        if key not in st.session_state:
-            st.session_state[key] = default
-
     # --- Placeholders ---
     placeholder_status = st.empty()
     placeholder_ticks = st.empty()
@@ -268,86 +257,65 @@ with tab5:
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
-    # --- Figure init (blink-free updates) ---
-    USE_FIGWIDGET = True
-    try:
-        _ = go.FigureWidget
-    except Exception:
-        USE_FIGWIDGET = False
+    # --- Figure init (only once) ---
+    if st.session_state.live_fig is None:
+        st.session_state.live_fig = go.Figure()
+        st.session_state.live_fig.add_trace(go.Candlestick(
+            x=st.session_state.ohlc_x,
+            open=st.session_state.ohlc_o,
+            high=st.session_state.ohlc_h,
+            low=st.session_state.ohlc_l,
+            close=st.session_state.ohlc_c,
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+            name="Price"
+        ))
 
-    if "live_fig_type" not in st.session_state:
-        st.session_state.live_fig_type = "figwidget" if USE_FIGWIDGET else "figure"
-
-    if "live_fig" not in st.session_state:
-        if st.session_state.live_fig_type == "figwidget":
-            st.session_state.live_fig = go.FigureWidget()
-            st.session_state.live_fig.add_candlestick(
-                x=st.session_state.ohlc_x,
-                open=st.session_state.ohlc_o,
-                high=st.session_state.ohlc_h,
-                low=st.session_state.ohlc_l,
-                close=st.session_state.ohlc_c,
-                increasing_line_color='#26a69a',
-                decreasing_line_color='#ef5350',
-                name="Price"
-            )
-        else:
-            st.session_state.live_fig = go.Figure()
-            st.session_state.live_fig.add_trace(go.Candlestick(
-                x=st.session_state.ohlc_x,
-                open=st.session_state.ohlc_o,
-                high=st.session_state.ohlc_h,
-                low=st.session_state.ohlc_l,
-                close=st.session_state.ohlc_c,
-                increasing_line_color='#26a69a',
-                decreasing_line_color='#ef5350',
-                name="Price"
-            ))
-
-        st.session_state.live_fig.update_layout(
-            xaxis_rangeslider_visible=False,
-            dragmode="pan",
-            hovermode="x unified",
-            showlegend=False,
-            template="plotly_dark",
-            height=700,
-            margin=dict(l=50, r=50, t=50, b=50),
-            plot_bgcolor="black",
-            paper_bgcolor="black",
-            font=dict(color="white"),
-            transition_duration=0,
-            title=f"{symbol} - TradingView-style Chart"
-        )
-        st.session_state.live_fig.update_xaxes(
-            showgrid=True, gridwidth=0.5, gridcolor="gray",
-            type="date", tickformat="%d-%m %H:%M", tickangle=0,
-            rangeslider_visible=False,
-            rangebreaks=[
-                dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour"),
-                dict(values=holiday_breaks)
-            ]
-        )
-        st.session_state.live_fig.update_yaxes(
-            showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
-        )
-        st.session_state.live_fig.update_layout(
-            updatemenus=[dict(
-                type="buttons",
-                direction="left",
-                x=1,
-                y=1.15,
-                buttons=[dict(
-                    label="Go to Latest",
-                    method="relayout",
-                    args=[{"xaxis.range": [
-                        st.session_state.ohlc_x[-50] if len(st.session_state.ohlc_x) > 50 else st.session_state.ohlc_x[0],
-                        st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
-                    ]}]
-                )]
+    # --- Always apply layout (TradingView style) ---
+    st.session_state.live_fig.update_layout(
+        xaxis_rangeslider_visible=False,
+        dragmode="pan",
+        hovermode="x unified",
+        showlegend=False,
+        template="plotly_dark",
+        height=700,
+        margin=dict(l=50, r=50, t=50, b=50),
+        plot_bgcolor="black",
+        paper_bgcolor="black",
+        font=dict(color="white"),
+        transition_duration=0,
+        title=f"{selected_watchlist} - TradingView-style Chart"
+    )
+    st.session_state.live_fig.update_xaxes(
+        showgrid=True, gridwidth=0.5, gridcolor="gray",
+        type="date", tickformat="%d-%m %H:%M", tickangle=0,
+        rangeslider_visible=False,
+        rangebreaks=[
+            dict(bounds=["sat", "mon"]),              # weekends
+            dict(bounds=[15.5, 9.25], pattern="hour"),# off-market hours
+            dict(values=holiday_breaks)               # holidays
+        ]
+    )
+    st.session_state.live_fig.update_yaxes(
+        showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
+    )
+    st.session_state.live_fig.update_layout(
+        updatemenus=[dict(
+            type="buttons",
+            direction="left",
+            x=1, y=1.15,
+            buttons=[dict(
+                label="Go to Latest",
+                method="relayout",
+                args=[{"xaxis.range": [
+                    st.session_state.ohlc_x[-50] if len(st.session_state.ohlc_x) > 50 else st.session_state.ohlc_x[0],
+                    st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
+                ]}]
             )]
-        )    
- 
+        )]
+    )
+
+    # --- Render chart ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     # --- Helpers ---
@@ -390,36 +358,29 @@ with tab5:
                 high=st.session_state.ohlc_h,
                 low=st.session_state.ohlc_l,
                 close=st.session_state.ohlc_c,
-                increasing_line_color='#26a69a',
-                decreasing_line_color='#ef5350',
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
                 name="Price"
             ))
 
-        # ✅ Save last historical datetime
         st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
 
     def update_last_candle_from_tick_local(tick, interval=1):
         try:
             ts = int(tick.get("ft") or tick.get("time") or 0)
-            if ts == 0:
-                return
+            if ts == 0: return
             dt = datetime.fromtimestamp(ts, tz=pytz.UTC).astimezone(pytz.timezone("Asia/Kolkata"))
 
-            # --- Candle slot ---
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
-
             if st.session_state.last_tp_dt and candle_time <= st.session_state.last_tp_dt:
                 return
 
             price = None
             if "lp" in tick and tick["lp"] not in (None, "", "NA"):
-                try:
-                    price = float(tick["lp"])
-                except ValueError:
-                    price = None
-            if price is None:
-                return
+                try: price = float(tick["lp"])
+                except ValueError: price = None
+            if price is None: return
 
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
                 st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
@@ -439,8 +400,7 @@ with tab5:
             trace.high = st.session_state.ohlc_h
             trace.low = st.session_state.ohlc_l
             trace.close = st.session_state.ohlc_c
-            if not USE_FIGWIDGET:
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
@@ -448,25 +408,20 @@ with tab5:
     # --- WebSocket forwarder ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            try:
-                ui_queue.put(tick, block=False)
-            except Exception:
-                pass
+            try: ui_queue.put(tick, block=False)
+            except Exception: pass
         try:
             ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
 
             def heartbeat(ws):
                 while True:
-                    active = st.session_state.get("live_feed_flag", {}).get("active", False)
-                    if not active:
+                    if not st.session_state.get("live_feed_flag", {}).get("active", False):
                         break
-                    try:
-                        ws.send("ping")
+                    try: ws.send("ping")
                     except Exception as e:
                         print(f"⚠️ WS heartbeat failed: {e}")
                         break
-                    time.sleep(20)    
-                        
+                    time.sleep(20)
             threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
             st.error(f"WS start error: {e}")
@@ -479,16 +434,13 @@ with tab5:
             if scrips:
                 s = scrips[0]
                 try:
-                    df = ps_api.fetch_full_tpseries(
-                        s["exch"], s["token"], interval=selected_interval, chunk_days=60
-                    )
+                    df = ps_api.fetch_full_tpseries(s["exch"], s["token"], interval=selected_interval, chunk_days=60)
                 except Exception as e:
                     st.warning(f"TPSeries fetch failed: {e}")
                     df = None
 
                 if df is not None and not df.empty:
-                    try:
-                        df = normalize_datetime(df)
+                    try: df = normalize_datetime(df)
                     except Exception:
                         timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
                         if timecols:
@@ -508,11 +460,7 @@ with tab5:
 
                     interval_str = f"{selected_interval}min"
                     df = df.resample(interval_str).agg({
-                        "open": "first",
-                        "high": "max",
-                        "low": "min",
-                        "close": "last",
-                        "volume": "sum"
+                        "open": "first","high": "max","low": "min","close": "last","volume": "sum"
                     })
                     df.dropna(subset=["open","high","low","close"], inplace=True)
                     for col in ["open","high","low","close","volume"]:
@@ -522,11 +470,7 @@ with tab5:
                     _update_local_ohlc_from_df(df)
 
             if symbols_for_ws and not st.session_state.ws_started:
-                threading.Thread(
-                    target=start_ws,
-                    args=(symbols_for_ws, ps_api, ui_queue),
-                    daemon=True
-                ).start()
+                threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
                 st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
@@ -537,22 +481,18 @@ with tab5:
     if st.button("🛑 Stop Live Feed"):
         st.session_state.live_feed_flag["active"] = False
         st.session_state.ws_started = False
-        st.session_state.last_tp_dt = None   # ✅ reset overlap guard
+        st.session_state.last_tp_dt = None
         st.info("🛑 Live feed stopped.")
 
     # --- Drain queue ---
     if st.session_state.live_feed_flag.get("active", False):
-        processed = 0
-        last_tick = None
+        processed = 0; last_tick = None
         for _ in range(200):
-            try:
-                tick = ui_queue.get_nowait()
-            except queue.Empty:
-                break
+            try: tick = ui_queue.get_nowait()
+            except queue.Empty: break
             else:
                 update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-                processed += 1
-                last_tick = tick
+                processed += 1; last_tick = tick
 
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -560,9 +500,5 @@ with tab5:
             f"queue: {ui_queue.qsize()} | processed: {processed} | "
             f"display_len: {len(st.session_state.ohlc_x)}"
         )
-
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
-
-
-
