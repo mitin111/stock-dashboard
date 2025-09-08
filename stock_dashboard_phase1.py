@@ -332,6 +332,9 @@ with tab5:
                     last_price = None
                 
             price = last_price
+            if price is None:
+                return   # ⛔ skip tick if no valid price
+                
             vol = float(tick.get("v", 0)) if tick.get("v") not in (None, "") else 0
             
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
@@ -511,5 +514,6 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
