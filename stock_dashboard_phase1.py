@@ -292,7 +292,7 @@ with tab5:
         rangeslider_visible=False,
         rangebreaks=[
             dict(bounds=["sat", "mon"]),              # weekends
-            dict(bounds=[15.5, 9.25], pattern="hour"), # 15:30 -> 09:15 (perfect cutoff)
+            dict(bounds=[15.6, 9.25], pattern="hour"), # 3:36 → 9:15 (closing candle preserved)
             dict(values=holiday_breaks)               # holidays
         ]
     )
@@ -433,6 +433,9 @@ with tab5:
             st.error(f"WS start error: {e}")
 
     # --- Start Feed ---
+    if "live_feed_flag" not in st.session_state:
+        st.session_state.live_feed_flag = {"active": False}
+        
     if not st.session_state.live_feed_flag.get("active", False):
         if st.button("🚀 Start TPSeries + Live Feed"):
             st.session_state.live_feed_flag["active"] = True
@@ -508,6 +511,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
