@@ -433,12 +433,28 @@ with tab5:
                     df = df.reset_index(drop=True)
                     df["datetime"] = pd.to_datetime(df["datetime"])
                     df.set_index("datetime", inplace=True)
+
+                # ✅ Resample to continuous intervals (fix gaps)
+                interval_str = f"{selected_interval}T"  # e.g. "5T"
+                df = df.resample(interval_str).agg({
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum"
+                })
+
+                # Fill missing OHLC (carry forward)
+                df["open"].fillna(method="ffill", inplace=True)
+                df["high"].fillna(df["open"], inplace=True)
+                df["low"].fillna(df["open"], inplace=True)
+                df["close"].fillna(df["open"], inplace=True)
+                df["volume"].fillna(0, inplace=True)
      
                 # Convert OHLC properly
-                for col in ["open","high","low","close"]:
-                    df[col] = pd.to_numeric(df[col].ffill(), errors="coerce")
-                df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce").fillna(0)
-
+                for col in ["open","high","low","close","volume"]:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                    
                 # Update chart
                 _update_local_ohlc_from_df(df)
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -485,6 +501,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
