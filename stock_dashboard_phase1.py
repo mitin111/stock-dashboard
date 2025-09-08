@@ -311,21 +311,28 @@ with tab5:
     # --- Candle updater from tick ---
     def update_last_candle_from_tick_local(tick, interval=1):
         try:
-            ts = int(tick.get("ft") or tick.get("time"))  # epoch seconds
-            dt = datetime.fromtimestamp(ts, tz=pd.Timestamp.now().tz)
+            ts = int(tick.get("ft") or tick.get("time") or 0)
+            if ts == 0:
+                return
+            dt = datetime.fromtimestamp(ts, tz=pytz.timezone("Asia/Kolkata"))
 
+            # --- Candle Time Slot ---
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
             if st.session_state.get("last_tp_dt") and candle_time <= st.session_state.last_tp_dt:
                  return
 
-            # ✅ Step 2 — Normalize Tick (last price as close)
-            if "lp" in tick:
-                last_price = float(tick["lp"])
-            else:
-                last_price = None
+            # --- Normalize Price ---
+            last_price = None
+            if "lp" in tick and tick["lp"] not in (None, "", "NA"):
+                try:
+                    last_price = float(tick["lp"])
+                except ValueError:
+                    last_price = None
                 
             price = last_price if last_price is not None else None
+            if price is None:
+                return  # ❌ invalid tick, skip
             vol = float(tick.get("v", 0))
             
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
@@ -347,8 +354,11 @@ with tab5:
             trace.close = st.session_state.ohlc_c
 
         except Exception as e:
-            placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
-
+            if "placeholder_ticks" in st.session_state:
+                st.session_state.placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
+            else:
+                st.error(f"⚠️ Candle update error: {e}")
+           
     # --- Helpers ---
     def normalize_datetime(df_candle: pd.DataFrame):
         cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
@@ -504,6 +514,7 @@ with tab5:
 
     if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
         placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
