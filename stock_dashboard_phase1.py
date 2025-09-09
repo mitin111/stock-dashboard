@@ -430,16 +430,16 @@ with tab5:
                 trace.high = st.session_state.ohlc_h
                 trace.low = st.session_state.ohlc_l
                 trace.close = st.session_state.ohlc_c
-             else:
-                 st.session_state.live_fig.add_trace(go.Candlestick(
-                     x=st.session_state.ohlc_x,
-                     open=st.session_state.ohlc_o,
-                     high=st.session_state.ohlc_h,
-                     low=st.session_state.ohlc_l,
-                     close=st.session_state.ohlc_c,
-                     increasing_line_color="#26a69a",
-                     decreasing_line_color="#ef5350",
-                     name="Price"
+            else:
+                st.session_state.live_fig.add_trace(go.Candlestick(
+                    x=st.session_state.ohlc_x,
+                    open=st.session_state.ohlc_o,
+                    high=st.session_state.ohlc_h,
+                    low=st.session_state.ohlc_l,
+                    close=st.session_state.ohlc_c,
+                    increasing_line_color="#26a69a",
+                    decreasing_line_color="#ef5350",
+                    name="Price"
                 ))     
 
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -557,6 +557,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
