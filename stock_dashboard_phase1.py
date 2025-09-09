@@ -251,6 +251,18 @@ with tab5:
         title=f"{selected_watchlist} - TradingView-style Chart"
     )
     if df is not None and not df.empty:
+        if "time" in df.columns:
+            df["datetime"] = pd.to_datetime(df["time"], unit="s", errors="coerce", utc=True)
+        elif "datetime" in df.columns:
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
+        else:
+            st.warning("No datetime column found in TPSeries data")
+            df = pd.DataFrame()  # prevent further errors
+
+        df.dropna(subset=["datetime"], inplace=True)
+        df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+        df.set_index("datetime", inplace=True)
+
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index, errors="coerce")
             df.dropna(inplace=True)
@@ -357,12 +369,10 @@ with tab5:
 
     def _update_local_ohlc_from_df(df_candle):
         if isinstance(df_candle.index, pd.DatetimeIndex):
-            idx = df_candle.index.tz_convert("Asia/Kolkata")
-            x_vals = list(idx)
-            x_vals = list(idx)
-        elif "datetime" in df_candle.columns:
-            idx = pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata")
-            idx = idx.dt.tz_localize(None)
+            idx = df_candle.index
+            if idx.tz is None:
+                idx = idx.tz_localize("UTC")
+            idx = idx.tz_convert("Asia/Kolkata")
             x_vals = list(idx)
         else:
             raise KeyError("❌ datetime column missing in DataFrame")
@@ -553,4 +563,5 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
