@@ -343,21 +343,21 @@ with tab5:
       return df
 
     # --- Helpers ---
-  def normalize_datetime(df_candle: pd.DataFrame):
-      cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
-      if not cols:
-          raise KeyError("No date/time column found in TPSeries data")
-      df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce", utc=True)
-      df_candle.dropna(subset=["datetime"], inplace=True)
-      df_candle["datetime"] = df_candle["datetime"].dt.tz_convert("Asia/Kolkata")
-      df_candle.sort_values("datetime", inplace=True)
-      return df_candle
+    def normalize_datetime(df_candle: pd.DataFrame):
+        cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
+        if not cols:
+            raise KeyError("No date/time column found in TPSeries data")
+        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce", utc=True)
+        df_candle.dropna(subset=["datetime"], inplace=True)
+        df_candle["datetime"] = df_candle["datetime"].dt.tz_convert("Asia/Kolkata")
+        df_candle.sort_values("datetime", inplace=True)
+        return df_candle
 
-  def _update_local_ohlc_from_df(df_candle):
-      if isinstance(df_candle.index, pd.DatetimeIndex):
-          idx = df_candle.index.tz_convert("Asia/Kolkata")
-          idx = idx.tz_localize(None)
-          x_vals = list(idx)
+    def _update_local_ohlc_from_df(df_candle):
+        if isinstance(df_candle.index, pd.DatetimeIndex):
+            idx = df_candle.index.tz_convert("Asia/Kolkata")
+            idx = idx.tz_localize(None)
+            x_vals = list(idx)
         elif "datetime" in df_candle.columns:
             idx = pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata")
             idx = idx.dt.tz_localize(None)
@@ -551,6 +551,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
