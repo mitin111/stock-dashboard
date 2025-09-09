@@ -475,7 +475,7 @@ with tab5:
             if scrips:
                 s = scrips[0]
                 try:
-                    df = fetch_full_tpseries(ps_api, s["exch"], s["token"], interval=selected_interval, days=60)
+                    df = ps_api.fetch_full_tpseries(s["exch"], s["token"], interval=selected_interval, chunk_days=5, max_days=60)
                     st.write("Fetched TPSeries rows:", len(df) if df is not None else "None")  # 👈 Debug line
                 except Exception as e:
                     st.warning(f"TPSeries fetch failed: {e}")
@@ -553,6 +553,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
