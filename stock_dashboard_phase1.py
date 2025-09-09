@@ -258,10 +258,12 @@ with tab5:
         else:
             st.warning("No datetime column found in TPSeries data")
             df = pd.DataFrame()  # prevent further errors
-
-        df.dropna(subset=["datetime"], inplace=True)
-        df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
-        df.set_index("datetime", inplace=True)
+        if "datetime" in df.columns:
+            df.dropna(subset=["datetime"], inplace=True)
+            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+            df.set_index("datetime", inplace=True)
+        else:
+            df = pd.DataFrame()  # prevent further errors
 
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index, errors="coerce")
@@ -563,5 +565,6 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
