@@ -496,17 +496,24 @@ with tab5:
                     st.warning("TPSeries data is empty. Cannot plot candles.")
                     df = pd.DataFrame()  # prevents crash
                 else:
-                    # --- existing datetime parsing logic ---
+                    if "datetime" not in df.columns:
+                        timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
+                        if timecols:
+                            df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce", utc=True)
+                            df.dropna(subset=["datetime"], inplace=True)
+                            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+                            df.sort_values("datetime", inplace=True)
+                        else:
+                            st.warning("⚠️ No datetime column found in TPSeries data")
+                            df = pd.DataFrame()  # prevent further errors
+
+                     # --- existing datetime parsing logic ---
                     if df is not None and not df.empty:
                         try:
                             df = normalize_datetime(df)
                         except Exception:
-                            timecols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower()]
-                            if timecols:
-                                df["datetime"] = pd.to_datetime(df[timecols[0]], errors="coerce", utc=True)
-                                df.dropna(subset=["datetime"], inplace=True)
-                                df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
-                                df.sort_values("datetime", inplace=True)
+                            pass
+                        
                         if "datetime" in df.columns:
                             df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
                             df = df.drop_duplicates(subset="datetime", keep="last")
@@ -566,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
