@@ -522,7 +522,7 @@ with tab5:
                         for col in ["open","high","low","close","volume"]:
                             df[col] = pd.to_numeric(df[col], errors="coerce")
                         df["volume"] = df["volume"].fillna(0)
-                         _update_local_ohlc_from_df(df)
+                        _update_local_ohlc_from_df(df)
                         # ✅ Force chart refresh after TPSeries preload
                         if st.session_state.ohlc_x:
                             trace = st.session_state.live_fig.data[0]
@@ -566,6 +566,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
