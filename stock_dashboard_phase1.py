@@ -291,9 +291,9 @@ with tab5:
         type="date", tickformat="%d-%m %H:%M", tickangle=0,
         rangeslider_visible=False,
         rangebreaks=[
-            dict(bounds=["sat", "mon"]),              # weekends
-            dict(bounds=[15.5, 9.25], pattern="hour"),  # closed 15:30 → 09:15 IST
-            dict(values=holiday_breaks)               # holidays
+            dict(bounds=["sat", "mon"]),                 # weekends
+            dict(bounds=[15.5, 9.25], pattern="hour"),   # closed (15:30 → 09:15 IST)
+            dict(values=holiday_breaks)                  # NSE holidays
         ]
     )
     st.session_state.live_fig.update_yaxes(
@@ -459,6 +459,12 @@ with tab5:
                             df.sort_values("datetime", inplace=True)
 
                     if "datetime" in df.columns:
+                        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+                        if df["datetime"].dt.tz is None:
+                            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
+                        else:
+                            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+                        
                         df = df[~df["datetime"].dt.normalize().isin(full_holidays)]
                         df = df.drop_duplicates(subset="datetime", keep="last")
                         df = df.reset_index(drop=True)
@@ -511,6 +517,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
