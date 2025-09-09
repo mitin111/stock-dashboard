@@ -492,6 +492,11 @@ with tab5:
                 except Exception as e:
                     st.warning(f"TPSeries fetch failed: {e}")
                     df = None
+                if df is None or df.empty:
+                    st.warning("TPSeries data is empty. Cannot plot candles.")
+                    df = pd.DataFrame()  # prevents crash
+                else:
+                    # --- existing datetime parsing logic ---
 
                 if df is not None and not df.empty:
                     try: df = normalize_datetime(df)
@@ -565,6 +570,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
