@@ -360,9 +360,14 @@ with tab5:
 
     def _update_local_ohlc_from_df(df_candle):
         if isinstance(df_candle.index, pd.DatetimeIndex):
-            x_vals = list(df_candle.index.tz_convert("Asia/Kolkata"))
+            idx = df_candle.index.tz_convert("Asia/Kolkata")
+            idx = idx.tz_localize(None)
+            x_vals = list(idx)
+           
         elif "datetime" in df_candle.columns:
-            x_vals = list(pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata"))
+            idx = pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata")
+            idx = idx.dt.tz_localize(None)
+            x_vals = list(idx)
         else:
             raise KeyError("❌ datetime column missing in DataFrame")
 
@@ -372,25 +377,17 @@ with tab5:
         st.session_state.ohlc_l = list(df_candle["low"].astype(float))
         st.session_state.ohlc_c = list(df_candle["close"].astype(float))
 
-        try:
-            trace = st.session_state.live_fig.data[0]
-            trace.x = st.session_state.ohlc_x
-            trace.open = st.session_state.ohlc_o
-            trace.high = st.session_state.ohlc_h
-            trace.low = st.session_state.ohlc_l
-            trace.close = st.session_state.ohlc_c
-        except Exception:
-            st.session_state.live_fig.data = []
-            st.session_state.live_fig.add_trace(go.Candlestick(
-                x=st.session_state.ohlc_x,
-                open=st.session_state.ohlc_o,
-                high=st.session_state.ohlc_h,
-                low=st.session_state.ohlc_l,
-                close=st.session_state.ohlc_c,
-                increasing_line_color="#26a69a",
-                decreasing_line_color="#ef5350",
-                name="Price"
-            ))
+        st.session_state.live_fig.data = []
+        st.session_state.live_fig.add_trace(go.Candlestick(
+            x=st.session_state.ohlc_x,
+            open=st.session_state.ohlc_o,
+            high=st.session_state.ohlc_h,
+            low=st.session_state.ohlc_l,
+            close=st.session_state.ohlc_c,
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+            name="Price"
+        ))   
 
         st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
 
@@ -402,13 +399,17 @@ with tab5:
 
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
+            candle_time = candle_time.replace(tzinfo=None)
+
             if st.session_state.last_tp_dt and candle_time <= st.session_state.last_tp_dt:
                 return
 
             price = None
             if "lp" in tick and tick["lp"] not in (None, "", "NA"):
-                try: price = float(tick["lp"])
-                except ValueError: price = None
+                try:
+                    price = float(tick["lp"])
+                except ValueError:
+                    price = None
             if price is None: return
 
             if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
@@ -422,15 +423,27 @@ with tab5:
                 st.session_state.ohlc_l.append(price)
                 st.session_state.ohlc_c.append(price)
                 st.session_state.last_tp_dt = candle_time
+            if st.session_state.live_fig.data:
+                trace = st.session_state.live_fig.data[0]
+                trace.x = st.session_state.ohlc_x
+                trace.open = st.session_state.ohlc_o
+                trace.high = st.session_state.ohlc_h
+                trace.low = st.session_state.ohlc_l
+                trace.close = st.session_state.ohlc_c
+             else:
+                 st.session_state.live_fig.add_trace(go.Candlestick(
+                     x=st.session_state.ohlc_x,
+                     open=st.session_state.ohlc_o,
+                     high=st.session_state.ohlc_h,
+                     low=st.session_state.ohlc_l,
+                     close=st.session_state.ohlc_c,
+                     increasing_line_color="#26a69a",
+                     decreasing_line_color="#ef5350",
+                     name="Price"
+                ))     
 
-            trace = st.session_state.live_fig.data[0]
-            trace.x = st.session_state.ohlc_x
-            trace.open = st.session_state.ohlc_o
-            trace.high = st.session_state.ohlc_h
-            trace.low = st.session_state.ohlc_l
-            trace.close = st.session_state.ohlc_c
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
+            
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
@@ -544,6 +557,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
