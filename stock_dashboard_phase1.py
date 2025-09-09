@@ -288,7 +288,13 @@ with tab5:
     if not df.empty:
         start_time = df.index.min()
         end_time   = df.index.max()
-        
+
+        start_time = start_time.tz_convert(None) if start_time.tz else start_time
+        end_time   = end_time.tz_convert(None) if end_time.tz else end_time
+
+        if start_time == end_time:
+            end_time = end_time + pd.Timedelta(minutes=5)
+            
         st.session_state.live_fig.update_xaxes(
             showgrid=True, gridwidth=0.5, gridcolor="gray",
             type="date", tickformat="%d-%m %H:%M", tickangle=0,
@@ -516,6 +522,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
