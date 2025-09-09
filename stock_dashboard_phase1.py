@@ -147,9 +147,7 @@ with tab4:
 def fetch_full_tpseries(api, exch, token, interval, days=60):
     final_df = pd.DataFrame()
 
-    # IST timezone
-    ist_offset = timedelta(hours=5, minutes=30)
-    today_ist = datetime.utcnow() + ist_offset
+    today_ist = datetime.now(pytz.timezone("Asia/Kolkata"))
     end_dt = today_ist
     start_dt = end_dt - timedelta(days=days)
 
@@ -166,7 +164,8 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
 
         if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
             chunk_df = pd.DataFrame(resp["values"])
-            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) + ist_offset
+            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) \
+                                        .dt.tz_convert("Asia/Kolkata")
             chunk_df.set_index("datetime", inplace=True)
             final_df = pd.concat([final_df, chunk_df])
         else:
@@ -517,6 +516,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
