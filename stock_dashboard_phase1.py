@@ -271,7 +271,9 @@ with tab5:
             
         st.session_state.live_fig.update_xaxes(
             showgrid=True, gridwidth=0.5, gridcolor="gray",
-            type="date", tickformat="%d-%m %H:%M", tickangle=0,
+            type="date",
+            tickformat="%d-%m-%Y\n%H:%M",
+            tickangle=0,
             rangeslider_visible=False,
             range=[start_time, end_time],   # <-- ye line add karo
             rangebreaks=[
@@ -356,7 +358,7 @@ with tab5:
     def _update_local_ohlc_from_df(df_candle):
         if isinstance(df_candle.index, pd.DatetimeIndex):
             idx = df_candle.index.tz_convert("Asia/Kolkata")
-            idx = idx.tz_localize(None)
+            x_vals = list(idx)
             x_vals = list(idx)
         elif "datetime" in df_candle.columns:
             idx = pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata")
@@ -393,7 +395,7 @@ with tab5:
 
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
-            candle_time = candle_time.replace(tzinfo=None)
+            candle_time = candle_time.replace(second=0, microsecond=0, minute=minute)
 
             if st.session_state.last_tp_dt and candle_time <= st.session_state.last_tp_dt:
                 return
@@ -551,6 +553,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
