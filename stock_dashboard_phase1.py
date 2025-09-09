@@ -285,7 +285,7 @@ with tab5:
         transition_duration=0,
         title=f"{selected_watchlist} - TradingView-style Chart"
     )
-    if not df.empty:
+    if df is not None and not df.empty:
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index, errors="coerce")
             df.dropna(inplace=True)
@@ -464,6 +464,7 @@ with tab5:
                 s = scrips[0]
                 try:
                     df = ps_api.fetch_full_tpseries(s["exch"], s["token"], interval=selected_interval, chunk_days=60)
+                    st.write("Fetched TPSeries rows:", len(df) if df is not None else "None")  # 👈 Debug line
                 except Exception as e:
                     st.warning(f"TPSeries fetch failed: {e}")
                     df = None
@@ -531,6 +532,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
