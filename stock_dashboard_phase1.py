@@ -496,13 +496,23 @@ with tab5:
                     st.warning("TPSeries data is empty. Cannot plot candles.")
                     df = pd.DataFrame()  # prevents crash
                 else:
-                    df = df[~df.index.normalize().isin(full_holidays)]
-                    df = df.drop_duplicates().sort_index()
-                    full_range = pd.date_range(
-                        start=df.index.min().replace(hour=9, minute=15),
-                        end=df.index.max().replace(hour=15, minute=30),
-                        freq=f"{selected_interval}min",
-                        tz="Asia/Kolkata"
+                    if not isinstance(df.index, pd.DatetimeIndex):
+                        if "datetime" in df.columns:
+                            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
+                            df.dropna(subset=["datetime"], inplace=True)
+                            df.set_index("datetime", inplace=True)
+                        else:
+                            if df.index.tz is None:
+                                df.index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+                            else:
+                                df.index = df.index.tz_convert("Asia/Kolkata")
+                            df = df[~df.index.normalize().isin(full_holidays)]
+                            session_start = df.index.min().normalize().replace(hour=9, minute=15, second=0)
+                            session_end   = df.index.min().normalize().replace(hour=15, minute=30, second=0)
+                            full_range = pd.date_range(
+                                start=session_start,
+                                end=session_end,
+                                freq=f"{selected_interval}min",
                     )
                     df = df.reindex(full_range)
 
@@ -554,6 +564,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
