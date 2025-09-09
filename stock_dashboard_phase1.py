@@ -515,7 +515,7 @@ with tab5:
                         if "lp" in df.columns and "close" not in df.columns:
                             df["close"] = df["lp"]
                         interval_str = f"{selected_interval}min" 
-                        df = df.resample(interval_str).agg(
+                        df = df.resample(interval_str).agg({
                             "open": "first","high": "max","low": "min","close": "last","volume": "sum"
                         })
                         df.dropna(subset=["open","high","low","close"], inplace=True)
@@ -566,6 +566,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
