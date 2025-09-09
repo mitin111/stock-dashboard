@@ -534,7 +534,7 @@ with tab5:
                         if st.session_state.ohlc_x:
                             trace = st.session_state.live_fig.data[0]
                             trace.x = st.session_state.ohlc_x
-                            race.open = st.session_state.ohlc_o
+                            trace.open = st.session_state.ohlc_o
                             trace.high = st.session_state.ohlc_h
                             trace.low = st.session_state.ohlc_l
                             trace.close = st.session_state.ohlc_c
@@ -573,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
