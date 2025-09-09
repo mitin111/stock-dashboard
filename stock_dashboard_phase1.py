@@ -151,6 +151,9 @@ def fetch_full_tpseries(api, exch, token, interval, days=60):
     end_dt = today_ist
     start_dt = end_dt - timedelta(days=days)
 
+    # ✅ Define IST offset (to convert IST → UTC)
+    ist_offset = pytz.timezone("Asia/Kolkata").utcoffset(datetime.now())
+
     current_day = start_dt
     while current_day <= end_dt:
         day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
@@ -541,6 +544,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
