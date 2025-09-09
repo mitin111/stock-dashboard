@@ -143,44 +143,6 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
-# === Function: TPSeries fetch in daily chunks (fix for single candle issue) ===
-def fetch_full_tpseries(api, exch, token, interval, days=60):
-    final_df = pd.DataFrame()
-
-    today_ist = datetime.now(pytz.timezone("Asia/Kolkata"))
-    end_dt = today_ist
-    start_dt = end_dt - timedelta(days=days)
-
-    # ✅ Define IST offset (to convert IST → UTC)
-    ist_offset = pytz.timezone("Asia/Kolkata").utcoffset(datetime.now())
-
-    current_day = start_dt
-    while current_day <= end_dt:
-        day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
-        day_end = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
-
-        # Convert to epoch seconds (UTC)
-        st_epoch = int((day_start - ist_offset).timestamp())
-        et_epoch = int((day_end - ist_offset).timestamp())
-
-        resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
-
-        if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
-            chunk_df = pd.DataFrame(resp["values"])
-            chunk_df["datetime"] = pd.to_datetime(chunk_df["time"], unit="s", utc=True) \
-                                        .dt.tz_convert("Asia/Kolkata")
-            chunk_df.set_index("datetime", inplace=True)
-            final_df = pd.concat([final_df, chunk_df])
-        else:
-            # Weekend/holiday skip message
-            pass  
-
-        current_day += timedelta(days=1)
-        time.sleep(0.3)  # Avoid rate limit
-
-    final_df.sort_index(inplace=True)
-    return final_df
-
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (blink-free)")
@@ -347,23 +309,55 @@ with tab5:
     # --- Render chart ---
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-    # --- Helpers ---
-    def normalize_datetime(df_candle: pd.DataFrame):
-        cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
-        if not cols:
-            raise KeyError("No date/time column found in TPSeries data")
-        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce", utc=True)
-        df_candle.dropna(subset=["datetime"], inplace=True)
-        df_candle["datetime"] = df_candle["datetime"].dt.tz_convert("Asia/Kolkata")
-        df_candle.sort_values("datetime", inplace=True)
-        return df_candle
+    # --- Robust TPSeries fetch ---
+    def fetch_full_tpseries(ps_api, exch, token, interval="1", days=5):
+      ist = pytz.timezone("Asia/Kolkata")
 
-    def _update_local_ohlc_from_df(df_candle):
-        if isinstance(df_candle.index, pd.DatetimeIndex):
-            idx = df_candle.index.tz_convert("Asia/Kolkata")
-            idx = idx.tz_localize(None)
-            x_vals = list(idx)
-           
+      def parse_tp_time(val):
+          try:
+              return datetime.utcfromtimestamp(int(val)).replace(tzinfo=pytz.UTC).astimezone(ist)
+          except Exception:
+              try:
+                  return datetime.strptime(val, "%d-%m-%Y %H:%M:%S").replace(tzinfo=pytz.UTC).astimezone(ist)
+              except Exception:
+                  return None
+
+      all_chunks = []
+      for d in range(days):
+          try:
+              resp = ps_api.get_tps(exch=exch, token=token, interval=interval, days=d)
+              if not resp or "candles" not in resp:
+                  continue 
+              chunk_df = pd.DataFrame(resp["candles"], columns=["time","open","high","low","close","volume"])
+              chunk_df["datetime"] = chunk_df["time"].apply(parse_tp_time)
+              chunk_df.dropna(subset=["datetime"], inplace=True)
+              all_chunks.append(chunk_df)
+          except Exception as e:
+              print(f"⚠️ TPSeries fetch failed for day {d}: {e}")
+
+      if not all_chunks:
+          return pd.DataFrame()
+
+      df = pd.concat(all_chunks).drop_duplicates("datetime").sort_values("datetime")
+      df.set_index("datetime", inplace=True)
+      return df
+
+    # --- Helpers ---
+  def normalize_datetime(df_candle: pd.DataFrame):
+      cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
+      if not cols:
+          raise KeyError("No date/time column found in TPSeries data")
+      df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce", utc=True)
+      df_candle.dropna(subset=["datetime"], inplace=True)
+      df_candle["datetime"] = df_candle["datetime"].dt.tz_convert("Asia/Kolkata")
+      df_candle.sort_values("datetime", inplace=True)
+      return df_candle
+
+  def _update_local_ohlc_from_df(df_candle):
+      if isinstance(df_candle.index, pd.DatetimeIndex):
+          idx = df_candle.index.tz_convert("Asia/Kolkata")
+          idx = idx.tz_localize(None)
+          x_vals = list(idx)
         elif "datetime" in df_candle.columns:
             idx = pd.to_datetime(df_candle["datetime"], errors="coerce").dt.tz_convert("Asia/Kolkata")
             idx = idx.dt.tz_localize(None)
@@ -557,6 +551,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
