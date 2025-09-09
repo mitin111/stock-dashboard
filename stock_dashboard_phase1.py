@@ -513,24 +513,23 @@ with tab5:
                                 start=session_start,
                                 end=session_end,
                                 freq=f"{selected_interval}min",
-                    )
-                    df = df.reindex(full_range)
-
-                    df.dropna(subset=["open","high","low","close"], inplace=True)
-                    for col in ["open","high","low","close","volume"]:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
-                    df["volume"] = df["volume"].fillna(0)
-                    _update_local_ohlc_from_df(df)
-                    # ✅ Force chart refresh after TPSeries preload
-                    if st.session_state.ohlc_x:
-                        trace = st.session_state.live_fig.data[0]
-                        trace.x = st.session_state.ohlc_x
-                        trace.open = st.session_state.ohlc_o
-                        trace.high = st.session_state.ohlc_h
-                        trace.low = st.session_state.ohlc_l
-                        trace.close = st.session_state.ohlc_c
-                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
+                            )
+                            df = df.reindex(full_range)
+                            f.dropna(subset=["open","high","low","close"], inplace=True)
+                            for col in ["open","high","low","close","volume"]:
+                                df[col] = pd.to_numeric(df[col], errors="coerce")
+                            df["volume"] = df["volume"].fillna(0)
+                            _update_local_ohlc_from_df(df) 
+                            # ✅ Force chart refresh after TPSeries preload
+                            if st.session_state.ohlc_x:
+                                trace = st.session_state.live_fig.data[0]
+                                trace.x = st.session_state.ohlc_x
+                                trace.open = st.session_state.ohlc_o
+                                trace.high = st.session_state.ohlc_h
+                                trace.low = st.session_state.ohlc_l
+                                trace.close = st.session_state.ohlc_c
+                                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                                
             if symbols_for_ws and not st.session_state.ws_started:
                 threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
                 st.session_state.ws_started = True
@@ -564,6 +563,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
