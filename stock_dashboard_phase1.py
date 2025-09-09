@@ -286,11 +286,20 @@ with tab5:
         title=f"{selected_watchlist} - TradingView-style Chart"
     )
     if not df.empty:
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index, errors="coerce")
+            df.dropna(inplace=True)
+            
         start_time = df.index.min()
         end_time   = df.index.max()
 
-        start_time = start_time.tz_convert(None) if start_time.tz else start_time
-        end_time   = end_time.tz_convert(None) if end_time.tz else end_time
+        if hasattr(start_time, "tzinfo") and start_time.tzinfo is not None:
+            start_time = start_time.tz_convert(None)
+        if hasattr(end_time, "tzinfo") and end_time.tzinfo is not None:
+            end_time = end_time.tz_convert(None)
+
+        if start_time == end_time:
+            end_time = end_time + pd.Timedelta(minutes=5)
 
         if start_time == end_time:
             end_time = end_time + pd.Timedelta(minutes=5)
@@ -522,6 +531,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
