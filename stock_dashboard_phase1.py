@@ -282,8 +282,8 @@ with tab5:
                 ))
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
     else:
-        st.warning("⚠️ TPSeries data is empty"
-        
+        st.warning("⚠️ TPSeries data is empty")
+       
         st.session_state.live_fig.update_xaxes(
             showgrid=True, gridwidth=0.5, gridcolor="gray",
             type="date",
@@ -573,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
