@@ -145,13 +145,13 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries + Live Tick Data (blink-free)")
+    st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd, pytz
     pd.set_option('future.no_silent_downcasting', True)
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     # --- Initialize session state defaults ---
     for key, default in {
@@ -172,6 +172,7 @@ with tab5:
         "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
     ]).normalize()
 
+    # Precompute holiday rangebreak datetimes (plotly expects datetimes)
     holiday_breaks = []
     for h in full_holidays:
         times = pd.date_range(h + pd.Timedelta(hours=9, minutes=15),
@@ -185,24 +186,22 @@ with tab5:
         st.stop()
 
     ps_api = st.session_state.ps_api
+
+    # UI controls
     watchlists = st.session_state.get("all_watchlists", [])
     wl_labels = [f"Watchlist {wl}" for wl in watchlists]
-    current_wl = st.session_state.get("selected_watchlist", watchlists[0])
-    selected_label = st.selectbox(
-        "📁 Select Watchlist for Live Feed",
-        wl_labels,
-        index=wl_labels.index(f"Watchlist {current_wl}") if current_wl in watchlists else 0
-    )
+    current_wl = st.session_state.get("selected_watchlist", watchlists[0] if watchlists else None)
+    selected_label = st.selectbox("📁 Select Watchlist for Live Feed",
+                                  wl_labels,
+                                  index=wl_labels.index(f"Watchlist {current_wl}") if current_wl in watchlists else 0)
     selected_watchlist = dict(zip(wl_labels, watchlists))[selected_label]
     st.session_state.selected_watchlist = selected_watchlist
 
     interval_options = ["1","3","5","10","15","30","60","120","240"]
-    default_interval = st.session_state.get("saved_interval", "1")
-    selected_interval = st.selectbox(
-        "⏱️ Candle Interval (minutes)",
-        interval_options,
-        index=interval_options.index(default_interval)
-    )
+    default_interval = st.session_state.get("saved_interval", "5")
+    selected_interval = st.selectbox("⏱️ Candle Interval (minutes)",
+                                     interval_options,
+                                     index=interval_options.index(default_interval))
     if st.button("💾 Save Interval"):
         st.session_state.saved_interval = selected_interval
         st.success(f"Interval saved: {selected_interval} min")
@@ -217,7 +216,7 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
-    # --- Load scrips ---
+    # --- Load scrips & prepare WS symbol list ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
@@ -225,177 +224,36 @@ with tab5:
     if st.session_state.live_fig is None:
         st.session_state.live_fig = go.Figure()
         st.session_state.live_fig.add_trace(go.Candlestick(
-            x=st.session_state.ohlc_x,
-            open=st.session_state.ohlc_o,
-            high=st.session_state.ohlc_h,
-            low=st.session_state.ohlc_l,
-            close=st.session_state.ohlc_c,
+            x=[], open=[], high=[], low=[], close=[],
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             name="Price"
         ))
-
-    # --- Always apply layout (TradingView style) ---
-    st.session_state.live_fig.update_layout(
-        xaxis_rangeslider_visible=False,
-        dragmode="pan",
-        hovermode="x unified",
-        showlegend=False,
-        template="plotly_dark",
-        height=700,
-        margin=dict(l=50, r=50, t=50, b=50),
-        plot_bgcolor="black",
-        paper_bgcolor="black",
-        font=dict(color="white"),
-        transition_duration=0,
-        title=f"{selected_watchlist} - TradingView-style Chart"
-    )
-    # ✅ Preload TPSeries data (first symbol only)
-    wl = st.session_state.selected_watchlist
-    interval = st.session_state.get("selected_interval", "5")
-    tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
-
-    if tpseries_results:
-        df = tpseries_results[0]["data"]
-        if "datetime" not in df.columns:
-            st.error("⚠️ No datetime column in TPSeries data")
-        else:
-            df = df.copy()
-            df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert("Asia/Kolkata")
-            df.set_index("datetime", inplace=True)
-            session_date = df.index[0].normalize() if not df.empty else None
-            if session_date is not None:
-                start_time = session_date.replace(hour=9, minute=15)
-                end_time   = session_date.replace(hour=15, minute=30)
-            else:
-                start_time, end_time = None, None
-
-            for col in ["open","high","low","close","volume"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-                df.dropna(subset=["open","high","low","close"], inplace=True)
-
-                st.write(f"Fetched TPSeries rows: {len(df)}")
-
-                st.session_state.live_fig.data = []  # reset traces
-                st.session_state.live_fig.add_trace(go.Candlestick(
-                    x=df.index,
-                    open=df["open"],
-                    high=df["high"],
-                    low=df["low"],
-                    close=df["close"],
-                    increasing_line_color="#26a69a",
-                    decreasing_line_color="#ef5350",
-                    name="Price"
-                ))
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                   
-    else:
-        st.warning("⚠️ TPSeries data is empty")
-        start_time = None
-        end_time = None
-       
-        st.session_state.live_fig.update_xaxes(
-            showgrid=True, gridwidth=0.5, gridcolor="gray",
-            type="date",
-            tickformat="%d-%m-%Y\n%H:%M",
-            tickangle=0,
-            rangeslider_visible=False,
-            range=[start_time, end_time],
-            rangebreaks=[
-                dict(bounds=["sat", "mon"]),                 # weekends
-                dict(bounds=[15.5, 9.25], pattern="hour"),   # closed (15:30 → 09:15 IST)
-                dict(values=holiday_breaks)                  # NSE holidays
-           ]
+        st.session_state.live_fig.update_layout(
+            xaxis_rangeslider_visible=False,
+            dragmode="pan",
+            hovermode="x unified",
+            showlegend=False,
+            template="plotly_dark",
+            height=700,
+            margin=dict(l=50, r=50, t=50, b=50),
+            plot_bgcolor="black",
+            paper_bgcolor="black",
+            font=dict(color="white"),
+            transition_duration=0,
         )
-        
-    st.session_state.live_fig.update_yaxes(
-        showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
-    )
 
-    if len(st.session_state.ohlc_x) > 50:
-        start_range = st.session_state.ohlc_x[-50]
-    elif len(st.session_state.ohlc_x) > 0:
-        start_range = st.session_state.ohlc_x[0]
-    else:
-        start_range = None
-    end_range = st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
-    
-    st.session_state.live_fig.update_layout(
-        updatemenus=[dict(
-            type="buttons",
-            direction="left",
-            x=1, y=1.15,
-            buttons=[dict(
-                label="Go to Latest",
-                method="relayout",
-                args=[{"xaxis.range": [start_range, end_range]}]
-            )]
-        )]
-    )
+    # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
+    def load_history_into_state(df_history):
+        # df_history: indexed by tz-aware Asia/Kolkata datetime, cols open/high/low/close, numeric
+        df_history = df_history.sort_index()
+        st.session_state.ohlc_x = list(df_history.index)
+        st.session_state.ohlc_o = list(df_history["open"].astype(float))
+        st.session_state.ohlc_h = list(df_history["high"].astype(float))
+        st.session_state.ohlc_l = list(df_history["low"].astype(float))
+        st.session_state.ohlc_c = list(df_history["close"].astype(float))
 
-    # --- Render chart ---
-    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-    # --- Robust TPSeries fetch ---
-    def fetch_full_tpseries(api, exch, token, interval="5", days=60):
-        final_df = pd.DataFrame()
-        ist_offset = timedelta(hours=5, minutes=30)
-
-        today_ist = datetime.utcnow() + ist_offset
-        end_dt = today_ist
-        start_dt = end_dt - timedelta(days=days)
-
-        current_day = start_dt
-        while current_day <= end_dt:
-            day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
-            day_end   = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
-
-            st_epoch = int((day_start - ist_offset).timestamp())
-            et_epoch = int((day_end - ist_offset).timestamp())
-
-            resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
-
-            if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
-                chunk_df = pd.DataFrame(resp["values"])
-                chunk_df["datetime"] = pd.to_datetime(
-                    chunk_df["time"], unit="s", utc=True
-                ) + ist_offset
-                chunk_df.set_index("datetime", inplace=True)
-                final_df = pd.concat([final_df, chunk_df])
-
-            current_day += timedelta(days=1)
-            time.sleep(0.3)
-        final_df.sort_index(inplace=True)
-        return final_df      
-
-    # --- Helpers ---
-    def normalize_datetime(df_candle: pd.DataFrame):
-        cols = [c for c in df_candle.columns if "date" in c.lower() or "time" in c.lower()]
-        if not cols:
-            raise KeyError("No date/time column found in TPSeries data")
-        df_candle["datetime"] = pd.to_datetime(df_candle[cols[0]], errors="coerce", utc=True)
-        df_candle.dropna(subset=["datetime"], inplace=True)
-        df_candle["datetime"] = df_candle["datetime"].dt.tz_convert("Asia/Kolkata")
-        df_candle.sort_values("datetime", inplace=True)
-        return df_candle
-
-    def _update_local_ohlc_from_df(df_candle):
-        if isinstance(df_candle.index, pd.DatetimeIndex):
-            idx = df_candle.index
-            if idx.tz is None:
-                idx = idx.tz_localize("UTC")
-            idx = idx.tz_convert("Asia/Kolkata")
-            x_vals = list(idx)
-        else:
-            raise KeyError("❌ datetime column missing in DataFrame")
-
-        st.session_state.ohlc_x = x_vals
-        st.session_state.ohlc_o = list(df_candle["open"].astype(float))
-        st.session_state.ohlc_h = list(df_candle["high"].astype(float))
-        st.session_state.ohlc_l = list(df_candle["low"].astype(float))
-        st.session_state.ohlc_c = list(df_candle["close"].astype(float))
-
+        # Replace existing trace 0 with full history (blink-free)
         st.session_state.live_fig.data = []
         st.session_state.live_fig.add_trace(go.Candlestick(
             x=st.session_state.ohlc_x,
@@ -405,43 +263,59 @@ with tab5:
             close=st.session_state.ohlc_c,
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
-            name="Price"
-        ))   
-
+            name="History"
+        ))
         st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
 
+    # --- Update last candle from tick (blink-free) ---
     def update_last_candle_from_tick_local(tick, interval=1):
         try:
             ts = int(tick.get("ft") or tick.get("time") or 0)
-            if ts == 0: return
+            if ts == 0:
+                return
+            # tick timestamp is epoch seconds UTC -> convert to IST
             dt = datetime.fromtimestamp(ts, tz=pytz.UTC).astimezone(pytz.timezone("Asia/Kolkata"))
 
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
-            candle_time = candle_time.replace(second=0, microsecond=0, minute=minute)
-
-            if st.session_state.last_tp_dt and candle_time <= st.session_state.last_tp_dt:
-                return
 
             price = None
             if "lp" in tick and tick["lp"] not in (None, "", "NA"):
                 try:
                     price = float(tick["lp"])
-                except ValueError:
+                except Exception:
                     price = None
-            if price is None: return
+            if price is None:
+                return
 
-            if st.session_state.ohlc_x and st.session_state.ohlc_x[-1] == candle_time:
-                st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
-                st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
-                st.session_state.ohlc_c[-1] = price
-            else:
-                st.session_state.ohlc_x.append(candle_time)
-                st.session_state.ohlc_o.append(price)
-                st.session_state.ohlc_h.append(price)
-                st.session_state.ohlc_l.append(price)
-                st.session_state.ohlc_c.append(price)
+            # if no history loaded yet, initialize with this candle
+            if not st.session_state.ohlc_x:
+                st.session_state.ohlc_x = [candle_time]
+                st.session_state.ohlc_o = [price]
+                st.session_state.ohlc_h = [price]
+                st.session_state.ohlc_l = [price]
+                st.session_state.ohlc_c = [price]
                 st.session_state.last_tp_dt = candle_time
+            else:
+                # Only update if candle_time is >= last known (allow new session)
+                if st.session_state.last_tp_dt is None or candle_time > st.session_state.last_tp_dt:
+                    # New candle after last TPSeries candle: append
+                    st.session_state.ohlc_x.append(candle_time)
+                    st.session_state.ohlc_o.append(price)
+                    st.session_state.ohlc_h.append(price)
+                    st.session_state.ohlc_l.append(price)
+                    st.session_state.ohlc_c.append(price)
+                    st.session_state.last_tp_dt = candle_time
+                elif candle_time == st.session_state.ohlc_x[-1]:
+                    # update existing last candle values
+                    st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
+                    st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
+                    st.session_state.ohlc_c[-1] = price
+                else:
+                    # tick older than last candle -> ignore
+                    return
+
+            # update the single trace in place (blink-free)
             if st.session_state.live_fig.data:
                 trace = st.session_state.live_fig.data[0]
                 trace.x = st.session_state.ohlc_x
@@ -458,125 +332,147 @@ with tab5:
                     close=st.session_state.ohlc_c,
                     increasing_line_color="#26a69a",
                     decreasing_line_color="#ef5350",
-                    name="Price"
-                ))     
+                    name="Live"
+                ))
 
+            # refresh the chart
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-            
+
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
-    # --- WebSocket forwarder ---
+    # --- WS forwarder (uses ps_api.connect_websocket) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
             try: ui_queue.put(tick, block=False)
-            except Exception: pass
+            except Exception:
+                pass
         try:
             ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-
+            # heartbeat thread
             def heartbeat(ws):
                 while True:
                     if not st.session_state.get("live_feed_flag", {}).get("active", False):
                         break
                     try: ws.send("ping")
-                    except Exception as e:
-                        print(f"⚠️ WS heartbeat failed: {e}")
+                    except Exception:
                         break
                     time.sleep(20)
             threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
             st.error(f"WS start error: {e}")
 
-    # --- Start Feed ---
-    if "live_feed_flag" not in st.session_state:
-        st.session_state.live_feed_flag = {"active": False}
-        
-    if not st.session_state.live_feed_flag.get("active", False):
-        if st.button("🚀 Start TPSeries + Live Feed"):
-            st.session_state.live_feed_flag["active"] = True
+    # --- Preload TPSeries history and auto-start WS ---
+    # Fetch history for the watchlist (first symbol)
+    wl = st.session_state.selected_watchlist
+    interval = selected_interval
+    try:
+        tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
+    except Exception as e:
+        tpseries_results = []
+        st.warning(f"TPSeries fetch error: {e}")
 
-            if scrips:
-                s = scrips[0]
-                try:
-                    df = fetch_full_tpseries(ps_api, s["exch"], s["token"], interval=selected_interval, days=60)
-                    st.write("Fetched TPSeries rows:", len(df) if df is not None else "None")  # 👈 Debug line
-                except Exception as e:
-                    st.warning(f"TPSeries fetch failed: {e}")
-                    df = None
-                if df is None or df.empty:
-                    st.warning("TPSeries data is empty. Cannot plot candles.")
-                    df = pd.DataFrame()  # prevents crash
-                else:
-                    df = df.rename(columns={
-                        "into": "open",
-                        "inth": "high",
-                        "intl": "low",
-                        "intc": "close",
-                        "intv": "volume"
-                    })
-                    for col in ["open","high","low","close","volume"]:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
-                    df.dropna(subset=["open","high","low","close"], inplace=True)
-                    
-                    
-                    if "datetime" not in df.columns:
-                        df.index = pd.to_datetime(df.index, utc=True).tz_convert("Asia/Kolkata")
-                        
-                    else:
-                        df["datetime"] = pd.to_datetime(df["datetime"], utc=True)  # ensure correct UTC parse
-                        df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
-                        df.set_index("datetime", inplace=True)
-                        df = df.between_time("09:15", "15:30")
-                        
-                    df = df[~df.index.normalize().isin(full_holidays)]
-                    df_list = []
-                    for day, day_df in df.groupby(df.index.normalize()):
-                        session_start = day.replace(hour=9, minute=15, second=0)
-                        session_end   = day.replace(hour=15, minute=30, second=0)
-                        full_range = pd.date_range(start=session_start, end=session_end, freq=f"{selected_interval}min", tz="Asia/Kolkata")
-                        day_df = day_df.reindex(full_range)
-                        df_list.append(day_df)
-                    df = pd.concat(df_list)
-                
-                    for col in ["open", "high", "low", "close", "volume"]:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
-                    df["volume"] = df["volume"].fillna(0)
-                    _update_local_ohlc_from_df(df)
+    start_time = None; end_time = None
 
-                    # ✅ Force chart refresh after TPSeries preload
-                    if st.session_state.ohlc_x:
-                        trace = st.session_state.live_fig.data[0]
-                        trace.x = st.session_state.ohlc_x
-                        trace.open = st.session_state.ohlc_o
-                        trace.high = st.session_state.ohlc_h
-                        trace.low = st.session_state.ohlc_l
-                        trace.close = st.session_state.ohlc_c
-                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                                
+    if tpseries_results:
+        # use first symbol's data
+        df = tpseries_results[0]["data"].copy()
+
+        # ensure datetime exists and convert to IST tz-aware
+        if "datetime" not in df.columns:
+            st.error("⚠️ No datetime column in TPSeries data")
+        else:
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True).dt.tz_convert("Asia/Kolkata")
+            df = df.dropna(subset=["datetime"])
+            df.set_index("datetime", inplace=True)
+
+            # remove weekends + holidays
+            df = df[df.index.dayofweek < 5]
+            df = df[~df.index.normalize().isin(full_holidays)]
+
+            # keep only market session rows (09:15 - 15:30)
+            df = df.between_time("09:15", "15:30")
+
+            # numeric cleanup
+            for col in ["into", "inth", "intl", "intc", "intv", "open", "high", "low", "close", "volume"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+            # rename if TPSeries uses into/inth names
+            if "into" in df.columns and "open" not in df.columns:
+                df = df.rename(columns={"into":"open","inth":"high","intl":"low","intc":"close","intv":"volume"})
+
+            df = df.dropna(subset=["open","high","low","close"])
+
+            # choose session_date as the latest trading day available in the data (so axis focuses on most recent session)
+            session_date = df.index.normalize().max() if not df.empty else None
+            if session_date is not None:
+                start_time = session_date.replace(hour=9, minute=15, tzinfo=None)
+                end_time   = session_date.replace(hour=15, minute=30, tzinfo=None)
+                # Note: plotly expects naive datetimes or tz-aware all same. We'll give tz-aware below if available.
+                # But our x values are tz-aware Asia/Kolkata, so we convert start/end to tz-aware:
+                start_time = pd.Timestamp(session_date).replace(hour=9, minute=15, tz="Asia/Kolkata")
+                end_time   = pd.Timestamp(session_date).replace(hour=15, minute=30, tz="Asia/Kolkata")
+            else:
+                start_time, end_time = None, None
+
+            # Load history into session_state & figure
+            load_history_into_state(df)
+
+            st.write(f"Fetched TPSeries rows: {len(df)}")
+
+            # render once with axis limits focused on session
+            st.session_state.live_fig.update_xaxes(
+                showgrid=True, gridwidth=0.5, gridcolor="gray",
+                type="date",
+                tickformat="%d-%m-%Y\n%H:%M",
+                tickangle=0,
+                rangeslider_visible=False,
+                range=[start_time, end_time] if start_time and end_time else None,
+                rangebreaks=[
+                    dict(bounds=["sat", "mon"]),                 # weekends
+                    dict(bounds=[15.5, 9.25], pattern="hour"),   # closed (15:30 → 09:15 IST)
+                    dict(values=holiday_breaks)                  # NSE holidays
+               ]
+            )
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
+            # --- Auto-start websocket (only once) ---
             if symbols_for_ws and not st.session_state.ws_started:
+                st.session_state.live_feed_flag["active"] = True
                 threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
                 st.session_state.ws_started = True
                 st.session_state.symbols_for_ws = symbols_for_ws
                 st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
-            elif not symbols_for_ws:
-                st.info("No symbols to start WS for.")
+    else:
+        st.warning("⚠️ TPSeries data is empty")
+        # still set x axis defaults (no history)
+        st.session_state.live_fig.update_xaxes(
+            showgrid=True, gridwidth=0.5, gridcolor="gray",
+            type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
+            rangeslider_visible=False,
+            range=None,
+            rangebreaks=[
+                dict(bounds=["sat", "mon"]),
+                dict(bounds=[15.5, 9.25], pattern="hour"),
+                dict(values=holiday_breaks)
+            ]
+        )
+        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-    # --- Stop Feed ---
-    if st.button("🛑 Stop Live Feed"):
-        st.session_state.live_feed_flag["active"] = False
-        st.session_state.ws_started = False
-        st.session_state.last_tp_dt = None
-        st.info("🛑 Live feed stopped.")
-
-    # --- Drain queue ---
+    # --- Drain queue and apply live ticks to last candle ---
+    # This block runs each script run and consumes queued ticks (non-blocking)
     if st.session_state.live_feed_flag.get("active", False):
         processed = 0; last_tick = None
-        for _ in range(200):
-            try: tick = ui_queue.get_nowait()
-            except queue.Empty: break
+        for _ in range(500):  # consume up to N ticks each run
+            try:
+                tick = ui_queue.get_nowait()
+            except queue.Empty:
+                break
             else:
                 update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-                processed += 1; last_tick = tick
+                processed += 1
+                last_tick = tick
 
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -587,28 +483,31 @@ with tab5:
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
 
+    # --- "Go to latest" control uses ohlc_x as source of truth ---
+    if len(st.session_state.ohlc_x) > 50:
+        start_range = st.session_state.ohlc_x[-50]
+    elif len(st.session_state.ohlc_x) > 0:
+        start_range = st.session_state.ohlc_x[0]
+    else:
+        start_range = None
+    end_range = st.session_state.ohlc_x[-1] if len(st.session_state.ohlc_x) > 0 else None
 
+    st.session_state.live_fig.update_layout(
+        updatemenus=[dict(
+            type="buttons",
+            direction="left",
+            x=1, y=1.15,
+            buttons=[dict(
+                label="Go to Latest",
+                method="relayout",
+                args=[{"xaxis.range": [start_range, end_range]}]
+            )]
+        )]
+    )
 
+    st.session_state.live_fig.update_yaxes(
+        showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
+    )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # final render (ensures figure in placeholder is current)
+    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
