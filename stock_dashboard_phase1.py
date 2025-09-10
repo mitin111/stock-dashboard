@@ -501,34 +501,40 @@ with tab5:
                             df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
                             df.dropna(subset=["datetime"], inplace=True)
                             df.set_index("datetime", inplace=True)
+                        elif "time" in df.columns:
+                            df["datetime"] = pd.to_datetime(df["time"], errors="coerce", utc=True)
+                            df.dropna(subset=["datetime"], inplace=True)
+                            df.set_index("datetime", inplace=True)
                         else:
+                            df.index = pd.to_datetime(df.index, errors="coerce", utc=True)
+                            df.dropna(inplace=True)
                             if df.index.tz is None:
-                                df.index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
-                            else:
-                                df.index = df.index.tz_convert("Asia/Kolkata")
-                            df = df[~df.index.normalize().isin(full_holidays)]
-                            session_start = df.index.min().normalize().replace(hour=9, minute=15, second=0)
-                            session_end   = df.index.min().normalize().replace(hour=15, minute=30, second=0)
-                            full_range = pd.date_range(
-                                start=session_start,
-                                end=session_end,
-                                freq=f"{selected_interval}min",
-                            )
-                            df = df.reindex(full_range)
-                            f.dropna(subset=["open","high","low","close"], inplace=True)
-                            for col in ["open","high","low","close","volume"]:
-                                df[col] = pd.to_numeric(df[col], errors="coerce")
-                            df["volume"] = df["volume"].fillna(0)
-                            _update_local_ohlc_from_df(df) 
-                            # ✅ Force chart refresh after TPSeries preload
-                            if st.session_state.ohlc_x:
-                                trace = st.session_state.live_fig.data[0]
-                                trace.x = st.session_state.ohlc_x
-                                trace.open = st.session_state.ohlc_o
-                                trace.high = st.session_state.ohlc_h
-                                trace.low = st.session_state.ohlc_l
-                                trace.close = st.session_state.ohlc_c
-                                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                                df.index = df.index.tz_localize("UTC")
+                    df.index = df.index.tz_convert("Asia/Kolkata") 
+                    df = df[~df.index.normalize().isin(full_holidays)]
+                    session_start = df.index.min().normalize().replace(hour=9, minute=15, second=0)
+                    session_end   = df.index.min().normalize().replace(hour=15, minute=30, second=0)
+                    full_range = pd.date_range(
+                        start=session_start,
+                        end=session_end,
+                        freq=f"{selected_interval}min",
+                    )
+                    df = df.reindex(full_range)
+                    df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+                    for col in ["open", "high", "low", "close", "volume"]:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                    df["volume"] = df["volume"].fillna(0)
+                    _update_local_ohlc_from_df(df)
+
+                    # ✅ Force chart refresh after TPSeries preload
+                    if st.session_state.ohlc_x:
+                        trace = st.session_state.live_fig.data[0]
+                        trace.x = st.session_state.ohlc_x
+                        trace.open = st.session_state.ohlc_o
+                        trace.high = st.session_state.ohlc_h
+                        trace.low = st.session_state.ohlc_l
+                        trace.close = st.session_state.ohlc_c
+                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                                 
             if symbols_for_ws and not st.session_state.ws_started:
                 threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
@@ -563,6 +569,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
