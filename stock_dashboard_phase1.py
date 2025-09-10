@@ -383,7 +383,8 @@ with tab5:
     if tpseries_results:
         df = tpseries_results[0]["data"].copy()
         if "datetime" in df.columns:
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True).dt.tz_convert("Asia/Kolkata")
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
             df = df.dropna(subset=["datetime"]).set_index("datetime")
             for col in ["into", "inth", "intl", "intc", "intv", "open", "high", "low", "close", "volume"]:
                 if col in df.columns:
@@ -473,6 +474,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
