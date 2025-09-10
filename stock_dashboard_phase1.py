@@ -281,6 +281,13 @@ with tab5:
                     name="Price"
                 ))
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                if not df.empty:
+                    start_time = df.index.min()
+                    end_time = df.index.max()
+                else:
+                    start_time = None
+                    end_time = None
+                   
     else:
         st.warning("⚠️ TPSeries data is empty")
        
@@ -290,7 +297,7 @@ with tab5:
             tickformat="%d-%m-%Y\n%H:%M",
             tickangle=0,
             rangeslider_visible=False,
-            range=[start_time, end_time],   # <-- ye line add karo
+            range=[start_time, end_time] if start_time and end_time else None,
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),                 # weekends
                 dict(bounds=[15.5, 9.25], pattern="hour"),   # closed (15:30 → 09:15 IST)
@@ -573,6 +580,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
