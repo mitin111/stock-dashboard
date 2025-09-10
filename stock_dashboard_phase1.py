@@ -352,8 +352,8 @@ with tab5:
                 chunk_df.set_index("datetime", inplace=True)
                 final_df = pd.concat([final_df, chunk_df])
 
-             current_day += timedelta(days=1)
-             time.sleep(0.3)
+            current_day += timedelta(days=1)
+            time.sleep(0.3)
          final_df.sort_index(inplace=True)
          return final_df      
 
@@ -573,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
