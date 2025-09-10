@@ -360,7 +360,9 @@ with tab5:
                 while True:
                     if not st.session_state.get("live_feed_flag", {}).get("active", False):
                         break
-                    try: ws.send("ping")
+                    try:
+                        ws.send("ping")
+                        st.session_state.last_heartbeat = datetime.now().strftime("%H:%M:%S")  # ✅ sirf state update
                     except Exception:
                         break
                     time.sleep(20)
@@ -488,6 +490,9 @@ with tab5:
             f"queue: {ui_queue.qsize()} | processed: {processed} | "
             f"display_len: {len(st.session_state.ohlc_x)}"
         )
+        if "last_heartbeat" in st.session_state:
+            placeholder_status.info(f"📡 Last heartbeat: {st.session_state.last_heartbeat}")
+            
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
 
@@ -519,6 +524,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
