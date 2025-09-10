@@ -354,8 +354,8 @@ with tab5:
 
             current_day += timedelta(days=1)
             time.sleep(0.3)
-         final_df.sort_index(inplace=True)
-         return final_df      
+        final_df.sort_index(inplace=True)
+        return final_df      
 
     # --- Helpers ---
     def normalize_datetime(df_candle: pd.DataFrame):
@@ -573,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
