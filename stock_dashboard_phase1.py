@@ -412,20 +412,6 @@ with tab5:
 
             df = df.dropna(subset=["open","high","low","close"])
 
-            # choose session_date as the latest trading day available in the data (so axis focuses on most recent session)
-            session_date = df.index.normalize().max() if not df.empty else None
-            if session_date is not None:
-                start_time = session_date.replace(hour=9, minute=15, tzinfo=None)
-                end_time   = session_date.replace(hour=15, minute=30, tzinfo=None)
-                # Note: plotly expects naive datetimes or tz-aware all same. We'll give tz-aware below if available.
-                # But our x values are tz-aware Asia/Kolkata, so we convert start/end to tz-aware:
-                ts = pd.Timestamp(session_date).replace(hour=9, minute=15)
-                start_time = ts.tz_localize("Asia/Kolkata") if ts.tzinfo is None else ts.tz_convert("Asia/Kolkata")
-                ts = pd.Timestamp(session_date).replace(hour=15, minute=30)
-                end_time = ts.tz_localize("Asia/Kolkata") if ts.tzinfo is None else ts.tz_convert("Asia/Kolkata")
-            else:
-                start_time, end_time = None, None
-
             # Load history into session_state & figure
             load_history_into_state(df)
 
@@ -523,6 +509,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
