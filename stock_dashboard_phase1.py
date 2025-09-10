@@ -380,27 +380,25 @@ with tab5:
         tpseries_results = []
         st.warning(f"TPSeries fetch error: {e}")
 
-    start_time = None; end_time = None
-
     if tpseries_results:
-        # use first symbol's data
         df = tpseries_results[0]["data"].copy()
-
-        # ensure datetime exists and convert to IST tz-aware
-        if "datetime" not in df.columns:
-            st.error("⚠️ No datetime column in TPSeries data")
-        else:
+        if "datetime" in df.columns:
             df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True).dt.tz_convert("Asia/Kolkata")
             df = df.dropna(subset=["datetime"])
             df.set_index("datetime", inplace=True)
-
-            # remove weekends + holidays
-            df = df[df.index.dayofweek < 5]
-            df = df[~df.index.normalize().isin(full_holidays)]
-
-            # keep only market session rows (09:15 - 15:30)
-            df = df.between_time("09:15", "15:30")
-
+            if "into" in df.columns and "open" not in df.columns:
+                df = df.rename(columns={"into":"open","inth":"high","intl":"low","intc":"close","intv":"volume"})
+            for col in ["open","high","low","close","volume"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            df = df.dropna(subset=["open","high","low","close"])
+            load_history_into_state(df)
+            st.write(f"📊 Loaded TPSeries candles: {len(df)}")
+        else:
+            st.error("⚠️ No datetime column in TPSeries data")
+     else:
+         st.warning("⚠️ No TPSeries data fetched")
+        
             # numeric cleanup
             for col in ["into", "inth", "intl", "intc", "intv", "open", "high", "low", "close", "volume"]:
                 if col in df.columns:
@@ -507,6 +505,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
