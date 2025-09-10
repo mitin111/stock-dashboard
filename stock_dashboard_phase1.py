@@ -506,15 +506,14 @@ with tab5:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
                     df.dropna(subset=["open","high","low","close"], inplace=True)
                     
+                    
                     if "datetime" not in df.columns:
-                        if "time" in df.columns:
-                            df["datetime"] = pd.to_datetime(df["time"], errors="coerce", dayfirst=True)
-                            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward")
+                        df.index = pd.to_datetime(df.index, utc=True).tz_convert("Asia/Kolkata")
+                        
+                        else:
+                            df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert("Asia/Kolkata")
+                            df.set_index("datetime", inplace=True)
                             
-                        elif "ssboe" in df.columns:
-                            df["datetime"] = pd.to_datetime(df["ssboe"].astype(int), unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
-                    df.dropna(subset=["datetime"], inplace=True)
-                    df.set_index("datetime", inplace=True)
                     df = df[~df.index.normalize().isin(full_holidays)]
                     df_list = []
                     for day, day_df in df.groupby(df.index.normalize()):
@@ -573,6 +572,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
