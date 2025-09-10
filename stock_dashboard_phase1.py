@@ -326,37 +326,36 @@ with tab5:
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     # --- Robust TPSeries fetch ---
-    def fetch_full_tpseries(ps_api, exch, token, interval="1", days=5):
-      ist = pytz.timezone("Asia/Kolkata")
+    def fetch_full_tpseries(api, exch, token, interval="5", days=60):
+        final_df = pd.DataFrame()
+        ist_offset = timedelta(hours=5, minutes=30)
 
-      def parse_tp_time(val):
-          try:
-              return datetime.utcfromtimestamp(int(val)).replace(tzinfo=pytz.UTC).astimezone(ist)
-          except Exception:
-              try:
-                  return datetime.strptime(val, "%d-%m-%Y %H:%M:%S").replace(tzinfo=pytz.UTC).astimezone(ist)
-              except Exception:
-                  return None
+        today_ist = datetime.utcnow() + ist_offset
+        end_dt = today_ist
+        start_dt = end_dt - timedelta(days=days)
 
-      all_chunks = []
-      for d in range(days):
-          try:
-              resp = ps_api.get_tps(exch=exch, token=token, interval=interval, days=d)
-              if not resp or "candles" not in resp:
-                  continue 
-              chunk_df = pd.DataFrame(resp["candles"], columns=["time","open","high","low","close","volume"])
-              chunk_df["datetime"] = chunk_df["time"].apply(parse_tp_time)
-              chunk_df.dropna(subset=["datetime"], inplace=True)
-              all_chunks.append(chunk_df)
-          except Exception as e:
-              print(f"⚠️ TPSeries fetch failed for day {d}: {e}")
+        current_day = start_dt
+        while current_day <= end_dt:
+            day_start = current_day.replace(hour=9, minute=15, second=0, microsecond=0)
+            day_end   = current_day.replace(hour=15, minute=30, second=0, microsecond=0)
 
-      if not all_chunks:
-          return pd.DataFrame()
+            st_epoch = int((day_start - ist_offset).timestamp())
+            et_epoch = int((day_end - ist_offset).timestamp())
 
-      df = pd.concat(all_chunks).drop_duplicates("datetime").sort_values("datetime")
-      df.set_index("datetime", inplace=True)
-      return df
+            resp = api.get_tpseries(exch, token, interval, st_epoch, et_epoch)
+
+            if isinstance(resp, dict) and resp.get("stat") == "Ok" and "values" in resp:
+                chunk_df = pd.DataFrame(resp["values"])
+                chunk_df["datetime"] = pd.to_datetime(
+                    chunk_df["time"], unit="s", utc=True
+                ) + ist_offset
+                chunk_df.set_index("datetime", inplace=True)
+                final_df = pd.concat([final_df, chunk_df])
+
+             current_day += timedelta(days=1)
+             time.sleep(0.3)
+         final_df.sort_index(inplace=True)
+         return final_df      
 
     # --- Helpers ---
     def normalize_datetime(df_candle: pd.DataFrame):
@@ -487,7 +486,7 @@ with tab5:
             if scrips:
                 s = scrips[0]
                 try:
-                    df = ps_api.fetch_full_tpseries(s["exch"], s["token"], interval=selected_interval, chunk_days=5, max_days=60)
+                    df = fetch_full_tpseries(ps_api, s["exch"], s["token"], interval=selected_interval, days=60)
                     st.write("Fetched TPSeries rows:", len(df) if df is not None else "None")  # 👈 Debug line
                 except Exception as e:
                     st.warning(f"TPSeries fetch failed: {e}")
@@ -496,6 +495,17 @@ with tab5:
                     st.warning("TPSeries data is empty. Cannot plot candles.")
                     df = pd.DataFrame()  # prevents crash
                 else:
+                    df = df.rename(columns={
+                        "into": "open",
+                        "inth": "high",
+                        "intl": "low",
+                        "intc": "close",
+                        "intv": "volume"
+                    })
+                    for col in ["open","high","low","close","volume"]:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                    df.dropna(subset=["open","high","low","close"], inplace=True)
+                    
                     if "datetime" not in df.columns:
                         if "time" in df.columns:
                             df["datetime"] = pd.to_datetime(df["time"], errors="coerce", dayfirst=True)
@@ -514,13 +524,7 @@ with tab5:
                         day_df = day_df.reindex(full_range)
                         df_list.append(day_df)
                     df = pd.concat(df_list)
-                    df.rename(columns={
-                        "into": "open",
-                        "inth": "high",
-                        "intl": "low",
-                        "intc": "close",
-                        "intv": "volume"
-                    }, inplace=True)
+                
                     for col in ["open", "high", "low", "close", "volume"]:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
                     df["volume"] = df["volume"].fillna(0)
@@ -569,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
