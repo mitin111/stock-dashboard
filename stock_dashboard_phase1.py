@@ -263,10 +263,12 @@ with tab5:
             df = df.copy()
             df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert("Asia/Kolkata")
             df.set_index("datetime", inplace=True)
-            df = df[df.index.dayofweek < 5]                       # Monday–Friday
-            df = df[~df.index.normalize().isin(full_holidays)]
-            start_time = df.index.min().replace(hour=9, minute=15)
-            end_time   = df.index.max().replace(hour=15, minute=30)
+            session_date = df.index[0].normalize() if not df.empty else None
+            if session_date is not None:
+                start_time = session_date.replace(hour=9, minute=15)
+                end_time   = session_date.replace(hour=15, minute=30)
+            else:
+                start_time, end_time = None, None
 
             for col in ["open","high","low","close","volume"]:
                 if col in df.columns:
@@ -584,6 +586,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
