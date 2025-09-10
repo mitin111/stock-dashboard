@@ -449,7 +449,6 @@ with tab5:
             range=None,
             rangebreaks=[
                 dict(bounds=["sat", "mon"]),
-                dict(bounds=[15.5, 9.25], pattern="hour"),
                 dict(values=holiday_breaks)
             ]
         )
@@ -509,6 +508,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
