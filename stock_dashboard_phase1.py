@@ -425,8 +425,8 @@ with tab5:
                 tickangle=0,
                 rangeslider_visible=False,
                 rangebreaks=[
-                    dict(bounds=["sat", "mon"]),                 # weekends
-                    dict(values=holiday_breaks)                  # NSE holidays
+                    dict(bounds=["sat", "mon"]),    # weekends skip
+                    dict(values=holiday_breaks)     # NSE holidays skip
                ]
             )
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -507,6 +507,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
