@@ -496,31 +496,31 @@ with tab5:
                     st.warning("TPSeries data is empty. Cannot plot candles.")
                     df = pd.DataFrame()  # prevents crash
                 else:
-                    if not isinstance(df.index, pd.DatetimeIndex):
-                        if "datetime" in df.columns:
-                            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
-                            df.dropna(subset=["datetime"], inplace=True)
-                            df.set_index("datetime", inplace=True)
-                        elif "time" in df.columns:
-                            df["datetime"] = pd.to_datetime(df["time"], errors="coerce", utc=True)
-                            df.dropna(subset=["datetime"], inplace=True)
-                            df.set_index("datetime", inplace=True)
-                        else:
-                            df.index = pd.to_datetime(df.index, errors="coerce", utc=True)
-                            df.dropna(inplace=True)
-                            if df.index.tz is None:
-                                df.index = df.index.tz_localize("UTC")
-                    df.index = df.index.tz_convert("Asia/Kolkata") 
+                    if "datetime" not in df.columns:
+                        if "time" in df.columns:
+                            df["datetime"] = pd.to_datetime(df["time"], errors="coerce", dayfirst=True)
+                            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward")
+                            
+                        elif "ssboe" in df.columns:
+                            df["datetime"] = pd.to_datetime(df["ssboe"].astype(int), unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+                    df.dropna(subset=["datetime"], inplace=True)
+                    df.set_index("datetime", inplace=True)
                     df = df[~df.index.normalize().isin(full_holidays)]
-                    session_start = df.index.min().normalize().replace(hour=9, minute=15, second=0)
-                    session_end   = df.index.min().normalize().replace(hour=15, minute=30, second=0)
-                    full_range = pd.date_range(
-                        start=session_start,
-                        end=session_end,
-                        freq=f"{selected_interval}min",
-                    )
-                    df = df.reindex(full_range)
-                    df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+                    df_list = []
+                    for day, day_df in df.groupby(df.index.normalize()):
+                        session_start = day.replace(hour=9, minute=15, second=0)
+                        session_end   = day.replace(hour=15, minute=30, second=0)
+                        full_range = pd.date_range(start=session_start, end=session_end, freq=f"{selected_interval}min", tz="Asia/Kolkata")
+                        day_df = day_df.reindex(full_range)
+                        df_list.append(day_df)
+                    df = pd.concat(df_list)
+                    df.rename(columns={
+                        "into": "open",
+                        "inth": "high",
+                        "intl": "low",
+                        "intc": "close",
+                        "intv": "volume"
+                    }, inplace=True)
                     for col in ["open", "high", "low", "close", "volume"]:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
                     df["volume"] = df["volume"].fillna(0)
@@ -569,6 +569,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
