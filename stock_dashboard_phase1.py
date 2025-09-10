@@ -250,39 +250,40 @@ with tab5:
         transition_duration=0,
         title=f"{selected_watchlist} - TradingView-style Chart"
     )
-    if df is not None and not df.empty:
-        if "time" in df.columns:
-            df["datetime"] = pd.to_datetime(df["time"], unit="s", errors="coerce", utc=True)
-        elif "datetime" in df.columns:
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
+    # ✅ Preload TPSeries data (first symbol only)
+    wl = st.session_state.selected_watchlist
+    interval = st.session_state.get("selected_interval", "5")
+    tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
+
+    if tpseries_results:
+        df = tpseries_results[0]["data"]
+        if "datetime" not in df.columns:
+            st.error("⚠️ No datetime column in TPSeries data")
         else:
-            st.warning("No datetime column found in TPSeries data")
-            df = pd.DataFrame()  # prevent further errors
-        if "datetime" in df.columns:
-            df.dropna(subset=["datetime"], inplace=True)
-            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+            df = df.copy()
             df.set_index("datetime", inplace=True)
+            for col in ["open","high","low","close","volume"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                df.dropna(subset=["open","high","low","close"], inplace=True)
+
+                st.write(f"Fetched TPSeries rows: {len(df)}")
+
+                st.session_state.live_fig.data = []  # reset traces
+                st.session_state.live_fig.add_trace(go.Candlestick(
+                    x=df.index,
+                    open=df["open"],
+                    high=df["high"],
+                    low=df["low"],
+                    close=df["close"],
+                    increasing_line_color="#26a69a",
+                    decreasing_line_color="#ef5350",
+                    name="Price"
+                ))
+                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
         else:
-            df = pd.DataFrame()  # prevent further errors
-
-        if not isinstance(df.index, pd.DatetimeIndex):
-            df.index = pd.to_datetime(df.index, errors="coerce")
-            df.dropna(inplace=True)
-            
-        start_time = df.index.min()
-        end_time   = df.index.max()
-
-        if hasattr(start_time, "tzinfo") and start_time.tzinfo is not None:
-            start_time = start_time.tz_convert(None)
-        if hasattr(end_time, "tzinfo") and end_time.tzinfo is not None:
-            end_time = end_time.tz_convert(None)
-
-        if start_time == end_time:
-            end_time = end_time + pd.Timedelta(minutes=5)
-
-        if start_time == end_time:
-            end_time = end_time + pd.Timedelta(minutes=5)
-            
+            st.warning("⚠️ TPSeries data is empty")
+         
         st.session_state.live_fig.update_xaxes(
             showgrid=True, gridwidth=0.5, gridcolor="gray",
             type="date",
@@ -572,6 +573,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
