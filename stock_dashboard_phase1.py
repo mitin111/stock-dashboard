@@ -230,7 +230,13 @@ with tab5:
             name="Price"
         ))
         st.session_state.live_fig.update_layout(
-            xaxis_rangeslider_visible=False,
+            xaxis=dict(
+                rangeslider_visible=False,
+                type="date"
+            ),
+            yaxis=dict(
+                fixedrange=False  # y-axis zoom allowed
+            ),    
             dragmode="pan",
             hovermode="x unified",
             showlegend=False,
@@ -513,5 +519,6 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
