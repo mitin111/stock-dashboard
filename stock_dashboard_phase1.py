@@ -510,10 +510,10 @@ with tab5:
                     if "datetime" not in df.columns:
                         df.index = pd.to_datetime(df.index, utc=True).tz_convert("Asia/Kolkata")
                         
-                        else:
-                            df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert("Asia/Kolkata")
-                            df.set_index("datetime", inplace=True)
-                            
+                    else:
+                        df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert("Asia/Kolkata")
+                        df.set_index("datetime", inplace=True)
+                        
                     df = df[~df.index.normalize().isin(full_holidays)]
                     df_list = []
                     for day, day_df in df.groupby(df.index.normalize()):
@@ -572,6 +572,7 @@ with tab5:
         )
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
+
 
 
 
