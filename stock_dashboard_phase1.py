@@ -438,7 +438,6 @@ with tab5:
                 tickformat="%d-%m-%Y\n%H:%M",
                 tickangle=0,
                 rangeslider_visible=False,
-                range=[start_time, end_time] if start_time and end_time else None,
                 rangebreaks=[
                     dict(bounds=["sat", "mon"]),                 # weekends
                     dict(bounds=[15.5, 9.25], pattern="hour"),   # closed (15:30 → 09:15 IST)
@@ -524,6 +523,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
