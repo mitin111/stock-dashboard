@@ -411,8 +411,8 @@ with tab5:
                 end_time   = session_date.replace(hour=15, minute=30, tzinfo=None)
                 # Note: plotly expects naive datetimes or tz-aware all same. We'll give tz-aware below if available.
                 # But our x values are tz-aware Asia/Kolkata, so we convert start/end to tz-aware:
-                start_time = pd.Timestamp(session_date).replace(hour=9, minute=15, tz="Asia/Kolkata")
-                end_time   = pd.Timestamp(session_date).replace(hour=15, minute=30, tz="Asia/Kolkata")
+                start_time = pd.Timestamp(session_date).replace(hour=9, minute=15).tz_localize("Asia/Kolkata")
+                end_time   = pd.Timestamp(session_date).replace(hour=15, minute=30).tz_localize("Asia/Kolkata")
             else:
                 start_time, end_time = None, None
 
@@ -511,3 +511,4 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
