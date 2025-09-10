@@ -416,8 +416,8 @@ with tab5:
                     st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
         else:
             st.error("⚠️ No datetime column in TPSeries data")
-     else:
-         st.warning("⚠️ No TPSeries data fetched")
+    else:
+        st.warning("⚠️ No TPSeries data fetched")
 
     # --- Drain queue and apply live ticks to last candle ---
     # This block runs each script run and consumes queued ticks (non-blocking)
@@ -473,6 +473,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
