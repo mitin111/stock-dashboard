@@ -397,7 +397,7 @@ with tab5:
 
                 holiday_breaks = []
                 for h in full_holidays:
-                    start = pd.Timestamp(h).tz_localize("Asia/Kolkata")
+                    start = pd.Timestamp(h).tz_localize("Asia/Kolkata").tz_convert("UTC")
                     end   = start + pd.Timedelta(days=1)
                     holiday_breaks.append(dict(bounds=[start, end]))
                     
@@ -480,6 +480,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
