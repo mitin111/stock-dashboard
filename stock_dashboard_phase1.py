@@ -426,8 +426,7 @@ with tab5:
                     st.session_state.ws_started = True
                     st.session_state.symbols_for_ws = symbols_for_ws
                     st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
-        else:
-            st.error("⚠️ No datetime column in TPSeries data")
+        
     else:
         st.warning("⚠️ No TPSeries data fetched")
 
@@ -485,6 +484,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
