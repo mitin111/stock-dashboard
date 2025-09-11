@@ -404,6 +404,7 @@ with tab5:
                         freq="1min"   # 1-min precision, no overlap
                     )
                     holiday_breaks.extend(times.to_pydatetime().tolist())
+                holiday_breaks = sorted(set(holiday_breaks))    
                     
                 st.session_state.live_fig.update_xaxes(
                     showgrid=True, gridwidth=0.5, gridcolor="gray",
@@ -484,6 +485,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
