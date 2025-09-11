@@ -425,6 +425,8 @@ with tab5:
                             end_naive   = end.to_pydatetime().replace(tzinfo=None)
 
                             holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
+
+                        st.session_state.holiday_breaks = holiday_breaks
                         st.write("📌 holiday_breaks final (session IST):", holiday_breaks[:3])
 
                         st.session_state.live_fig.update_xaxes(
@@ -507,6 +509,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
