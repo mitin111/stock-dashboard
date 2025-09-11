@@ -396,6 +396,9 @@ with tab5:
                 st.write(f"📊 Loaded TPSeries candles: {len(df)}")
 
                 # --- Initial chart render ---
+                holiday_bounds = [
+                    dict(bounds=[h, h + pd.Timedelta(days=1)]) for h in full_holidays
+                ]    
                 st.session_state.live_fig.update_xaxes(
                     showgrid=True, gridwidth=0.5, gridcolor="gray",
                     type="date",
@@ -405,6 +408,7 @@ with tab5:
                     rangebreaks=[
                         dict(bounds=["sat", "mon"]),    # weekends skip
                         dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours skip
+                        *holiday_bounds                 # poore holiday din skip
                     ]    
                 )
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -474,6 +478,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
