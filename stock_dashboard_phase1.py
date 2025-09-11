@@ -395,47 +395,47 @@ with tab5:
                 load_history_into_state(df)
                 st.write(f"📊 Loaded TPSeries candles: {len(df)}")
 
-                holiday_breaks = []
-                for h in full_holidays:
-                    h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
-                    holiday_breaks.append(h)
-                    
-                if holiday_values:
+                if full_holidays is not None and len(full_holidays) > 0:
+                    holiday_breaks = []
+                    for h in full_holidays:
+                        h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
+                        holiday_breaks.append(h)
+                    holiday_values = [h.replace(tzinfo=None) for h in holiday_breaks]
                     st.write("sample holiday:", holiday_values[0])
-                    st.write("holiday tzinfo:", holiday_values[0].tzinfo)
-                    
-                if "ohlc_x" in st.session_state and st.session_state.ohlc_x:
-                    st.write("sample ohlc_x[0] type:", str(type(st.session_state.ohlc_x[0])),
-                             "value:", st.session_state.ohlc_x[0])
-                    st.write("ohlc_x tzinfo:", st.session_state.ohlc_x[0].tzinfo)         
-                else:
-                    st.write("ohlc_x empty")
+                    st.write("holiday tzinfo (raw):", holiday_breaks[0].tzinfo)
 
-                if holiday_breaks:
+                    if "ohlc_x" in st.session_state and st.session_state.ohlc_x:
+                        st.write("sample ohlc_x[0] type:", str(type(st.session_state.ohlc_x[0])),
+                                 "value:", st.session_state.ohlc_x[0])
+                        st.write("ohlc_x tzinfo:", st.session_state.ohlc_x[0].tzinfo)
+                    else:
+                        st.write("ohlc_x empty")
                     st.write("sample holiday_breaks[0]:", holiday_breaks[0])
                     st.write("holiday_breaks types:", [type(b) for b in holiday_breaks[:3]])
                     st.write("holiday_breaks tzinfo:", holiday_breaks[0].tzinfo)
-                    
-                st.session_state.live_fig.update_xaxes(
-                    showgrid=True, gridwidth=0.5, gridcolor="gray",
-                    type="date",
-                    tickformat="%d-%m-%Y\n%H:%M",
-                    tickangle=0,
-                    rangeslider_visible=False,
-                    rangebreaks=[
-                        dict(bounds=["sat", "mon"]),    # weekends skip
-                        dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours skip
-                        dict(values=holiday_values)
-                    ]    
-                )
-                placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                # --- Auto-start websocket (only once) ---
-                if symbols_for_ws and not st.session_state.ws_started:
-                    st.session_state.live_feed_flag["active"] = True
-                    threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
-                    st.session_state.ws_started = True
-                    st.session_state.symbols_for_ws = symbols_for_ws
-                    st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
+
+                    if holiday_values:
+                        st.session_state.live_fig.update_xaxes(
+                            showgrid=True, gridwidth=0.5, gridcolor="gray",
+                            type="date",
+                            tickformat="%d-%m-%Y\n%H:%M",
+                            tickangle=0,
+                            rangeslider_visible=False,
+                            rangebreaks=[
+                                dict(bounds=["sat", "mon"]),    # weekends skip
+                                dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours skip
+                                dict(values=holiday_values)
+                            ]
+                        )
+                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                        # --- Auto-start websocket (only once) ---
+                        if symbols_for_ws and not st.session_state.ws_started:
+                            st.session_state.live_feed_flag["active"] = True
+                            threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
+                            st.session_state.ws_started = True
+                            st.session_state.symbols_for_ws = symbols_for_ws
+                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
+                            
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
@@ -495,6 +495,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
