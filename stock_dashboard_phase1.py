@@ -401,18 +401,37 @@ with tab5:
                         h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
                         holiday_breaks.append(h)
                     holiday_values = [h.replace(tzinfo=None) for h in holiday_breaks]
-                    st.write("sample holiday:", holiday_values[0])
-                    st.write("holiday tzinfo (raw):", holiday_breaks[0].tzinfo)
 
-                    if "ohlc_x" in st.session_state and st.session_state.ohlc_x:
-                        st.write("sample ohlc_x[0] type:", str(type(st.session_state.ohlc_x[0])),
-                                 "value:", st.session_state.ohlc_x[0])
-                        st.write("ohlc_x tzinfo:", st.session_state.ohlc_x[0].tzinfo)
-                    else:
-                        st.write("ohlc_x empty")
-                    st.write("sample holiday_breaks[0]:", holiday_breaks[0])
-                    st.write("holiday_breaks types:", [type(b) for b in holiday_breaks[:3]])
-                    st.write("holiday_breaks tzinfo:", holiday_breaks[0].tzinfo)
+                    if "tpseries_debug_done" not in st.session_state:
+                        st.write("sample holiday:", holiday_values[0])
+                        st.write("holiday tzinfo (raw):", holiday_breaks[0].tzinfo)
+                        if "ohlc_x" in st.session_state and st.session_state.ohlc_x:
+                            st.write("sample ohlc_x[0] type:", str(type(st.session_state.ohlc_x[0])),
+                                     "value:", st.session_state.ohlc_x[0])
+                            st.write("ohlc_x tzinfo:", st.session_state.ohlc_x[0].tzinfo)
+                        else:
+                            st.write("ohlc_x empty")
+
+                        st.write("sample holiday_breaks[0]:", holiday_breaks[0])
+                        t.write("holiday_breaks types:", [type(b) for b in holiday_breaks[:3]])
+                        st.write("holiday_breaks tzinfo:", holiday_breaks[0].tzinfo)
+                        st.write("holiday_breaks final (session IST):", holiday_breaks[:3])
+
+                        st.session_state.tpseries_debug_done = True
+
+                        full_holidays = pd.to_datetime([...]).normalize()
+                        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
+                            holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
+                            holiday_breaks = []
+                            for h in full_holidays:
+                                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                                start_naive = start.to_pydatetime().replace(tzinfo=None)
+                                end_naive   = end.to_pydatetime().replace(tzinfo=None)
+                                holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
+                            st.session_state.holiday_values = holiday_values
+                            st.session_state.holiday_breaks = holiday_breaks
+     
 
                     if holiday_values:
                         holiday_breaks = []
@@ -507,3 +526,4 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
