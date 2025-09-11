@@ -415,6 +415,12 @@ with tab5:
                     st.write("holiday_breaks tzinfo:", holiday_breaks[0].tzinfo)
 
                     if holiday_values:
+                        holiday_breaks = []
+                        for h in holiday_values:
+                            start = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
+                            end = (pd.Timestamp(h).tz_localize("Asia/Kolkata") + pd.Timedelta(days=1)).to_pydatetime()
+                            holiday_breaks.append(dict(bounds=[start, end]))
+
                         st.session_state.live_fig.update_xaxes(
                             showgrid=True, gridwidth=0.5, gridcolor="gray",
                             type="date",
@@ -424,7 +430,7 @@ with tab5:
                             rangebreaks=[
                                 dict(bounds=["sat", "mon"]),    # weekends skip
                                 dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours skip
-                                dict(values=holiday_values)
+                                *holiday_breaks
                             ]
                         )
                         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
@@ -495,6 +501,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
