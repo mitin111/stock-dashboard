@@ -397,8 +397,10 @@ with tab5:
 
                 holiday_breaks = []
                 for h in full_holidays:
-                    holiday_breaks.append(dict(bounds=[h, h + pd.Timedelta(days=1)]))
-
+                    start = pd.Timestamp(h).tz_localize("Asia/Kolkata")
+                    end   = start + pd.Timedelta(days=1)
+                    holiday_breaks.append(dict(bounds=[start, end]))
+                    
                 st.session_state.live_fig.update_xaxes(
                     showgrid=True, gridwidth=0.5, gridcolor="gray",
                     type="date",
@@ -478,6 +480,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
