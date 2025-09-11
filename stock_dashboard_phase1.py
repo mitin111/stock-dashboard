@@ -397,9 +397,9 @@ with tab5:
 
                 holiday_breaks = []
                 for h in full_holidays:
-                   start = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
-                   end   = (pd.Timestamp(h).tz_localize("Asia/Kolkata") + pd.Timedelta(days=1)).to_pydatetime()
-                   holiday_breaks.append(dict(bounds=[start, end]))   # ✅ fixed name
+                    h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
+                    holiday_breaks.append(h)
+
                 if "ohlc_x" in st.session_state and st.session_state.ohlc_x:
                     st.write("sample ohlc_x[0] type:", str(type(st.session_state.ohlc_x[0])),
                              "value:", st.session_state.ohlc_x[0])
@@ -409,8 +409,8 @@ with tab5:
 
                 if holiday_breaks:
                     st.write("sample holiday_breaks[0]:", holiday_breaks[0])
-                    st.write("holiday_breaks types:", [type(b['bounds'][0]) for b in holiday_breaks[:3]])
-                    st.write("holiday_breaks tzinfo:", holiday_breaks[0]["bounds"][0].tzinfo)
+                    st.write("holiday_breaks types:", [type(b) for b in holiday_breaks[:3]])
+                    st.write("holiday_breaks tzinfo:", holiday_breaks[0].tzinfo)
                     
                 st.session_state.live_fig.update_xaxes(
                     showgrid=True, gridwidth=0.5, gridcolor="gray",
@@ -491,6 +491,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
