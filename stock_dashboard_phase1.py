@@ -404,7 +404,7 @@ with tab5:
                     rangeslider_visible=False,
                     rangebreaks=[
                         dict(bounds=["sat", "mon"]),    # weekends skip
-                        dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours skip (15:30–09:15)
+                        dict(bounds=[ "15:31", "09:14" ]),  # skip non-market hours
                         dict(values=holiday_breaks)     # NSE holidays skip
                     ]    
                 )
@@ -475,6 +475,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
