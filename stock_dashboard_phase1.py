@@ -417,14 +417,15 @@ with tab5:
                     if holiday_values:
                         holiday_breaks = []
                         for h in holiday_values:
-                            start = pd.Timestamp(h).tz_localize("Asia/Kolkata", nonexistent="shift_forward")
-                            end   = start + pd.Timedelta(days=1)
+                            start = pd.Timestamp(h).tz_localize("Asia/Kolkata")        # holiday start
+                            end   = start + pd.Timedelta(days=1)                       # next day
 
-                            # convert to UTC then drop tzinfo (naive datetime)
+                            # Convert to UTC then drop tzinfo (naive)
                             start_naive = start.tz_convert("UTC").to_pydatetime().replace(tzinfo=None)
                             end_naive   = end.tz_convert("UTC").to_pydatetime().replace(tzinfo=None)
 
                             holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
+                        st.write("holiday_breaks final:", holiday_breaks[:3])
 
                         st.session_state.live_fig.update_xaxes(
                             showgrid=True, gridwidth=0.5, gridcolor="gray",
@@ -506,6 +507,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
