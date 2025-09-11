@@ -399,6 +399,9 @@ with tab5:
                 for h in full_holidays:
                     h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
                     holiday_breaks.append(h)
+                    
+                if holiday_values:
+                    st.write("sample holiday:", holiday_values[0], "tzinfo:", holiday_values[0].tzinfo)
 
                 if "ohlc_x" in st.session_state and st.session_state.ohlc_x:
                     st.write("sample ohlc_x[0] type:", str(type(st.session_state.ohlc_x[0])),
@@ -491,6 +494,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
