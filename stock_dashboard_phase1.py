@@ -451,6 +451,8 @@ with tab5:
     else:
         st.warning("⚠️ No TPSeries data fetched")
 
+    import threading, time
+    from streamlit_autorefresh import st_autorefresh
     processed = 0  # top-level me initialize
     # --- Auto-start WS and tick loop ---
     if symbols_for_ws and not st.session_state.get("ws_started", False):
@@ -461,13 +463,13 @@ with tab5:
         
         def tick_loop_bg():
             while st.session_state.live_feed_flag.get("active", False):
-                tick = None
-                if tick:
-                    ui_queue.put(tick)
                 time.sleep(0.1)
+                
         if not st.session_state.get("tick_loop_running", False):
             st.session_state.tick_loop_running = True
             threading.Thread(target=tick_loop_bg, daemon=True).start()
+
+        st_autorefresh(interval=500, limit=None, key="tick_autorefresh")
 
         processed = 0
         while not ui_queue.empty():
@@ -482,19 +484,6 @@ with tab5:
             f"queue: {ui_queue.qsize()} | processed: {processed} | "
             f"display_len: {len(st.session_state.ohlc_x)}"
         )
-        if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
-            placeholder_ticks.info("⏳ Waiting for first ticks...")
-            
-        threading.Thread(target=tick_loop, daemon=True).start()
-
-        placeholder_status.info(
-            f"WS started: {st.session_state.get('ws_started', False)} | "
-            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {ui_queue.qsize()} | display_len: {len(st.session_state.ohlc_x)}"
-        )
-        if "last_heartbeat" in st.session_state:
-            placeholder_status.info(f"📡 Last heartbeat: {st.session_state.last_heartbeat}")
-            
         if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
 
@@ -526,6 +515,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
