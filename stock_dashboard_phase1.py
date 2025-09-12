@@ -498,8 +498,15 @@ with tab5:
                 threading.Thread(target=tick_loop_bg, daemon=True).start()
 
         if "last_tick" in st.session_state and "live_fig" in st.session_state:
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-            placeholder_status.info(
+            if isinstance(last_tick, dict):
+                last_price = last_tick.get("lp", "-")
+            else:
+                last_price = str(last_tick)  # fallback safe
+            placeholder_chart.plotly_chart(
+                st.session_state.live_fig, use_container_width=True
+            )
+            
+            if isinstance(last_tick, dict):  
                 f"WS started: {st.session_state.get('ws_started', False)} | "
                 f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
                 f"queue: {ui_queue.qsize()} | "
@@ -538,23 +545,4 @@ with tab5:
     # final render (ensures figure in placeholder is current)
     if "last_tick" in st.session_state:
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
