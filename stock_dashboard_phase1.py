@@ -496,13 +496,16 @@ with tab5:
         if not st.session_state.get("tick_loop_running", False):
                 st.session_state.tick_loop_running = True
                 threading.Thread(target=tick_loop_bg, daemon=True).start()
-            
-        placeholder_status.info(
-            f"WS started: {st.session_state.get('ws_started', False)} | "
-            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {ui_queue.qsize()} | processed: {processed} | "
-            f"display_len: {len(st.session_state.ohlc_x)}"
-        )
+
+        if "last_tick" in st.session_state and "live_fig" in st.session_state:
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+            placeholder_status.info(
+                f"WS started: {st.session_state.get('ws_started', False)} | "
+                f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
+                f"queue: {ui_queue.qsize()} | "
+                f"last price: {st.session_state.last_tick.get('lp', '-')}"
+            )
+        
         if not st.session_state.get("ohlc_x"):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
             
@@ -535,6 +538,7 @@ with tab5:
     # final render (ensures figure in placeholder is current)
     if "last_tick" in st.session_state:
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
