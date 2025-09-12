@@ -468,10 +468,7 @@ with tab5:
                     update_last_candle_from_tick_local(
                         tick, interval=int(selected_interval)
                     )
-                    if "live_fig" in st.session_state:
-                        placeholder_chart.plotly_chart(
-                            st.session_state.live_fig, use_container_width=True
-                        )
+                    st.session_state.last_tick = tick
                 time.sleep(0.05) 
 
         if not st.session_state.get("tick_loop_running", False):
@@ -514,7 +511,9 @@ with tab5:
     )
 
     # final render (ensures figure in placeholder is current)
-   
+    if "last_tick" in st.session_state:
+        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
