@@ -466,27 +466,32 @@ with tab5:
                 time.sleep(1.0)
                 
         if not st.session_state.get("tick_loop_running", False):
+            while not ui_queue.empty():
+                tick = ui_queue.get_nowait()
+                update_last_candle_from_tick_local(
+                    tick, interval=int(selected_interval)
+                )
+            time.sleep(1.0)  # safe, thread ke andar
+
+        if not st.session_state.get("tick_loop_running", False):
             st.session_state.tick_loop_running = True
             threading.Thread(target=tick_loop_bg, daemon=True).start()
 
         st_autorefresh(interval=500, limit=None, key="tick_autorefresh")
-
-        processed = 0
-        while not ui_queue.empty():
-            tick = ui_queue.get_nowait()
-            update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-            processed += 1
-        if processed > 0:
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        if "live_fig" in st.session_state:
+            placeholder_chart.plotly_chart(
+                st.session_state.live_fig, use_container_width=True
+            )
+            
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
             f"queue: {ui_queue.qsize()} | processed: {processed} | "
             f"display_len: {len(st.session_state.ohlc_x)}"
         )
-        if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
+        if not st.session_state.get("ohlc_x"):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
-
+            
     # --- "Go to latest" control uses ohlc_x as source of truth ---
     if len(st.session_state.ohlc_x) > 50:
         start_range = st.session_state.ohlc_x[-50]
@@ -515,6 +520,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
