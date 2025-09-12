@@ -546,3 +546,4 @@ with tab5:
     if "last_tick" in st.session_state:
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
+
