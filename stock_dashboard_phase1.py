@@ -413,7 +413,7 @@ with tab5:
                             st.write("ohlc_x empty")
 
                         st.write("sample holiday_breaks[0]:", holiday_breaks[0])
-                        t.write("holiday_breaks types:", [type(b) for b in holiday_breaks[:3]])
+                        st.write("holiday_breaks types:", [type(b) for b in holiday_breaks[:3]])
                         st.write("holiday_breaks tzinfo:", holiday_breaks[0].tzinfo)
                         st.write("holiday_breaks final (session IST):", holiday_breaks[:3])
 
@@ -516,5 +516,6 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
