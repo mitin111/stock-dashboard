@@ -514,7 +514,7 @@ with tab5:
     )
 
     # final render (ensures figure in placeholder is current)
-    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+   
 
 
 
