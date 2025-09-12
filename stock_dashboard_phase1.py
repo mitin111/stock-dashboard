@@ -506,11 +506,11 @@ with tab5:
                 st.session_state.live_fig, use_container_width=True
             )
             
-            if isinstance(last_tick, dict):  
+            placeholder_status.info(
                 f"WS started: {st.session_state.get('ws_started', False)} | "
                 f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
                 f"queue: {ui_queue.qsize()} | "
-                f"last price: {st.session_state.last_tick.get('lp', '-')}"
+                f"last price: {last_price}"  
            )
         
         if not st.session_state.get("ohlc_x"):
@@ -545,6 +545,7 @@ with tab5:
     # final render (ensures figure in placeholder is current)
     if "last_tick" in st.session_state:
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
