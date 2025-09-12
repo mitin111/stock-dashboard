@@ -458,28 +458,33 @@ with tab5:
         st.session_state.ws_started = True
         threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
         st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
+        
+        def tick_loop_bg():
+            while st.session_state.live_feed_flag.get("active", False):
+                tick = get_tick_from_ws_somehow()
+                if tick:
+                    ui_queue.put(tick)
+                time.sleep(0.1)
         if not st.session_state.get("tick_loop_running", False):
             st.session_state.tick_loop_running = True
-        
-        def tick_loop():
-            while st.session_state.live_feed_flag.get("active", False):
-                processed = 0
-                while not ui_queue.empty():
-                    tick = ui_queue.get_nowait()
-                    update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-                    processed += 1
-                if processed > 0:
-                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                placeholder_status.info(
-                    f"WS started: {st.session_state.get('ws_started', False)} | "
-                    f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-                    f"queue: {ui_queue.qsize()} | processed: {processed} | "
-                    f"display_len: {len(st.session_state.ohlc_x)}"
-                )
-                if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
-                    placeholder_ticks.info("⏳ Waiting for first ticks...")
-                time.sleep(0.5)
+            threading.Thread(target=tick_loop_bg, daemon=True).start()
 
+        processed = 0
+        while not ui_queue.empty():
+            tick = ui_queue.get_nowait()
+            update_last_candle_from_tick_local(tick, interval=int(selected_interval))
+            processed += 1
+        if processed > 0:
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        placeholder_status.info(
+            f"WS started: {st.session_state.get('ws_started', False)} | "
+            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
+            f"queue: {ui_queue.qsize()} | processed: {processed} | "
+            f"display_len: {len(st.session_state.ohlc_x)}"
+        )
+        if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
+            placeholder_ticks.info("⏳ Waiting for first ticks...")
+            
         threading.Thread(target=tick_loop, daemon=True).start()
 
         placeholder_status.info(
@@ -521,6 +526,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
