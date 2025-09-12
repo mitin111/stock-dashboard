@@ -470,10 +470,18 @@ with tab5:
                     processed += 1
                 if processed > 0:
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                time.sleep(0.5)   
-            
-        threading.Thread(target=tick_loop, daemon=True).start()            
-        
+                placeholder_status.info(
+                    f"WS started: {st.session_state.get('ws_started', False)} | "
+                    f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
+                    f"queue: {ui_queue.qsize()} | processed: {processed} | "
+                    f"display_len: {len(st.session_state.ohlc_x)}"
+                )
+                if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
+                    placeholder_ticks.info("⏳ Waiting for first ticks...")
+                time.sleep(0.5)
+
+        threading.Thread(target=tick_loop, daemon=True).start()
+
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -513,6 +521,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
