@@ -341,9 +341,6 @@ with tab5:
                     name="Live"
                 ))
 
-            # refresh the chart
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
@@ -475,6 +472,11 @@ with tab5:
                 processed += 1
                 last_tick = tick
 
+        if processed > 0:
+            placeholder_chart.plotly_chart(
+                st.session_state.live_fig, use_container_width=True
+            )    
+
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -515,6 +517,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
