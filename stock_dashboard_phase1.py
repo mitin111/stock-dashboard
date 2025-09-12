@@ -470,6 +470,7 @@ with tab5:
                     update_last_candle_from_tick_local(tick, interval=int(selected_interval))
                     processed += 1
                 if processed > 0:
+                    placeholder_chart.empty()
                     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                     time.sleep(0.5)  # poll interval
         threading.Thread(target=tick_loop, daemon=True).start()            
@@ -514,6 +515,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
