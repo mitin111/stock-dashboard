@@ -153,14 +153,6 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime, timedelta
 
-    # --- Session state defaults ---
-    for key, default in {
-        "live_feed_flag": {"active": False},
-        "ui_queue": queue.Queue(),
-    }.items():
-        if key not in st.session_state:
-            st.session_state[key] = default
-
     # --- Initialize session state defaults ---
     for key, default in {
         "live_feed_flag": {"active": False},
@@ -349,18 +341,18 @@ with tab5:
                     name="Live"
                 ))
 
+            # refresh the chart
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
     # --- WS forwarder (uses ps_api.connect_websocket) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            try: 
-                ui_queue.put(tick, block=False)
-                print("✅ Tick:", tick)  # debug
+            try: ui_queue.put(tick, block=False)
             except Exception:
-                print("⚠️ Tick enqueue failed:", e)
-        ps_api.connect_websocket(symbols, on_tick_callback)        
+                pass
         try:
             ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
             # heartbeat thread
@@ -456,66 +448,45 @@ with tab5:
                             ]
                         )
                         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                        # --- Auto-start websocket (only once) ---
+                        if symbols_for_ws and not st.session_state.ws_started:
+                            st.session_state.live_feed_flag["active"] = True
+                            threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
+                            st.session_state.ws_started = True
+                            st.session_state.symbols_for_ws = symbols_for_ws
+                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
                             
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
         st.warning("⚠️ No TPSeries data fetched")
 
-    import threading, time
-    from streamlit_autorefresh import st_autorefresh
-    processed = 0  # top-level me initialize
-    # --- Auto-start WS and tick loop ---
-    if symbols_for_ws and not st.session_state.get("ws_started", False):
-        st.session_state.live_feed_flag["active"] = True
-        st.session_state.ws_started = True
-        st.session_state.symbols_for_ws = symbols_for_ws  # ✅ FIX
-        threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
-        st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
-        
-        def tick_loop_bg():
-            while True:
-                if "live_feed_flag" not in st.session_state:
-                    time.sleep(0.5)
-                    continue
-                if not st.session_state.live_feed_flag.get("active", False):
-                    time.sleep(0.5)
-                    continue
-
-                while not ui_queue.empty():
-                    try:
-                        tick = ui_queue.get_nowait()
-                        update_last_candle_from_tick_local(
-                            tick, interval=int(selected_interval)
-                        )
-                        st.session_state.last_tick = tick
-                    except Exception as e:
-                        print("tick_loop_bg error:", e)
-                time.sleep(0.05)        
-            
-        if not st.session_state.get("tick_loop_running", False):
-                st.session_state.tick_loop_running = True
-                threading.Thread(target=tick_loop_bg, daemon=True).start()
-
-        if "last_tick" in st.session_state and "live_fig" in st.session_state:
-            if isinstance(last_tick, dict):
-                last_price = last_tick.get("lp", "-")
+    # --- Drain queue and apply live ticks to last candle ---
+    # This block runs each script run and consumes queued ticks (non-blocking)
+    if st.session_state.live_feed_flag.get("active", False):
+        processed = 0; last_tick = None
+        for _ in range(500):  # consume up to N ticks each run
+            try:
+                tick = ui_queue.get_nowait()
+            except queue.Empty:
+                break
             else:
-                last_price = str(last_tick)  # fallback safe
-            placeholder_chart.plotly_chart(
-                st.session_state.live_fig, use_container_width=True
-            )
+                update_last_candle_from_tick_local(tick, interval=int(selected_interval))
+                processed += 1
+                last_tick = tick
+
+        placeholder_status.info(
+            f"WS started: {st.session_state.get('ws_started', False)} | "
+            f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
+            f"queue: {ui_queue.qsize()} | processed: {processed} | "
+            f"display_len: {len(st.session_state.ohlc_x)}"
+        )
+        if "last_heartbeat" in st.session_state:
+            placeholder_status.info(f"📡 Last heartbeat: {st.session_state.last_heartbeat}")
             
-            placeholder_status.info(
-                f"WS started: {st.session_state.get('ws_started', False)} | "
-                f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-                f"queue: {ui_queue.qsize()} | "
-                f"last price: {last_price}"  
-           )
-        
-        if not st.session_state.get("ohlc_x"):
+        if processed == 0 and ui_queue.qsize() == 0 and (not st.session_state.ohlc_x):
             placeholder_ticks.info("⏳ Waiting for first ticks...")
-            
+
     # --- "Go to latest" control uses ohlc_x as source of truth ---
     if len(st.session_state.ohlc_x) > 50:
         start_range = st.session_state.ohlc_x[-50]
@@ -543,9 +514,4 @@ with tab5:
     )
 
     # final render (ensures figure in placeholder is current)
-    if "last_tick" in st.session_state:
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-
-
-
+    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
