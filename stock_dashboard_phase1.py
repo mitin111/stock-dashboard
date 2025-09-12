@@ -419,7 +419,6 @@ with tab5:
 
                         st.session_state.tpseries_debug_done = True
 
-                        full_holidays = pd.to_datetime([...]).normalize()
                         if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
                             holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
                             holiday_breaks = []
@@ -516,6 +515,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
