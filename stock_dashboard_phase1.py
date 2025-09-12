@@ -445,22 +445,21 @@ with tab5:
                             ]
                         )
                         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                        # --- Auto-start websocket (only once) ---
-                        if symbols_for_ws and not st.session_state.ws_started:
-                            st.session_state.live_feed_flag["active"] = True
-                            threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
-                            st.session_state.ws_started = True
-                            st.session_state.symbols_for_ws = symbols_for_ws
-                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
                             
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
         st.warning("⚠️ No TPSeries data fetched")
 
-    # --- Drain queue and apply live ticks to last candle ---
-    if symbols_for_ws and not st.session_state.get("tick_loop_running", False):
-        st.session_state.tick_loop_running = True
+    # --- Auto-start WS and tick loop ---
+    if symbols_for_ws and not st.session_state.get("ws_started", False):
+        st.session_state.live_feed_flag["active"] = True
+        st.session_state.ws_started = True
+        threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
+        st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
+        if not st.session_state.get("tick_loop_running", False):
+            st.session_state.tick_loop_running = True
+        
         def tick_loop():
             while st.session_state.live_feed_flag.get("active", False):
                 processed = 0
@@ -477,8 +476,7 @@ with tab5:
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
-            f"queue: {ui_queue.qsize()} | processed: {processed} | "
-            f"display_len: {len(st.session_state.ohlc_x)}"
+            f"queue: {ui_queue.qsize()} | display_len: {len(st.session_state.ohlc_x)}"
         )
         if "last_heartbeat" in st.session_state:
             placeholder_status.info(f"📡 Last heartbeat: {st.session_state.last_heartbeat}")
@@ -514,6 +512,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
