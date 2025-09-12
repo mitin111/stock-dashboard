@@ -463,25 +463,20 @@ with tab5:
         
         def tick_loop_bg():
             while st.session_state.live_feed_flag.get("active", False):
-                time.sleep(1.0)
-                
-        if not st.session_state.get("tick_loop_running", False):
-            while not ui_queue.empty():
-                tick = ui_queue.get_nowait()
-                update_last_candle_from_tick_local(
-                    tick, interval=int(selected_interval)
-                )
-            time.sleep(1.0)  # safe, thread ke andar
+                while not ui_queue.empty():
+                    tick = ui_queue.get_nowait()
+                    update_last_candle_from_tick_local(
+                        tick, interval=int(selected_interval)
+                    )
+                    if "live_fig" in st.session_state:
+                        placeholder_chart.plotly_chart(
+                            st.session_state.live_fig, use_container_width=True
+                        )
+                time.sleep(0.05) 
 
         if not st.session_state.get("tick_loop_running", False):
-            st.session_state.tick_loop_running = True
-            threading.Thread(target=tick_loop_bg, daemon=True).start()
-
-        st_autorefresh(interval=500, limit=None, key="tick_autorefresh")
-        if "live_fig" in st.session_state:
-            placeholder_chart.plotly_chart(
-                st.session_state.live_fig, use_container_width=True
-            )
+                st.session_state.tick_loop_running = True
+                threading.Thread(target=tick_loop_bg, daemon=True).start()
             
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -520,6 +515,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
