@@ -459,24 +459,21 @@ with tab5:
         st.warning("⚠️ No TPSeries data fetched")
 
     # --- Drain queue and apply live ticks to last candle ---
-    # This block runs each script run and consumes queued ticks (non-blocking)
-    if st.session_state.live_feed_flag.get("active", False):
-        processed = 0; last_tick = None
-        for _ in range(500):  # consume up to N ticks each run
-            try:
-                tick = ui_queue.get_nowait()
-            except queue.Empty:
-                break
-            else:
-                update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-                processed += 1
-                last_tick = tick
-
-        if processed > 0:
-            placeholder_chart.plotly_chart(
-                st.session_state.live_fig, use_container_width=True
-            )    
-
+    
+    if symbols_for_ws and not st.session_state.get("tick_loop_running", False):
+        st.session_state.tick_loop_running = True
+        def tick_loop():
+            while st.session_state.live_feed_flag.get("active", False):
+                processed = 0
+                while not ui_queue.empty():
+                    tick = ui_queue.get_nowait()
+                    update_last_candle_from_tick_local(tick, interval=int(selected_interval))
+                    processed += 1
+                if processed > 0:
+                    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                    time.sleep(0.5)  # poll interval
+        threading.Thread(target=tick_loop, daemon=True).start()            
+        
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -517,6 +514,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
