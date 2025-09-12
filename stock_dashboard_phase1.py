@@ -393,9 +393,6 @@ with tab5:
                     df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
                 df = df.dropna(subset=["open", "high", "low", "close"])
                 load_history_into_state(df)
-                
-                if "tpseries_loaded_flag" not in st.session_state:
-                    st.session_state.tpseries_loaded_flag = True
                 st.write(f"📊 Loaded TPSeries candles: {len(df)}")
 
                 if full_holidays is not None and len(full_holidays) > 0:
@@ -518,4 +515,3 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
