@@ -451,6 +451,7 @@ with tab5:
     else:
         st.warning("⚠️ No TPSeries data fetched")
 
+    processed = 0  # top-level me initialize
     # --- Auto-start WS and tick loop ---
     if symbols_for_ws and not st.session_state.get("ws_started", False):
         st.session_state.live_feed_flag["active"] = True
@@ -512,6 +513,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
