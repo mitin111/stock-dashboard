@@ -461,7 +461,7 @@ with tab5:
         
         def tick_loop_bg():
             while st.session_state.live_feed_flag.get("active", False):
-                tick = get_tick_from_ws_somehow()
+                tick = None
                 if tick:
                     ui_queue.put(tick)
                 time.sleep(0.1)
@@ -526,6 +526,7 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
    
+
 
 
 
