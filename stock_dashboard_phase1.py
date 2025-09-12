@@ -153,6 +153,14 @@ with tab5:
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime, timedelta
 
+    # --- Session state defaults ---
+    for key, default in {
+        "live_feed_flag": {"active": False},
+        "ui_queue": queue.Queue(),
+    }.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+
     # --- Initialize session state defaults ---
     for key, default in {
         "live_feed_flag": {"active": False},
@@ -347,9 +355,12 @@ with tab5:
     # --- WS forwarder (uses ps_api.connect_websocket) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            try: ui_queue.put(tick, block=False)
+            try: 
+                ui_queue.put(tick, block=False)
+                print("✅ Tick:", tick)  # debug
             except Exception:
-                pass
+                print("⚠️ Tick enqueue failed:", e)
+        ps_api.connect_websocket(symbols, on_tick_callback)        
         try:
             ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
             # heartbeat thread
@@ -458,19 +469,30 @@ with tab5:
     if symbols_for_ws and not st.session_state.get("ws_started", False):
         st.session_state.live_feed_flag["active"] = True
         st.session_state.ws_started = True
+        st.session_state.symbols_for_ws = symbols_for_ws  # ✅ FIX
         threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
         st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
         
         def tick_loop_bg():
-            while st.session_state.live_feed_flag.get("active", False):
-                while not ui_queue.empty():
-                    tick = ui_queue.get_nowait()
-                    update_last_candle_from_tick_local(
-                        tick, interval=int(selected_interval)
-                    )
-                    st.session_state.last_tick = tick
-                time.sleep(0.05) 
+            while True:
+                if "live_feed_flag" not in st.session_state:
+                    time.sleep(0.5)
+                    continue
+                if not st.session_state.live_feed_flag.get("active", False):
+                    time.sleep(0.5)
+                    continue
 
+                while not ui_queue.empty():
+                    try:
+                        tick = ui_queue.get_nowait()
+                        update_last_candle_from_tick_local(
+                            tick, interval=int(selected_interval)
+                        )
+                        st.session_state.last_tick = tick
+                    except Exception as e:
+                        print("tick_loop_bg error:", e)
+                time.sleep(0.05)        
+            
         if not st.session_state.get("tick_loop_running", False):
                 st.session_state.tick_loop_running = True
                 threading.Thread(target=tick_loop_bg, daemon=True).start()
@@ -513,6 +535,7 @@ with tab5:
     # final render (ensures figure in placeholder is current)
     if "last_tick" in st.session_state:
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
