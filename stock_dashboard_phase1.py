@@ -2,14 +2,12 @@
 # stock_dashboard_phase1.py
 import streamlit as st
 import pandas as pd
+from prostocks_connector import ProStocksAPI
+from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime
 import pytz
 
-# ✅ REST + WS imports
-from prostocks_connector import ProStocksAPI
-
-# ✅ Settings & helpers
-from dashboard_logic import load_settings, save_settings, load_credentials
+# === Import helpers ===
 from dashboard_helpers import (
     render_trade_controls,
     render_dashboard,
@@ -33,14 +31,10 @@ creds = load_credentials()
 # === Sidebar Login ===
 with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
-
     if st.button("📩 Send OTP"):
         temp_api = ProStocksAPI(**creds)
-        resp = temp_api.send_otp()
-        if resp.get("stat") == "Ok":
-            st.success("✅ OTP Sent")
-        else:
-            st.error(f"❌ {resp.get('emsg', resp)}")
+        success, msg = temp_api.login("")
+        st.success("✅ OTP Sent") if success else st.info(f"ℹ️ {msg}")
 
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
@@ -64,10 +58,6 @@ with st.sidebar:
                 if success:
                     st.session_state["ps_api"] = ps_api
                     st.success("✅ Login successful!")
-
-                    # 🔗 WebSocket init
-                    st.session_state["ps_ws"] = ProStocksWS(ps_api.userid, ps_api.session_token)
-
                     st.rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
@@ -77,8 +67,6 @@ with st.sidebar:
 if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
-        if "ps_ws" in st.session_state:
-            del st.session_state["ps_ws"]
         st.success("✅ Logged out successfully")
         st.rerun()
 
@@ -96,6 +84,3 @@ with tab2: render_dashboard()
 with tab3: render_market_data()
 with tab4: render_indicator_settings()
 with tab5: render_strategy_engine()
-
-
-
