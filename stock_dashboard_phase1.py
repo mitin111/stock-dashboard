@@ -7,7 +7,6 @@ import pytz
 
 # ✅ REST + WS imports
 from prostocks_connector import ProStocksAPI
-from prostocks_ws import ProStocksWS
 
 # ✅ Settings & helpers
 from dashboard_logic import load_settings, save_settings, load_credentials
@@ -97,5 +96,6 @@ with tab2: render_dashboard()
 with tab3: render_market_data()
 with tab4: render_indicator_settings()
 with tab5: render_strategy_engine()
+
 
 
