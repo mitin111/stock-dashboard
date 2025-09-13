@@ -5,7 +5,7 @@ from datetime import datetime
 import pytz
 
 # ✅ REST + WS imports
-from prostocks_connector import ProStocksREST
+from prostocks_connector import ProStocksAPI
 from prostocks_ws import ProStocksWS
 
 # ✅ Settings & helpers
@@ -96,6 +96,7 @@ with tab2: render_dashboard()
 with tab3: render_market_data()
 with tab4: render_indicator_settings()
 with tab5: render_strategy_engine()
+
 
 
 
