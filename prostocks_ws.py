@@ -7,16 +7,18 @@ import queue
 
 
 class ProStocksWS:
-    def __init__(self, userid, session_token, tick_file="ticks.log"):
-        self.userid = userid
-        self.session_token = session_token
+    def __init__(self, api):
+        """
+        api: ProStocksAPI instance
+        """ 
+        self.api = api
         self.ws = None
         self.is_ws_connected = False
-        self.tick_file = tick_file
-        self.tick_queue = queue.Queue()
+        self.tick_file = api.tick_file
+        self.tick_queue = api.tick_queue
         self._sub_tokens = []
         self._on_tick = None
-        self.candles = {}
+        self.candles = api.candles
 
     # ---------------- WebSocket helpers ----------------
     def _ws_on_message(self, ws, message):
@@ -224,3 +226,4 @@ class ProStocksWS:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
