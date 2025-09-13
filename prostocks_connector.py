@@ -7,14 +7,11 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
-import websocket
-import threading
-import queue
 
 load_dotenv()
 
 
-class ProStocksAPI:
+class ProStocksREST:
     def __init__(
         self,
         userid=None,
@@ -35,28 +32,6 @@ class ProStocksAPI:
         self.session_token = None
         self.session = requests.Session()
         self.headers = {"Content-Type": "text/plain"}
-
-        self.credentials = {
-            "uid": self.userid,
-            "pwd": self.password_plain,
-            "vc": self.vc,
-            "api_key": self.api_key,
-            "imei": self.imei
-        }
-
-        # --- WebSocket state ---
-        self.ws = None
-        self.is_ws_connected = False
-        self._sub_tokens = []
-        self.tick_file = "ticks.log"
-        self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-
-        # ✅ Tick Queue + File init YAHAN karna hai
-        import queue
-        self.tick_queue = queue.Queue()
-        self.tick_file = "ticks.log"
-
-        self.candles = {}
 
     # ---------------- Utils ----------------
     def sha256(self, text: str) -> str:
@@ -79,15 +54,10 @@ class ProStocksAPI:
             "apkversion": self.apkversion,
             "source": "API"
         }
-
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"
-            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("📨 OTP Trigger Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"emsg": str(e)}
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}"
+        response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
+        return response.json()
 
     def login(self, factor2_otp):
         url = f"{self.base_url}/QuickAuth"
@@ -105,49 +75,28 @@ class ProStocksAPI:
             "apkversion": self.apkversion,
             "source": "API"
         }
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}"
+        response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
 
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}"
-            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-            print("🔁 Login Response Code:", response.status_code)
-            print("📨 Login Response Body:", response.text)
-
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("stat") == "Ok":
-                    self.session_token = data["susertoken"]
-                    self.userid = data["uid"]
-                    self.headers["Authorization"] = self.session_token
-                    print("✅ Login Success!")
-                    return True, self.session_token
-                else:
-                    return False, data.get("emsg", "Unknown login error")
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
-        except requests.exceptions.RequestException as e:
-            return False, f"RequestException: {e}"
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("stat") == "Ok":
+                self.session_token = data["susertoken"]
+                self.userid = data["uid"]
+                self.headers["Authorization"] = self.session_token
+                return True, self.session_token
+            return False, data.get("emsg", "Login error")
+        return False, f"HTTP {response.status_code}: {response.text}"
 
     # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            raw_data = f"jData={jdata}&jKey={self.session_token}"
-            print("✅ POST URL:", url)
-            print("📦 Sent Payload:", jdata)
-
-            response = self.session.post(
-                url,
-                data=raw_data,
-                headers={"Content-Type": "text/plain"},
-                timeout=15
-            )
-            print("📨 Response:", response.text)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"stat": "Not_Ok", "emsg": str(e)}
+            return {"stat": "Not_Ok", "emsg": "Not Logged In"}
+        jdata = json.dumps(payload, separators=(",", ":"))
+        raw_data = f"jData={jdata}&jKey={self.session_token}"
+        response = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=15)
+        return response.json()
 
     # ------------- Watchlists -------------
     def get_watchlists(self):
@@ -173,31 +122,22 @@ class ProStocksAPI:
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/AddMultiScripsToMW"
-        scrips_str = ",".join(scrips_list)
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": ",".join(scrips_list)}
         return self._post_json(url, payload)
 
     def delete_scrips_from_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/DeleteMultiMWScrips"
-        scrips_str = ",".join(scrips_list)
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": ",".join(scrips_list)}
         return self._post_json(url, payload)
 
-       # ------------- TPSeries -------------
+    # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
-        """
-        Returns raw TPSeries from API.
-        For success, the API typically returns a list; on error it returns a dict with 'stat'/'emsg'.
-        'st' and 'et' must be epoch seconds (UTC).
-        """
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
+            return {"stat": "Not_Ok", "emsg": "Session token missing"}
 
-        # Default window (last 60 days) if not provided
         if st is None or et is None:
-            days_back = 60
             et_dt = datetime.now(timezone.utc)
-            st_dt = et_dt - timedelta(days=days_back)
+            st_dt = et_dt - timedelta(days=60)
             st = int(st_dt.timestamp())
             et = int(et_dt.timestamp())
 
@@ -210,23 +150,8 @@ class ProStocksAPI:
             "et": str(et),
             "intrv": str(interval)
         }
+        return self._post_json(url, payload)
 
-        print("📤 Sending TPSeries Payload:")
-        print(f"  UID    : {payload['uid']}")
-        print(f"  EXCH   : {payload['exch']}")
-        print(f"  TOKEN  : {payload['token']}")
-        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(st)))} UTC")
-        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(et)))} UTC")
-        print(f"  INTRV  : {payload['intrv']}")
-
-        try:
-            response = self._post_json(url, payload)
-            return response
-        except Exception as e:
-            print("❌ Exception in get_tpseries():", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
-
-    # ---------------- TPSeries fetch ----------------
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
@@ -236,301 +161,25 @@ class ProStocksAPI:
             start_dt = end_dt - timedelta(days=chunk_days)
             if start_dt < start_limit_dt:
                 start_dt = start_limit_dt
-
             st = int(start_dt.timestamp())
             et = int(end_dt.timestamp())
-            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exch, token, interval, st, et)
 
-            if isinstance(resp, dict):
-                print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
-                end_dt = start_dt - timedelta(seconds=1)
-                time.sleep(0.25)
-                continue
-
-            if not isinstance(resp, list) or len(resp) == 0:
-                print("⚠️ Empty chunk. Moving back…")
-                end_dt = start_dt - timedelta(seconds=1)
-                time.sleep(0.25)
-                continue
-
-            df_chunk = pd.DataFrame(resp)
-            all_chunks.append(df_chunk)
+            if isinstance(resp, list) and resp:
+                df_chunk = pd.DataFrame(resp)
+                all_chunks.append(df_chunk)
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
         if not all_chunks:
             return pd.DataFrame()
-
         df = pd.concat(all_chunks, ignore_index=True)
-
         if "time" in df.columns:
-            df.drop_duplicates(subset=["time"], inplace=True)
-            df.sort_values(by="time", inplace=True)
-
-        rename_map = {
-            "time": "datetime",
-            "into": "open",
-            "inth": "high",
-            "intl": "low",
-            "intc": "close",
-            "intvwap": "vwap",
-            "intv": "volume",
-            "intol": "open_interest_lot",
-            "oi": "open_interest"
-        }
-        df.rename(columns=rename_map, inplace=True)
-
-        if "datetime" in df.columns:
+            df.rename(columns={
+                "time": "datetime", "into": "open", "inth": "high",
+                "intl": "low", "intc": "close", "intv": "volume"
+            }, inplace=True)
             df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
             df = df.dropna(subset=["datetime"])
-
-        df.sort_values("datetime", inplace=True)
+            df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
-
-    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
-        results = []
-        MAX_CALLS_PER_MIN = 20
-        call_count = 0
-
-        symbols = self.get_watchlist(wlname)
-        if not symbols or "values" not in symbols:
-            print("❌ No symbols found in watchlist.")
-            return []
-
-        for idx, sym in enumerate(symbols["values"]):
-            exch = sym.get("exch", "").strip()
-            token = str(sym.get("token", "")).strip()
-            symbol = sym.get("tsym", "").strip()
-
-            if not token.isdigit():
-                print(f"⚠️ Skipping {symbol}: Invalid token")
-                continue
-
-            try:
-                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
-                df = self.fetch_full_tpseries(exch, token, interval)
-                if not df.empty:
-                    print(f"✅ {symbol}: {len(df)} candles fetched.")
-                    results.append({"symbol": symbol, "data": df})
-                else:
-                    print(f"⚠️ {symbol}: No data fetched.")
-            except Exception as e:
-                print(f"❌ {symbol}: Exception: {e}")
-
-            call_count += 1
-            if call_count >= MAX_CALLS_PER_MIN:
-                print("⚠️ TPSeries limit reached. Skipping remaining.")
-                break
-
-        return results
-
-  # ---------------- WebSocket helpers ----------------
-    def _ws_on_message(self, ws, message):
-        try:
-            tick = json.loads(message)
-            # Optional: login-ack handle (ProStocks me 'ck' aata hai)
-            if isinstance(tick, dict) and tick.get("t") == "ck":
-                if tick.get("s") in ["OK", "Ok"]:   # <-- FIXED ✅
-                    print("✅ WebSocket login OK")
-                    # re-subscribe after login ack if tokens present
-                    if hasattr(self, "_sub_tokens") and self._sub_tokens:
-                        self.subscribe_tokens(self._sub_tokens)
-                else:
-                    print("❌ WebSocket login failed:", tick)
-                return
-
-            # 📩 Normal tick data
-            print("📩 Tick received:", tick)
-
-            # ✅ File me append karo
-            with open(self.tick_file, "a") as f:
-                f.write(json.dumps(tick) + "\n")
-                
-            # ✅ Queue me bhejo (safe for Streamlit consumer thread)
-            self.tick_queue.put(tick)
-                
-            # Callback trigger
-            if hasattr(self, "_on_tick") and self._on_tick:
-                try:
-                    self._on_tick(tick)
-                except Exception as e:
-                    print("❌ on_tick callback error:", e)
-
-            # ✅ Live candle builder update
-            try:
-                self.build_live_candles_from_tick(tick)
-            except Exception as e:
-                print("⚠️ candle build error:", e)
-                
-        except Exception as e:
-            print("⚠️ _ws_on_message parse error:", e)
-
-    def _ws_on_open(self, ws):
-        self.is_ws_connected = True
-        print("✅ WebSocket connected")
-
-        # Login packet (UID/JKEY dynamically from successful REST login)
-        login_pkt = {
-            "t": "c",
-            "uid": self.userid,
-            "actid": self.userid,
-            "susertoken": self.session_token,
-            "source": "API",
-        }
-        ws.send(json.dumps(login_pkt))
-        print("🔑 WS login sent")
-
-    def _ws_on_close(self, ws, code, msg):
-        self.is_ws_connected = False
-        print("❌ WebSocket closed:", code, msg)
-
-    def _ws_on_error(self, ws, error):
-        print("⚠️ WebSocket error:", error)
-
-    def subscribe_tokens(self, tokens):
-        """
-        tokens: list[str] in 'EXCH|TOKEN' format.
-        ProStocks WS supports multi-subscribe with '#' separator.
-        """
-        if not self.ws:
-            print("⚠️ subscribe_tokens: WS not connected yet")
-            return
-        if not tokens:
-            print("⚠️ subscribe_tokens: Empty token list")
-            return
-
-        # unique + keep order
-        uniq = []
-        seen = set()
-        for k in tokens:
-            if k and k not in seen:
-                uniq.append(k)
-                seen.add(k)
-
-        sub_req = {"t": "t", "k": "#".join(uniq)}
-        try:
-            self.ws.send(json.dumps(sub_req))
-            print(f"📡 Subscribed: {uniq}")
-        except Exception as e:
-            print("❌ subscribe_tokens error:", e)
-   
-    def stop_ticks(self):
-        """
-        Stop and close the active WebSocket connection.
-        """
-        try:
-            if hasattr(self, "ws") and self.ws:
-                self.ws.close()
-                self.is_ws_connected = False
-                print("🛑 WebSocket stop requested")
-        except Exception as e:
-            print("❌ stop_ticks error:", e)
-
-    def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
-        """
-        Build/update OHLCV candles from live ticks.
-        - tick: dict from websocket {e, tk, lp, v, ft}
-        - intervals: list of minute durations [1,3,5,15,30,60]
-        """
-        try:
-            ts = int(tick.get("ft", 0))   # epoch seconds
-            price = float(tick.get("lp", 0) or 0)
-            volume = int(tick.get("v", 0) or 0)
-
-            if not price:
-                return  # skip ticks without price
-
-            exch = tick.get("e")
-            token = tick.get("tk")
-
-            for m in intervals:
-                # Candle start bucket timestamp
-                bucket = ts - (ts % (m * 60))
-                key = f"{exch}|{token}|{m}"
-
-                # Init storage if not exists
-                if not hasattr(self, "candles"):
-                    self.candles = {}
-                if key not in self.candles:
-                    self.candles[key] = {}
-
-                # --- Create or update candle ---
-                if bucket not in self.candles[key]:
-                    # New candle
-                    self.candles[key][bucket] = {
-                        "ts": bucket,
-                        "o": price,
-                        "h": price,
-                        "l": price,
-                        "c": price,
-                        "v": volume,
-                    }
-                else:
-                    # Update existing candle
-                    candle = self.candles[key][bucket]
-                    candle["h"] = max(candle["h"], price)
-                    candle["l"] = min(candle["l"], price)
-                    candle["c"] = price
-                    candle["v"] += volume
-
-        except Exception as e:
-            print(f"⚠️ build_live_candles_from_tick error: {e}, tick={tick}")
-
-    def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
-        """
-        Connect to WebSocket and subscribe to given symbols.
-        - symbols: list of tokens like ['NSE|22', 'NSE|2885']
-        - on_tick: callback function to handle ticks
-        - tick_file: optional log file for raw ticks
-        """
-        try:
-            self._on_tick = on_tick
-            self.start_ticks(symbols, tick_file=tick_file)
-
-            # Wait until WS connected (max 5 sec)
-            for _ in range(50):
-                if getattr(self, "is_ws_connected", False):
-                    print("✅ WebSocket connected")
-                    return True
-                time.sleep(0.1)
-
-            print("❌ WebSocket connect timeout")
-            return False
-
-        except Exception as e:
-            print("❌ connect_websocket error:", e)
-            return False
-
-    def start_ticks(self, symbols, tick_file="ticks.log"):
-        """
-        Start WebSocket connection and subscribe to symbols.
-        """
-        import websocket
-        import threading
-
-        self.tick_file = tick_file
-        self.tick_queue = queue.Queue()
-        self._sub_tokens = symbols  # store tokens for re-subscribe after login
-        self.is_ws_connected = False
-
-        def run_ws():
-            try:
-                ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-                self.ws = websocket.WebSocketApp(
-                    ws_url,
-                    on_message=self._ws_on_message,
-                    on_open=self._ws_on_open,
-                    on_error=self._ws_on_error,
-                    on_close=self._ws_on_close,
-                )
-                self.ws.run_forever(ping_interval=20, ping_timeout=10)
-            except Exception as e:
-                print("❌ start_ticks websocket error:", e)
-
-        # Run WebSocket in background
-        t = threading.Thread(target=run_ws, daemon=True)
-        t.start()
-
-
-
