@@ -283,13 +283,13 @@ def render_strategy_engine():
                         break
                     try:
                         ws.send("ping")
-                        st.session_state.last_heartbeat = datetime.now().strftime("%H:%M:%S")  # ✅ sirf state update
+                        ui_queue.put({"_heartbeat": datetime.now().strftime("%H:%M:%S")})
                     except Exception:
                         break
                     time.sleep(20)
             threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
-            st.error(f"WS start error: {e}")
+            ui_queue.put({"_error": str(e)})
 
     # --- Preload TPSeries history and auto-start WS ---
     # Fetch history for the watchlist (first symbol)
@@ -392,10 +392,15 @@ def render_strategy_engine():
             except queue.Empty:
                 break
             else:
-                update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-                processed += 1
-                last_tick = tick
-
+                if "_error" in tick:
+                    placeholder_status.error(f"WS error: {tick['_error']}")
+                elif "_heartbeat" in tick:
+                    st.session_state.last_heartbeat = tick["_heartbeat"]
+                else:
+                    update_last_candle_from_tick_local(tick, interval=int(selected_interval))
+                    processed += 1
+                    last_tick = tick
+                
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
             f"symbols: {len(st.session_state.get('symbols_for_ws', []))} | "
@@ -438,4 +443,5 @@ def render_strategy_engine():
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
     
     st.info("Strategy engine logic integrated here...")
+
 
