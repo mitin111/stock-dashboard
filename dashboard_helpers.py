@@ -74,7 +74,7 @@ def render_indicator_settings():
 def render_strategy_engine():
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
     # 🔹 Yaha aapka pura TPSeries + websocket + chart ka code rahega
-        import plotly.graph_objects as go
+    import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd, pytz
     pd.set_option('future.no_silent_downcasting', True)
@@ -444,6 +444,7 @@ def render_strategy_engine():
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
     
     st.info("Strategy engine logic integrated here...")
+
 
 
 
