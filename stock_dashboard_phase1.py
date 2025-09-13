@@ -1,12 +1,15 @@
 
 import streamlit as st
 import pandas as pd
-from prostocks_connector import ProStocksAPI
-from dashboard_logic import load_settings, save_settings, load_credentials
 from datetime import datetime
 import pytz
 
-# === Import helpers ===
+# ✅ REST + WS imports
+from prostocks_rest import ProStocksREST
+from prostocks_ws import ProStocksWS
+
+# ✅ Settings & helpers
+from dashboard_logic import load_settings, save_settings, load_credentials
 from dashboard_helpers import (
     render_trade_controls,
     render_dashboard,
@@ -30,10 +33,14 @@ creds = load_credentials()
 # === Sidebar Login ===
 with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
+
     if st.button("📩 Send OTP"):
-        temp_api = ProStocksAPI(**creds)
-        success, msg = temp_api.login("")
-        st.success("✅ OTP Sent") if success else st.info(f"ℹ️ {msg}")
+        temp_api = ProStocksREST(**creds)
+        resp = temp_api.send_otp()
+        if resp.get("stat") == "Ok":
+            st.success("✅ OTP Sent")
+        else:
+            st.error(f"❌ {resp.get('emsg', resp)}")
 
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
@@ -48,7 +55,7 @@ with st.sidebar:
         submitted = st.form_submit_button("🔐 Login")
         if submitted:
             try:
-                ps_api = ProStocksAPI(
+                ps_api = ProStocksREST(
                     userid=uid, password_plain=pwd, vc=vc,
                     api_key=api_key, imei=imei,
                     base_url=base_url, apkversion=apkversion
@@ -57,6 +64,10 @@ with st.sidebar:
                 if success:
                     st.session_state["ps_api"] = ps_api
                     st.success("✅ Login successful!")
+
+                    # 🔗 WebSocket init
+                    st.session_state["ps_ws"] = ProStocksWS(ps_api.userid, ps_api.session_token)
+
                     st.rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
@@ -66,6 +77,8 @@ with st.sidebar:
 if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
         del st.session_state["ps_api"]
+        if "ps_ws" in st.session_state:
+            del st.session_state["ps_ws"]
         st.success("✅ Logged out successfully")
         st.rerun()
 
