@@ -77,3 +77,4 @@ def render_strategy_engine():
     # (jo aapki pehli script ke Tab 5 me hai)
     # Sirf copy-paste karke yaha function ke andar daalna hai
     st.info("Strategy engine logic integrated here...")
+
