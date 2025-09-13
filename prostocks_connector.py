@@ -7,12 +7,14 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
-import os, requests, hashlib, json
+import websocket
+import threading
+import queue
 
 load_dotenv()
 
 
-class ProStocksREST:
+class ProStocksAPI:
     def __init__(
         self,
         userid=None,
@@ -33,6 +35,28 @@ class ProStocksREST:
         self.session_token = None
         self.session = requests.Session()
         self.headers = {"Content-Type": "text/plain"}
+
+        self.credentials = {
+            "uid": self.userid,
+            "pwd": self.password_plain,
+            "vc": self.vc,
+            "api_key": self.api_key,
+            "imei": self.imei
+        }
+
+        # --- WebSocket state ---
+        self.ws = None
+        self.is_ws_connected = False
+        self._sub_tokens = []
+        self.tick_file = "ticks.log"
+        self.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+
+        # ✅ Tick Queue + File init YAHAN karna hai
+        import queue
+        self.tick_queue = queue.Queue()
+        self.tick_file = "ticks.log"
+
+        self.candles = {}
 
     # ---------------- Utils ----------------
     def sha256(self, text: str) -> str:
@@ -55,10 +79,15 @@ class ProStocksREST:
             "apkversion": self.apkversion,
             "source": "API"
         }
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}"
-        response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
-        return response.json()
+
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}"
+            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
+            print("📨 OTP Trigger Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"emsg": str(e)}
 
     def login(self, factor2_otp):
         url = f"{self.base_url}/QuickAuth"
@@ -76,28 +105,49 @@ class ProStocksREST:
             "apkversion": self.apkversion,
             "source": "API"
         }
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}"
-        response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("stat") == "Ok":
-                self.session_token = data["susertoken"]
-                self.userid = data["uid"]
-                self.headers["Authorization"] = self.session_token
-                return True, self.session_token
-            return False, data.get("emsg", "Login error")
-        return False, f"HTTP {response.status_code}: {response.text}"
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}"
+            response = self.session.post(url, data=raw_data, headers=self.headers, timeout=10)
+            print("🔁 Login Response Code:", response.status_code)
+            print("📨 Login Response Body:", response.text)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("stat") == "Ok":
+                    self.session_token = data["susertoken"]
+                    self.userid = data["uid"]
+                    self.headers["Authorization"] = self.session_token
+                    print("✅ Login Success!")
+                    return True, self.session_token
+                else:
+                    return False, data.get("emsg", "Unknown login error")
+            else:
+                return False, f"HTTP {response.status_code}: {response.text}"
+        except requests.exceptions.RequestException as e:
+            return False, f"RequestException: {e}"
 
     # ------------- Core POST helper -------------
     def _post_json(self, url, payload):
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Not Logged In"}
-        jdata = json.dumps(payload, separators=(",", ":"))
-        raw_data = f"jData={jdata}&jKey={self.session_token}"
-        response = self.session.post(url, data=raw_data, headers={"Content-Type": "text/plain"}, timeout=15)
-        return response.json()
+            return {"stat": "Not_Ok", "emsg": "Not Logged In. Session Token Missing."}
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            raw_data = f"jData={jdata}&jKey={self.session_token}"
+            print("✅ POST URL:", url)
+            print("📦 Sent Payload:", jdata)
+
+            response = self.session.post(
+                url,
+                data=raw_data,
+                headers={"Content-Type": "text/plain"},
+                timeout=15
+            )
+            print("📨 Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"stat": "Not_Ok", "emsg": str(e)}
 
     # ------------- Watchlists -------------
     def get_watchlists(self):
@@ -123,22 +173,31 @@ class ProStocksREST:
 
     def add_scrips_to_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/AddMultiScripsToMW"
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": ",".join(scrips_list)}
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
     def delete_scrips_from_watchlist(self, wlname, scrips_list):
         url = f"{self.base_url}/DeleteMultiMWScrips"
-        payload = {"uid": self.userid, "wlname": wlname, "scrips": ",".join(scrips_list)}
+        scrips_str = ",".join(scrips_list)
+        payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
-    # ------------- TPSeries -------------
+       # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
+        """
+        Returns raw TPSeries from API.
+        For success, the API typically returns a list; on error it returns a dict with 'stat'/'emsg'.
+        'st' and 'et' must be epoch seconds (UTC).
+        """
         if not self.session_token:
-            return {"stat": "Not_Ok", "emsg": "Session token missing"}
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login again."}
 
+        # Default window (last 60 days) if not provided
         if st is None or et is None:
+            days_back = 60
             et_dt = datetime.now(timezone.utc)
-            st_dt = et_dt - timedelta(days=60)
+            st_dt = et_dt - timedelta(days=days_back)
             st = int(st_dt.timestamp())
             et = int(et_dt.timestamp())
 
@@ -151,8 +210,23 @@ class ProStocksREST:
             "et": str(et),
             "intrv": str(interval)
         }
-        return self._post_json(url, payload)
 
+        print("📤 Sending TPSeries Payload:")
+        print(f"  UID    : {payload['uid']}")
+        print(f"  EXCH   : {payload['exch']}")
+        print(f"  TOKEN  : {payload['token']}")
+        print(f"  ST     : {payload['st']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(st)))} UTC")
+        print(f"  ET     : {payload['et']} → {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(int(et)))} UTC")
+        print(f"  INTRV  : {payload['intrv']}")
+
+        try:
+            response = self._post_json(url, payload)
+            return response
+        except Exception as e:
+            print("❌ Exception in get_tpseries():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
+
+    # ---------------- TPSeries fetch ----------------
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
         all_chunks = []
         end_dt = datetime.now(timezone.utc)
@@ -162,27 +236,90 @@ class ProStocksREST:
             start_dt = end_dt - timedelta(days=chunk_days)
             if start_dt < start_limit_dt:
                 start_dt = start_limit_dt
+
             st = int(start_dt.timestamp())
             et = int(end_dt.timestamp())
+            print(f"⏳ Fetching {start_dt} → {end_dt} (UTC)")
             resp = self.get_tpseries(exch, token, interval, st, et)
 
-            if isinstance(resp, list) and resp:
-                df_chunk = pd.DataFrame(resp)
-                all_chunks.append(df_chunk)
+            if isinstance(resp, dict):
+                print(f"⚠️ TPSeries chunk returned dict: {resp.get('emsg') or resp.get('stat')}")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            if not isinstance(resp, list) or len(resp) == 0:
+                print("⚠️ Empty chunk. Moving back…")
+                end_dt = start_dt - timedelta(seconds=1)
+                time.sleep(0.25)
+                continue
+
+            df_chunk = pd.DataFrame(resp)
+            all_chunks.append(df_chunk)
             end_dt = start_dt - timedelta(seconds=1)
             time.sleep(0.25)
 
         if not all_chunks:
             return pd.DataFrame()
+
         df = pd.concat(all_chunks, ignore_index=True)
+
         if "time" in df.columns:
-            df.rename(columns={
-                "time": "datetime", "into": "open", "inth": "high",
-                "intl": "low", "intc": "close", "intv": "volume"
-            }, inplace=True)
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.sort_values(by="time", inplace=True)
+
+        rename_map = {
+            "time": "datetime",
+            "into": "open",
+            "inth": "high",
+            "intl": "low",
+            "intc": "close",
+            "intvwap": "vwap",
+            "intv": "volume",
+            "intol": "open_interest_lot",
+            "oi": "open_interest"
+        }
+        df.rename(columns=rename_map, inplace=True)
+
+        if "datetime" in df.columns:
             df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
             df = df.dropna(subset=["datetime"])
-            df.sort_values("datetime", inplace=True)
+
+        df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
 
+    def fetch_tpseries_for_watchlist(self, wlname, interval="5"):
+        results = []
+        MAX_CALLS_PER_MIN = 20
+        call_count = 0
 
+        symbols = self.get_watchlist(wlname)
+        if not symbols or "values" not in symbols:
+            print("❌ No symbols found in watchlist.")
+            return []
+
+        for idx, sym in enumerate(symbols["values"]):
+            exch = sym.get("exch", "").strip()
+            token = str(sym.get("token", "")).strip()
+            symbol = sym.get("tsym", "").strip()
+
+            if not token.isdigit():
+                print(f"⚠️ Skipping {symbol}: Invalid token")
+                continue
+
+            try:
+                print(f"\n📦 {idx+1}. {symbol} → {exch}|{token}")
+                df = self.fetch_full_tpseries(exch, token, interval)
+                if not df.empty:
+                    print(f"✅ {symbol}: {len(df)} candles fetched.")
+                    results.append({"symbol": symbol, "data": df})
+                else:
+                    print(f"⚠️ {symbol}: No data fetched.")
+            except Exception as e:
+                print(f"❌ {symbol}: Exception: {e}")
+
+            call_count += 1
+            if call_count >= MAX_CALLS_PER_MIN:
+                print("⚠️ TPSeries limit reached. Skipping remaining.")
+                break
+            return results
