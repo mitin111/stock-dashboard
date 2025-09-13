@@ -4,12 +4,10 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import pytz
-import time
 
 # ✅ REST + WS imports
 from prostocks_connector import ProStocksAPI
-from prostocks_ws import ProStocksWS
-
+from prostocks_ws import ProStocksWebSocket
 # ✅ Settings & helpers
 from dashboard_logic import load_settings, save_settings, load_credentials
 from dashboard_helpers import (
@@ -67,23 +65,20 @@ with st.sidebar:
                     st.session_state["ps_api"] = ps_api
                     st.success("✅ Login successful!")
 
-                    # 🔗 WebSocket init (API-safe)
-                    if "ps_ws" not in st.session_state:
-                        st.session_state["ps_ws"] = ProStocksWS(ps_api)
-                    
+                    # 🔗 WebSocket init
+                    st.session_state["ps_ws"] = ProStocksWS(ps_api.userid, ps_api.session_token)
+
                     st.rerun()
                 else:
                     st.error(f"❌ Login failed: {msg}")
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-# === Logout ===
 if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
-        if "ps_ws" in st.session_state:
-            st.session_state["ps_ws"].stop_ticks()
-            del st.session_state["ps_ws"]
         del st.session_state["ps_api"]
+        if "ps_ws" in st.session_state:
+            del st.session_state["ps_ws"]
         st.success("✅ Logged out successfully")
         st.rerun()
 
@@ -96,32 +91,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📉 Strategy Engine"
 ])
 
-with tab1:
-    render_trade_controls()
-
-with tab2:
-    render_dashboard()
-
-with tab3:
-    render_market_data()
-
-with tab4:
-    render_indicator_settings()
-
-with tab5:
-    render_strategy_engine()
-
-# === WebSocket Tick Consumption (Main Thread Safe) ===
-if "ps_ws" in st.session_state:
-    ps_ws = st.session_state["ps_ws"]
-    if not hasattr(st.session_state, "last_tick"):
-        st.session_state["last_tick"] = None
-
-    # Consume latest tick safely
-    while not ps_ws.tick_queue.empty():
-        st.session_state["last_tick"] = ps_ws.tick_queue.get()
-
-    if st.session_state["last_tick"]:
-        tick = st.session_state["last_tick"]
-        st.write("📩 Latest Tick:", tick)
-
+with tab1: render_trade_controls()
+with tab2: render_dashboard()
+with tab3: render_market_data()
+with tab4: render_indicator_settings()
+with tab5: render_strategy_engine()
