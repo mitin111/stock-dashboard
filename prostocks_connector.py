@@ -11,7 +11,7 @@ import pandas as pd
 load_dotenv()
 
 
-class ProStocksREST:
+class ProStocksAPI:
     def __init__(
         self,
         userid=None,
@@ -183,3 +183,4 @@ class ProStocksREST:
             df = df.dropna(subset=["datetime"])
             df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
+
