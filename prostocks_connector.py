@@ -7,11 +7,12 @@ import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import pandas as pd
+import os, requests, hashlib, json
 
 load_dotenv()
 
 
-class ProStocksAPI:
+class ProStocksREST:
     def __init__(
         self,
         userid=None,
@@ -183,4 +184,5 @@ class ProStocksAPI:
             df = df.dropna(subset=["datetime"])
             df.sort_values("datetime", inplace=True)
         return df.reset_index(drop=True)
+
 
