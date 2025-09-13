@@ -35,7 +35,7 @@ with st.sidebar:
     st.header("🔐 ProStocks OTP Login")
 
     if st.button("📩 Send OTP"):
-        temp_api = ProStocksREST(**creds)
+        temp_api = ProStocksAPI(**creds)
         resp = temp_api.send_otp()
         if resp.get("stat") == "Ok":
             st.success("✅ OTP Sent")
@@ -55,7 +55,7 @@ with st.sidebar:
         submitted = st.form_submit_button("🔐 Login")
         if submitted:
             try:
-                ps_api = ProStocksREST(
+                ps_api = ProStocksAPI(
                     userid=uid, password_plain=pwd, vc=vc,
                     api_key=api_key, imei=imei,
                     base_url=base_url, apkversion=apkversion
@@ -96,6 +96,7 @@ with tab2: render_dashboard()
 with tab3: render_market_data()
 with tab4: render_indicator_settings()
 with tab5: render_strategy_engine()
+
 
 
 
