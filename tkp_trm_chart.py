@@ -2,41 +2,36 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import pandas_ta as ta
+from ta.momentum import RSIIndicator
+from ta.trend import EMAIndicator, CCIIndicator
+from ta.volatility import AverageTrueRange
 
 def plot_trm_chart(df):
     # =============================
-    # TKP TRM (TSI + RSI) calculation
+    # TKP TRM (TSI approximation with EMA + RSI)
     # =============================
     long_len, short_len, sig_len, rsi_len = 25, 5, 14, 5
     rsi_buy, rsi_sell = 50, 50
 
-    # TSI
+    # --- TSI approximation using double EMA of price change ---
     pc = df["close"].diff()
-    first_smooth = pc.ewm(span=long_len, adjust=False).mean()
-    double_smoothed_pc = first_smooth.ewm(span=short_len, adjust=False).mean()
-    first_smooth_abs = pc.abs().ewm(span=long_len, adjust=False).mean()
-    double_smoothed_abs_pc = first_smooth_abs.ewm(span=short_len, adjust=False).mean()
-    df["tsi"] = 100 * (double_smoothed_pc / double_smoothed_abs_pc)
+    ema1 = pc.ewm(span=long_len, adjust=False).mean()
+    ema2 = ema1.ewm(span=short_len, adjust=False).mean()
+    abs_pc = pc.abs()
+    ema1_abs = abs_pc.ewm(span=long_len, adjust=False).mean()
+    ema2_abs = ema1_abs.ewm(span=short_len, adjust=False).mean()
+    df["tsi"] = 100 * (ema2 / ema2_abs)
     df["tsi_signal"] = df["tsi"].ewm(span=sig_len, adjust=False).mean()
 
-    # RSI
-    rsi = ta.rsi(df["close"], length=rsi_len)
-    df["rsi"] = rsi
+    # --- RSI ---
+    df["rsi"] = RSIIndicator(close=df["close"], window=rsi_len).rsi()
 
-    # Buy/Sell Conditions
+    # --- Buy/Sell conditions ---
     df["isBuy"] = (df["tsi"] > df["tsi_signal"]) & (df["rsi"] > rsi_buy)
     df["isSell"] = (df["tsi"] < df["tsi_signal"]) & (df["rsi"] < rsi_sell)
 
-    # Bar colors
-    def get_color(row):
-        if row["isBuy"]:
-            return "aqua"
-        elif row["isSell"]:
-            return "fuchsia"
-        else:
-            return "gray"
-    df["barcolor"] = df.apply(get_color, axis=1)
+    # --- Bar colors ---
+    df["barcolor"] = np.where(df["isBuy"], "aqua", np.where(df["isSell"], "fuchsia", "gray"))
 
     # =============================
     # Yesterday High / Low
@@ -52,21 +47,19 @@ def plot_trm_chart(df):
     # =============================
     HiLoLen = 34
     ha_close = (df["open"] + df["high"] + df["low"] + df["close"]) / 4
-    df["pacC"] = ha_close.ewm(span=HiLoLen).mean()
-    df["pacU"] = df["high"].ewm(span=HiLoLen).mean()
-    df["pacL"] = df["low"].ewm(span=HiLoLen).mean()
+    df["pacC"] = EMAIndicator(close=ha_close, window=HiLoLen).ema_indicator()
+    df["pacU"] = EMAIndicator(close=df["high"], window=HiLoLen).ema_indicator()
+    df["pacL"] = EMAIndicator(close=df["low"], window=HiLoLen).ema_indicator()
 
     # =============================
     # ATR Trailing Stops
     # =============================
-    atr_fast = ta.atr(df["high"], df["low"], df["close"], length=5)
-    atr_slow = ta.atr(df["high"], df["low"], df["close"], length=10)
+    atr_fast = AverageTrueRange(high=df["high"], low=df["low"], close=df["close"], window=5).average_true_range()
+    atr_slow = AverageTrueRange(high=df["high"], low=df["low"], close=df["close"], window=10).average_true_range()
 
     AF1, AF2 = 0.5, 3.0
     df["Trail1"] = df["close"] - AF1 * atr_fast
     df["Trail2"] = df["close"] - AF2 * atr_slow
-
-    # Bull/Bear shading
     df["Bull"] = df["Trail1"] > df["Trail2"]
 
     # =============================
