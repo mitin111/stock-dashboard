@@ -370,7 +370,7 @@ with tab5:
                     time.sleep(20)
             threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
-            st.error(f"WS start error: {e}")
+            ui_queue.put(("ws_error", str(e)), block=False)
 
     # --- Preload TPSeries history and auto-start WS ---
     # Fetch history for the watchlist (first symbol)
@@ -480,6 +480,8 @@ with tab5:
                     last_tick = payload
                 elif msg_type == "heartbeat":
                     st.session_state.last_heartbeat = payload
+                elif msg_type == "ws_error":
+                    placeholder_status.error(f"WS start error: {payload}")
 
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -521,5 +523,6 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
