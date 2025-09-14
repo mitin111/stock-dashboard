@@ -521,11 +521,9 @@ with tab5:
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
     )
 
-    # --- Render TKP TRM + PAC + YHL chart ---
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
-            df_live = pd.DataFrame({
             "open": st.session_state.ohlc_o,
             "high": st.session_state.ohlc_h,
             "low": st.session_state.ohlc_l,
@@ -547,3 +545,4 @@ with tab5:
         fig_trm = plot_trm_chart(df_live)
         placeholder_chart.plotly_chart(fig_trm, use_container_width=True)
            
+
