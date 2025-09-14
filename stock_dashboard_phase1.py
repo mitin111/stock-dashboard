@@ -362,7 +362,8 @@ with tab5:
                         break
                     try:
                         ws.send("ping")
-                        st.session_state.last_heartbeat = datetime.now().strftime("%H:%M:%S")  # ✅ sirf state update
+                        hb = datetime.now().strftime("%H:%M:%S")
+                        ui_queue.put(("heartbeat", hb), block=False)
                     except Exception:
                         break
                     time.sleep(20)
@@ -464,16 +465,20 @@ with tab5:
     # --- Drain queue and apply live ticks to last candle ---
     # This block runs each script run and consumes queued ticks (non-blocking)
     if st.session_state.live_feed_flag.get("active", False):
-        processed = 0; last_tick = None
+        processed = 0; 
+        last_tick = None
         for _ in range(500):  # consume up to N ticks each run
             try:
-                tick = ui_queue.get_nowait()
+                msg_type, payload = ui_queue.get_nowait()
             except queue.Empty:
                 break
             else:
-                update_last_candle_from_tick_local(tick, interval=int(selected_interval))
-                processed += 1
-                last_tick = tick
+                if msg_type == "tick":
+                    update_last_candle_from_tick_local(payload, interval=int(selected_interval))
+                    processed += 1
+                    last_tick = payload
+                elif msg_type == "heartbeat":
+                    st.session_state.last_heartbeat = payload
 
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -515,3 +520,4 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
