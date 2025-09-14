@@ -544,11 +544,17 @@ with tab5:
         df_live = df_live.reindex(full_index).ffill()
         trm_traces = plot_trm_chart(df_live) 
         
-        st.session_state.live_fig.data = st.session_state.live_fig.data[:1]
-        for t in trm_traces:
-            st.session_state.live_fig.add_trace(t)
-
+        if "indicators_added" not in st.session_state:
+            for t in trm_traces:
+                st.session_state.live_fig.add_trace(t)
+            st.session_state.indicators_added = True
+        else:
+            for i, t in enumerate(trm_traces, start=1):  # skip 0 = candlestick
+                st.session_state.live_fig.data[i].x = t.x
+                st.session_state.live_fig.data[i].y = t.y
+            
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
