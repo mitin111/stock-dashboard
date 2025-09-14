@@ -3,14 +3,13 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from ta.momentum import RSIIndicator
 from ta.trend import EMAIndicator
 from ta.volatility import AverageTrueRange
 
 def plot_trm_chart(df):
     df = df.copy()
 
-    # ✅ Force tz-aware index (Asia/Kolkata)
+    # ✅ Force tz-aware index
     if df.index.tz is None:
         df.index = df.index.tz_localize("Asia/Kolkata")
     else:
@@ -39,15 +38,21 @@ def plot_trm_chart(df):
     df["Trail1"] = df["close"] - AF1 * atr_fast.shift(1)
     df["Trail2"] = df["close"] - AF2 * atr_slow.shift(1)
 
-    # --- Only indicator traces, NO candlestick here ---
+    # ✅ Instead of fig, return traces only
     traces = []
+
+    # Yesterday High/Low
     traces.append(go.Scatter(x=df.index, y=df["yesterdayHigh"], mode="lines",
                              line=dict(color="orange", width=1, dash="dot"), name="Yesterday High"))
     traces.append(go.Scatter(x=df.index, y=df["yesterdayLow"], mode="lines",
                              line=dict(color="teal", width=1, dash="dot"), name="Yesterday Low"))
+
+    # PAC
     traces.append(go.Scatter(x=df.index, y=df["pacC"], mode="lines", line=dict(color="blue", width=2), name="PAC Close"))
     traces.append(go.Scatter(x=df.index, y=df["pacU"], mode="lines", line=dict(color="gray", width=1), name="PAC Upper"))
     traces.append(go.Scatter(x=df.index, y=df["pacL"], mode="lines", line=dict(color="gray", width=1), name="PAC Lower"))
+
+    # ATR Trails
     traces.append(go.Scatter(x=df.index, y=df["Trail1"], mode="lines", line=dict(color="purple", width=1), name="Fast Trail"))
     traces.append(go.Scatter(x=df.index, y=df["Trail2"], mode="lines", line=dict(color="brown", width=1), name="Slow Trail"))
 
