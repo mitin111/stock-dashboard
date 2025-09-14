@@ -16,6 +16,8 @@ plotly==5.22.0
 watchdog==4.0.0
 setuptools==68.0.0
 ipywidgets>=7.0.0
+pandas_ta==0.7.0b0
+
 
 
 
