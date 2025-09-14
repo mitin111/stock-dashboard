@@ -542,7 +542,12 @@ with tab5:
         )     
         df_live = df_live.reindex(full_index).ffill()
         from tkp_trm_chart import plot_trm_chart
-        fig_trm = plot_trm_chart(df_live)
-        placeholder_chart.plotly_chart(fig_trm, use_container_width=True)
-           
+        trm_traces = plot_trm_chart(df_live, return_traces=True)
+        st.session_state.live_fig.data = st.session_state.live_fig.data[:1]
+        for t in trm_traces:
+            st.session_state.live_fig.add_trace(t)
+
+    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
+
 
