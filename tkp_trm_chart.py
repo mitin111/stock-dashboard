@@ -1,5 +1,5 @@
 
-  # tkp_trm_chart.py
+# tkp_trm_chart.py
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -9,6 +9,15 @@ from ta.volatility import AverageTrueRange
 
 def plot_trm_chart(df):
     df = df.copy()
+
+    # ✅ Force tz-aware index (Asia/Kolkata)
+    if df.index.tz is None:
+        df.index = df.index.tz_localize("Asia/Kolkata")
+    else:
+        df.index = df.index.tz_convert("Asia/Kolkata")
+
+    # ✅ Ensure monotonic datetime (no duplicates, sorted)
+    df = df[~df.index.duplicated()].sort_index()
 
     # --- Yesterday High / Low (aligned properly) ---
     daily_high = df["high"].resample("1D").max().shift(1)
@@ -68,5 +77,3 @@ def plot_trm_chart(df):
     )
 
     return fig
-
-
