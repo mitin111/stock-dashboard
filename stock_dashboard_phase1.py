@@ -350,7 +350,8 @@ with tab5:
     # --- WS forwarder (uses ps_api.connect_websocket) ---
     def start_ws(symbols, ps_api, ui_queue):
         def on_tick_callback(tick):
-            try: ui_queue.put(tick, block=False)
+            try:
+                ui_queue.put(("tick", tick), block=False)
             except Exception:
                 pass
         try:
@@ -520,4 +521,5 @@ with tab5:
 
     # final render (ensures figure in placeholder is current)
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
