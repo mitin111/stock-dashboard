@@ -522,18 +522,28 @@ with tab5:
     )
 
     # --- Render TKP TRM + PAC + YHL chart ---
+     # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
+            df_live = pd.DataFrame({
             "open": st.session_state.ohlc_o,
             "high": st.session_state.ohlc_h,
             "low": st.session_state.ohlc_l,
             "close": st.session_state.ohlc_c
         }, index=pd.to_datetime(st.session_state.ohlc_x))
+        if df_live.index.tz is None:
+            df_live.index = df_live.index.tz_localize("Asia/Kolkata")
+        else:
+            df_live.index = df_live.index.tz_convert("Asia/Kolkata")
+        interval_min = int(selected_interval)
+        full_index = pd.date_range(
+            start=df_live.index.min(),
+            end=df_live.index.max(),
+            freq=f"{interval_min}min",
+            tz="Asia/Kolkata"
+        )     
+        df_live = df_live.reindex(full_index).ffill()
         from tkp_trm_chart import plot_trm_chart
         fig_trm = plot_trm_chart(df_live)
-    
-    placeholder_chart.plotly_chart(fig_trm, use_container_width=True)
-
-
-
-
+        placeholder_chart.plotly_chart(fig_trm, use_container_width=True)
+           
