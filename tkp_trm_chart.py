@@ -1,8 +1,6 @@
-
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-
 
 # =========================
 # Utility Functions
@@ -19,7 +17,6 @@ def rsi(series, length=14):
     rs = ma_up / ma_down
     return 100 - (100 / (1 + rs))
 
-
 # =========================
 # TRM Logic
 # =========================
@@ -29,12 +26,12 @@ def calc_tkp_trm(df, settings):
 
     first_smooth = ema(pc, settings["long"])
     double_smoothed_pc = ema(first_smooth, settings["short"])
+
     first_smooth_abs = ema(pc.abs(), settings["long"])
     double_smoothed_abs = ema(first_smooth_abs, settings["short"])
 
     tsi = 100 * (double_smoothed_pc / double_smoothed_abs)
     tsi_signal = ema(tsi, settings["signal"])
-
     rsi_vals = rsi(price, settings["len_rsi"])
 
     isBuy = (tsi > tsi_signal) & (rsi_vals > settings["rsiBuyLevel"])
@@ -47,7 +44,6 @@ def calc_tkp_trm(df, settings):
     df["rsi"] = rsi_vals
     return df
 
-
 # =========================
 # Yesterday High / Low
 # =========================
@@ -56,7 +52,6 @@ def calc_yhl(df):
     yhl = df.groupby("date").agg({"high": "max", "low": "min"}).shift(1)
     df = df.join(yhl, on="date", rsuffix="_yest")
     return df
-
 
 # =========================
 # PAC Channel
@@ -79,7 +74,6 @@ def calc_pac(df, settings):
     df["pacU"] = ema(ha_high, settings["pac_length"])
     return df
 
-
 # =========================
 # ATR Trails
 # =========================
@@ -92,7 +86,6 @@ def calc_atr(df, period):
     ], axis=1).max(axis=1)
     return tr.rolling(period).mean()
 
-
 def calc_atr_trails(df, settings):
     sc = df["close"]
 
@@ -100,7 +93,6 @@ def calc_atr_trails(df, settings):
     sl1 = settings["atr_fast_mult"] * calc_atr(df, settings["atr_fast_period"])
     trail1 = pd.Series(index=df.index, dtype="float64")
     trail1.iloc[0] = sc.iloc[0]
-
     for i in range(1, len(df)):
         if sc.iloc[i] > trail1.iloc[i-1]:
             trail1.iloc[i] = sc.iloc[i] - sl1.iloc[i]
@@ -111,7 +103,6 @@ def calc_atr_trails(df, settings):
     sl2 = settings["atr_slow_mult"] * calc_atr(df, settings["atr_slow_period"])
     trail2 = pd.Series(index=df.index, dtype="float64")
     trail2.iloc[0] = sc.iloc[0]
-
     for i in range(1, len(df)):
         if sc.iloc[i] > trail2.iloc[i-1]:
             trail2.iloc[i] = sc.iloc[i] - sl2.iloc[i]
@@ -123,66 +114,14 @@ def calc_atr_trails(df, settings):
     df["Bull"] = (trail1 > trail2) & (sc > trail2) & (df["low"] > trail2)
     return df
 
-
 # =========================
-# Plot Function
-# =========================
-def plot_trm_full(df, settings):
-    fig = go.Figure()
-
-    # Candles with TRM coloring
-    fig.add_trace(go.Candlestick(
-        x=df["datetime"],
-        open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        increasing_line_color="green",
-        decreasing_line_color="red",
-        showlegend=False
-    ))
-
-    # Yesterday H/L
-    fig.add_trace(go.Scatter(
-        x=df["datetime"], y=df["high_yest"], mode="lines",
-        line=dict(color="orange", width=1), name="Yesterday High"
-    ))
-    fig.add_trace(go.Scatter(
-        x=df["datetime"], y=df["low_yest"], mode="lines",
-        line=dict(color="teal", width=1), name="Yesterday Low"
-    ))
-
-    # PAC
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacU"],
-                             line=dict(color="gray", width=1), name="PAC High"))
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacL"],
-                             line=dict(color="gray", width=1), name="PAC Low"))
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"],
-                             line=dict(color="red", width=2), name="PAC Close"))
-
-    # ATR Trails
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["Trail1"],
-                             line=dict(color="blue", width=1), name="Fast Trail"))
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["Trail2"],
-                             line=dict(color="green", width=2), name="Slow Trail"))
-
-    # Layout
-    fig.update_layout(
-        title="TKP TRM Full Chart",
-        xaxis_title="Time",
-        yaxis_title="Price",
-        template="plotly_dark",
-        xaxis_rangeslider_visible=False
-    )
-    return fig
-
-
-# =========================
-# Wrapper for Streamlit
+# Wrapper for Streamlit / Plotly
 # =========================
 def plot_trm_chart(df, settings=None):
     if settings is None:
         settings = {
             "long": 25, "short": 5, "signal": 14,
-            "len_rsi": 5,
-            "rsiBuyLevel": 50, "rsiSellLevel": 50,
+            "len_rsi": 5, "rsiBuyLevel": 50, "rsiSellLevel": 50,
             "buyColor": "aqua", "sellColor": "fuchsia", "neutralColor": "gray",
             "pac_length": 34, "use_heikin_ashi": True,
             "atr_fast_period": 5, "atr_fast_mult": 0.5,
@@ -197,56 +136,33 @@ def plot_trm_chart(df, settings=None):
             df = df.rename(columns={"ts": "datetime"})
         else:
             raise ValueError(f"[plot_trm_chart] Missing datetime column. Found: {df.columns}")
-                
+
     df["datetime"] = pd.to_datetime(df["datetime"])
 
+    # === Calculations ===
     df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
 
-    # =====================
-    # Make full figure
-    # =====================
+    # === Traces ===
     traces = []
-
-    # Candlestick
     traces.append(go.Candlestick(
-        x=df["datetime"],
-        open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        showlegend=False
+        x=df["datetime"], open=df["open"], high=df["high"],
+        low=df["low"], close=df["close"], showlegend=False
     ))
-
-    # Yesterday H/L
-    traces.append(go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
-                             line=dict(color="orange", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
-                             line=dict(color="teal", width=1)))
-
-    # PAC
-    traces.append(go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
-                             line=dict(color="gray", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
-                             line=dict(color="gray", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
-                             line=dict(color="red", width=2)))
-
-    # ATR Trails
-    traces.append(go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
-                             line=dict(color="blue", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
-                             line=dict(color="green", width=2)))
-
-    # Build figure from traces
-    fig = go.Figure(traces)
-    fig.update_layout(
-        title="TKP TRM Full Chart",
-        template="plotly_dark",
-        xaxis_title="Time",
-        yaxis_title="Price",
-        xaxis_rangeslider_visible=False,
-        margin=dict(l=0, r=0, t=25, b=0),
-        height=600
-    )
-
-    return fig
+    traces.append(go.Scatter(x=df["datetime"], y=df["high_yest"],
+                             name="Yesterday High", line=dict(color="orange", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["low_yest"],
+                             name="Yesterday Low", line=dict(color="teal", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["pacU"],
+                             name="PAC High", line=dict(color="gray", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["pacL"],
+                             name="PAC Low", line=dict(color="gray", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["pacC"],
+                             name="PAC Close", line=dict(color="red", width=2)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["Trail1"],
+                             name="Fast Trail", line=dict(color="blue", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"],
+                             name="Slow Trail", line=dict(color="green", width=2)))
+    return traces
