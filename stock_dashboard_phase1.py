@@ -577,11 +577,13 @@ with tab5:
             long_length = st.slider("TSI Long Length", 5, 50, 25)
             short_length = st.slider("TSI Short Length", 5, 50, 13)
             signal_length = st.slider("TSI Signal Length", 1, 50, 9)
+            len_rsi = st.slider("RSI Length", 5, 50, 14)   # ✅ Add this
             show_colors = st.checkbox("Enable TRM Coloring", True)
             settings = {
                 "long": long_length,
                 "short": short_length,
                 "signal": signal_length,
+                "len_rsi": len_rsi,
                 "coloring": show_colors
             }
 
@@ -606,6 +608,7 @@ with tab5:
         
     
     
+
 
 
 
