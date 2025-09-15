@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
-
 # =========================
 # Streamlit Settings Panel
 # =========================
@@ -20,10 +19,10 @@ def get_trm_settings():
         rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, 50)
         rsiSellLevel = st.slider("RSI Sell Level", 0, 100, 50)
 
-        # --- Colors ---
-        buyColor = st.color_picker("Buy Color", "aqua")
-        sellColor = st.color_picker("Sell Color", "fuchsia")
-        neutralColor = st.color_picker("Neutral Color", "gray")
+        # --- Colors (hex codes only) ---
+        buyColor = st.color_picker("Buy Color", "#00FFFF")     # aqua
+        sellColor = st.color_picker("Sell Color", "#FF00FF")   # fuchsia
+        neutralColor = st.color_picker("Neutral Color", "#808080")  # gray
 
         # --- PAC ---
         pac_length = st.number_input("PAC Length", 1, 200, 34)
@@ -212,4 +211,5 @@ def plot_trm_chart(df, settings=None):
     traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"],
                              name="Slow Trail", line=dict(color="green", width=2)))
     return traces
+
 
