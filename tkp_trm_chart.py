@@ -250,4 +250,3 @@ def plot_trm_chart(df, settings=None):
     )
 
     return fig
-
