@@ -525,24 +525,31 @@ with tab5:
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
+            "datetime": pd.to_datetime(st.session_state.ohlc_x),
             "open": st.session_state.ohlc_o,
             "high": st.session_state.ohlc_h,
             "low": st.session_state.ohlc_l,
             "close": st.session_state.ohlc_c
-        }, index=pd.to_datetime(st.session_state.ohlc_x))
-        if df_live.index.tz is None:
-            df_live.index = df_live.index.tz_localize("Asia/Kolkata")
+        })
+        if df_live["datetime"].dt.tz is None:
+            df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
         else:
-            df_live.index = df_live.index.tz_convert("Asia/Kolkata")
+            df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
         interval_min = int(selected_interval)
         full_index = pd.date_range(
-            start=df_live.index.min(),
-            end=df_live.index.max(),
+            start=df_live["datetime"].min(),
+            end=df_live["datetime"].max(),
             freq=f"{interval_min}min",
             tz="Asia/Kolkata"
-        )     
-        df_live = df_live.reindex(full_index).ffill()
-        trm_traces = plot_trm_chart(df_live) 
+        )
+        df_live = (
+            df_live.set_index("datetime")
+            .reindex(full_index)
+            .ffill()
+            .reset_index()
+            .rename(columns={"index": "datetime"})
+        )
+        trm_traces = plot_trm_chart(df_live)
         
         if "indicators_added" not in st.session_state:
             for t in trm_traces:
@@ -554,6 +561,7 @@ with tab5:
                 st.session_state.live_fig.data[i].y = t.y
             
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
