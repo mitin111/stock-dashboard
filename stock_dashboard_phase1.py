@@ -521,7 +521,7 @@ with tab5:
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
     )
 
-    from tkp_trm_chart import plot_trm_chart
+    from tkp_trm_chart import plot_trm_chart, get_trm_settings
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
@@ -564,12 +564,15 @@ with tab5:
                     st.session_state.live_fig.data[i].y = t.y
                 else:
                     st.session_state.live_fig.add_trace(t)
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)            
+        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+    else:
+        st.warning("⚠️ Not enough candle data for TRM chart")
            
         
         
     
     
+
 
 
 
