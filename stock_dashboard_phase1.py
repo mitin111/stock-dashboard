@@ -576,9 +576,9 @@ with tab5:
         if st.session_state.trm_settings_open:
             with st.expander("⚙️ TRM Settings", expanded=True):
                 settings = get_trm_settings()
-            else:
-                settings = get_trm_settings()
-            trm_traces = plot_trm_chart(df_live, settings)    
+        else:
+            settings = get_trm_settings()
+        trm_traces = plot_trm_chart(df_live, settings)    
                     
         if "indicators_added" not in st.session_state:
             for t in trm_traces:
@@ -599,6 +599,7 @@ with tab5:
         
     
     
+
 
 
 
