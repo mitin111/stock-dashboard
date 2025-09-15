@@ -549,13 +549,37 @@ with tab5:
             .reset_index()
             .rename(columns={"index": "datetime"})
         )
-        # 🎛️ Sidebar settings
-        with st.sidebar:
-            st.header("⚙️ TRM Settings")
-            settings = get_trm_settings()
-            
-        trm_traces = plot_trm_chart(df_live, settings)
+        # 🎛️ TRM Settings via Gear Icon in Modebar
+        if "trm_settings_open" not in st.session_state:
+            st.session_state.trm_settings_open = False
+        config = {
+            "modeBarButtonsToAdd": [
+                {
+                    "name": "TRM Settings",
+                    "icon": "gear",
+                    "click": """
+                        function(gd) {
+                            var streamlitEvent = new CustomEvent("trm_settings_open");
+                            window.dispatchEvent(streamlitEvent);
+                        }
+                    """
+                }
+            ]
+        }
 
+        # Chart render with custom config
+        placeholder_chart.plotly_chart(
+            st.session_state.live_fig,
+            use_container_width=True,
+            config=config
+        )
+        if st.session_state.trm_settings_open:
+            with st.expander("⚙️ TRM Settings", expanded=True):
+                settings = get_trm_settings()
+            else:
+                settings = get_trm_settings()
+            trm_traces = plot_trm_chart(df_live, settings)    
+                    
         if "indicators_added" not in st.session_state:
             for t in trm_traces:
                 st.session_state.live_fig.add_trace(t)
@@ -575,6 +599,7 @@ with tab5:
         
     
     
+
 
 
 
