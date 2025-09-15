@@ -189,6 +189,7 @@ def plot_trm_chart(df, settings=None):
             "atr_slow_period": 10, "atr_slow_mult": 3.0,
             "show_info_panels": True
         }
+
     if "datetime" not in df.columns:
         if "time" in df.columns:
             df = df.rename(columns={"time": "datetime"})
@@ -203,6 +204,37 @@ def plot_trm_chart(df, settings=None):
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    return [plot_trm_full(df, settings)]
 
+    # =====================
+    # Ab traces banao list me
+    # =====================
+    traces = []
 
+    # Candlestick
+    traces.append(go.Candlestick(
+        x=df["datetime"],
+        open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        showlegend=False
+    ))
+
+    # Yesterday H/L
+    traces.append(go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
+                             line=dict(color="orange", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
+                             line=dict(color="teal", width=1)))
+
+    # PAC
+    traces.append(go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
+                             line=dict(color="gray", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
+                             line=dict(color="gray", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
+                             line=dict(color="red", width=2)))
+
+    # ATR Trails
+    traces.append(go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
+                             line=dict(color="blue", width=1)))
+    traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
+                             line=dict(color="green", width=2)))
+
+    return traces
