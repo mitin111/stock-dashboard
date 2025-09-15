@@ -549,48 +549,6 @@ with tab5:
             .reset_index()
             .rename(columns={"index": "datetime"})
         )
-        # 🎛️ TRM Settings via Gear Icon in Modebar
-        if "trm_settings_open" not in st.session_state:
-            st.session_state.trm_settings_open = False
-        config = {
-            "modeBarButtonsToAdd": [
-                {
-                    "name": "TRM Settings",
-                    "icon": "gear",
-                    "click": """
-                        function(gd) {
-                            var streamlitEvent = new CustomEvent("trm_settings_open");
-                            window.dispatchEvent(streamlitEvent);
-                        }
-                    """
-                }
-            ]
-        }
-
-        # Chart render with custom config
-        placeholder_chart.plotly_chart(
-            st.session_state.live_fig,
-            use_container_width=True,
-            config=config
-        )
-        with st.expander("⚙️ TRM Settings", expanded=False):
-            long_length = st.slider("TSI Long Length", 5, 50, 25)
-            short_length = st.slider("TSI Short Length", 5, 50, 13)
-            signal_length = st.slider("TSI Signal Length", 1, 50, 9)
-            rsi_buy_level = st.slider("RSI Buy Level", 0, 100, 50)   # ✅ Add this
-            rsi_sell_level = st.slider("RSI Sell Level", 0, 100, 50) # ✅ Add this
-            len_rsi = st.slider("RSI Length", 5, 50, 14)   # ✅ Add this
-            show_colors = st.checkbox("Enable TRM Coloring", True)
-            settings = {
-                "long": long_length,
-                "short": short_length,
-                "signal": signal_length,
-                "len_rsi": len_rsi,
-                "rsiBuyLevel": rsi_buy_level,   # ✅ Required
-                "rsiSellLevel": rsi_sell_level, # ✅ Required
-                "coloring": show_colors
-            }
-
         trm_traces = plot_trm_chart(df_live, settings)    
                     
         if "indicators_added" not in st.session_state:
@@ -612,6 +570,7 @@ with tab5:
         
     
     
+
 
 
 
