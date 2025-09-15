@@ -1,59 +1,210 @@
 
-# tkp_trm_chart.py
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from ta.trend import EMAIndicator
-from ta.volatility import AverageTrueRange
 
-def plot_trm_chart(df):
-    df = df.copy()
 
-    # ✅ Force tz-aware index
-    if df.index.tz is None:
-        df.index = df.index.tz_localize("Asia/Kolkata")
+# =========================
+# Utility Functions
+# =========================
+def ema(series, length):
+    return series.ewm(span=length, adjust=False).mean()
+
+def rsi(series, length=14):
+    delta = series.diff()
+    up = delta.clip(lower=0)
+    down = -delta.clip(upper=0)
+    ma_up = up.rolling(length).mean()
+    ma_down = down.rolling(length).mean()
+    rs = ma_up / ma_down
+    return 100 - (100 / (1 + rs))
+
+
+# =========================
+# TRM Logic
+# =========================
+def calc_tkp_trm(df, settings):
+    price = df["close"]
+    pc = price.diff()
+
+    first_smooth = ema(pc, settings["long"])
+    double_smoothed_pc = ema(first_smooth, settings["short"])
+    first_smooth_abs = ema(pc.abs(), settings["long"])
+    double_smoothed_abs = ema(first_smooth_abs, settings["short"])
+
+    tsi = 100 * (double_smoothed_pc / double_smoothed_abs)
+    tsi_signal = ema(tsi, settings["signal"])
+
+    rsi_vals = rsi(price, settings["len_rsi"])
+
+    isBuy = (tsi > tsi_signal) & (rsi_vals > settings["rsiBuyLevel"])
+    isSell = (tsi < tsi_signal) & (rsi_vals < settings["rsiSellLevel"])
+
+    df["barcolor"] = np.where(isBuy, settings["buyColor"],
+                       np.where(isSell, settings["sellColor"], settings["neutralColor"]))
+    df["tsi"] = tsi
+    df["tsi_signal"] = tsi_signal
+    df["rsi"] = rsi_vals
+    return df
+
+
+# =========================
+# Yesterday High / Low
+# =========================
+def calc_yhl(df):
+    df["date"] = df["datetime"].dt.date
+    yhl = df.groupby("date").agg({"high": "max", "low": "min"}).shift(1)
+    df = df.join(yhl, on="date", rsuffix="_yest")
+    return df
+
+
+# =========================
+# PAC Channel
+# =========================
+def calc_pac(df, settings):
+    close = df["close"]
+    high = df["high"]
+    low = df["low"]
+
+    if settings["use_heikin_ashi"]:
+        ha_close = (df["open"] + df["high"] + df["low"] + df["close"]) / 4
+        ha_open = (df["open"] + df["close"]) / 2
+        ha_high = df[["high", "open", "close"]].max(axis=1)
+        ha_low = df[["low", "open", "close"]].min(axis=1)
     else:
-        df.index = df.index.tz_convert("Asia/Kolkata")
+        ha_close, ha_open, ha_high, ha_low = close, df["open"], high, low
 
-    # ✅ Ensure monotonic datetime (no duplicates, sorted)
-    df = df[~df.index.duplicated()].sort_index()
+    df["pacC"] = ema(ha_close, settings["pac_length"])
+    df["pacL"] = ema(ha_low, settings["pac_length"])
+    df["pacU"] = ema(ha_high, settings["pac_length"])
+    return df
 
-    # --- Yesterday High / Low ---
-    daily_high = df["high"].resample("1D").max().shift(1)
-    daily_low = df["low"].resample("1D").min().shift(1)
-    df["yesterdayHigh"] = df.index.normalize().map(daily_high)
-    df["yesterdayLow"] = df.index.normalize().map(daily_low)
 
-    # --- PAC EMA ---
-    HiLoLen = 34
-    ha_close = (df["open"] + df["high"] + df["low"] + df["close"]) / 4
-    df["pacC"] = EMAIndicator(ha_close, window=HiLoLen).ema_indicator()
-    df["pacU"] = EMAIndicator(df["high"], window=HiLoLen).ema_indicator()
-    df["pacL"] = EMAIndicator(df["low"], window=HiLoLen).ema_indicator()
+# =========================
+# ATR Trails
+# =========================
+def calc_atr(df, period):
+    high, low, close = df["high"], df["low"], df["close"]
+    tr = pd.concat([
+        high - low,
+        (high - close.shift()).abs(),
+        (low - close.shift()).abs()
+    ], axis=1).max(axis=1)
+    return tr.rolling(period).mean()
 
-    # --- ATR Trails ---
-    atr_fast = AverageTrueRange(df["high"], df["low"], df["close"], window=5).average_true_range()
-    atr_slow = AverageTrueRange(df["high"], df["low"], df["close"], window=10).average_true_range()
-    AF1, AF2 = 0.5, 3.0
-    df["Trail1"] = df["close"] - AF1 * atr_fast.shift(1)
-    df["Trail2"] = df["close"] - AF2 * atr_slow.shift(1)
 
-    # ✅ Instead of fig, return traces only
-    traces = []
+def calc_atr_trails(df, settings):
+    sc = df["close"]
 
-    # Yesterday High/Low
-    traces.append(go.Scatter(x=df.index, y=df["yesterdayHigh"], mode="lines",
-                             line=dict(color="orange", width=1, dash="dot"), name="Yesterday High"))
-    traces.append(go.Scatter(x=df.index, y=df["yesterdayLow"], mode="lines",
-                             line=dict(color="teal", width=1, dash="dot"), name="Yesterday Low"))
+    # Fast trail
+    sl1 = settings["atr_fast_mult"] * calc_atr(df, settings["atr_fast_period"])
+    trail1 = pd.Series(index=df.index, dtype="float64")
+    trail1.iloc[0] = sc.iloc[0]
+
+    for i in range(1, len(df)):
+        if sc.iloc[i] > trail1.iloc[i-1]:
+            trail1.iloc[i] = sc.iloc[i] - sl1.iloc[i]
+        else:
+            trail1.iloc[i] = sc.iloc[i] + sl1.iloc[i]
+
+    # Slow trail
+    sl2 = settings["atr_slow_mult"] * calc_atr(df, settings["atr_slow_period"])
+    trail2 = pd.Series(index=df.index, dtype="float64")
+    trail2.iloc[0] = sc.iloc[0]
+
+    for i in range(1, len(df)):
+        if sc.iloc[i] > trail2.iloc[i-1]:
+            trail2.iloc[i] = sc.iloc[i] - sl2.iloc[i]
+        else:
+            trail2.iloc[i] = sc.iloc[i] + sl2.iloc[i]
+
+    df["Trail1"] = trail1
+    df["Trail2"] = trail2
+    df["Bull"] = (trail1 > trail2) & (sc > trail2) & (df["low"] > trail2)
+    return df
+
+
+# =========================
+# Plot Function
+# =========================
+def plot_trm_full(df, settings):
+    fig = go.Figure()
+
+    # Candles with TRM coloring
+    fig.add_trace(go.Candlestick(
+        x=df["datetime"],
+        open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        increasing_line_color="green",
+        decreasing_line_color="red",
+        showlegend=False
+    ))
+
+    # Yesterday H/L
+    fig.add_trace(go.Scatter(
+        x=df["datetime"], y=df["high_yest"], mode="lines",
+        line=dict(color="orange", width=1), name="Yesterday High"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["datetime"], y=df["low_yest"], mode="lines",
+        line=dict(color="teal", width=1), name="Yesterday Low"
+    ))
 
     # PAC
-    traces.append(go.Scatter(x=df.index, y=df["pacC"], mode="lines", line=dict(color="blue", width=2), name="PAC Close"))
-    traces.append(go.Scatter(x=df.index, y=df["pacU"], mode="lines", line=dict(color="gray", width=1), name="PAC Upper"))
-    traces.append(go.Scatter(x=df.index, y=df["pacL"], mode="lines", line=dict(color="gray", width=1), name="PAC Lower"))
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacU"],
+                             line=dict(color="gray", width=1), name="PAC High"))
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacL"],
+                             line=dict(color="gray", width=1), name="PAC Low"))
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"],
+                             line=dict(color="red", width=2), name="PAC Close"))
 
     # ATR Trails
-    traces.append(go.Scatter(x=df.index, y=df["Trail1"], mode="lines", line=dict(color="purple", width=1), name="Fast Trail"))
-    traces.append(go.Scatter(x=df.index, y=df["Trail2"], mode="lines", line=dict(color="brown", width=1), name="Slow Trail"))
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["Trail1"],
+                             line=dict(color="blue", width=1), name="Fast Trail"))
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["Trail2"],
+                             line=dict(color="green", width=2), name="Slow Trail"))
 
-    return traces
+    # Layout
+    fig.update_layout(
+        title="TKP TRM Full Chart",
+        xaxis_title="Time",
+        yaxis_title="Price",
+        template="plotly_dark",
+        xaxis_rangeslider_visible=False
+    )
+    return fig
+
+
+# =========================
+# Example Usage
+# =========================
+if __name__ == "__main__":
+    # Example OHLCV data
+    dates = pd.date_range("2025-09-01", periods=100, freq="H")
+    df = pd.DataFrame({
+        "datetime": dates,
+        "open": np.random.rand(100) * 100,
+        "high": np.random.rand(100) * 100 + 1,
+        "low": np.random.rand(100) * 100 - 1,
+        "close": np.random.rand(100) * 100,
+        "volume": np.random.randint(100, 1000, size=100)
+    })
+
+    settings = {
+        "long": 25, "short": 5, "signal": 14,
+        "len_rsi": 5,
+        "rsiBuyLevel": 50, "rsiSellLevel": 50,
+        "buyColor": "aqua", "sellColor": "fuchsia", "neutralColor": "gray",
+        "pac_length": 34, "use_heikin_ashi": True,
+        "atr_fast_period": 5, "atr_fast_mult": 0.5,
+        "atr_slow_period": 10, "atr_slow_mult": 3.0,
+        "show_info_panels": True
+    }
+
+    df = calc_tkp_trm(df, settings)
+    df = calc_yhl(df)
+    df = calc_pac(df, settings)
+    df = calc_atr_trails(df, settings)
+
+    fig = plot_trm_full(df, settings)
+    fig.show()
+
