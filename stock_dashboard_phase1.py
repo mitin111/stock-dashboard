@@ -574,7 +574,14 @@ with tab5:
             config=config
         )
         with st.expander("⚙️ TRM Settings", expanded=False):
-            settings = get_trm_settings()
+            long_length = st.slider("TSI Long Length", 5, 50, 25)
+            short_length = st.slider("TSI Short Length", 5, 50, 13)
+            show_colors = st.checkbox("Enable TRM Coloring", True)
+            settings = {
+                "long": long_length,
+                "short": short_length,
+                "coloring": show_colors
+            }
 
         trm_traces = plot_trm_chart(df_live, settings)    
                     
@@ -597,6 +604,7 @@ with tab5:
         
     
     
+
 
 
 
