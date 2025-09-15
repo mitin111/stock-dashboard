@@ -562,8 +562,10 @@ with tab5:
                     st.session_state.live_fig.data[i].y = t.y
                 else:
                     st.session_state.live_fig.add_trace(t)
-            
+
+    st.session_state.live_fig = plot_trm_chart(df)         
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
