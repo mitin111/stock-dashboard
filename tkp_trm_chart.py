@@ -206,7 +206,7 @@ def plot_trm_chart(df, settings=None):
     df = calc_atr_trails(df, settings)
 
     # =====================
-    # Ab traces banao list me
+    # Make full figure
     # =====================
     traces = []
 
@@ -237,4 +237,17 @@ def plot_trm_chart(df, settings=None):
     traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
                              line=dict(color="green", width=2)))
 
-    return traces
+    # Build figure from traces
+    fig = go.Figure(traces)
+    fig.update_layout(
+        title="TKP TRM Full Chart",
+        template="plotly_dark",
+        xaxis_title="Time",
+        yaxis_title="Price",
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=0, r=0, t=25, b=0),
+        height=600
+    )
+
+    return fig
+
