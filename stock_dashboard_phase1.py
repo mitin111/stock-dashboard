@@ -549,7 +549,10 @@ with tab5:
             .reset_index()
             .rename(columns={"index": "datetime"})
         )
-        trm_traces = plot_trm_chart(df_live)
+        # 🎛️ Sidebar settings
+        settings = get_trm_settings()
+        trm_traces = plot_trm_chart(df_live, settings)
+
         if "indicators_added" not in st.session_state:
             for t in trm_traces:
                 st.session_state.live_fig.add_trace(t)
@@ -567,5 +570,6 @@ with tab5:
         
     
     
+
 
 
