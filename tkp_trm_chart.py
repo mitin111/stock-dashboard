@@ -192,10 +192,11 @@ def plot_trm_chart(df, settings=None):
     if "datetime" not in df.columns:
         if "time" in df.columns:
             df = df.rename(columns={"time": "datetime"})
-            elif "ts" in df.columns:
-                df = df.rename(columns={"ts": "datetime"})
-            else:
-                raise ValueError(f"[plot_trm_chart] Missing datetime column. Found: {df.columns}")
+        elif "ts" in df.columns:
+            df = df.rename(columns={"ts": "datetime"})
+        else:
+            raise ValueError(f"[plot_trm_chart] Missing datetime column. Found: {df.columns}")
+                
     df["datetime"] = pd.to_datetime(df["datetime"])
 
     df = calc_tkp_trm(df, settings)
@@ -203,4 +204,5 @@ def plot_trm_chart(df, settings=None):
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
     return [plot_trm_full(df, settings)]
+
 
