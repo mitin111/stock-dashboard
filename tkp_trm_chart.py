@@ -175,36 +175,22 @@ def plot_trm_full(df, settings):
 
 
 # =========================
-# Example Usage
+# Wrapper for Streamlit
 # =========================
-if __name__ == "__main__":
-    # Example OHLCV data
-    dates = pd.date_range("2025-09-01", periods=100, freq="H")
-    df = pd.DataFrame({
-        "datetime": dates,
-        "open": np.random.rand(100) * 100,
-        "high": np.random.rand(100) * 100 + 1,
-        "low": np.random.rand(100) * 100 - 1,
-        "close": np.random.rand(100) * 100,
-        "volume": np.random.randint(100, 1000, size=100)
-    })
-
-    settings = {
-        "long": 25, "short": 5, "signal": 14,
-        "len_rsi": 5,
-        "rsiBuyLevel": 50, "rsiSellLevel": 50,
-        "buyColor": "aqua", "sellColor": "fuchsia", "neutralColor": "gray",
-        "pac_length": 34, "use_heikin_ashi": True,
-        "atr_fast_period": 5, "atr_fast_mult": 0.5,
-        "atr_slow_period": 10, "atr_slow_mult": 3.0,
-        "show_info_panels": True
-    }
-
+def plot_trm_chart(df, settings=None):
+    if settings is None:
+        settings = {
+            "long": 25, "short": 5, "signal": 14,
+            "len_rsi": 5,
+            "rsiBuyLevel": 50, "rsiSellLevel": 50,
+            "buyColor": "aqua", "sellColor": "fuchsia", "neutralColor": "gray",
+            "pac_length": 34, "use_heikin_ashi": True,
+            "atr_fast_period": 5, "atr_fast_mult": 0.5,
+            "atr_slow_period": 10, "atr_slow_mult": 3.0,
+            "show_info_panels": True
+        }
     df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-
-    fig = plot_trm_full(df, settings)
-    fig.show()
-
+    return [plot_trm_full(df, settings)]
