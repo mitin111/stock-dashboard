@@ -556,11 +556,15 @@ with tab5:
                 st.session_state.live_fig.add_trace(t)
             st.session_state.indicators_added = True
         else:
-            for i, t in enumerate(trm_traces, start=1):  # skip 0 = candlestick
-                st.session_state.live_fig.data[i].x = t.x
-                st.session_state.live_fig.data[i].y = t.y
+            for i, t in enumerate(trm_traces[1:], start=1):
+                if i < len(st.session_state.live_fig.data):
+                    st.session_state.live_fig.data[i].x = t.x
+                    st.session_state.live_fig.data[i].y = t.y
+                else:
+                    st.session_state.live_fig.add_trace(t)
             
     placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
