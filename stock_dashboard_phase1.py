@@ -549,31 +549,11 @@ with tab5:
             .reset_index()
             .rename(columns={"index": "datetime"})
         )
-        trm_traces = plot_trm_chart(df_live)
-        
-        if "indicators_added" not in st.session_state:
-            for t in trm_traces:
-                st.session_state.live_fig.add_trace(t)
-            st.session_state.indicators_added = True
-        else:
-            for i, t in enumerate(trm_traces[1:], start=1):
-                if i < len(st.session_state.live_fig.data):
-                    st.session_state.live_fig.data[i].x = t.x
-                    st.session_state.live_fig.data[i].y = t.y
-                else:
-                    st.session_state.live_fig.add_trace(t)
-
-    st.session_state.live_fig = plot_trm_chart(df)         
-    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-
-
-
-
-
-
-
-
-
-
+        st.session_state.live_fig = plot_trm_chart(df_live)
+        placeholder_chart.plotly_chart(
+            st.session_state.live_fig,
+            use_container_width=True
+        )
+    
+    
 
