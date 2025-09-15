@@ -32,9 +32,7 @@ def get_trm_settings():
     # Load saved settings first
     saved = load_trm_settings()
     
-    with st.sidebar:
-        st.subheader("⚙️ TRM Settings (Manual Adjust)")
-
+    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
         long = st.number_input("TSI Long Length", 1, 200, saved.get("long", 25))
         short = st.number_input("TSI Short Length", 1, 200, saved.get("short", 5))
         signal = st.number_input("TSI Signal Length", 1, 200, saved.get("signal", 14))
@@ -238,6 +236,7 @@ def plot_trm_chart(df, settings=None):
     traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"],
                              name="Slow Trail", line=dict(color="green", width=2)))
     return traces
+
 
 
 
