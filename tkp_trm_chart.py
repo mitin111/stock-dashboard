@@ -2,42 +2,62 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
+import json
+import os
+
+SETTINGS_FILE = "trm_settings.json"
+
+# =========================
+# Load / Save Settings
+# =========================
+def load_trm_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r") as f:
+            try:
+                settings = json.load(f)
+            except:
+                settings = {}
+    else:
+        settings = {}
+    return settings
+
+def save_trm_settings(settings):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
 # =========================
 # Streamlit Settings Panel
 # =========================
 def get_trm_settings():
+    # Load saved settings first
+    saved = load_trm_settings()
+    
     with st.sidebar:
-        st.subheader("⚙️ TRM Settings")
+        st.subheader("⚙️ TRM Settings (Manual Adjust)")
 
-        # --- TRM lengths ---
-        long = st.number_input("TSI Long Length", 1, 200, 25)
-        short = st.number_input("TSI Short Length", 1, 200, 5)
-        signal = st.number_input("TSI Signal Length", 1, 200, 14)
+        long = st.number_input("TSI Long Length", 1, 200, saved.get("long", 25))
+        short = st.number_input("TSI Short Length", 1, 200, saved.get("short", 5))
+        signal = st.number_input("TSI Signal Length", 1, 200, saved.get("signal", 14))
 
-        # --- RSI ---
-        len_rsi = st.number_input("RSI Length", 1, 200, 5)
-        rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, 50)
-        rsiSellLevel = st.slider("RSI Sell Level", 0, 100, 50)
+        len_rsi = st.number_input("RSI Length", 1, 200, saved.get("len_rsi", 5))
+        rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, saved.get("rsiBuyLevel", 50))
+        rsiSellLevel = st.slider("RSI Sell Level", 0, 100, saved.get("rsiSellLevel", 50))
 
-        # --- Colors (hex codes only) ---
-        buyColor = st.color_picker("Buy Color", "#00FFFF")     # aqua
-        sellColor = st.color_picker("Sell Color", "#FF00FF")   # fuchsia
-        neutralColor = st.color_picker("Neutral Color", "#808080")  # gray
+        buyColor = st.color_picker("Buy Color", saved.get("buyColor", "#00FFFF"))
+        sellColor = st.color_picker("Sell Color", saved.get("sellColor", "#FF00FF"))
+        neutralColor = st.color_picker("Neutral Color", saved.get("neutralColor", "#808080"))
 
-        # --- PAC ---
-        pac_length = st.number_input("PAC Length", 1, 200, 34)
-        use_heikin_ashi = st.checkbox("Use Heikin Ashi", True)
+        pac_length = st.number_input("PAC Length", 1, 200, saved.get("pac_length", 34))
+        use_heikin_ashi = st.checkbox("Use Heikin Ashi", saved.get("use_heikin_ashi", True))
 
-        # --- ATR Trails ---
-        atr_fast_period = st.number_input("ATR Fast Period", 1, 200, 5)
-        atr_fast_mult = st.number_input("ATR Fast Multiplier", 0.1, 10.0, 0.5, 0.1)
-        atr_slow_period = st.number_input("ATR Slow Period", 1, 200, 10)
-        atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, 3.0, 0.1)
+        atr_fast_period = st.number_input("ATR Fast Period", 1, 200, saved.get("atr_fast_period", 5))
+        atr_fast_mult = st.number_input("ATR Fast Multiplier", 0.1, 10.0, saved.get("atr_fast_mult", 0.5), 0.1)
+        atr_slow_period = st.number_input("ATR Slow Period", 1, 200, saved.get("atr_slow_period", 10))
+        atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, saved.get("atr_slow_mult", 3.0), 0.1)
 
-        # --- Extra ---
-        show_info_panels = st.checkbox("Show Info Panels", True)
+        show_info_panels = st.checkbox("Show Info Panels", saved.get("show_info_panels", True))
 
-        return {
+        settings = {
             "long": long, "short": short, "signal": signal,
             "len_rsi": len_rsi, "rsiBuyLevel": rsiBuyLevel, "rsiSellLevel": rsiSellLevel,
             "buyColor": buyColor, "sellColor": sellColor, "neutralColor": neutralColor,
@@ -46,6 +66,13 @@ def get_trm_settings():
             "atr_slow_period": atr_slow_period, "atr_slow_mult": atr_slow_mult,
             "show_info_panels": show_info_panels
         }
+
+        if st.button("💾 Save TRM Settings"):
+            save_trm_settings(settings)
+            st.success("✅ TRM Settings saved successfully!")
+
+    return settings
+
 
 # =========================
 # Utility Functions
@@ -211,5 +238,6 @@ def plot_trm_chart(df, settings=None):
     traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"],
                              name="Slow Trail", line=dict(color="green", width=2)))
     return traces
+
 
 
