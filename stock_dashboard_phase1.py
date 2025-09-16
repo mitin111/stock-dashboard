@@ -521,7 +521,7 @@ with tab5:
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
     )
 
-    from tkp_trm_chart import plot_trm_chart, get_trm_settings
+    from tkp_trm_chart import plot_trm_chart, get_trm_settings, get_hist_settings
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
@@ -557,3 +557,4 @@ with tab5:
         fig = go.Figure(data=trm_traces, layout=layout)
         st.plotly_chart(fig, use_container_width=True)
       
+
