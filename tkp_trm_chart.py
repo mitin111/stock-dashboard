@@ -218,21 +218,32 @@ def plot_trm_chart(df, settings=None):
     # === Traces ===
     traces = []
 
-    # Candlesticks with TRM barcolor fill
+    # --- Transparent candles as base ---
     candles = go.Candlestick(
         x=df["datetime"],
         open=df["open"],
         high=df["high"],
         low=df["low"],
         close=df["close"],
-        increasing_line_color="lime",
-        decreasing_line_color="red",
-        increasing_fillcolor=df["barcolor"],  # TRM color
-        decreasing_fillcolor=df["barcolor"],  # TRM color
+        increasing_line_color="black",
+        decreasing_line_color="black",
+        increasing_fillcolor="white",
+        decreasing_fillcolor="white",
+        opacity=0.2,
         name="Candles"
     )
 
-    traces = [candles]
+    # --- TRM overlay bars for per-candle colors ---
+    bars = go.Bar(
+        x=df["datetime"],
+        y=(df["close"] - df["open"]),   # candle body height
+        base=df["open"],                # start from open
+        marker_color=df["barcolor"],    # TRM colors (Series of hex codes)
+        width=60*1000*5,                # 5-min candle width (adjust if timeframe differs)
+        name="TRM Color"
+    )
+
+    traces = [candles, bars]
 
     # Yesterday High/Low
     traces.append(go.Scatter(
