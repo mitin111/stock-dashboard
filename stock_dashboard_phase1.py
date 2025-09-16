@@ -538,10 +538,22 @@ with tab5:
         df_live = df_live.drop_duplicates(subset="datetime").sort_values("datetime")
         trm_settings = get_trm_settings()
         hist_settings = get_hist_settings()
-        for t in trm_traces:
-            st.session_state.live_fig.add_trace(t)
+        trm_traces = plot_trm_chart(df_live, trm_settings=trm_settings, hist_settings=hist_settings)
 
-    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
- 
-
+        layout = go.Layout(
+            xaxis=dict(rangeslider=dict(visible=False)),
+            yaxis=dict(title="Price"),
+            yaxis2=dict(
+                title="MACD Histogram",
+                overlaying="y",
+                side="right",
+                showgrid=False
+            ),
+            template="plotly_dark",
+            hovermode="x unified",
+            height=700,
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+        fig = go.Figure(data=trm_traces, layout=layout)
+        st.plotly_chart(fig, use_container_width=True)
+      
