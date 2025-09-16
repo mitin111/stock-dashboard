@@ -280,10 +280,6 @@ def plot_trm_chart(df, settings=None):
     # === Final Figure ===
     fig = go.Figure(data=traces)
     fig.update_layout(
-        xaxis=dict(rangeslider=dict(visible=False)),  # ❌ mini-chart off
-        template="plotly_white",
-        hovermode="x unified",
-        margin=dict(l=40, r=40, t=40, b=40),
-        height=700
+        xaxis=dict(rangeslider=dict(visible=False))  # ✅ Only mini-chart off
     )
     return fig
