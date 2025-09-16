@@ -190,7 +190,7 @@ def calc_atr_trails(df, settings):
 def plot_trm_chart(df, settings=None):
     if settings is None:
         settings = {
-            "long": 25, "short": 5, "signal": 14,
+            "long": 750, "short": 30, "signal": 9,
             "len_rsi": 5, "rsiBuyLevel": 50, "rsiSellLevel": 50,
             "buyColor": "aqua", "sellColor": "fuchsia", "neutralColor": "gray",
             "pac_length": 34, "use_heikin_ashi": True,
@@ -236,6 +236,7 @@ def plot_trm_chart(df, settings=None):
     traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"],
                              name="Slow Trail", line=dict(color="green", width=2)))
     return traces
+
 
 
 
