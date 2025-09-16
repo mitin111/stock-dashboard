@@ -199,6 +199,7 @@ def plot_trm_chart(df, settings=None):
             "show_info_panels": True
         }
 
+    # --- datetime cleanup ---
     if "datetime" not in df.columns:
         if "time" in df.columns:
             df = df.rename(columns={"time": "datetime"})
@@ -206,25 +207,19 @@ def plot_trm_chart(df, settings=None):
             df = df.rename(columns={"ts": "datetime"})
         else:
             raise ValueError(f"[plot_trm_chart] Missing datetime column. Found: {df.columns}")
-
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # === Calculations ===
+    # === Indicators ===
     df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
 
-    # === Traces ===
-    traces = []
-
-    # --- Base Candlestick ---
+    # === Base Candles ===
     candles = go.Candlestick(
         x=df["datetime"],
-        open=df["open"],
-        high=df["high"],
-        low=df["low"],
-        close=df["close"],
+        open=df["open"], high=df["high"],
+        low=df["low"], close=df["close"],
         increasing_line_color="black",
         decreasing_line_color="black",
         increasing_fillcolor="white",
@@ -233,60 +228,52 @@ def plot_trm_chart(df, settings=None):
         name="Candles"
     )
 
-    # --- TRM overlay (scatter markers at close price) ---
+    # === TRM overlay markers ===
     bars = go.Scatter(
         x=df["datetime"],
         y=df["close"],
         mode="markers",
-        marker=dict(
-            color=df["barcolor"],  # TRM colors (hex series)
-            size=6,
-            symbol="square"
-        ),
+        marker=dict(color=df["barcolor"], size=6, symbol="square"),
         name="TRM Color"
     )
 
+    # === Collect all traces ===
     traces = [candles, bars]
 
     # Yesterday High/Low
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["high_yest"],
-        name="Yesterday High",
-        line=dict(color=settings.get("neutralColor", "orange"), width=1)
-    ))
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["low_yest"],
-        name="Yesterday Low",
-        line=dict(color=settings.get("neutralColor", "teal"), width=1)
-    ))
+    traces += [
+        go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
+                   line=dict(color=settings.get("neutralColor", "orange"), width=1)),
+        go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
+                   line=dict(color=settings.get("neutralColor", "teal"), width=1)),
+    ]
 
     # PAC lines
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["pacU"],
-        name="PAC High",
-        line=dict(color=settings.get("neutralColor", "#808080"), width=1)
-    ))
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["pacL"],
-        name="PAC Low",
-        line=dict(color=settings.get("neutralColor", "#808080"), width=1)
-    ))
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["pacC"],
-        name="PAC Close",
-        line=dict(color=settings.get("buyColor", "#00FFFF"), width=2)
-    ))
+    traces += [
+        go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
+                   line=dict(color="#808080", width=1)),
+        go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
+                   line=dict(color="#808080", width=1)),
+        go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
+                   line=dict(color="#00FFFF", width=2)),
+    ]
 
     # ATR trails
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["Trail1"],
-        name="Fast Trail",
-        line=dict(color=settings.get("sellColor", "#FF00FF"), width=1)
-    ))
-    traces.append(go.Scatter(
-        x=df["datetime"], y=df["Trail2"],
-        name="Slow Trail",
-        line=dict(color=settings.get("buyColor", "#00FFFF"), width=2)
-    ))
+    traces += [
+        go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
+                   line=dict(color="#FF00FF", width=1)),
+        go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
+                   line=dict(color="#00FFFF", width=2)),
+    ]
 
-    return traces
+    # === Final Figure ===
+    layout = go.Layout(
+        xaxis=dict(rangeslider=dict(visible=False)),  # ❌ remove mini-chart
+        template="plotly_white",
+        hovermode="x unified",
+        margin=dict(l=40, r=40, t=40, b=40),
+        height=700
+    )
+
+    fig = go.Figure(data=traces, layout=layout)
+    return fig
