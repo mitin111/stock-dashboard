@@ -219,18 +219,25 @@ def plot_trm_chart(df, settings=None):
     traces = []
 
     # Use settings colors for the candlestick (increasing/decreasing)
-    candlestick = go.Candlestick(
+    candles = go.Candlestick(
         x=df["datetime"],
         open=df["open"],
         high=df["high"],
         low=df["low"],
         close=df["close"],
-        increasing_line_color=settings.get("buyColor", "#00FFFF"),
-        decreasing_line_color=settings.get("sellColor", "#FF00FF"),
-        name="Price",
-        showlegend=False
+        increasing_line_color="lime",
+        decreasing_line_color="red",
+        name="Candles"
     )
-    traces.append(candlestick)
+    
+    barcolor_overlay = go.Bar(
+        x=df["datetime"],
+        y=df["close"],
+        marker_color=df["barcolor"],
+        name="TRM Color",
+        opacity=0.4
+    )
+    traces = [candles, barcolor_overlay, ...]
 
     # Yesterday High/Low
     traces.append(go.Scatter(
@@ -269,6 +276,7 @@ def plot_trm_chart(df, settings=None):
     ))
 
     return traces
+
 
 
 
