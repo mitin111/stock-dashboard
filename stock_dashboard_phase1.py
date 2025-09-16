@@ -541,21 +541,21 @@ with tab5:
 
         if not trm_traces or not isinstance(trm_trraces[0], go.Candlestick):
             st.warning("⚠️ plot_trm_chart() did not return candlestick trace properly")
-            return
-            
-        if "live_fig" not in st.session_state:
-            st.session_state.live_fig = go.Figure()
-        
-        if len(st.session_state.live_fig.data) > 0:
-            candle = st.session_state.live_fig.data[0]
-            st.session_state.live_fig = go.Figure(data=[candle])
         else:
-            st.session_state.live_fig = go.Figure()
-            st.session_state.live_fig.add_trace(trm_traces[0])  # candlestick
-        for t in trm_traces[1:]:
-            st.session_state.live_fig.add_trace(t)
+            if "live_fig" not in st.session_state:
+                st.session_state.live_fig = go.Figure()
+       
+            if len(st.session_state.live_fig.data) > 0:
+                candle = st.session_state.live_fig.data[0]
+                st.session_state.live_fig = go.Figure(data=[candle])
+            else:
+                st.session_state.live_fig = go.Figure()
+                st.session_state.live_fig.add_trace(trm_traces[0])  # candlestick
+            for t in trm_traces[1:]:
+                st.session_state.live_fig.add_trace(t)
     
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)    
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)    
         
     
     
+
