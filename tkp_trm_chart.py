@@ -159,30 +159,47 @@ def calc_atr(df, period):
 def calc_atr_trails(df, settings):
     sc = df["close"]
 
-    # Fast trail
+    # --- Fast Trail ---
     sl1 = settings["atr_fast_mult"] * calc_atr(df, settings["atr_fast_period"])
     trail1 = pd.Series(index=df.index, dtype="float64")
     trail1.iloc[0] = sc.iloc[0]
+
     for i in range(1, len(df)):
-        if sc.iloc[i] > trail1.iloc[i-1]:
+        prev = trail1.iloc[i - 1]
+        if sc.iloc[i] > prev and sc.iloc[i - 1] > prev:
+            trail1.iloc[i] = max(prev, sc.iloc[i] - sl1.iloc[i])
+        elif sc.iloc[i] < prev and sc.iloc[i - 1] < prev:
+            trail1.iloc[i] = min(prev, sc.iloc[i] + sl1.iloc[i])
+        elif sc.iloc[i] > prev:
             trail1.iloc[i] = sc.iloc[i] - sl1.iloc[i]
         else:
             trail1.iloc[i] = sc.iloc[i] + sl1.iloc[i]
 
-    # Slow trail
+    # --- Slow Trail ---
     sl2 = settings["atr_slow_mult"] * calc_atr(df, settings["atr_slow_period"])
     trail2 = pd.Series(index=df.index, dtype="float64")
     trail2.iloc[0] = sc.iloc[0]
+
     for i in range(1, len(df)):
-        if sc.iloc[i] > trail2.iloc[i-1]:
+        prev = trail2.iloc[i - 1]
+        if sc.iloc[i] > prev and sc.iloc[i - 1] > prev:
+            trail2.iloc[i] = max(prev, sc.iloc[i] - sl2.iloc[i])
+        elif sc.iloc[i] < prev and sc.iloc[i - 1] < prev:
+            trail2.iloc[i] = min(prev, sc.iloc[i] + sl2.iloc[i])
+        elif sc.iloc[i] > prev:
             trail2.iloc[i] = sc.iloc[i] - sl2.iloc[i]
         else:
             trail2.iloc[i] = sc.iloc[i] + sl2.iloc[i]
 
+    # Save results
     df["Trail1"] = trail1
     df["Trail2"] = trail2
+
+    # Bullish/Bearish area shading condition
     df["Bull"] = (trail1 > trail2) & (sc > trail2) & (df["low"] > trail2)
+
     return df
+
 
 # =========================
 # Wrapper for Streamlit / Plotly
@@ -245,4 +262,4 @@ def plot_trm_chart(df, settings=None):
                    line=dict(color="#00FFFF", width=2)),
     ]
 
-    return traces   # ✅ ab figure nahi, sirf traces list return hogi
+    return traces   # ✅ sirf traces return hoga, figure nahi
