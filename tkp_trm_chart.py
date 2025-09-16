@@ -200,13 +200,6 @@ def plot_trm_chart(df, settings=None):
         }
 
     # --- datetime cleanup ---
-    if "datetime" not in df.columns:
-        if "time" in df.columns:
-            df = df.rename(columns={"time": "datetime"})
-        elif "ts" in df.columns:
-            df = df.rename(columns={"ts": "datetime"})
-        else:
-            raise ValueError(f"[plot_trm_chart] Missing datetime column. Found: {df.columns}")
     df["datetime"] = pd.to_datetime(df["datetime"])
 
     # === Indicators ===
@@ -217,47 +210,22 @@ def plot_trm_chart(df, settings=None):
 
     traces = []
 
-    # --- Buy candles ---
-    df_buy = df[df["barcolor"] == settings["buyColor"]]
-    if not df_buy.empty:
-        traces.append(go.Candlestick(
-            x=df_buy["datetime"],
-            open=df_buy["open"], high=df_buy["high"],
-            low=df_buy["low"], close=df_buy["close"],
-            increasing_line_color=settings["buyColor"],
-            decreasing_line_color=settings["buyColor"],
-            increasing_fillcolor=settings["buyColor"],
-            decreasing_fillcolor=settings["buyColor"],
-            name="Buy"
-        ))
-
-    # --- Sell candles ---
-    df_sell = df[df["barcolor"] == settings["sellColor"]]
-    if not df_sell.empty:
-        traces.append(go.Candlestick(
-            x=df_sell["datetime"],
-            open=df_sell["open"], high=df_sell["high"],
-            low=df_sell["low"], close=df_sell["close"],
-            increasing_line_color=settings["sellColor"],
-            decreasing_line_color=settings["sellColor"],
-            increasing_fillcolor=settings["sellColor"],
-            decreasing_fillcolor=settings["sellColor"],
-            name="Sell"
-        ))
-
-    # --- Neutral candles ---
-    df_neutral = df[df["barcolor"] == settings["neutralColor"]]
-    if not df_neutral.empty:
-        traces.append(go.Candlestick(
-            x=df_neutral["datetime"],
-            open=df_neutral["open"], high=df_neutral["high"],
-            low=df_neutral["low"], close=df_neutral["close"],
-            increasing_line_color=settings["neutralColor"],
-            decreasing_line_color=settings["neutralColor"],
-            increasing_fillcolor=settings["neutralColor"],
-            decreasing_fillcolor=settings["neutralColor"],
-            name="Neutral"
-        ))
+    # --- Buy / Sell / Neutral candles ---
+    for color_key, name in [
+        ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
+    ]:
+        df_sub = df[df["barcolor"] == settings[color_key]]
+        if not df_sub.empty:
+            traces.append(go.Candlestick(
+                x=df_sub["datetime"],
+                open=df_sub["open"], high=df_sub["high"],
+                low=df_sub["low"], close=df_sub["close"],
+                increasing_line_color=settings[color_key],
+                decreasing_line_color=settings[color_key],
+                increasing_fillcolor=settings[color_key],
+                decreasing_fillcolor=settings[color_key],
+                name=name
+            ))
 
     # === Overlays ===
     traces += [
@@ -277,9 +245,4 @@ def plot_trm_chart(df, settings=None):
                    line=dict(color="#00FFFF", width=2)),
     ]
 
-    # === Final Figure ===
-    fig = go.Figure(data=traces)
-    fig.update_layout(
-        xaxis=dict(rangeslider=dict(visible=False))  # ✅ Only mini-chart off
-    )
-    return fig
+    return traces   # ✅ ab figure nahi, sirf traces list return hogi
