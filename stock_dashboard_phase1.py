@@ -539,8 +539,13 @@ with tab5:
         settings = get_trm_settings()
         trm_traces = plot_trm_chart(df_live, settings)
 
+        if not trm_traces or not isinstance(trm_trraces[0], go.Candlestick):
+            st.warning("⚠️ plot_trm_chart() did not return candlestick trace properly")
+            return
+            
         if "live_fig" not in st.session_state:
             st.session_state.live_fig = go.Figure()
+        
         if len(st.session_state.live_fig.data) > 0:
             candle = st.session_state.live_fig.data[0]
             st.session_state.live_fig = go.Figure(data=[candle])
@@ -554,21 +559,3 @@ with tab5:
         
     
     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
