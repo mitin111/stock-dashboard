@@ -535,20 +535,7 @@ with tab5:
             df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
         else:
             df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
-        interval_min = int(selected_interval)
-        full_index = pd.date_range(
-            start=df_live["datetime"].min(),
-            end=df_live["datetime"].max(),
-            freq=f"{interval_min}min",
-            tz="Asia/Kolkata"
-        )
-        df_live = (
-            df_live.set_index("datetime")
-            .reindex(full_index)
-            .ffill()
-            .reset_index()
-            .rename(columns={"index": "datetime"})
-        )
+        df_live = df_live.drop_duplicates(subset="datetime").sort_values("datetime")
         settings = get_trm_settings()
         trm_traces = plot_trm_chart(df_live, settings)
 
@@ -567,6 +554,7 @@ with tab5:
         
     
     
+
 
 
 
