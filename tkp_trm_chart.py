@@ -28,6 +28,9 @@ def save_trm_settings(settings):
 # =========================
 # Streamlit Settings Panel
 # =========================
+if "trm_settings" not in st.session_state:
+    st.session_state["trm_settings"] = load_trm_settings()
+    
 def get_trm_settings():
     # Load saved settings first
     saved = load_trm_settings()
@@ -67,6 +70,7 @@ def get_trm_settings():
 
         if st.button("💾 Save TRM Settings"):
             save_trm_settings(settings)
+            st.session_state["trm_settings"] = settings  # 🔑 update memory
             st.success("✅ TRM Settings saved successfully!")
 
     return settings
@@ -263,3 +267,4 @@ def plot_trm_chart(df, settings=None):
     ]
 
     return traces   # ✅ sirf traces return hoga, figure nahi
+
