@@ -537,19 +537,10 @@ with tab5:
             df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
         df_live = df_live.drop_duplicates(subset="datetime").sort_values("datetime")
         settings = get_trm_settings()
-        trm_fig = plot_trm_chart(df_live, settings)
+        trm_traces = plot_trm_chart(df_live, settings)
+        for t in trm_traces:
+            st.session_state.live_fig.add_trace(t)
 
-        trm_fig.update_layout(
-            template="plotly_dark",
-            hovermode="x unified",
-            height=700,
-            margin=dict(l=50, r=50, t=50, b=50),
-        )
-        placeholder_chart.plotly_chart(trm_fig, use_container_width=True)
-        
-    
-    
+    placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-
-
-
+ 
