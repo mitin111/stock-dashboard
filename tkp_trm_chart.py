@@ -215,51 +215,62 @@ def plot_trm_chart(df, settings=None):
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
 
-    # === Base Candles ===
-    candles = go.Candlestick(
-        x=df["datetime"],
-        open=df["open"], high=df["high"],
-        low=df["low"], close=df["close"],
-        increasing_line_color="black",
-        decreasing_line_color="black",
-        increasing_fillcolor="white",
-        decreasing_fillcolor="white",
-        opacity=0.7,
-        name="Candles"
-    )
+    traces = []
 
-    # === TRM overlay markers ===
-    bars = go.Scatter(
-        x=df["datetime"],
-        y=df["close"],
-        mode="markers",
-        marker=dict(color=df["barcolor"], size=6, symbol="square"),
-        name="TRM Color"
-    )
+    # --- Buy candles ---
+    df_buy = df[df["barcolor"] == settings["buyColor"]]
+    if not df_buy.empty:
+        traces.append(go.Candlestick(
+            x=df_buy["datetime"],
+            open=df_buy["open"], high=df_buy["high"],
+            low=df_buy["low"], close=df_buy["close"],
+            increasing_line_color=settings["buyColor"],
+            decreasing_line_color=settings["buyColor"],
+            increasing_fillcolor=settings["buyColor"],
+            decreasing_fillcolor=settings["buyColor"],
+            name="Buy"
+        ))
 
-    # === Collect all traces ===
-    traces = [candles, bars]
+    # --- Sell candles ---
+    df_sell = df[df["barcolor"] == settings["sellColor"]]
+    if not df_sell.empty:
+        traces.append(go.Candlestick(
+            x=df_sell["datetime"],
+            open=df_sell["open"], high=df_sell["high"],
+            low=df_sell["low"], close=df_sell["close"],
+            increasing_line_color=settings["sellColor"],
+            decreasing_line_color=settings["sellColor"],
+            increasing_fillcolor=settings["sellColor"],
+            decreasing_fillcolor=settings["sellColor"],
+            name="Sell"
+        ))
 
-    # Yesterday High/Low
+    # --- Neutral candles ---
+    df_neutral = df[df["barcolor"] == settings["neutralColor"]]
+    if not df_neutral.empty:
+        traces.append(go.Candlestick(
+            x=df_neutral["datetime"],
+            open=df_neutral["open"], high=df_neutral["high"],
+            low=df_neutral["low"], close=df_neutral["close"],
+            increasing_line_color=settings["neutralColor"],
+            decreasing_line_color=settings["neutralColor"],
+            increasing_fillcolor=settings["neutralColor"],
+            decreasing_fillcolor=settings["neutralColor"],
+            name="Neutral"
+        ))
+
+    # === Overlays ===
     traces += [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                    line=dict(color=settings.get("neutralColor", "orange"), width=1)),
         go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
                    line=dict(color=settings.get("neutralColor", "teal"), width=1)),
-    ]
-
-    # PAC lines
-    traces += [
         go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
                    line=dict(color="#808080", width=1)),
         go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
                    line=dict(color="#808080", width=1)),
         go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
                    line=dict(color="#00FFFF", width=2)),
-    ]
-
-    # ATR trails
-    traces += [
         go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
                    line=dict(color="#FF00FF", width=1)),
         go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
@@ -267,13 +278,12 @@ def plot_trm_chart(df, settings=None):
     ]
 
     # === Final Figure ===
-    layout = go.Layout(
-        xaxis=dict(rangeslider=dict(visible=False)),  # ❌ remove mini-chart
+    fig = go.Figure(data=traces)
+    fig.update_layout(
+        xaxis=dict(rangeslider=dict(visible=False)),  # ❌ mini-chart off
         template="plotly_white",
         hovermode="x unified",
         margin=dict(l=40, r=40, t=40, b=40),
         height=700
     )
-
-    fig = go.Figure(data=traces, layout=layout)
     return fig
