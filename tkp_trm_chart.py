@@ -192,7 +192,7 @@ def plot_trm_chart(df, settings=None):
         settings = {
             "long": 750, "short": 30, "signal": 9,
             "len_rsi": 5, "rsiBuyLevel": 50, "rsiSellLevel": 50,
-            "buyColor": "aqua", "sellColor": "fuchsia", "neutralColor": "gray",
+            "buyColor": "#00FFFF", "sellColor": "#FF00FF", "neutralColor": "#808080",
             "pac_length": 34, "use_heikin_ashi": True,
             "atr_fast_period": 5, "atr_fast_mult": 0.5,
             "atr_slow_period": 10, "atr_slow_mult": 3.0,
@@ -217,25 +217,59 @@ def plot_trm_chart(df, settings=None):
 
     # === Traces ===
     traces = []
-    traces.append(go.Candlestick(
-        x=df["datetime"], open=df["open"], high=df["high"],
-        low=df["low"], close=df["close"], showlegend=False
+
+    # Use settings colors for the candlestick (increasing/decreasing)
+    candlestick = go.Candlestick(
+        x=df["datetime"],
+        open=df["open"],
+        high=df["high"],
+        low=df["low"],
+        close=df["close"],
+        increasing_line_color=settings.get("buyColor", "#00FFFF"),
+        decreasing_line_color=settings.get("sellColor", "#FF00FF"),
+        name="Price",
+        showlegend=False
+    )
+    traces.append(candlestick)
+
+    # Yesterday High/Low
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["high_yest"],
+        name="Yesterday High",
+        line=dict(color=settings.get("neutralColor", "orange"), width=1)
     ))
-    traces.append(go.Scatter(x=df["datetime"], y=df["high_yest"],
-                             name="Yesterday High", line=dict(color="orange", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["low_yest"],
-                             name="Yesterday Low", line=dict(color="teal", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["pacU"],
-                             name="PAC High", line=dict(color="gray", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["pacL"],
-                             name="PAC Low", line=dict(color="gray", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["pacC"],
-                             name="PAC Close", line=dict(color="red", width=2)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["Trail1"],
-                             name="Fast Trail", line=dict(color="blue", width=1)))
-    traces.append(go.Scatter(x=df["datetime"], y=df["Trail2"],
-                             name="Slow Trail", line=dict(color="green", width=2)))
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["low_yest"],
+        name="Yesterday Low",
+        line=dict(color=settings.get("neutralColor", "teal"), width=1)
+    ))
+
+    # PAC lines - use neutralColor or small variations
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["pacU"],
+        name="PAC High", line=dict(color=settings.get("neutralColor", "#808080"), width=1)
+    ))
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["pacL"],
+        name="PAC Low", line=dict(color=settings.get("neutralColor", "#808080"), width=1)
+    ))
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["pacC"],
+        name="PAC Close", line=dict(color=settings.get("buyColor", "#00FFFF"), width=2)
+    ))
+
+    # ATR trails — use buy/sell colors for emphasis
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["Trail1"],
+        name="Fast Trail", line=dict(color=settings.get("sellColor", "#FF00FF"), width=1)
+    ))
+    traces.append(go.Scatter(
+        x=df["datetime"], y=df["Trail2"],
+        name="Slow Trail", line=dict(color=settings.get("buyColor", "#00FFFF"), width=2)
+    ))
+
     return traces
+
 
 
 
