@@ -552,22 +552,22 @@ with tab5:
         settings = get_trm_settings()
         trm_traces = plot_trm_chart(df_live, settings)
 
-        if "live_fig" not in st.session_state or st.session_state.live_fig is None:
+        if "live_fig" not in st.session_state:
             st.session_state.live_fig = go.Figure()
         if len(st.session_state.live_fig.data) > 0:
-            base_trace = st.session_state.live_fig.data[0]
-            st.session_state.live_fig = go.Figure(data=[base_trace])
+            candle = st.session_state.live_fig.data[0]
+            st.session_state.live_fig = go.Figure(data=[candle])
         else:
             st.session_state.live_fig = go.Figure()
-            if trm_traces:
-                st.session_state.live_fig.add_trace(trm_traces[0])
-        start_idx = 1 if len(st.session_state.live_fig.data) > 0 else 0
-        for t in trm_traces[start_idx:]:
+            st.session_state.live_fig.add_trace(trm_traces[0])  # candlestick
+        for t in trm_traces[1:]:
             st.session_state.live_fig.add_trace(t)
+    
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)    
         
     
     
+
 
 
 
