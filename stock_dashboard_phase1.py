@@ -550,27 +550,24 @@ with tab5:
             .rename(columns={"index": "datetime"})
         )
         settings = get_trm_settings()
-        trm_traces = plot_trm_chart(df_live, settings)    
-                    
-        if "indicators_added" not in st.session_state:
-            for t in trm_traces:
-                st.session_state.live_fig.add_trace(t)
-            st.session_state.indicators_added = True
+        trm_traces = plot_trm_chart(df_live, settings)
+
+        if "live_fig" in st.session_state and len(st.session_state.live_fig.data) > 0:
+            base_trace = st.session_state.live_fig.data[0]
+            st.session_state.live_fig.data = [base_trace]
         else:
-            for i, t in enumerate(trm_traces[1:], start=1):
-                if i < len(st.session_state.live_fig.data):
-                    st.session_state.live_fig.data[i].x = t.x
-                    st.session_state.live_fig.data[i].y = t.y
-                else:
-                    st.session_state.live_fig.add_trace(t)
+            st.session_state.live_fig = go.Figure()
+        for t in trm_traces:
+            st.session_state.live_fig.add_trace(t)
+                
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-    else:
-        st.warning("⚠️ Not enough candle data for TRM chart")
+    
            
         
         
     
     
+
 
 
 
