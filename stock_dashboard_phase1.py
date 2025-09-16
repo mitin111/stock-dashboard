@@ -539,23 +539,27 @@ with tab5:
         settings = get_trm_settings()
         trm_traces = plot_trm_chart(df_live, settings)
 
-        if not trm_traces or not isinstance(trm_trraces[0], go.Candlestick):
-            st.warning("⚠️ plot_trm_chart() did not return candlestick trace properly")
+        if not trm_traces or not isinstance(trm_traces[0], go.Candlestick):
+            st.warning("⚠️ plot_trm_chart() did not return a valid candlestick trace. Check plot_trm_chart() output.")
+            st.write("plot_trm_chart returned:", trm_traces)
         else:
-            if "live_fig" not in st.session_state:
+            if "live_fig" not in st.session_state or st.session_state.live_fig is None:
                 st.session_state.live_fig = go.Figure()
-       
+               
             if len(st.session_state.live_fig.data) > 0:
                 candle = st.session_state.live_fig.data[0]
                 st.session_state.live_fig = go.Figure(data=[candle])
             else:
                 st.session_state.live_fig = go.Figure()
-                st.session_state.live_fig.add_trace(trm_traces[0])  # candlestick
+                st.session_state.live_fig.add_trace(trm_traces[0])
             for t in trm_traces[1:]:
+                if t is None or t == ...:
+                    continue
                 st.session_state.live_fig.add_trace(t)
     
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)    
         
     
     
+
 
