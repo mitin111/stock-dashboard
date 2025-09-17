@@ -30,11 +30,11 @@ def save_trm_settings(settings):
 # =========================
 if "trm_settings" not in st.session_state:
     st.session_state["trm_settings"] = load_trm_settings()
-if "hist_settings" not in st.session_state:
-    st.session_state["hist_settings"] = {"fast_length": 12, "slow_length": 26, "signal_length": 9}
-
+    
 def get_trm_settings():
+    # Load saved settings first
     saved = load_trm_settings()
+    
     with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
         long = st.number_input("TSI Long Length", 1, 900, saved.get("long", 25))
         short = st.number_input("TSI Short Length", 1, 200, saved.get("short", 5))
@@ -70,22 +70,11 @@ def get_trm_settings():
 
         if st.button("💾 Save TRM Settings"):
             save_trm_settings(settings)
-            st.session_state["trm_settings"] = settings
+            st.session_state["trm_settings"] = settings  # 🔑 update memory
             st.success("✅ TRM Settings saved successfully!")
+
     return settings
 
-def get_hist_settings():
-    saved = st.session_state.get("hist_settings", {})
-    with st.expander("⚙️ MACD Histogram Settings", expanded=False):
-        fast_length   = st.number_input("Fast Length", 1, 200, saved.get("fast_length", 12))
-        slow_length   = st.number_input("Slow Length", 1, 200, saved.get("slow_length", 26))
-        signal_length = st.number_input("Signal Length", 1, 200, saved.get("signal_length", 9))
-
-        settings = {"fast_length": fast_length, "slow_length": slow_length, "signal_length": signal_length}
-        if st.button("💾 Save Histogram Settings"):
-            st.session_state["hist_settings"] = settings
-            st.success("✅ Histogram Settings saved successfully!")
-    return settings
 
 # =========================
 # Utility Functions
@@ -108,10 +97,13 @@ def rsi(series, length=14):
 def calc_tkp_trm(df, settings):
     price = df["close"]
     pc = price.diff()
+
     first_smooth = ema(pc, settings["long"])
     double_smoothed_pc = ema(first_smooth, settings["short"])
+
     first_smooth_abs = ema(pc.abs(), settings["long"])
     double_smoothed_abs = ema(first_smooth_abs, settings["short"])
+
     tsi = 100 * (double_smoothed_pc / double_smoothed_abs)
     tsi_signal = ema(tsi, settings["signal"])
     rsi_vals = rsi(price, settings["len_rsi"])
@@ -142,6 +134,7 @@ def calc_pac(df, settings):
     close = df["close"]
     high = df["high"]
     low = df["low"]
+
     if settings["use_heikin_ashi"]:
         ha_close = (df["open"] + df["high"] + df["low"] + df["close"]) / 4
         ha_open = (df["open"] + df["close"]) / 2
@@ -149,6 +142,7 @@ def calc_pac(df, settings):
         ha_low = df[["low", "open", "close"]].min(axis=1)
     else:
         ha_close, ha_open, ha_high, ha_low = close, df["open"], high, low
+
     df["pacC"] = ema(ha_close, settings["pac_length"])
     df["pacL"] = ema(ha_low, settings["pac_length"])
     df["pacU"] = ema(ha_high, settings["pac_length"])
@@ -168,9 +162,12 @@ def calc_atr(df, period):
 
 def calc_atr_trails(df, settings):
     sc = df["close"]
+
+    # --- Fast Trail ---
     sl1 = settings["atr_fast_mult"] * calc_atr(df, settings["atr_fast_period"])
     trail1 = pd.Series(index=df.index, dtype="float64")
     trail1.iloc[0] = sc.iloc[0]
+
     for i in range(1, len(df)):
         prev = trail1.iloc[i - 1]
         if sc.iloc[i] > prev and sc.iloc[i - 1] > prev:
@@ -182,9 +179,11 @@ def calc_atr_trails(df, settings):
         else:
             trail1.iloc[i] = sc.iloc[i] + sl1.iloc[i]
 
+    # --- Slow Trail ---
     sl2 = settings["atr_slow_mult"] * calc_atr(df, settings["atr_slow_period"])
     trail2 = pd.Series(index=df.index, dtype="float64")
     trail2.iloc[0] = sc.iloc[0]
+
     for i in range(1, len(df)):
         prev = trail2.iloc[i - 1]
         if sc.iloc[i] > prev and sc.iloc[i - 1] > prev:
@@ -196,75 +195,65 @@ def calc_atr_trails(df, settings):
         else:
             trail2.iloc[i] = sc.iloc[i] + sl2.iloc[i]
 
+    # Save results
     df["Trail1"] = trail1
     df["Trail2"] = trail2
+
+    # Bullish/Bearish area shading condition
     df["Bull"] = (trail1 > trail2) & (sc > trail2) & (df["low"] > trail2)
+
     return df
 
-# =========================
-# MACD Histogram
-# =========================
-def calc_macd_hist(df, settings):
-    price = df["close"]
-    fast_ma = price.ewm(span=settings["fast_length"], adjust=False).mean()
-    slow_ma = price.ewm(span=settings["slow_length"], adjust=False).mean()
-    macd = fast_ma - slow_ma
-    signal = macd.ewm(span=settings["signal_length"], adjust=False).mean()
-    df["hist"] = macd - signal
-    return df
-
-def plot_macd_hist(df, settings):
-    df = calc_macd_hist(df, settings)
-    traces = []
-    traces.append(go.Scatter(
-        x=df["datetime"], y=[0]*len(df),
-        mode="lines", name="Zero Line",
-        line=dict(color="gray", width=1, dash="dot"),
-        yaxis="y2"
-    ))
-    traces.append(go.Bar(
-        x=df["datetime"], y=df["hist"],
-        name="MACD Histogram",
-        marker_color=np.where(df["hist"] >= 0, "#26A69A", "#FF5252"),
-        yaxis="y2"
-    ))
-    return traces
 
 # =========================
-# Wrapper for Plotly
+# Wrapper for Streamlit / Plotly
 # =========================
-def plot_trm_chart(df, trm_settings=None, hist_settings=None):
-    if trm_settings is None:
-        trm_settings = st.session_state["trm_settings"]
-    if hist_settings is None:
-        hist_settings = st.session_state["hist_settings"]
+def plot_trm_chart(df, settings=None):
+    if settings is None:
+        settings = {
+            "long": 750, "short": 30, "signal": 9,
+            "len_rsi": 5, "rsiBuyLevel": 50, "rsiSellLevel": 50,
+            "buyColor": "#00FFFF", "sellColor": "#FF00FF", "neutralColor": "#808080",
+            "pac_length": 34, "use_heikin_ashi": True,
+            "atr_fast_period": 5, "atr_fast_mult": 0.5,
+            "atr_slow_period": 10, "atr_slow_mult": 3.0,
+            "show_info_panels": True
+        }
 
+    # --- datetime cleanup ---
     df["datetime"] = pd.to_datetime(df["datetime"])
-    df = calc_tkp_trm(df, trm_settings)
+
+    # === Indicators ===
+    df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
-    df = calc_pac(df, trm_settings)
-    df = calc_atr_trails(df, trm_settings)
+    df = calc_pac(df, settings)
+    df = calc_atr_trails(df, settings)
 
     traces = []
-    for color_key, name in [("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")]:
-        df_sub = df[df["barcolor"] == trm_settings[color_key]]
+
+    # --- Buy / Sell / Neutral candles ---
+    for color_key, name in [
+        ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
+    ]:
+        df_sub = df[df["barcolor"] == settings[color_key]]
         if not df_sub.empty:
             traces.append(go.Candlestick(
                 x=df_sub["datetime"],
                 open=df_sub["open"], high=df_sub["high"],
                 low=df_sub["low"], close=df_sub["close"],
-                increasing_line_color=trm_settings[color_key],
-                decreasing_line_color=trm_settings[color_key],
-                increasing_fillcolor=trm_settings[color_key],
-                decreasing_fillcolor=trm_settings[color_key],
+                increasing_line_color=settings[color_key],
+                decreasing_line_color=settings[color_key],
+                increasing_fillcolor=settings[color_key],
+                decreasing_fillcolor=settings[color_key],
                 name=name
             ))
 
+    # === Overlays ===
     traces += [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
-                   line=dict(color=trm_settings.get("neutralColor", "orange"), width=1)),
+                   line=dict(color=settings.get("neutralColor", "orange"), width=1)),
         go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
-                   line=dict(color=trm_settings.get("neutralColor", "teal"), width=1)),
+                   line=dict(color=settings.get("neutralColor", "teal"), width=1)),
         go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
                    line=dict(color="#808080", width=1)),
         go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
@@ -277,8 +266,4 @@ def plot_trm_chart(df, trm_settings=None, hist_settings=None):
                    line=dict(color="#00FFFF", width=2)),
     ]
 
-    # ✅ Add Histogram traces
-    traces += plot_macd_hist(df, hist_settings)
-    return traces
-
-
+    return traces   # ✅ sirf traces return hoga, figure nahii
