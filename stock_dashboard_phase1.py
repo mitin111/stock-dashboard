@@ -541,37 +541,11 @@ with tab5:
         )    
         from plotly.subplots import make_subplots
         settings = get_trm_settings()
-        res = plot_trm_chart(df_live, settings)
-        st.session_state.live_fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.1,
-            row_heights=[0.7, 0.3],   # 70% price, 30% MACD
-            subplot_titles=("Price + Indicators", "MACD")
-        )
+        fig = plot_trm_chart(df_live, settings)
         
-        for t in res["price_traces"]:
-            st.session_state.live_fig.add_trace(t, row=1, col=1)
-        for t in res["macd_traces"]:
-            st.session_state.live_fig.add_trace(t, row=2, col=1)
-
-        st.session_state.live_fig.update_layout(
-            xaxis=dict(
-                rangeslider_visible=False,
-                showticklabels=True
-            ),
-            xaxis2=dict(  # MACD panel ka x-axis
-                rangeslider_visible=False,
-                showticklabels=True,
-                matches="x"   # ✅ dono panel ka x-axis sync
-            ),
-            yaxis=dict(title="Price"),
-            yaxis2=dict(title="MACD"),
-            height=800,
-            showlegend=True
-        )    
-           
+        st.session_state.live_fig = fig
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
