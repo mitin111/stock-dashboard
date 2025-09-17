@@ -285,7 +285,7 @@ def plot_trm_chart(df, settings=None):
             )
 
     # === Overlays ===
-    overlays = [
+    traces += [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                    line=dict(color="orange", width=1)),
         go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
@@ -332,3 +332,4 @@ def plot_trm_chart(df, settings=None):
     )
 
     return fig
+
