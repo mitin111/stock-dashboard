@@ -542,9 +542,12 @@ with tab5:
         from plotly.subplots import make_subplots
         settings = get_trm_settings()
         fig = plot_trm_chart(df_live, settings)
-        
-        st.session_state.live_fig = fig
+
+        for trace in fig.data:
+            st.session_state.live_fig.add_trace(trace)
+
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
