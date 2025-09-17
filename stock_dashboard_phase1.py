@@ -167,6 +167,29 @@ def update_macd_histogram():
         st.session_state.live_fig.data[1].x = st.session_state.ohlc_x
         st.session_state.live_fig.data[1].y = hist.tolist()
 
+# === Helper Functions ===
+def get_hist_settings():
+    saved_all = load_trm_settings()
+    saved = saved_all.get("hist_settings", {})
+
+    with st.expander("⚙️ MACD Histogram Settings", expanded=False):
+        fast_length   = st.number_input("Fast Length", 1, 200, saved.get("fast_length", 12))
+        slow_length   = st.number_input("Slow Length", 1, 200, saved.get("slow_length", 26))
+        signal_length = st.number_input("Signal Length", 1, 200, saved.get("signal_length", 9))
+
+        settings = {
+            "fast_length": fast_length,
+            "slow_length": slow_length,
+            "signal_length": signal_length
+        }
+
+        if st.button("💾 Save Histogram Settings"):
+            save_trm_settings({"hist_settings": settings})
+            st.session_state["hist_settings"] = settings
+            st.success("✅ Histogram Settings saved successfully!")
+
+    return settings
+
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
@@ -332,8 +355,7 @@ with tab5:
             font=dict(color="white"),
             transition_duration=0,
         )
-        with st.expander("⚙️ MACD Histogram Settings"):
-            st.session_state["hist_settings"] = get_hist_settings()
+        st.session_state["hist_settings"] = get_hist_settings()
 
     # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
     def load_history_into_state(df_history):
@@ -429,6 +451,7 @@ with tab5:
 
             # refresh the chart
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+            update_macd_histogram()   # ✅ yahan bhi add karo
 
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
@@ -481,6 +504,7 @@ with tab5:
                     df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
                 df = df.dropna(subset=["open", "high", "low", "close"])
                 load_history_into_state(df)
+                update_macd_histogram()   # ✅ yahan add karo
                 st.write(f"📊 Loaded TPSeries candles: {len(df)}")
 
                 if full_holidays is not None and len(full_holidays) > 0:
@@ -628,6 +652,7 @@ with tab5:
             st.session_state.live_fig.add_trace(t)
 
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
