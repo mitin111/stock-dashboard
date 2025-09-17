@@ -237,6 +237,55 @@ with tab5:
             ),
             row=1, col=1
         )
+        # --- Figure init (only once) ---
+    if st.session_state.live_fig is None:
+        st.session_state.live_fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            row_heights=[0.7, 0.3],  # upar bada chart, niche MACD
+            vertical_spacing=0.05,
+            subplot_titles=("Price", "MACD Histogram")
+        )
+        st.session_state.live_fig.add_trace(
+            go.Candlestick(
+                x=[], open=[], high=[], low=[], close=[],
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
+                name="Price"
+            ),
+            row=1, col=1
+        )
+        st.session_state.live_fig.add_trace(
+            go.Bar(
+                x=[], 
+                y=[], 
+                name="MACD Histogram",
+                marker_color="lightblue"
+            ),
+            row=2, col=1
+        )    
+        st.session_state.live_fig.update_layout(
+            xaxis=dict(
+                rangeslider_visible=False,
+                type="date"
+            ),
+            yaxis=dict(
+                fixedrange=False  # y-axis zoom allowed for Price
+            ),
+            yaxis2=dict(
+                fixedrange=False  # y-axis zoom allowed for Histogram
+            ),
+            dragmode="pan",
+            hovermode="x unified",
+            showlegend=False,
+            template="plotly_dark",
+            height=900,
+            margin=dict(l=50, r=50, t=50, b=50),
+            plot_bgcolor="black",
+            paper_bgcolor="black",
+            font=dict(color="white"),
+            transition_duration=0,
+        )
+        
         st.session_state.live_fig.update_layout(
             xaxis=dict(
                 rangeslider_visible=False,
@@ -553,5 +602,6 @@ with tab5:
             st.session_state.live_fig.add_trace(t)
 
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
