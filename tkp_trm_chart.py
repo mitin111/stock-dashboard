@@ -256,25 +256,35 @@ def plot_trm_chart(df, settings=None):
         subplot_titles=("Price + TRM", "MACD")
     )
 
-    # === Price traces (candles + overlays) ===
+    # === Always add main candlestick ===
+    fig.add_trace(
+        go.Candlestick(
+            x=df["datetime"],
+            open=df["open"], high=df["high"],
+            low=df["low"], close=df["close"],
+            name="Price",
+            increasing_line_color="#00FF00",
+            decreasing_line_color="#FF0000"
+        ),
+        row=1, col=1
+    )
+
+    # === TRM overlays as markers ===
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
         df_sub = df[df["barcolor"] == settings[color_key]]
         if not df_sub.empty:
             fig.add_trace(
-                go.Candlestick(
-                    x=df_sub["datetime"],
-                    open=df_sub["open"], high=df_sub["high"],
-                    low=df_sub["low"], close=df_sub["close"],
-                    increasing_line_color=settings[color_key],
-                    decreasing_line_color=settings[color_key],
-                    name=name
+                go.Scatter(
+                    x=df_sub["datetime"], y=df_sub["close"],
+                    mode="markers", name=f"{name} Signal",
+                    marker=dict(color=settings[color_key], size=6, symbol="circle")
                 ),
                 row=1, col=1
             )
 
-    # Overlays
+    # === Overlays ===
     overlays = [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                    line=dict(color=settings.get("neutralColor", "orange"), width=1)),
