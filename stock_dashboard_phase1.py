@@ -143,6 +143,30 @@ with tab3:
 with tab4:
     st.info("📀 Indicator settings section coming soon...")
 
+# --- Helper: Update MACD Histogram ---
+def update_macd_histogram():
+    if not st.session_state.ohlc_c:
+        return
+
+    close_series = pd.Series(st.session_state.ohlc_c)
+
+    settings = st.session_state.get("hist_settings", {
+        "fast_length": 12,
+        "slow_length": 26,
+        "signal_length": 9
+    })
+
+    ema_fast = close_series.ewm(span=settings["fast_length"], adjust=False).mean()
+    ema_slow = close_series.ewm(span=settings["slow_length"], adjust=False).mean()
+    macd = ema_fast - ema_slow
+    signal = macd.ewm(span=settings["signal_length"], adjust=False).mean()
+    hist = macd - signal
+
+    # Trace index dhyan se: [0] Candlestick, [1] Histogram
+    if len(st.session_state.live_fig.data) > 1:
+        st.session_state.live_fig.data[1].x = st.session_state.ohlc_x
+        st.session_state.live_fig.data[1].y = hist.tolist()
+
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
@@ -602,6 +626,7 @@ with tab5:
             st.session_state.live_fig.add_trace(t)
 
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
