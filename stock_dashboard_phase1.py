@@ -535,14 +535,30 @@ with tab5:
         else:
             df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
         df_live = df_live.drop_duplicates(subset="datetime").sort_values("datetime")
+        from plotly.subplots import make_subplots
         settings = get_trm_settings()
         res = plot_trm_chart(df_live, settings)
+        st.session_state.live_fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.7, 0.3],   # 70% price, 30% MACD
+            subplot_titles=("Price + Indicators", "MACD")
+        )
+        
         for t in res["price_traces"]:
             st.session_state.live_fig.add_trace(t, row=1, col=1)
         for t in res["macd_traces"]:
             st.session_state.live_fig.add_trace(t, row=2, col=1)
+
+        st.session_state.live_fig.update_layout(
+            xaxis_rangeslider_visible=False,
+            height=800,
+            showlegend=True
+        )    
            
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
