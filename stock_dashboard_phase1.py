@@ -332,6 +332,8 @@ with tab5:
             font=dict(color="white"),
             transition_duration=0,
         )
+        with st.expander("⚙️ MACD Histogram Settings"):
+            st.session_state["hist_settings"] = get_hist_settings()
 
     # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
     def load_history_into_state(df_history):
@@ -626,6 +628,7 @@ with tab5:
             st.session_state.live_fig.add_trace(t)
 
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
