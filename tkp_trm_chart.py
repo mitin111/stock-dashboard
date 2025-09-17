@@ -266,4 +266,8 @@ def plot_trm_chart(df, settings=None):
                    line=dict(color="#00FFFF", width=2)),
     ]
 
-    return traces   # ✅ sirf traces return hoga, figure nahii
+    return {
+        "price_traces": traces,
+        "macd_traces": macd_traces   # ← yeh list hogi jo MACD histogram + lines rakhegi
+    }    
+
