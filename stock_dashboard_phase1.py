@@ -227,7 +227,7 @@ with tab5:
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             name="Price"
-        ), row=1, col=1)
+        ))
         st.session_state.live_fig.update_layout(
             xaxis=dict(
                 rangeslider_visible=False,
@@ -545,6 +545,7 @@ with tab5:
         
         st.session_state.live_fig = fig
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
