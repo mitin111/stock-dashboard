@@ -556,12 +556,23 @@ with tab5:
             st.session_state.live_fig.add_trace(t, row=2, col=1)
 
         st.session_state.live_fig.update_layout(
-            xaxis_rangeslider_visible=False,
+            xaxis=dict(
+                rangeslider_visible=False,
+                showticklabels=True
+            ),
+            xaxis2=dict(  # MACD panel ka x-axis
+                rangeslider_visible=False,
+                showticklabels=True,
+                matches="x"   # ✅ dono panel ka x-axis sync
+            ),
+            yaxis=dict(title="Price"),
+            yaxis2=dict(title="MACD"),
             height=800,
             showlegend=True
         )    
            
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
