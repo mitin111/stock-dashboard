@@ -534,7 +534,11 @@ with tab5:
             df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
         else:
             df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
-        df_live = df_live.drop_duplicates(subset="datetime").sort_values("datetime")
+        df_live = (
+            df_live.drop_duplicates(subset="datetime")
+                   .sort_values("datetime")
+                   .reset_index(drop=True)
+        )    
         from plotly.subplots import make_subplots
         settings = get_trm_settings()
         res = plot_trm_chart(df_live, settings)
@@ -558,6 +562,7 @@ with tab5:
         )    
            
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
