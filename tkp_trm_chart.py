@@ -245,7 +245,7 @@ def plot_trm_chart(df, settings=None):
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    df = calc_macd(df)   # ✅ MACD bhi calculate
+    df = calc_macd(df)
 
     # === Create subplot figure (2 rows: price + MACD) ===
     fig = make_subplots(
@@ -256,7 +256,7 @@ def plot_trm_chart(df, settings=None):
         subplot_titles=("Price + TRM", "MACD")
     )
 
-    # === Always add main candlestick ===
+    # === MAIN Candlestick chart ===
     fig.add_trace(
         go.Candlestick(
             x=df["datetime"],
@@ -269,7 +269,7 @@ def plot_trm_chart(df, settings=None):
         row=1, col=1
     )
 
-    # === TRM overlays as markers ===
+    # === TRM markers overlay ===
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
@@ -279,7 +279,7 @@ def plot_trm_chart(df, settings=None):
                 go.Scatter(
                     x=df_sub["datetime"], y=df_sub["close"],
                     mode="markers", name=f"{name} Signal",
-                    marker=dict(color=settings[color_key], size=6, symbol="circle")
+                    marker=dict(color=settings[color_key], size=7, symbol="circle")
                 ),
                 row=1, col=1
             )
@@ -287,9 +287,9 @@ def plot_trm_chart(df, settings=None):
     # === Overlays ===
     overlays = [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
-                   line=dict(color=settings.get("neutralColor", "orange"), width=1)),
+                   line=dict(color="orange", width=1)),
         go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
-                   line=dict(color=settings.get("neutralColor", "teal"), width=1)),
+                   line=dict(color="teal", width=1)),
         go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
                    line=dict(color="#808080", width=1)),
         go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
@@ -304,7 +304,7 @@ def plot_trm_chart(df, settings=None):
     for t in overlays:
         fig.add_trace(t, row=1, col=1)
 
-    # === MACD traces ===
+    # === MACD traces (row=2) ===
     fig.add_trace(
         go.Bar(
             x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
