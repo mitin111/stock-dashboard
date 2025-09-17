@@ -271,3 +271,4 @@ def plot_trm_chart(df, settings=None):
         "macd_traces": macd_traces   # ← yeh list hogi jo MACD histogram + lines rakhegi
     }    
 
+
