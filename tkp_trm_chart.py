@@ -243,17 +243,18 @@ def plot_trm_chart(df, settings=None):
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    df = calc_macd(df)   # ✅ TRM ke baad MACD bhi calculate
+    df = calc_macd(df)   # ✅ MACD bhi calculate
 
-    traces = []
+    # === Price traces (candles + overlays) ===
+    price_traces = []
 
-    # --- Buy / Sell / Neutral candles ---
+    # Buy / Sell / Neutral candles
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
         df_sub = df[df["barcolor"] == settings[color_key]]
         if not df_sub.empty:
-            traces.append(go.Candlestick(
+            price_traces.append(go.Candlestick(
                 x=df_sub["datetime"],
                 open=df_sub["open"], high=df_sub["high"],
                 low=df_sub["low"], close=df_sub["close"],
@@ -264,8 +265,8 @@ def plot_trm_chart(df, settings=None):
                 name=name
             ))
 
-    # === Overlays ===
-    traces += [
+    # Overlays
+    price_traces += [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                    line=dict(color=settings.get("neutralColor", "orange"), width=1)),
         go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
@@ -282,26 +283,23 @@ def plot_trm_chart(df, settings=None):
                    line=dict(color="#00FFFF", width=2)),
     ]
 
-    # === Price traces (candles + overlays) ===
-    price_traces = traces
-
-    # === MACD Histogram (subplot info ke sath) ===
-    macd_hist = go.Bar(
-        x=df["datetime"], 
-        y=df["macd_hist"], 
-        name="MACD Histogram",
-        marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
-    )
-    macd_line = go.Scatter(
-        x=df["datetime"], y=df["macd"], 
-        name="MACD Line", line=dict(color="#00FFFF", width=1)
-    )
-    macd_signal = go.Scatter(
-        x=df["datetime"], y=df["macd_signal"],
-        name="Signal Line", line=dict(color="#FF00FF", width=1, dash="dot")
-    )   # ← yeh missing thi
-
-    macd_traces = [macd_hist, macd_line, macd_signal]
+    # === MACD traces ===
+    macd_traces = [
+        go.Bar(
+            x=df["datetime"], 
+            y=df["macd_hist"], 
+            name="MACD Histogram",
+            marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
+        ),
+        go.Scatter(
+            x=df["datetime"], y=df["macd"], 
+            name="MACD Line", line=dict(color="#00FFFF", width=1)
+        ),
+        go.Scatter(
+            x=df["datetime"], y=df["macd_signal"],
+            name="Signal Line", line=dict(color="#FF00FF", width=1, dash="dot")
+        )
+    ]
 
     return {
         "price_traces": price_traces,
