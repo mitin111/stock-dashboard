@@ -204,6 +204,21 @@ def calc_atr_trails(df, settings):
 
     return df
 
+# =========================
+# MACD Calculation
+# =========================
+def calc_macd(df, fast=12, slow=26, signal=9):
+    exp1 = df["close"].ewm(span=fast, adjust=False).mean()
+    exp2 = df["close"].ewm(span=slow, adjust=False).mean()
+    macd_line = exp1 - exp2
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
+
+    df["macd"] = macd_line
+    df["macd_signal"] = signal_line
+    df["macd_hist"] = histogram
+    return df
+
 
 # =========================
 # Wrapper for Streamlit / Plotly
@@ -228,6 +243,7 @@ def plot_trm_chart(df, settings=None):
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
+    df = calc_macd(df)   # ✅ TRM ke baad MACD bhi calculate
 
     traces = []
 
@@ -266,9 +282,28 @@ def plot_trm_chart(df, settings=None):
                    line=dict(color="#00FFFF", width=2)),
     ]
 
+    # === Price traces (candles + overlays) ===
+    price_traces = traces
+
+    # === MACD Histogram (subplot info ke sath) ===
+    macd_hist = go.Bar(
+        x=df["datetime"], 
+        y=df["macd_hist"], 
+        name="MACD Histogram",
+        marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
+    )
+    macd_line = go.Scatter(
+        x=df["datetime"], y=df["macd"], 
+        name="MACD Line", line=dict(color="#00FFFF", width=1)
+    )
+    macd_signal = go.Scatter(
+        x=df["datetime"], y=df["macd_signal"],
+        name="Signal Line", line=dict(color="#FF00FF", width=1, dash="dot")
+    )   # ← yeh missing thi
+
+    macd_traces = [macd_hist, macd_line, macd_signal]
+
     return {
-        "price_traces": traces,
-        "macd_traces": macd_traces   # ← yeh list hogi jo MACD histogram + lines rakhegi
-    }    
-
-
+        "price_traces": price_traces,
+        "macd_traces": macd_traces
+    }
