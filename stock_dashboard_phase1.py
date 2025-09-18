@@ -556,41 +556,42 @@ with tab5:
                 end_naive   = end.tz_convert(None)
                 holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
 
-           st.session_state.holiday_values = holiday_values
-           st.session_state.holiday_breaks = holiday_breaks
-           st.write("holiday_breaks final (session IST):", holiday_breaks[:3]) 
-       else:
-           holiday_values = st.session_state.holiday_values
-           holiday_breaks = st.session_state.holiday_breaks
-       rangebreaks = [
-           dict(bounds=["sat", "mon"]),                 # weekends
-           dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
-           *holiday_breaks                             # holidays
-       ]
-       st.session_state["rangebreaks_obj"] = rangebreaks
+            st.session_state.holiday_values = holiday_values
+            st.session_state.holiday_breaks = holiday_breaks
+            st.write("holiday_breaks final (session IST):", holiday_breaks[:3]) 
+        else:
+            holiday_values = st.session_state.holiday_values
+            holiday_breaks = st.session_state.holiday_breaks
+        rangebreaks = [
+            dict(bounds=["sat", "mon"]),                 # weekends
+            dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
+            *holiday_breaks                             # holidays
+        ]
+        st.session_state["rangebreaks_obj"] = rangebreaks
 
-       # 5️⃣ Format datetime for Plotly
-       df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        # 5️⃣ Format datetime for Plotly
+        df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-       # 6️⃣ Get settings & plot chart
-       settings = get_trm_settings()
-       fig = plot_trm_chart(df_live, settings, rangebreaks=st.session_state["rangebreaks_obj"])
-       st.session_state["live_fig"] = fig
+        # 6️⃣ Get settings & plot chart
+        settings = get_trm_settings()
+        fig = plot_trm_chart(df_live, settings, rangebreaks=st.session_state["rangebreaks_obj"])
+        st.session_state["live_fig"] = fig
 
-       # 7️⃣ Render chart
-       placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
-       st.session_state.live_fig.update_xaxes(
-           showgrid=True,
-           gridwidth=0.5,
-           gridcolor="gray",
-           type="date",
-           tickformat="%d-%m-%Y\n%H:%M",
-           tickangle=0,
-           rangeslider_visible=False,
-           rangebreaks=rangebreaks
-       )   
-       placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+        # 7️⃣ Render chart
+        placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+        st.session_state.live_fig.update_xaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor="gray",
+            type="date",
+            tickformat="%d-%m-%Y\n%H:%M",
+            tickangle=0,
+            rangeslider_visible=False,
+            rangebreaks=rangebreaks
+        )   
+        placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
