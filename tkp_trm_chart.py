@@ -220,91 +220,73 @@ def calc_macd(df, fast=12, slow=26, signal=9):
     return df
 
 
-from plotly.subplots import make_subplots
-
 # =========================
 # Wrapper for Streamlit / Plotly
 # =========================
 def plot_trm_chart(df, settings):
-    # --- Ensure datetime
+    # --- datetime cleanup ---
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # === Figure with 2 rows ===
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True,
-        row_heights=[0.7, 0.3], vertical_spacing=0.05,
-        subplot_titles=("Price + Indicators", "MACD")
-    )
+    # === Indicators ===
+    from your_indicators_module import calc_tkp_trm, calc_yhl, calc_pac, calc_atr_trails
+    df = calc_tkp_trm(df, settings)
+    df = calc_yhl(df)
+    df = calc_pac(df, settings)
+    df = calc_atr_trails(df, settings)
+    df = calc_macd(df)   # ✅ extra MACD
 
-    # === TRM-colored Candles (Buy/Sell/Neutral split) ===
+    # === Price traces ===
+    price_traces = []
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
         df_sub = df[df["barcolor"] == settings[color_key]]
         if not df_sub.empty:
-            fig.add_trace(
-                go.Candlestick(
-                    x=df_sub["datetime"],
-                    open=df_sub["open"], high=df_sub["high"],
-                    low=df_sub["low"], close=df_sub["close"],
-                    name=f"{name} Candles",
-                    increasing_line_color=settings[color_key],
-                    decreasing_line_color=settings[color_key],
-                    showlegend=True
-                ),
-                row=1, col=1
-            )
+            price_traces.append(go.Candlestick(
+                x=df_sub["datetime"],
+                open=df_sub["open"], high=df_sub["high"],
+                low=df_sub["low"], close=df_sub["close"],
+                increasing_line_color=settings[color_key],
+                decreasing_line_color=settings[color_key],
+                increasing_fillcolor=settings[color_key],
+                decreasing_fillcolor=settings[color_key],
+                name=name
+            ))
 
-    # === Indicators on Price Chart (row=1) ===
-    # PAC Channel
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacU"],
-                             name="PAC Upper", line=dict(color="#FFA500", width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacL"],
-                             name="PAC Lower", line=dict(color="#FFA500", width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"],
-                             name="PAC Close", line=dict(color="#00FFFF", width=2)), row=1, col=1)
+    price_traces += [
+        go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
+                   line=dict(color=settings.get("neutralColor", "orange"), width=1)),
+        go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
+                   line=dict(color=settings.get("neutralColor", "teal"), width=1)),
+        go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
+                   line=dict(color="#808080", width=1)),
+        go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
+                   line=dict(color="#808080", width=1)),
+        go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
+                   line=dict(color="#00FFFF", width=2)),
+        go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
+                   line=dict(color="#FF00FF", width=1)),
+        go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
+                   line=dict(color="#00FFFF", width=2)),
+    ]
 
-    # Yesterday High / Low
-    if "y_high" in df and "y_low" in df:
-        fig.add_trace(go.Scatter(x=df["datetime"], y=df["y_high"],
-                                 name="Yesterday High", line=dict(color="#FF0000", width=1, dash="dot")), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df["datetime"], y=df["y_low"],
-                                 name="Yesterday Low", line=dict(color="#00FF00", width=1, dash="dot")), row=1, col=1)
-
-    # ATR Trail
-    if "atr_trail" in df:
-        fig.add_trace(go.Scatter(x=df["datetime"], y=df["atr_trail"],
-                                 name="ATR Trail", line=dict(color="#FFFF00", width=1.5)), row=1, col=1)
-
-    # === MACD subplot (row=2) ===
-    if "macd" in df and "macd_signal" in df and "macd_hist" in df:
-        fig.add_trace(
-            go.Bar(
-                x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
-                marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
-            ),
-            row=2, col=1
+    # === MACD traces ===
+    macd_traces = [
+        go.Bar(
+            x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
+            marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
+        ),
+        go.Scatter(
+            x=df["datetime"], y=df["macd"], name="MACD Line",
+            line=dict(color="#00FFFF", width=1)
+        ),
+        go.Scatter(
+            x=df["datetime"], y=df["macd_signal"], name="Signal Line",
+            line=dict(color="#FF00FF", width=1, dash="dot")
         )
-        fig.add_trace(
-            go.Scatter(x=df["datetime"], y=df["macd"], name="MACD Line",
-                       line=dict(color="#00FFFF", width=1)),
-            row=2, col=1
-        )
-        fig.add_trace(
-            go.Scatter(x=df["datetime"], y=df["macd_signal"], name="Signal Line",
-                       line=dict(color="#FF00FF", width=1, dash="dot")),
-            row=2, col=1
-        )
+    ]
 
-    # === Layout ===
-    fig.update_layout(
-        template="plotly_dark",
-        height=900,
-        xaxis_rangeslider_visible=False,
-        margin=dict(l=40, r=20, t=40, b=40),
-        showlegend=True
-    )
-    fig.update_yaxes(title_text="Price", row=1, col=1)
-    fig.update_yaxes(title_text="MACD", row=2, col=1)
-
-    return fig
+    return {
+        "price_traces": price_traces,
+        "macd_traces": macd_traces
+    }
