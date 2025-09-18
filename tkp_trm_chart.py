@@ -229,19 +229,14 @@ def plot_trm_chart(df, settings):
     # --- Ensure datetime
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # --- Ensure barcolor column exists (fallback neutral)
-    if "barcolor" not in df.columns:
-        df["barcolor"] = settings.get("neutralColor", "#808080")
-
     # === Figure with 2 rows ===
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True,
         row_heights=[0.7, 0.3], vertical_spacing=0.05,
-        subplot_titles=("Price + TRM", "MACD")
+        subplot_titles=("Price + Indicators", "MACD")
     )
 
-    # === Candlestick split into 3 traces (Buy/Sell/Neutral) ===
-    added_candles = False
+    # === TRM-colored Candles (Buy/Sell/Neutral split) ===
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
@@ -259,35 +254,30 @@ def plot_trm_chart(df, settings):
                 ),
                 row=1, col=1
             )
-            added_candles = True
 
-    # --- Safety net: agar TRM colors nahi mile to full candle plot karo
-    if not added_candles:
-        fig.add_trace(
-            go.Candlestick(
-                x=df["datetime"],
-                open=df["open"], high=df["high"],
-                low=df["low"], close=df["close"],
-                name="Price",
-                increasing_line_color="#00FF00",
-                decreasing_line_color="#FF0000"
-            ),
-            row=1, col=1
-        )
+    # === Indicators on Price Chart (row=1) ===
+    # PAC Channel
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacU"],
+                             name="PAC Upper", line=dict(color="#FFA500", width=1)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacL"],
+                             name="PAC Lower", line=dict(color="#FFA500", width=1)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"],
+                             name="PAC Close", line=dict(color="#00FFFF", width=2)), row=1, col=1)
 
-    # === Overlays (row=1) ===
-    if "pacC" in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df["datetime"], y=df["pacC"],
-                name="PAC Close",
-                line=dict(color="#00FFFF", width=2)
-            ),
-            row=1, col=1
-        )
+    # Yesterday High / Low
+    if "y_high" in df and "y_low" in df:
+        fig.add_trace(go.Scatter(x=df["datetime"], y=df["y_high"],
+                                 name="Yesterday High", line=dict(color="#FF0000", width=1, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["datetime"], y=df["y_low"],
+                                 name="Yesterday Low", line=dict(color="#00FF00", width=1, dash="dot")), row=1, col=1)
 
-    # === MACD (row=2 only) ===
-    if {"macd", "macd_signal", "macd_hist"}.issubset(df.columns):
+    # ATR Trail
+    if "atr_trail" in df:
+        fig.add_trace(go.Scatter(x=df["datetime"], y=df["atr_trail"],
+                                 name="ATR Trail", line=dict(color="#FFFF00", width=1.5)), row=1, col=1)
+
+    # === MACD subplot (row=2) ===
+    if "macd" in df and "macd_signal" in df and "macd_hist" in df:
         fig.add_trace(
             go.Bar(
                 x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
@@ -309,7 +299,7 @@ def plot_trm_chart(df, settings):
     # === Layout ===
     fig.update_layout(
         template="plotly_dark",
-        height=800,
+        height=900,
         xaxis_rangeslider_visible=False,
         margin=dict(l=40, r=20, t=40, b=40),
         showlegend=True
