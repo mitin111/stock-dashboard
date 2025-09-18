@@ -228,12 +228,11 @@ def plot_trm_chart(df, settings):
     df["datetime"] = pd.to_datetime(df["datetime"])
 
     # === Indicators ===
-    from your_indicators_module import calc_tkp_trm, calc_yhl, calc_pac, calc_atr_trails
     df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    df = calc_macd(df)   # ✅ extra MACD
+    df = calc_macd(df)   
 
     # === Price traces ===
     price_traces = []
@@ -290,3 +289,4 @@ def plot_trm_chart(df, settings):
         "price_traces": price_traces,
         "macd_traces": macd_traces
     }
+
