@@ -256,35 +256,26 @@ def plot_trm_chart(df, settings=None):
         subplot_titles=("Price + TRM", "MACD")
     )
 
-    # === MAIN Candlestick chart ===
-    fig.add_trace(
-        go.Candlestick(
-            x=df["datetime"],
-            open=df["open"], high=df["high"],
-            low=df["low"], close=df["close"],
-            name="Price",
-            increasing_line_color="#00FF00",
-            decreasing_line_color="#FF0000"
-        ),
-        row=1, col=1
-    )
-
-    # === TRM markers overlay ===
+    # === Split candlesticks by TRM color ===
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
         df_sub = df[df["barcolor"] == settings[color_key]]
         if not df_sub.empty:
             fig.add_trace(
-                go.Scatter(
-                    x=df_sub["datetime"], y=df_sub["close"],
-                    mode="markers", name=f"{name} Signal",
-                    marker=dict(color=settings[color_key], size=7, symbol="circle")
+                go.Candlestick(
+                    x=df_sub["datetime"],
+                    open=df_sub["open"], high=df_sub["high"],
+                    low=df_sub["low"], close=df_sub["close"],
+                    name=f"{name} Candles",
+                    increasing_line_color=settings[color_key],
+                    decreasing_line_color=settings[color_key],
+                    showlegend=True
                 ),
                 row=1, col=1
             )
 
-    # === Overlays ===
+    # === Overlays (PAC, YHL, ATR trails) ===
     overlays = [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                    line=dict(color="orange", width=1)),
@@ -304,7 +295,7 @@ def plot_trm_chart(df, settings=None):
     for t in overlays:
         fig.add_trace(t, row=1, col=1)
 
-    # === MACD traces (row=2) ===
+    # === MACD traces (row=2 only) ===
     fig.add_trace(
         go.Bar(
             x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
