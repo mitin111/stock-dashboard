@@ -229,6 +229,10 @@ def plot_trm_chart(df, settings):
     # --- Ensure datetime
     df["datetime"] = pd.to_datetime(df["datetime"])
 
+    # --- Ensure barcolor column exists (fallback neutral)
+    if "barcolor" not in df.columns:
+        df["barcolor"] = settings.get("neutralColor", "#808080")
+
     # === Figure with 2 rows ===
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True,
@@ -236,7 +240,8 @@ def plot_trm_chart(df, settings):
         subplot_titles=("Price + TRM", "MACD")
     )
 
-    # === Candlestick split into 3 traces ===
+    # === Candlestick split into 3 traces (Buy/Sell/Neutral) ===
+    added_candles = False
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
@@ -254,29 +259,52 @@ def plot_trm_chart(df, settings):
                 ),
                 row=1, col=1
             )
+            added_candles = True
+
+    # --- Safety net: agar TRM colors nahi mile to full candle plot karo
+    if not added_candles:
+        fig.add_trace(
+            go.Candlestick(
+                x=df["datetime"],
+                open=df["open"], high=df["high"],
+                low=df["low"], close=df["close"],
+                name="Price",
+                increasing_line_color="#00FF00",
+                decreasing_line_color="#FF0000"
+            ),
+            row=1, col=1
+        )
 
     # === Overlays (row=1) ===
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"],
-                             name="PAC Close", line=dict(color="#00FFFF", width=2)), row=1, col=1)
+    if "pacC" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df["datetime"], y=df["pacC"],
+                name="PAC Close",
+                line=dict(color="#00FFFF", width=2)
+            ),
+            row=1, col=1
+        )
 
     # === MACD (row=2 only) ===
-    fig.add_trace(
-        go.Bar(
-            x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
-            marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
-        ),
-        row=2, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df["datetime"], y=df["macd"], name="MACD Line",
-                   line=dict(color="#00FFFF", width=1)),
-        row=2, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df["datetime"], y=df["macd_signal"], name="Signal Line",
-                   line=dict(color="#FF00FF", width=1, dash="dot")),
-        row=2, col=1
-    )
+    if {"macd", "macd_signal", "macd_hist"}.issubset(df.columns):
+        fig.add_trace(
+            go.Bar(
+                x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
+                marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")
+            ),
+            row=2, col=1
+        )
+        fig.add_trace(
+            go.Scatter(x=df["datetime"], y=df["macd"], name="MACD Line",
+                       line=dict(color="#00FFFF", width=1)),
+            row=2, col=1
+        )
+        fig.add_trace(
+            go.Scatter(x=df["datetime"], y=df["macd_signal"], name="Signal Line",
+                       line=dict(color="#FF00FF", width=1, dash="dot")),
+            row=2, col=1
+        )
 
     # === Layout ===
     fig.update_layout(
