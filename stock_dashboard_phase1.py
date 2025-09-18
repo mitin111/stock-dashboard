@@ -520,6 +520,7 @@ with tab5:
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
     )
 
+    from plotly.subplots import make_subplots
     from tkp_trm_chart import plot_trm_chart, get_trm_settings
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
@@ -539,14 +540,35 @@ with tab5:
                    .sort_values("datetime")
                    .reset_index(drop=True)
         )    
-        from plotly.subplots import make_subplots
+        
         settings = get_trm_settings()
-        fig = plot_trm_chart(df_live, settings)
-
-        for trace in fig.data:
-            st.session_state.live_fig.add_trace(trace)
-
+        res = plot_trm_chart(df_live, settings)
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.7, 0.3],
+            subplot_titles=("Price + Indicators", "MACD")
+        )
+        for t in res["price_traces"]:
+            fig.add_trace(t, row=1, col=1)
+        for t in res["macd_traces"]:
+            fig.add_trace(t, row=2, col=1)
+        fig.update_layout(
+            xaxis=dict(rangeslider_visible=False, showticklabels=True),
+            xaxis2=dict(rangeslider_visible=False, showticklabels=True, matches="x"),
+            yaxis=dict(title="Price"),
+            yaxis2=dict(title="MACD"),
+            height=800,
+            showlegend=True
+        )
+        if "live_fig" not in st.session_state:
+            st.session_state.live_fig = fig
+        else:
+            st.session_state.live_fig = fig   # purana clear karke naya assign
+        
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
+
 
 
 
