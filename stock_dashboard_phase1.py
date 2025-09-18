@@ -542,7 +542,8 @@ with tab5:
         )    
         
         settings = get_trm_settings()
-        fig = plot_trm_chart(df_live, settings)
+        rangebreaks = st.session_state.get("rangebreaks_obj", None)  # ✅ Tab 5 ka holiday/weekend breaks
+        fig = plot_trm_chart(df_live, settings, rangebreaks=rangebreaks)
 
         if "live_fig" not in st.session_state:
             st.session_state.live_fig = fig
@@ -550,6 +551,7 @@ with tab5:
             st.session_state.live_fig = fig   # purana clear karke naya assign
         
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
