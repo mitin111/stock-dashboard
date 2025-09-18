@@ -224,8 +224,10 @@ def calc_macd(df, fast=12, slow=26, signal=9):
 # Wrapper for Streamlit / Plotly
 # =========================
 from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import numpy as np
 
-def plot_trm_chart(df, settings, rangebreaks=None):
+def plot_trm_chart(df, settings, rangebreaks=None, fig=None):
     # --- datetime cleanup ---
     df["datetime"] = pd.to_datetime(df["datetime"])
 
@@ -234,15 +236,19 @@ def plot_trm_chart(df, settings, rangebreaks=None):
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    df = calc_macd(df)   
+    df = calc_macd(df)
 
-    # === Create subplot ===
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True,
-        vertical_spacing=0.1,
-        row_heights=[0.7, 0.3],
-        subplot_titles=("Price + Indicators", "MACD")
-    )
+    # --- Create subplot if no figure passed ---
+    if fig is None:
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.7, 0.3],
+            subplot_titles=("Price + Indicators", "MACD")
+        )
+        new_fig = True
+    else:
+        new_fig = False  # reuse existing figure
 
     # --- Price traces ---
     for color_key, name in [
@@ -289,23 +295,24 @@ def plot_trm_chart(df, settings, rangebreaks=None):
     fig.add_trace(go.Scatter(x=df["datetime"], y=df["macd_signal"], name="Signal Line",
                              line=dict(color="#FF00FF", width=1, dash="dot")), row=2, col=1)
 
-    # --- Layout ---
-    fig.update_layout(
-        xaxis=dict(
-            rangeslider_visible=False,
-            showticklabels=True,
-            rangebreaks=rangebreaks  # ✅ weekend + holiday breaks (top panel)
-        ),
-        xaxis2=dict(
-            rangeslider_visible=False,
-            showticklabels=True,
-            matches="x",
-            rangebreaks=rangebreaks  # ✅ MACD panel pe bhi apply
-        ),
-        yaxis=dict(title="Price"),
-        yaxis2=dict(title="MACD"),
-        height=800,
-        showlegend=True
-    )
+    # --- Layout update only if new figure ---
+    if new_fig:
+        fig.update_layout(
+            xaxis=dict(
+                rangeslider_visible=False,
+                showticklabels=True,
+                rangebreaks=rangebreaks
+            ),
+            xaxis2=dict(
+                rangeslider_visible=False,
+                showticklabels=True,
+                matches="x",
+                rangebreaks=rangebreaks
+            ),
+            yaxis=dict(title="Price"),
+            yaxis2=dict(title="MACD"),
+            height=800,
+            showlegend=True
+        )
 
     return fig
