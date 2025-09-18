@@ -56,6 +56,11 @@ def get_trm_settings():
         atr_slow_period = st.number_input("ATR Slow Period", 1, 200, saved.get("atr_slow_period", 10))
         atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, saved.get("atr_slow_mult", 3.0), 0.1)
 
+        # 🔥 MACD Settings
+        macd_fast = st.number_input("MACD Fast Length", 1, 200, saved.get("macd_fast", 12))
+        macd_slow = st.number_input("MACD Slow Length", 1, 200, saved.get("macd_slow", 26))
+        macd_signal = st.number_input("MACD Signal Length", 1, 200, saved.get("macd_signal", 9))
+
         show_info_panels = st.checkbox("Show Info Panels", saved.get("show_info_panels", True))
 
         settings = {
@@ -65,6 +70,7 @@ def get_trm_settings():
             "pac_length": pac_length, "use_heikin_ashi": use_heikin_ashi,
             "atr_fast_period": atr_fast_period, "atr_fast_mult": atr_fast_mult,
             "atr_slow_period": atr_slow_period, "atr_slow_mult": atr_slow_mult,
+            "macd_fast": macd_fast, "macd_slow": macd_slow, "macd_signal": macd_signal,
             "show_info_panels": show_info_panels
         }
 
@@ -210,7 +216,11 @@ def calc_atr_trails(df, settings):
 # =========================
 # MACD Calculation
 # =========================
-def calc_macd(df, fast=12, slow=26, signal=9):
+def calc_macd(df, settings):
+    fast = settings.get("macd_fast", 12)
+    slow = settings.get("macd_slow", 26)
+    signal = settings.get("macd_signal", 9)
+
     exp1 = df["close"].ewm(span=fast, adjust=False).mean()
     exp2 = df["close"].ewm(span=slow, adjust=False).mean()
     macd_line = exp1 - exp2
@@ -336,4 +346,5 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
 
