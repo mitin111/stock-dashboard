@@ -531,34 +531,33 @@ with tab5:
             "low": st.session_state.ohlc_l,
             "close": st.session_state.ohlc_c
         })
+        df_live["datetime"] = pd.to_datetime(df_live["datetime"])
         if df_live["datetime"].dt.tz is None:
             df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
-        else:
-            df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
+        df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata").apply(lambda x: x.replace(tzinfo=None))
+        
         df_live = (
             df_live.drop_duplicates(subset="datetime")
                    .sort_values("datetime")
                    .reset_index(drop=True)
         )    
-        
+        holiday_dates = []
+        for h in full_holidays:
+            dt = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime().replace(tzinfo=None)
+            holiday_dates.append(dt.date().isoformat())
+        rangebreaks = [
+            dict(bounds=["sat", "mon"]),                 # weekends
+            dict(bounds=[15.5, 9.25], pattern="hour"),   # outside market hours
+            dict(values=holiday_dates)                   # holidays
+        ]
+        st.session_state["rangebreaks_obj"] = rangebreaks
+        df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
         settings = get_trm_settings()
-        rangebreaks = st.session_state.get("rangebreaks_obj", None)  # ✅ Tab 5 ka holiday/weekend breaks
-        fig = plot_trm_chart(df_live, settings, rangebreaks=rangebreaks)
+        fig = plot_trm_chart(df_live, settings, rangebreaks=st.session_state["rangebreaks_obj"])
+        st.session_state["live_fig"] = fig
 
-        if "live_fig" not in st.session_state:
-            st.session_state.live_fig = fig
-        else:
-            st.session_state.live_fig = fig   # purana clear karke naya assign
+        placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
-
-
-
-
-
-
-
 
 
 
