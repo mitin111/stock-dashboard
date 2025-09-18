@@ -225,38 +225,18 @@ from plotly.subplots import make_subplots
 # =========================
 # Wrapper for Streamlit / Plotly
 # =========================
-def plot_trm_chart(df, settings=None):
-    if settings is None:
-        settings = {
-            "long": 750, "short": 30, "signal": 9,
-            "len_rsi": 5, "rsiBuyLevel": 50, "rsiSellLevel": 50,
-            "buyColor": "#00FFFF", "sellColor": "#FF00FF", "neutralColor": "#808080",
-            "pac_length": 34, "use_heikin_ashi": True,
-            "atr_fast_period": 5, "atr_fast_mult": 0.5,
-            "atr_slow_period": 10, "atr_slow_mult": 3.0,
-            "show_info_panels": True
-        }
-
-    # --- datetime cleanup ---
+def plot_trm_chart(df, settings):
+    # --- Ensure datetime
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # === Indicators ===
-    df = calc_tkp_trm(df, settings)
-    df = calc_yhl(df)
-    df = calc_pac(df, settings)
-    df = calc_atr_trails(df, settings)
-    df = calc_macd(df)
-
-    # === Create subplot figure (2 rows: price + MACD) ===
+    # === Figure with 2 rows ===
     fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        row_heights=[0.7, 0.3],
-        vertical_spacing=0.05,
+        rows=2, cols=1, shared_xaxes=True,
+        row_heights=[0.7, 0.3], vertical_spacing=0.05,
         subplot_titles=("Price + TRM", "MACD")
     )
 
-    # === Split candlesticks by TRM color (row=1) ===
+    # === Candlestick split into 3 traces ===
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
@@ -275,27 +255,11 @@ def plot_trm_chart(df, settings=None):
                 row=1, col=1
             )
 
-    # === Overlays (PAC, YHL, ATR trails) on row=1 ===
-    overlays = [
-        go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
-                   line=dict(color="orange", width=1)),
-        go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
-                   line=dict(color="teal", width=1)),
-        go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
-                   line=dict(color="#808080", width=1)),
-        go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
-                   line=dict(color="#808080", width=1)),
-        go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
-                   line=dict(color="#00FFFF", width=2)),
-        go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
-                   line=dict(color="#FF00FF", width=1)),
-        go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
-                   line=dict(color="#00FFFF", width=2)),
-    ]
-    for t in overlays:
-        fig.add_trace(t, row=1, col=1)
+    # === Overlays (row=1) ===
+    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"],
+                             name="PAC Close", line=dict(color="#00FFFF", width=2)), row=1, col=1)
 
-    # === MACD traces (row=2 only, yaxis="y2") ===
+    # === MACD (row=2 only) ===
     fig.add_trace(
         go.Bar(
             x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
@@ -314,15 +278,14 @@ def plot_trm_chart(df, settings=None):
         row=2, col=1
     )
 
-    # === Layout tweaks ===
+    # === Layout ===
     fig.update_layout(
-        xaxis_rangeslider_visible=False,
         template="plotly_dark",
-        margin=dict(l=40, r=20, t=40, b=30),
-        height=800
+        height=800,
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=40, r=20, t=40, b=40),
+        showlegend=True
     )
-
-    # Force separate y-axes so MACD doesn't overlap with candles
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="MACD", row=2, col=1)
 
