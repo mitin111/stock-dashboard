@@ -531,33 +531,67 @@ with tab5:
             "low": st.session_state.ohlc_l,
             "close": st.session_state.ohlc_c
         })
-        df_live["datetime"] = pd.to_datetime(df_live["datetime"])
         if df_live["datetime"].dt.tz is None:
             df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
-        df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata").apply(lambda x: x.replace(tzinfo=None))
+        else:
+            df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
+        df_live["datetime"] = df_live["datetime"].apply(lambda x: x.replace(tzinfo=None))    
         
         df_live = (
             df_live.drop_duplicates(subset="datetime")
                    .sort_values("datetime")
                    .reset_index(drop=True)
-        )    
-        holiday_dates = []
-        for h in full_holidays:
-            dt = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime().replace(tzinfo=None)
-            holiday_dates.append(dt.date().isoformat())
-        rangebreaks = [
-            dict(bounds=["sat", "mon"]),                 # weekends
-            dict(bounds=[15.5, 9.25], pattern="hour"),   # outside market hours
-            dict(values=holiday_dates)                   # holidays
-        ]
-        st.session_state["rangebreaks_obj"] = rangebreaks
-        df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
-        settings = get_trm_settings()
-        fig = plot_trm_chart(df_live, settings, rangebreaks=st.session_state["rangebreaks_obj"])
-        st.session_state["live_fig"] = fig
+        )
+        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
+            holiday_values = [
+                pd.Timestamp(h).tz_localize("Asia/Kolkata").date().isoformat()
+                for h in full_holidays
+            ]
+            holiday_breaks = []
+            for h in full_holidays:
+                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                # Convert to tz-naive for Plotly
+                start_naive = start.tz_convert(None)
+                end_naive   = end.tz_convert(None)
+                holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
 
-        placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+           st.session_state.holiday_values = holiday_values
+           st.session_state.holiday_breaks = holiday_breaks
+           st.write("holiday_breaks final (session IST):", holiday_breaks[:3]) 
+       else:
+           holiday_values = st.session_state.holiday_values
+           holiday_breaks = st.session_state.holiday_breaks
+       rangebreaks = [
+           dict(bounds=["sat", "mon"]),                 # weekends
+           dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
+           *holiday_breaks                             # holidays
+       ]
+       st.session_state["rangebreaks_obj"] = rangebreaks
+
+       # 5️⃣ Format datetime for Plotly
+       df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+       # 6️⃣ Get settings & plot chart
+       settings = get_trm_settings()
+       fig = plot_trm_chart(df_live, settings, rangebreaks=st.session_state["rangebreaks_obj"])
+       st.session_state["live_fig"] = fig
+
+       # 7️⃣ Render chart
+       placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+       st.session_state.live_fig.update_xaxes(
+           showgrid=True,
+           gridwidth=0.5,
+           gridcolor="gray",
+           type="date",
+           tickformat="%d-%m-%Y\n%H:%M",
+           tickangle=0,
+           rangeslider_visible=False,
+           rangebreaks=rangebreaks
+       )   
+       placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
