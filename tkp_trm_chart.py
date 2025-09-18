@@ -225,7 +225,7 @@ def calc_macd(df, fast=12, slow=26, signal=9):
 # =========================
 from plotly.subplots import make_subplots
 
-def plot_trm_chart(df, settings):
+def plot_trm_chart(df, settings, rangebreaks=None):
     # --- datetime cleanup ---
     df["datetime"] = pd.to_datetime(df["datetime"])
 
@@ -264,6 +264,7 @@ def plot_trm_chart(df, settings):
                 row=1, col=1
             )
 
+    # --- Overlays (YHL, PAC, Trails) ---
     fig.add_trace(go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                              line=dict(color=settings.get("neutralColor", "orange"), width=1)), row=1, col=1)
     fig.add_trace(go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
@@ -288,10 +289,19 @@ def plot_trm_chart(df, settings):
     fig.add_trace(go.Scatter(x=df["datetime"], y=df["macd_signal"], name="Signal Line",
                              line=dict(color="#FF00FF", width=1, dash="dot")), row=2, col=1)
 
-    # Layout
+    # --- Layout ---
     fig.update_layout(
-        xaxis=dict(rangeslider_visible=False, showticklabels=True),
-        xaxis2=dict(rangeslider_visible=False, showticklabels=True, matches="x"),
+        xaxis=dict(
+            rangeslider_visible=False,
+            showticklabels=True,
+            rangebreaks=rangebreaks  # ✅ weekend + holiday breaks (top panel)
+        ),
+        xaxis2=dict(
+            rangeslider_visible=False,
+            showticklabels=True,
+            matches="x",
+            rangebreaks=rangebreaks  # ✅ MACD panel pe bhi apply
+        ),
         yaxis=dict(title="Price"),
         yaxis2=dict(title="MACD"),
         height=800,
@@ -299,5 +309,3 @@ def plot_trm_chart(df, settings):
     )
 
     return fig
-
-
