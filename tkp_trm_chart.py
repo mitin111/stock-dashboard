@@ -285,7 +285,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    df = calc_macd(df)
+    df = calc_macd(df, settings)   # ✅ sahi
 
     # --- Create figure ---
     if show_macd_panel:
@@ -346,5 +346,6 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
 
 
