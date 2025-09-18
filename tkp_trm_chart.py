@@ -111,6 +111,9 @@ def calc_tkp_trm(df, settings):
     isBuy = (tsi > tsi_signal) & (rsi_vals > settings["rsiBuyLevel"])
     isSell = (tsi < tsi_signal) & (rsi_vals < settings["rsiSellLevel"])
 
+    df["trm_signal"] = np.where(isBuy, "Buy",
+                                np.where(isSell, "Sell", "Neutral"))
+
     df["barcolor"] = np.where(isBuy, settings["buyColor"],
                        np.where(isSell, settings["sellColor"], settings["neutralColor"]))
     df["tsi"] = tsi
@@ -333,3 +336,4 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
