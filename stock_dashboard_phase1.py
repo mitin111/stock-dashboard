@@ -542,31 +542,15 @@ with tab5:
         )    
         
         settings = get_trm_settings()
-        res = plot_trm_chart(df_live, settings)
-        fig = make_subplots(
-            rows=2, cols=1, shared_xaxes=True,
-            vertical_spacing=0.1,
-            row_heights=[0.7, 0.3],
-            subplot_titles=("Price + Indicators", "MACD")
-        )
-        for t in res["price_traces"]:
-            fig.add_trace(t, row=1, col=1)
-        for t in res["macd_traces"]:
-            fig.add_trace(t, row=2, col=1)
-        fig.update_layout(
-            xaxis=dict(rangeslider_visible=False, showticklabels=True),
-            xaxis2=dict(rangeslider_visible=False, showticklabels=True, matches="x"),
-            yaxis=dict(title="Price"),
-            yaxis2=dict(title="MACD"),
-            height=800,
-            showlegend=True
-        )
+        fig = plot_trm_chart(df_live, settings)
+
         if "live_fig" not in st.session_state:
             st.session_state.live_fig = fig
         else:
             st.session_state.live_fig = fig   # purana clear karke naya assign
         
         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+
 
 
 
