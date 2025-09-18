@@ -227,92 +227,109 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import numpy as np
 
-def plot_trm_chart(df, settings, rangebreaks=None, fig=None):
-    # --- datetime cleanup ---
+def add_trm_colored_candles(fig, df, settings, row=1, col=1):
+    # TRM Colors
+    buy_color = settings.get("buyColor", "#26a69a")
+    sell_color = settings.get("sellColor", "#ef5350")
+    neutral_color = settings.get("neutralColor", "#808080")
+
+    # TRM signal color map
+    colors = df["trm_signal"].map({
+        "Buy": buy_color,
+        "Sell": sell_color,
+        "Neutral": neutral_color
+    }).fillna(neutral_color)
+
+    # Loop through bars
+    for i in range(len(df)):
+        o, h, l, c = df.loc[i, ["open", "high", "low", "close"]]
+        t = df.loc[i, "datetime"]
+        colr = colors.iloc[i]
+
+        # Wick
+        fig.add_trace(go.Scatter(
+            x=[t, t], y=[l, h],
+            mode="lines",
+            line=dict(color=colr, width=1),
+            showlegend=False
+        ), row=row, col=col)
+
+        # Body
+        fig.add_trace(go.Scatter(
+            x=[t, t],
+            y=[o, c],
+            mode="lines",
+            line=dict(color=colr, width=6),
+            showlegend=False
+        ), row=row, col=col)
+
+
+def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=True):
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # === Indicators ===
+    # Indicators
     df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
     df = calc_macd(df)
 
-    # --- Create subplot if no figure passed ---
-    if fig is None:
+    # --- Create figure ---
+    if show_macd_panel:
         fig = make_subplots(
             rows=2, cols=1, shared_xaxes=True,
-            vertical_spacing=0.1,
-            row_heights=[0.7, 0.3],
+            row_heights=[0.7, 0.3], vertical_spacing=0.08,
             subplot_titles=("Price + Indicators", "MACD")
         )
-        new_fig = True
     else:
-        new_fig = False  # reuse existing figure
+        fig = go.Figure()
 
-    # --- Price traces ---
-    for color_key, name in [
-        ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
+    # --- Candles (TRM coloring) ---
+    add_trm_colored_candles(fig, df, settings,
+                            row=1 if show_macd_panel else None,
+                            col=1 if show_macd_panel else None)
+
+    # --- Overlays on price ---
+    for col, name, color, width in [
+        ("pacU", "PAC High", "#808080", 1),
+        ("pacL", "PAC Low", "#808080", 1),
+        ("pacC", "PAC Mid", "#00FFFF", 2),
+        ("Trail1", "Fast Trail", "#FF00FF", 1),
+        ("Trail2", "Slow Trail", "#00FFFF", 2),
+        ("high_yest", "Yesterday High", "orange", 1),
+        ("low_yest", "Yesterday Low", "teal", 1),
     ]:
-        df_sub = df[df["barcolor"] == settings[color_key]]
-        if not df_sub.empty:
-            fig.add_trace(
-                go.Candlestick(
-                    x=df_sub["datetime"],
-                    open=df_sub["open"], high=df_sub["high"],
-                    low=df_sub["low"], close=df_sub["close"],
-                    increasing_line_color=settings[color_key],
-                    decreasing_line_color=settings[color_key],
-                    increasing_fillcolor=settings[color_key],
-                    decreasing_fillcolor=settings[color_key],
-                    name=name
-                ),
-                row=1, col=1
-            )
+        if col in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df["datetime"], y=df[col], name=name,
+                line=dict(color=color, width=width)
+            ), row=1 if show_macd_panel else None, col=1 if show_macd_panel else None)
 
-    # --- Overlays (YHL, PAC, Trails) ---
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
-                             line=dict(color=settings.get("neutralColor", "orange"), width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["low_yest"], name="Yesterday Low",
-                             line=dict(color=settings.get("neutralColor", "teal"), width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacU"], name="PAC High",
-                             line=dict(color="#808080", width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacL"], name="PAC Low",
-                             line=dict(color="#808080", width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["pacC"], name="PAC Close",
-                             line=dict(color="#00FFFF", width=2)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["Trail1"], name="Fast Trail",
-                             line=dict(color="#FF00FF", width=1)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["Trail2"], name="Slow Trail",
-                             line=dict(color="#00FFFF", width=2)), row=1, col=1)
+    # --- MACD (only if enabled) ---
+    if show_macd_panel:
+        fig.add_trace(go.Bar(
+            x=df["datetime"], y=df["macd_hist"],
+            marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000"),
+            name="MACD Histogram"
+        ), row=2, col=1)
+        fig.add_trace(go.Scatter(
+            x=df["datetime"], y=df["macd"], name="MACD Line",
+            line=dict(color="#00FFFF", width=1)
+        ), row=2, col=1)
+        fig.add_trace(go.Scatter(
+            x=df["datetime"], y=df["macd_signal"], name="Signal Line",
+            line=dict(color="#FF00FF", dash="dot", width=1)
+        ), row=2, col=1)
 
-    # --- MACD traces ---
-    fig.add_trace(go.Bar(x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
-                         marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000")),
-                  row=2, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["macd"], name="MACD Line",
-                             line=dict(color="#00FFFF", width=1)), row=2, col=1)
-    fig.add_trace(go.Scatter(x=df["datetime"], y=df["macd_signal"], name="Signal Line",
-                             line=dict(color="#FF00FF", width=1, dash="dot")), row=2, col=1)
-
-    # --- Layout update only if new figure ---
-    if new_fig:
-        fig.update_layout(
-            xaxis=dict(
-                rangeslider_visible=False,
-                showticklabels=True,
-                rangebreaks=rangebreaks
-            ),
-            xaxis2=dict(
-                rangeslider_visible=False,
-                showticklabels=True,
-                matches="x",
-                rangebreaks=rangebreaks
-            ),
-            yaxis=dict(title="Price"),
-            yaxis2=dict(title="MACD"),
-            height=800,
-            showlegend=True
-        )
-
+    # --- Layout ---
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="black",
+        plot_bgcolor="black",
+        font=dict(color="white"),
+        height=800 if show_macd_panel else 600,
+        hovermode="x unified",
+        xaxis=dict(rangeslider_visible=False, rangebreaks=rangebreaks),
+        dragmode="pan"
+    )
     return fig
