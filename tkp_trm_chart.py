@@ -256,7 +256,7 @@ def plot_trm_chart(df, settings=None):
         subplot_titles=("Price + TRM", "MACD")
     )
 
-    # === Split candlesticks by TRM color ===
+    # === Split candlesticks by TRM color (row=1) ===
     for color_key, name in [
         ("buyColor", "Buy"), ("sellColor", "Sell"), ("neutralColor", "Neutral")
     ]:
@@ -275,7 +275,7 @@ def plot_trm_chart(df, settings=None):
                 row=1, col=1
             )
 
-    # === Overlays (PAC, YHL, ATR trails) ===
+    # === Overlays (PAC, YHL, ATR trails) on row=1 ===
     overlays = [
         go.Scatter(x=df["datetime"], y=df["high_yest"], name="Yesterday High",
                    line=dict(color="orange", width=1)),
@@ -295,7 +295,7 @@ def plot_trm_chart(df, settings=None):
     for t in overlays:
         fig.add_trace(t, row=1, col=1)
 
-    # === MACD traces (row=2 only) ===
+    # === MACD traces (row=2 only, yaxis="y2") ===
     fig.add_trace(
         go.Bar(
             x=df["datetime"], y=df["macd_hist"], name="MACD Histogram",
@@ -321,5 +321,9 @@ def plot_trm_chart(df, settings=None):
         margin=dict(l=40, r=20, t=40, b=30),
         height=800
     )
+
+    # Force separate y-axes so MACD doesn't overlap with candles
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="MACD", row=2, col=1)
 
     return fig
