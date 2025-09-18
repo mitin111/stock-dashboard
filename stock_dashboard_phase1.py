@@ -579,7 +579,7 @@ with tab5:
             settings,
             rangebreaks=st.session_state["rangebreaks_obj"],
             fig=st.session_state.live_fig,   # 👈 yaha reuse karna hai
-            show_macd_panel=False
+            show_macd_panel=True             # ✅ MACD panel enable
         )
         st.session_state["live_fig"] = fig
         # 7️⃣ Render chart
@@ -595,6 +595,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
