@@ -239,44 +239,55 @@ def calc_macd(df, settings):
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import numpy as np
+import pandas as pd
 
-def add_trm_colored_candles(fig, df, settings, row=1, col=1):
-    # TRM Colors
-    buy_color = settings.get("buyColor", "#26a69a")
-    sell_color = settings.get("sellColor", "#ef5350")
-    neutral_color = settings.get("neutralColor", "#808080")
+# =========================
+# Optimized TRM Candles
+# =========================
+def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
+    """
+    Optimized TRM-colored candlesticks using Scattergl
+    - No per-bar loop (fast GPU rendering)
+    - Limits bars for smoothness
+    """
+    # --- Limit candles (for speed) ---
+    if len(df) > max_bars:
+        df = df.iloc[-max_bars:]
 
-    # TRM signal color map
+    # --- TRM Colors mapping ---
     colors = df["trm_signal"].map({
-        "Buy": buy_color,
-        "Sell": sell_color,
-        "Neutral": neutral_color
-    }).fillna(neutral_color)
+        "Buy": settings.get("buyColor", "#26a69a"),
+        "Sell": settings.get("sellColor", "#ef5350"),
+        "Neutral": settings.get("neutralColor", "#808080")
+    }).fillna("#808080")
 
-    # Loop through bars
-    for i in range(len(df)):
-        o, h, l, c = df.loc[i, ["open", "high", "low", "close"]]
-        t = df.loc[i, "datetime"]
-        colr = colors.iloc[i]
+    # --- Wick trace (low → high, gray) ---
+    fig.add_trace(go.Scattergl(
+        x=pd.concat([df["datetime"], df["datetime"]]),
+        y=pd.concat([df["low"], df["high"]]),
+        mode="lines",
+        line=dict(color="lightgray", width=1),
+        showlegend=False
+    ), row=row, col=col)
 
-        # Wick
-        fig.add_trace(go.Scatter(
-            x=[t, t], y=[l, h],
-            mode="lines",
-            line=dict(color=colr, width=1),
-            showlegend=False
-        ), row=row, col=col)
+    # --- Body trace (open → close, TRM color) ---
+    x_vals = pd.concat([df["datetime"], df["datetime"]])
+    y_vals = pd.concat([df["open"], df["close"]])
+    body_colors = list(colors) + list(colors)
 
-        # Body
-        fig.add_trace(go.Scatter(
-            x=[t, t],
-            y=[o, c],
-            mode="lines",
-            line=dict(color=colr, width=6),
-            showlegend=False
-        ), row=row, col=col)
+    fig.add_trace(go.Scattergl(
+        x=x_vals,
+        y=y_vals,
+        mode="lines",
+        line=dict(width=6),
+        marker=dict(color=body_colors),
+        showlegend=False
+    ), row=row, col=col)
 
 
+# =========================
+# Main TRM Chart
+# =========================
 def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=True):
     df["datetime"] = pd.to_datetime(df["datetime"])
 
@@ -285,7 +296,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     df = calc_yhl(df)
     df = calc_pac(df, settings)
     df = calc_atr_trails(df, settings)
-    df = calc_macd(df, settings)   # ✅ sahi
+    df = calc_macd(df, settings)   # ✅ MACD added
 
     # --- Create figure ---
     if show_macd_panel:
@@ -346,6 +357,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
 
 
 
