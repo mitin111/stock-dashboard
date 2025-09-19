@@ -236,7 +236,40 @@ def calc_macd(df, settings):
     df["macd_hist"] = histogram
     return df
 
+def add_volatility_panel(fig, df):
+    """
+    Add intraday volatility annotation on chart
+    using formula: ((High - Low)/Low) * 100
+    """
+    if df.empty:
+        return fig
 
+    # 🔹 आज की तारीख
+    latest_day = df["datetime"].iloc[-1].date()
+
+    # 🔹 उसी दिन के candles filter करो
+    day_data = df[df["datetime"].dt.date == latest_day]
+    if day_data.empty:
+        return fig
+
+    # 🔹 High-Low निकालो
+    day_high = day_data["high"].max()
+    day_low = day_data["low"].min()
+
+    # 🔹 Volatility %
+    volatility = ((day_high - day_low) / day_low) * 100
+
+    # 🔹 Chart पर annotation
+    fig.add_annotation(
+        text=f"📊 Day Volatility: {volatility:.2f}%",
+        xref="paper", yref="paper",
+        x=0.99, y=0.99, showarrow=False,
+        font=dict(size=12, color="orange"),
+        align="right", bgcolor="rgba(0,0,0,0.6)"
+    )
+
+    return fig
+    
 # =========================
 # Wrapper for Streamlit / Plotly
 # =========================
@@ -368,7 +401,10 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         xaxis=dict(rangeslider_visible=False, rangebreaks=rangebreaks),
         dragmode="pan"
     )
+    fig = add_volatility_panel(fig, df)
+    
     return fig
+
 
 
 
