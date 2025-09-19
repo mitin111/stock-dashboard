@@ -267,7 +267,30 @@ def add_volatility_panel(fig, df):
     )
 
     return fig
-    
+
+def suggested_qty_by_mapping(price, qty_map=None):
+    """
+    Decide quantity based on price range and mapping dict.
+    qty_map = {"Q1": 10, "Q2": 20, "Q3": 30, "Q4": 40, "Q5": 50, "Q6": 60}
+    """
+    if qty_map is None:
+        qty_map = {"Q1": 10, "Q2": 20, "Q3": 30, "Q4": 40, "Q5": 50, "Q6": 60}
+
+    if 170 <= price <= 200:
+        return qty_map.get("Q1", 1)
+    elif 201 <= price <= 400:
+        return qty_map.get("Q2", 1)
+    elif 401 <= price <= 600:
+        return qty_map.get("Q3", 1)
+    elif 601 <= price <= 800:
+        return qty_map.get("Q4", 1)
+    elif 801 <= price <= 1000:
+        return qty_map.get("Q5", 1)
+    elif price > 1000:
+        return qty_map.get("Q6", 1)
+    else:
+        return 1
+
 # =========================
 # Wrapper for Streamlit / Plotly
 # =========================
@@ -402,6 +425,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
