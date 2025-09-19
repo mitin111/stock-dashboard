@@ -8,8 +8,9 @@ from dotenv import load_dotenv
 from datetime import datetime, time
 
 SETTINGS_FILE = "dashboard_settings.json"
+QTY_MAP_FILE = "qty_map.json"
 
-# === Load settings from file
+# === Load general dashboard settings (auto buy/sell, timings etc.)
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, "r") as f:
@@ -29,10 +30,26 @@ def load_settings():
         "auto_exit_time": time(15, 12)
     }
 
-# === Save settings to file
 def save_settings(settings):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f)
+
+# === Qty Map (Q1..Q6)
+def save_qty_map(qty_map: dict):
+    """Save qty_map to JSON file for persistence."""
+    with open(QTY_MAP_FILE, "w") as f:
+        json.dump(qty_map, f)
+
+def load_qty_map() -> dict:
+    """Load qty_map from JSON file if exists, else defaults."""
+    if os.path.exists(QTY_MAP_FILE):
+        try:
+            with open(QTY_MAP_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # default fallback
+    return {"Q1": 10, "Q2": 20, "Q3": 30, "Q4": 40, "Q5": 50, "Q6": 60}
 
 # === Load ProStocks credentials from environment
 def load_credentials():
@@ -47,4 +64,3 @@ def load_credentials():
         "base_url": os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP"),
         "apkversion": os.getenv("PROSTOCKS_APK_VERSION", "1.0.0"),
     }
-
