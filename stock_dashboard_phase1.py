@@ -140,6 +140,7 @@ with tab3:
 
 # === Tab 4: Indicator Settings ===
 with tab4:
+    st.info("📀 Indicator settings section coming soon...")
     st.sidebar.subheader("📦 Position Quantity Mapping")
     from dashboard_logic import save_qty_map, load_qty_map
 
@@ -613,6 +614,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
