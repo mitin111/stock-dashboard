@@ -28,41 +28,45 @@ def save_trm_settings(settings):
 # =========================
 # Streamlit Settings Panel
 # =========================
+# =========================
+# Streamlit Settings Panel
+# =========================
 if "trm_settings" not in st.session_state:
     st.session_state["trm_settings"] = load_trm_settings()
-    
+
 def get_trm_settings():
-    # Load saved settings first
-    saved = load_trm_settings()
-    
+    # Use session_state as the source of truth
+    current = st.session_state["trm_settings"]
+
     with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
-        long = st.number_input("TSI Long Length", 1, 900, saved.get("long", 25))
-        short = st.number_input("TSI Short Length", 1, 200, saved.get("short", 5))
-        signal = st.number_input("TSI Signal Length", 1, 200, saved.get("signal", 14))
+        long = st.number_input("TSI Long Length", 1, 900, current.get("long", 25))
+        short = st.number_input("TSI Short Length", 1, 200, current.get("short", 5))
+        signal = st.number_input("TSI Signal Length", 1, 200, current.get("signal", 14))
 
-        len_rsi = st.number_input("RSI Length", 1, 200, saved.get("len_rsi", 5))
-        rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, saved.get("rsiBuyLevel", 50))
-        rsiSellLevel = st.slider("RSI Sell Level", 0, 100, saved.get("rsiSellLevel", 50))
+        len_rsi = st.number_input("RSI Length", 1, 200, current.get("len_rsi", 5))
+        rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, current.get("rsiBuyLevel", 50))
+        rsiSellLevel = st.slider("RSI Sell Level", 0, 100, current.get("rsiSellLevel", 50))
 
-        buyColor = st.color_picker("Buy Color", saved.get("buyColor", "#00FFFF"))
-        sellColor = st.color_picker("Sell Color", saved.get("sellColor", "#FF00FF"))
-        neutralColor = st.color_picker("Neutral Color", saved.get("neutralColor", "#808080"))
+        buyColor = st.color_picker("Buy Color", current.get("buyColor", "#00FFFF"))
+        sellColor = st.color_picker("Sell Color", current.get("sellColor", "#FF00FF"))
+        neutralColor = st.color_picker("Neutral Color", current.get("neutralColor", "#808080"))
 
-        pac_length = st.number_input("PAC Length", 1, 200, saved.get("pac_length", 34))
-        use_heikin_ashi = st.checkbox("Use Heikin Ashi", saved.get("use_heikin_ashi", True))
+        pac_length = st.number_input("PAC Length", 1, 200, current.get("pac_length", 34))
+        use_heikin_ashi = st.checkbox("Use Heikin Ashi", current.get("use_heikin_ashi", True))
 
-        atr_fast_period = st.number_input("ATR Fast Period", 1, 200, saved.get("atr_fast_period", 5))
-        atr_fast_mult = st.number_input("ATR Fast Multiplier", 0.1, 10.0, saved.get("atr_fast_mult", 0.5), 0.1)
-        atr_slow_period = st.number_input("ATR Slow Period", 1, 200, saved.get("atr_slow_period", 10))
-        atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, saved.get("atr_slow_mult", 3.0), 0.1)
+        atr_fast_period = st.number_input("ATR Fast Period", 1, 200, current.get("atr_fast_period", 5))
+        atr_fast_mult = st.number_input("ATR Fast Multiplier", 0.1, 10.0, current.get("atr_fast_mult", 0.5), 0.1)
+        atr_slow_period = st.number_input("ATR Slow Period", 1, 200, current.get("atr_slow_period", 10))
+        atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, current.get("atr_slow_mult", 3.0), 0.1)
 
         # 🔥 MACD Settings
-        macd_fast = st.number_input("MACD Fast Length", 1, 200, saved.get("macd_fast", 12))
-        macd_slow = st.number_input("MACD Slow Length", 1, 200, saved.get("macd_slow", 26))
-        macd_signal = st.number_input("MACD Signal Length", 1, 200, saved.get("macd_signal", 9))
+        macd_fast = st.number_input("MACD Fast Length", 1, 200, current.get("macd_fast", 12))
+        macd_slow = st.number_input("MACD Slow Length", 1, 200, current.get("macd_slow", 26))
+        macd_signal = st.number_input("MACD Signal Length", 1, 200, current.get("macd_signal", 9))
 
-        show_info_panels = st.checkbox("Show Info Panels", saved.get("show_info_panels", True))
+        show_info_panels = st.checkbox("Show Info Panels", current.get("show_info_panels", True))
 
+        # Build new settings
         settings = {
             "long": long, "short": short, "signal": signal,
             "len_rsi": len_rsi, "rsiBuyLevel": rsiBuyLevel, "rsiSellLevel": rsiSellLevel,
@@ -75,8 +79,8 @@ def get_trm_settings():
         }
 
         if st.button("💾 Save TRM Settings"):
-            save_trm_settings(settings)
-            st.session_state["trm_settings"] = settings  # 🔑 update memory
+            save_trm_settings(settings)  # write to file
+            st.session_state["trm_settings"] = settings  # update session
             st.success("✅ TRM Settings saved successfully!")
 
     return settings
@@ -365,6 +369,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
 
 
 
