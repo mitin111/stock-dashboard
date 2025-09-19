@@ -143,23 +143,27 @@ with tab4:
     st.subheader("📦 Position Quantity Mapping")
     from dashboard_logic import save_qty_map, load_qty_map
 
-    # load saved qty_map (default agar file nahi hai)
+    # load saved qty_map (agar None ya corrupt ho to default dict lo)
     current_map = load_qty_map()
+    if not isinstance(current_map, dict):
+        current_map = {}
 
-    q1 = st.sidebar.number_input("Q1 (170-200)", min_value=1, value=current_map.get("Q1", 10))
-    q2 = st.sidebar.number_input("Q2 (201-400)", min_value=1, value=current_map.get("Q2", 20))
-    q3 = st.sidebar.number_input("Q3 (401-600)", min_value=1, value=current_map.get("Q3", 30))
-    q4 = st.sidebar.number_input("Q4 (601-800)", min_value=1, value=current_map.get("Q4", 40))
-    q5 = st.sidebar.number_input("Q5 (801-1000)", min_value=1, value=current_map.get("Q5", 50))
-    q6 = st.sidebar.number_input("Q6 (Above 1000)", min_value=1, value=current_map.get("Q6", 60))
+    q1 = st.number_input("Q1 (170-200)", min_value=1, value=current_map.get("Q1", 10))
+    q2 = st.number_input("Q2 (201-400)", min_value=1, value=current_map.get("Q2", 20))
+    q3 = st.number_input("Q3 (401-600)", min_value=1, value=current_map.get("Q3", 30))
+    q4 = st.number_input("Q4 (601-800)", min_value=1, value=current_map.get("Q4", 40))
+    q5 = st.number_input("Q5 (801-1000)", min_value=1, value=current_map.get("Q5", 50))
+    q6 = st.number_input("Q6 (Above 1000)", min_value=1, value=current_map.get("Q6", 60))
 
     qty_map = {"Q1": q1, "Q2": q2, "Q3": q3, "Q4": q4, "Q5": q5, "Q6": q6}
 
     # Save button
-    if st.sidebar.button("💾 Save Quantity Mapping"):
+    if st.button("💾 Save Quantity Mapping"):
         save_qty_map(qty_map)
-        st.sidebar.success("✅ Quantity mapping saved (persistent).")
+        st.success("✅ Quantity mapping saved (persistent).")
 
+    st.write("📌 Current Quantity Mapping:", qty_map)
+    
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
@@ -613,6 +617,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
