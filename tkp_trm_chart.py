@@ -246,11 +246,11 @@ import pandas as pd
 # =========================
 def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
     """
-    TRM-colored candlesticks using Scattergl (stable with indicators)
+    TRM-colored candlesticks (stable with indicators)
     - Wick = one trace (gray)
-    - Body = one trace per color group (Buy / Sell / Neutral)
-    - Fast enough for <= 2000 bars
+    - Body = one scatter per candle (with TRM color)
     """
+
     if len(df) > max_bars:
         df = df.iloc[-max_bars:]
 
@@ -260,14 +260,14 @@ def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
     neutral_color = settings.get("neutralColor", "#808080")
 
     # ------------------------
-    # Wick trace (low → high, gray)
+    # Wick trace (all gray)
     # ------------------------
     wick_x, wick_y = [], []
     for t, l, h in zip(df["datetime"], df["low"], df["high"]):
         wick_x += [t, t, None]
         wick_y += [l, h, None]
 
-    fig.add_trace(go.Scattergl(
+    fig.add_trace(go.Scatter(
         x=wick_x, y=wick_y,
         mode="lines",
         line=dict(color="lightgray", width=1),
@@ -275,26 +275,21 @@ def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
     ), row=row, col=col)
 
     # ------------------------
-    # Body traces (split by TRM signal)
+    # Body traces (one per candle)
     # ------------------------
-    for signal, color in {
-        "Buy": buy_color,
-        "Sell": sell_color,
-        "Neutral": neutral_color
-    }.items():
-        sub = df[df["trm_signal"] == signal]
-        if sub.empty:
-            continue
+    for t, o, c, sig in zip(df["datetime"], df["open"], df["close"], df["trm_signal"]):
+        if sig == "Buy":
+            colr = buy_color
+        elif sig == "Sell":
+            colr = sell_color
+        else:
+            colr = neutral_color
 
-        body_x, body_y = [], []
-        for t, o, c in zip(sub["datetime"], sub["open"], sub["close"]):
-            body_x += [t, t, None]
-            body_y += [o, c, None]
-
-        fig.add_trace(go.Scattergl(
-            x=body_x, y=body_y,
+        fig.add_trace(go.Scatter(
+            x=[t, t],
+            y=[o, c],
             mode="lines",
-            line=dict(color=color, width=6),
+            line=dict(color=colr, width=6),
             showlegend=False
         ), row=row, col=col)
 
@@ -370,6 +365,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
 
 
 
