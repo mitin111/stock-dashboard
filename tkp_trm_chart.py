@@ -25,9 +25,7 @@ def save_trm_settings(settings):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2)
 
-# =========================
-# Streamlit Settings Panel
-# =========================
+
 # =========================
 # Streamlit Settings Panel
 # =========================
@@ -60,8 +58,8 @@ def get_trm_settings():
         atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, current.get("atr_slow_mult", 3.0), 0.1)
 
         # 🔥 MACD Settings
-        macd_fast = st.number_input("MACD Fast Length", 1, 200, current.get("macd_fast", 12))
-        macd_slow = st.number_input("MACD Slow Length", 1, 200, current.get("macd_slow", 26))
+        macd_fast = st.number_input("MACD Fast Length", 1, 1000, current.get("macd_fast", 12))
+        macd_slow = st.number_input("MACD Slow Length", 1, 1000, current.get("macd_slow", 26))
         macd_signal = st.number_input("MACD Signal Length", 1, 200, current.get("macd_signal", 9))
 
         show_info_panels = st.checkbox("Show Info Panels", current.get("show_info_panels", True))
@@ -404,6 +402,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
