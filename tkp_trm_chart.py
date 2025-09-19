@@ -247,7 +247,7 @@ import pandas as pd
 def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
     """
     Optimized TRM-colored candlesticks using Scattergl
-    - No per-bar loop (fast GPU rendering)
+    - Vectorized with segment breaks (None separator)
     - Limits bars for smoothness
     """
     # --- Limit candles (for speed) ---
@@ -261,29 +261,37 @@ def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
         "Neutral": settings.get("neutralColor", "#808080")
     }).fillna("#808080")
 
-    # --- Wick trace (low → high, gray) ---
+    # ------------------------
+    # Wick trace (low → high)
+    # ------------------------
+    wick_x, wick_y = [], []
+    for t, l, h in zip(df["datetime"], df["low"], df["high"]):
+        wick_x += [t, t, None]
+        wick_y += [l, h, None]
+
     fig.add_trace(go.Scattergl(
-        x=pd.concat([df["datetime"], df["datetime"]]),
-        y=pd.concat([df["low"], df["high"]]),
+        x=wick_x, y=wick_y,
         mode="lines",
         line=dict(color="lightgray", width=1),
         showlegend=False
     ), row=row, col=col)
 
-    # --- Body trace (open → close, TRM color) ---
-    x_vals = pd.concat([df["datetime"], df["datetime"]])
-    y_vals = pd.concat([df["open"], df["close"]])
-    body_colors = list(colors) + list(colors)
+    # ------------------------
+    # Body trace (open → close, TRM color)
+    # ------------------------
+    body_x, body_y, body_colors = [], [], []
+    for t, o, c, colr in zip(df["datetime"], df["open"], df["close"], colors):
+        body_x += [t, t, None]
+        body_y += [o, c, None]
+        body_colors += [colr, colr, colr]  # repeat per segment
 
     fig.add_trace(go.Scattergl(
-        x=x_vals,
-        y=y_vals,
+        x=body_x, y=body_y,
         mode="lines",
         line=dict(width=6),
         marker=dict(color=body_colors),
         showlegend=False
     ), row=row, col=col)
-
 
 # =========================
 # Main TRM Chart
@@ -357,6 +365,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         dragmode="pan"
     )
     return fig
+
 
 
 
