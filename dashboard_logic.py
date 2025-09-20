@@ -86,12 +86,12 @@ def place_order_from_signal(ps_api, result):
     try:
         order = ps_api.place_order(
             buy_or_sell=bos,
-            product_type="C",              # Cash & Carry (delivery) | MIS intraday ke liye "M"
+            product_type="C",              # Cash & Carry (delivery) | intraday ke liye "M"
             exchange=exch,
             tradingsymbol=tsym,
             quantity=qty,
             discloseqty=0,
-            price_type="MKT",              # Market order (or "LMT" for limit)
+            price_type="MKT",              # Market order
             price=price,                   # LMT case only
             trigger_price=None,
             retention="DAY",
@@ -102,19 +102,3 @@ def place_order_from_signal(ps_api, result):
     except Exception as e:
         print(f"❌ Order failed for {tsym}: {e}")
         return None
-📌 Usage
-Ab aap kahi bhi (dashboard ya screener me) call kar sakte ho:
-
-python
-Copy code
-from dashboard_logic import place_order_from_signal
-
-result = {
-    "signal": "BUY",
-    "symbol": "INFY-EQ",
-    "exch": "NSE",
-    "suggested_qty": 10,
-    "last_price": 1550
-}
-
-place_order_from_signal(ps_api, result)
