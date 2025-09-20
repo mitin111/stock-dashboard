@@ -222,6 +222,10 @@ with tab4:
     if st.button("🛑 Stop Auto Trader"):
         st.session_state["auto_trader"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
+        
+# === Tab 5: Strategy Engine ===
+with tab5:
+    st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
     import plotly.graph_objects as go
     import threading, queue, time
@@ -672,6 +676,7 @@ with tab4:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
