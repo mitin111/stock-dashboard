@@ -567,11 +567,11 @@ with tab5:
                             st.session_state.symbols_for_ws = symbols_for_ws
                             threading.Thread(
                                 target=start_ws,
-                                rgs=(symbols_for_ws, ps_api, ui_queue),
+                                args=(symbols_for_ws, ps_api, ui_queue),  # ✅ corrected here
                                 daemon=True
                             ).start()
                             st.session_state.ws_started = True
-                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")     
+                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")   
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
@@ -710,6 +710,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
