@@ -200,9 +200,9 @@ with tab4:
                 threading.Thread(
                     target=start_auto_trader, args=(symbols,), daemon=True
                 ).start()
-                st.success(f"✅ Auto Trader started with {len(symbols)} symbols")
+                st.success(f"✅ Auto Trader started with {len(symbols)} symbols from watchlist: {selected_wl}")
             else:
-                st.warning("⚠️ Watchlist is empty, cannot start Auto Trader.")
+                st.warning("⚠️ Selected watchlist is empty, cannot start Auto Trader.")
         else:
             st.warning("⚠️ Please login and select a watchlist first.")
 
@@ -210,7 +210,6 @@ with tab4:
     if st.button("🛑 Stop Auto Trader"):
         st.session_state["auto_trader"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
-
     
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -665,6 +664,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
