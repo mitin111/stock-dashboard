@@ -182,29 +182,34 @@ with tab4:
     if "auto_trader" not in st.session_state:
         st.session_state["auto_trader"] = {"running": False}
 
-    # Start button
+    # Start button (all watchlists ek saath)
     if st.button("🚀 Start Auto Trader"):
-        if "ps_api" in st.session_state and "selected_watchlist" in st.session_state:
+        if "ps_api" in st.session_state and "all_watchlists" in st.session_state:
             ps_api = st.session_state["ps_api"]
-            selected_wl = st.session_state["selected_watchlist"]
+            all_watchlists = st.session_state["all_watchlists"]
 
-            wl_data = ps_api.get_watchlist(selected_wl)
-            if wl_data.get("stat") == "Ok":
-                df = pd.DataFrame(wl_data["values"])
-                symbols = df["tsym"].tolist() if not df.empty else []
-            else:
-                symbols = []
+            symbols = []
+            for wl in all_watchlists:
+                wl_data = ps_api.get_watchlist(wl)
+                if wl_data.get("stat") == "Ok":
+                    df = pd.DataFrame(wl_data["values"])
+                    if not df.empty:
+                        symbols.extend(df["tsym"].tolist())
+
+            symbols = list(set(symbols))  # duplicates hatao
 
             if symbols:
                 st.session_state["auto_trader"]["running"] = True
                 threading.Thread(
                     target=start_auto_trader, args=(symbols,), daemon=True
                 ).start()
-                st.success(f"✅ Auto Trader started with {len(symbols)} symbols from watchlist: {selected_wl}")
+                st.success(
+                    f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_watchlists)} watchlists"
+                )
             else:
-                st.warning("⚠️ Selected watchlist is empty, cannot start Auto Trader.")
+                st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
         else:
-            st.warning("⚠️ Please login and select a watchlist first.")
+            st.warning("⚠️ Please login first and load watchlists.")
 
     # Stop button
     if st.button("🛑 Stop Auto Trader"):
@@ -664,6 +669,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
