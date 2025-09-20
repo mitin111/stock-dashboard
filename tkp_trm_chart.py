@@ -10,7 +10,8 @@ SETTINGS_FILE = "trm_settings.json"
 # =========================
 # Load / Save Settings
 # =========================
-def load_trm_settings():
+def load_trm_settings_from_file():
+    """Load TRM settings strictly from JSON file."""
     if os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, "r") as f:
             try:
@@ -21,6 +22,7 @@ def load_trm_settings():
         settings = {}
     return settings
 
+
 def save_trm_settings(settings):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2)
@@ -30,12 +32,18 @@ def save_trm_settings(settings):
 # Streamlit Settings Panel
 # =========================
 if "trm_settings" not in st.session_state:
-    st.session_state["trm_settings"] = load_trm_settings()
+    st.session_state["trm_settings"] = load_trm_settings_from_file()
+
 
 def get_trm_settings():
-    # Use session_state as the source of truth
-    current = st.session_state["trm_settings"]
+    """Streamlit UI: get settings from session_state or JSON file."""
+    # Load saved JSON first, fallback to session_state if file empty
+    current = load_trm_settings_from_file() or st.session_state.get("trm_settings", {})
 
+    # Update session_state with latest file values
+    st.session_state["trm_settings"] = current
+
+    # --- Streamlit manual adjustment ---
     with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
         long = st.number_input("TSI Long Length", 1, 900, current.get("long", 25))
         short = st.number_input("TSI Short Length", 1, 200, current.get("short", 5))
@@ -57,14 +65,14 @@ def get_trm_settings():
         atr_slow_period = st.number_input("ATR Slow Period", 1, 200, current.get("atr_slow_period", 10))
         atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, current.get("atr_slow_mult", 3.0), 0.1)
 
-        # 🔥 MACD Settings
+        # MACD Settings
         macd_fast = st.number_input("MACD Fast Length", 1, 1000, current.get("macd_fast", 12))
         macd_slow = st.number_input("MACD Slow Length", 1, 1000, current.get("macd_slow", 26))
         macd_signal = st.number_input("MACD Signal Length", 1, 200, current.get("macd_signal", 9))
 
         show_info_panels = st.checkbox("Show Info Panels", current.get("show_info_panels", True))
 
-        # Build new settings
+        # Build settings dict
         settings = {
             "long": long, "short": short, "signal": signal,
             "len_rsi": len_rsi, "rsiBuyLevel": rsiBuyLevel, "rsiSellLevel": rsiSellLevel,
@@ -77,12 +85,11 @@ def get_trm_settings():
         }
 
         if st.button("💾 Save TRM Settings"):
-            save_trm_settings(settings)  # write to file
-            st.session_state["trm_settings"] = settings  # update session
+            save_trm_settings(settings)
+            st.session_state["trm_settings"] = settings
             st.success("✅ TRM Settings saved successfully!")
 
     return settings
-
 
 # =========================
 # Utility Functions
@@ -425,6 +432,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
