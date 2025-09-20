@@ -15,7 +15,7 @@ import pandas as pd
 
 # Local modules
 from prostocks_connector import ProStocksAPI
-from prostocks_helper import place_order_from_signal   # ✅ order helper import
+from dashboard_logic import place_order_from_signal   # ✅ use dashboard_logic instead of prostocks_helper
 import tkp_trm_chart as trm
 
 # -----------------------
@@ -255,4 +255,5 @@ if __name__ == "__main__":
     parser.add_argument("--place-orders", action="store_true", help="🚀 Place orders when BUY/SELL signal found")  # ✅ new flag
     args = parser.parse_args()
     main(args)
+
 
