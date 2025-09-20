@@ -142,7 +142,8 @@ with tab3:
 with tab4:
     st.subheader("📦 Position Quantity Mapping")
     from dashboard_logic import save_qty_map, load_qty_map
-    import subprocess, threading
+    import threading
+    import argparse
 
     # load saved qty_map (agar None ya corrupt ho to default dict lo)
     current_map = load_qty_map()
@@ -168,18 +169,27 @@ with tab4:
     # --- Auto Trader Control ---
     st.subheader("🤖 Auto Trader Control")
 
-    def run_batch():
-        try:
-            subprocess.run([
-                "python", "batch_screener.py",
-                "--all-watchlists", "--interval", "5", "--place-orders"
-            ])
-        except Exception as e:
-            print("❌ Batch screener failed:", e)
+    from batch_screener import main as batch_main  # ✅ Direct import
+
+    def start_auto_trader():
+        st.info("⏳ Auto Trader starting...")
+        args = argparse.Namespace(
+            all_watchlists=True,
+            interval="5",
+            otp=None,
+            output=None,
+            max_calls_per_min=15,
+            delay_between_calls=0.25,
+            place_orders=True,
+            watchlists="1"
+        )
+        batch_main(args)
+        st.success("✅ Auto Trader run finished")  # optional, mostly for debugging
 
     if st.button("🚀 Start Auto Trader"):
-        threading.Thread(target=run_batch, daemon=True).start()
+        threading.Thread(target=start_auto_trader, daemon=True).start()
         st.success("✅ Auto Trader started in background")
+
     
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -634,6 +644,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
