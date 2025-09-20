@@ -144,7 +144,7 @@ with tab4:
     from dashboard_logic import save_qty_map, load_qty_map
     import threading, time
 
-    # load saved qty_map (agar None ya corrupt ho to default dict lo)
+    # Load saved qty_map (agar None ya corrupt ho to default dict lo)
     current_map = load_qty_map()
     if not isinstance(current_map, dict):
         current_map = {}
@@ -168,15 +168,22 @@ with tab4:
     # --- Auto Trader Control ---
     st.subheader("🤖 Auto Trader Control")
 
-    # Thread function
-    def start_auto_trader(watchlist_symbols):
-        print("🔍 Auto Trader started with:", watchlist_symbols)
-        st.session_state["auto_trader"]["running"] = True
-        while st.session_state["auto_trader"]["running"]:
-            for sym in watchlist_symbols:
-                # ⚡ Yahan apni trading signals check + order push karne ka code daalo
-                print("⚡ Checking:", sym)
-            time.sleep(5)  # repeat har 5 sec
+    # Thread function to run batch_screener.py logic
+    def start_auto_trader_thread(symbols, ps_api):
+        from batch_screener import main as batch_main
+        import argparse
+
+        args = argparse.Namespace(
+            watchlists=",".join([str(w) for w in st.session_state["all_watchlists"]]),
+            all_watchlists=False,
+            interval="5",
+            output=None,
+            max_calls_per_min=15,
+            delay_between_calls=0.25,
+            place_orders=True
+        )
+
+        batch_main(args, ps_api=ps_api)
 
     # Initialize auto_trader state if missing
     if "auto_trader" not in st.session_state:
@@ -186,10 +193,8 @@ with tab4:
     if st.button("🚀 Start Auto Trader"):
         if "ps_api" in st.session_state and "all_watchlists" in st.session_state:
             ps_api = st.session_state["ps_api"]
-            all_watchlists = st.session_state["all_watchlists"]
-
             symbols = []
-            for wl in all_watchlists:
+            for wl in st.session_state["all_watchlists"]:
                 wl_data = ps_api.get_watchlist(wl)
                 if wl_data.get("stat") == "Ok":
                     df = pd.DataFrame(wl_data["values"])
@@ -201,10 +206,12 @@ with tab4:
             if symbols:
                 st.session_state["auto_trader"]["running"] = True
                 threading.Thread(
-                    target=start_auto_trader, args=(symbols,), daemon=True
+                    target=start_auto_trader_thread,
+                    args=(symbols, ps_api),
+                    daemon=True
                 ).start()
                 st.success(
-                    f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_watchlists)} watchlists"
+                    f"✅ Auto Trader started with {len(symbols)} symbols from {len(st.session_state['all_watchlists'])} watchlists"
                 )
             else:
                 st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
@@ -215,10 +222,6 @@ with tab4:
     if st.button("🛑 Stop Auto Trader"):
         st.session_state["auto_trader"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
-    
-# === Tab 5: Strategy Engine ===
-with tab5:
-    st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
     import plotly.graph_objects as go
     import threading, queue, time
@@ -669,6 +672,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
