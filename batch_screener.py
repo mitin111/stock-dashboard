@@ -149,15 +149,9 @@ def main(args, ps_api=None):
             return
         print("Using new session from credentials")
 
-    settings = trm.load_trm_settings() or {
-        "long": 25, "short": 5, "signal": 14,
-        "len_rsi": 5, "rsiBuyLevel": 50, "rsiSellLevel": 50,
-        "pac_length": 34, "use_heikin_ashi": True,
-        "atr_fast_period": 5, "atr_fast_mult": 0.5,
-        "atr_slow_period": 10, "atr_slow_mult": 3.0,
-        "macd_fast": 12, "macd_slow": 26, "macd_signal": 9,
-    }
-
+    from tkp_trm_chart import load_trm_settings_from_file  # <-- new function
+    settings = load_trm_settings_from_file()  # only load from file
+  
     all_symbols = []
     if args.all_watchlists:
         wls = ps_api.get_watchlists()
@@ -227,4 +221,5 @@ if __name__ == "__main__":
     parser.add_argument("--place-orders", action="store_true", help="🚀 Place orders when BUY/SELL signal found")
     args = parser.parse_args()
     main(args)  # ✅ non-interactive, uses dashboard session
+
 
