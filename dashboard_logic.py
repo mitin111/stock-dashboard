@@ -67,10 +67,6 @@ def load_credentials():
 
 # === Order placement helper
 def place_order_from_signal(ps_api, result):
-    """
-    result = dict from process_symbol_symbolic()
-    ps_api = ProStocksAPI instance (already logged in)
-    """
     signal = result.get("signal")
     tsym = result.get("symbol")
     exch = result.get("exch")
@@ -80,19 +76,21 @@ def place_order_from_signal(ps_api, result):
     if signal not in ["BUY", "SELL"]:
         return None  # NEUTRAL case, skip
 
-    # Decide buy_or_sell flag
     bos = "B" if signal == "BUY" else "S"
 
     try:
+        # 🔹 Debug print
+        print(f"🔹 Trying to place order: {tsym} signal={signal} qty={qty} price={price}")
+
         order = ps_api.place_order(
             buy_or_sell=bos,
-            product_type="C",              # Cash & Carry (delivery) | intraday ke liye "M"
+            product_type="C",
             exchange=exch,
             tradingsymbol=tsym,
             quantity=qty,
             discloseqty=0,
-            price_type="MKT",              # Market order
-            price=price,                   # LMT case only
+            price_type="MKT",
+            price=price,
             trigger_price=None,
             retention="DAY",
             remarks=f"batch_screener_{signal}"
