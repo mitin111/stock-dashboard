@@ -141,7 +141,7 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     st.subheader("📦 Position Quantity Mapping")
-    from dashboard_logic import save_qty_map, load_qty_map
+    from dashboard_logic import save_qty_map, load_qty_map, start_live_engine
     import threading, time
 
     # Load saved qty_map (agar None ya corrupt ho to default dict lo)
@@ -214,12 +214,33 @@ with tab4:
             symbols = list(set(symbols))  # duplicates hatao
 
             if symbols:
+                # mark running
                 st.session_state["auto_trader"]["running"] = True
+
+                # start the batch loop thread (existing logic)
                 threading.Thread(
                     target=start_auto_trader_thread,
                     args=(symbols, ps_api),
                     daemon=True
                 ).start()
+
+                # --- START live engine here as well (TPSeries + WS) ---
+                # ensure ui_queue exists
+                if "ui_queue" not in st.session_state:
+                    import queue
+                    st.session_state.ui_queue = queue.Queue()
+
+                # choose a watchlist to base live TPSeries on (use selected_watchlist if set)
+                chosen_wl = st.session_state.get("selected_watchlist", st.session_state["all_watchlists"][0])
+
+                # start live engine thread only if not already started
+                if not st.session_state.get("ws_started", False):
+                    threading.Thread(
+                        target=start_live_engine,
+                        args=(ps_api, chosen_wl, st.session_state.get("saved_interval","5"), st.session_state.ui_queue),
+                        daemon=True
+                    ).start()
+
                 st.success(
                     f"✅ Auto Trader started with {len(symbols)} symbols from {len(st.session_state['all_watchlists'])} watchlists"
                 )
@@ -541,13 +562,16 @@ with tab5:
                         )
                         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
                         # --- Auto-start websocket (only once) ---
-                        if symbols_for_ws and not st.session_state.ws_started:
+                        if symbols_for_ws and not st.session_state.get("ws_started", False):
                             st.session_state.live_feed_flag["active"] = True
-                            threading.Thread(target=start_ws, args=(symbols_for_ws, ps_api, ui_queue), daemon=True).start()
-                            st.session_state.ws_started = True
                             st.session_state.symbols_for_ws = symbols_for_ws
-                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
-                            
+                            threading.Thread(
+                                target=start_ws,
+                                rgs=(symbols_for_ws, ps_api, ui_queue),
+                                daemon=True
+                            ).start()
+                            st.session_state.ws_started = True
+                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")     
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
@@ -686,6 +710,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
