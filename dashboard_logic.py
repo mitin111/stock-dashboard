@@ -64,3 +64,57 @@ def load_credentials():
         "base_url": os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP"),
         "apkversion": os.getenv("PROSTOCKS_APK_VERSION", "1.0.0"),
     }
+
+# === Order placement helper
+def place_order_from_signal(ps_api, result):
+    """
+    result = dict from process_symbol_symbolic()
+    ps_api = ProStocksAPI instance (already logged in)
+    """
+    signal = result.get("signal")
+    tsym = result.get("symbol")
+    exch = result.get("exch")
+    qty = result.get("suggested_qty", 1)
+    price = result.get("last_price", 0)
+
+    if signal not in ["BUY", "SELL"]:
+        return None  # NEUTRAL case, skip
+
+    # Decide buy_or_sell flag
+    bos = "B" if signal == "BUY" else "S"
+
+    try:
+        order = ps_api.place_order(
+            buy_or_sell=bos,
+            product_type="C",              # Cash & Carry (delivery) | MIS intraday ke liye "M"
+            exchange=exch,
+            tradingsymbol=tsym,
+            quantity=qty,
+            discloseqty=0,
+            price_type="MKT",              # Market order (or "LMT" for limit)
+            price=price,                   # LMT case only
+            trigger_price=None,
+            retention="DAY",
+            remarks=f"batch_screener_{signal}"
+        )
+        print(f"✅ Order placed for {tsym}: {signal} x {qty}")
+        return order
+    except Exception as e:
+        print(f"❌ Order failed for {tsym}: {e}")
+        return None
+📌 Usage
+Ab aap kahi bhi (dashboard ya screener me) call kar sakte ho:
+
+python
+Copy code
+from dashboard_logic import place_order_from_signal
+
+result = {
+    "signal": "BUY",
+    "symbol": "INFY-EQ",
+    "exch": "NSE",
+    "suggested_qty": 10,
+    "last_price": 1550
+}
+
+place_order_from_signal(ps_api, result)
