@@ -21,30 +21,6 @@ import tkp_trm_chart as trm
 # -----------------------
 # Utility helpers
 # -----------------------
-def load_credentials_flexible():
-    try:
-        from dashboard_logic import load_credentials
-        creds = load_credentials()
-        return {
-            "userid": creds.get("uid") or creds.get("userid"),
-            "password_plain": creds.get("pwd") or creds.get("password_plain"),
-            "vc": creds.get("vc"),
-            "api_key": creds.get("api_key"),
-            "imei": creds.get("imei"),
-            "base_url": creds.get("base_url"),
-            "apkversion": creds.get("apkversion", "1.0.0")
-        }
-    except Exception:
-        return {
-            "userid": os.getenv("PROSTOCKS_USER_ID"),
-            "password_plain": os.getenv("PROSTOCKS_PASSWORD"),
-            "vc": os.getenv("PROSTOCKS_VENDOR_CODE"),
-            "api_key": os.getenv("PROSTOCKS_API_KEY"),
-            "imei": os.getenv("PROSTOCKS_MAC"),
-            "base_url": os.getenv("PROSTOCKS_BASE_URL"),
-            "apkversion": os.getenv("PROSTOCKS_APKVERSION", "1.0.0")
-        }
-
 def tz_normalize_df(df):
     if "datetime" not in df.columns:
         return pd.DataFrame()
@@ -160,21 +136,18 @@ def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
 # -----------------------
 # Main runner
 # -----------------------
-def main(args):
-    creds = load_credentials_flexible()
-    ps_api = ProStocksAPI(**creds)
-
-    otp = args.otp
-    if not otp:
-        print("Sending OTP (QuickAuth) ...")
-        resp = ps_api.send_otp()
-        print("OTP trigger response:", resp)
-        otp = input("Enter OTP from SMS/Email: ").strip()
-    ok, msg_or_token = ps_api.login(otp)
-    if not ok:
-        print("Login failed:", msg_or_token)
-        return
-    print("Login success. Session token set.")
+def main(args, ps_api=None):
+    """
+    ps_api: Pass a logged-in ProStocksAPI instance from dashboard
+    """
+    if ps_api is None:
+        from dashboard_logic import load_credentials
+        creds = load_credentials()
+        ps_api = ProStocksAPI(**creds)
+        if not ps_api.is_logged_in():
+            print("❌ Not logged in. Please login via dashboard first.")
+            return
+        print("Using new session from credentials")
 
     settings = trm.load_trm_settings() or {
         "long": 25, "short": 5, "signal": 14,
@@ -248,12 +221,10 @@ if __name__ == "__main__":
     parser.add_argument("--watchlists", type=str, default="1")
     parser.add_argument("--all-watchlists", action="store_true")
     parser.add_argument("--interval", type=str, default="5")
-    parser.add_argument("--otp", type=str, default=None)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--max-calls-per-min", type=int, default=15)
     parser.add_argument("--delay-between-calls", type=float, default=0.25)
-    parser.add_argument("--place-orders", action="store_true", help="🚀 Place orders when BUY/SELL signal found")  # ✅ new flag
+    parser.add_argument("--place-orders", action="store_true", help="🚀 Place orders when BUY/SELL signal found")
     args = parser.parse_args()
-    main(args)
-
+    main(args)  # ✅ non-interactive, uses dashboard session
 
