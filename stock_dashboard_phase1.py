@@ -168,7 +168,7 @@ with tab4:
     # --- Auto Trader Control ---
     st.subheader("🤖 Auto Trader Control")
 
-    # Thread function to run batch_screener.py logic
+    # Thread function to run batch_screener.py logic continuously
     def start_auto_trader_thread(symbols, ps_api):
         from batch_screener import main as batch_main
         import argparse
@@ -183,7 +183,17 @@ with tab4:
             place_orders=True
         )
 
-        batch_main(args, ps_api=ps_api)
+        # 🔁 continuous loop
+        while st.session_state["auto_trader"]["running"]:
+            print("⚡ Running Auto Trader batch...")
+            batch_main(args, ps_api=ps_api)
+
+            # wait 5 minutes before next run
+            for _ in range(300):  # 300 sec = 5 min
+                if not st.session_state["auto_trader"]["running"]:
+                    print("🛑 Auto Trader stopped loop.")
+                    return
+                time.sleep(1)
 
     # Initialize auto_trader state if missing
     if "auto_trader" not in st.session_state:
@@ -676,6 +686,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
