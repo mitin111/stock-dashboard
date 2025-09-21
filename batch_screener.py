@@ -228,7 +228,8 @@ def main(args, ps_api=None, settings=None):
 
     if settings is None:
         from tkp_trm_chart import load_trm_settings_from_file
-        settings = load_trm_settings_from_file()
+        strategy_settings = dict(st.session_state.get("strategy_settings", load_trm_settings_from_file()))
+        print("🔹 Loaded TRM settings for Auto Trader:", strategy_settings)  # <--- add this line
 
     # Load all watchlist symbols
     all_symbols = []
@@ -320,4 +321,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
