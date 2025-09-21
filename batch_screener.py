@@ -263,7 +263,13 @@ def main(args, ps_api=None):
     out_file = args.output or f"signals_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     out_df.to_csv(out_file, index=False)
     print(f"✅ Saved results to {out_file}")
-    print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
+  
+    if "signal" in out_df.columns:
+        print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
+    else:
+        print("⚠️ 'signal' column not found in output DataFrame. Skipping summary.")
+    print("DEBUG: out_df columns =", out_df.columns.tolist())
+    print("DEBUG: first 5 rows =", out_df.head())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
@@ -277,5 +283,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
