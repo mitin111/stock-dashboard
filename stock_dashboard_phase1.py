@@ -227,41 +227,25 @@ with tab4:
     if st.button("🚀 Start Auto Trader"):
         if "ps_api" in st.session_state and "all_watchlists" in st.session_state:
             ps_api = st.session_state["ps_api"]
+            all_wls_copy = st.session_state["all_watchlists"].copy()  # <-- copy here
+
             symbols = []
-            for wl in st.session_state["all_watchlists"]:
+            for wl in all_wls_copy:
                 wl_data = ps_api.get_watchlist(wl)
                 if wl_data.get("stat") == "Ok":
                     df = pd.DataFrame(wl_data["values"])
                     if not df.empty:
                         symbols.extend(df["tsym"].tolist())
-
             symbols = list(set(symbols))  # duplicates hatao
-
             if symbols:
-                # mark running
                 st.session_state["auto_trader"]["running"] = True
-
+            
                 # start the batch loop thread (existing logic)
                 threading.Thread(
                     target=start_auto_trader_thread,
                     args=(symbols, ps_api),
                     daemon=True
                 ).start()
-
-                # --- START live engine here as well (TPSeries + WS) ---
-                if "ui_queue" not in st.session_state:
-                    st.session_state.ui_queue = queue.Queue()
-
-                # choose a watchlist to base live TPSeries on (use selected_watchlist if set)
-                chosen_wl = st.session_state.get("selected_watchlist", st.session_state["all_watchlists"][0])
-
-                # start live engine thread only if not already started
-                if not st.session_state.get("ws_started", False):
-                    threading.Thread(
-                        target=start_live_engine,
-                        args=(ps_api, chosen_wl, st.session_state.get("saved_interval","5"), st.session_state.ui_queue),
-                        daemon=True
-                    ).start()
 
                 st.success(
                     f"✅ Auto Trader started with {len(symbols)} symbols from {len(st.session_state['all_watchlists'])} watchlists"
@@ -732,6 +716,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
