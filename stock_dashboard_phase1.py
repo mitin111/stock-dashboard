@@ -234,7 +234,8 @@ with tab4:
             all_wls_copy = st.session_state["all_watchlists"].copy()
 
             # ⚡ copy strategy settings here (dashboard se)
-            strategy_settings = dict(st.session_state.get("strategy_settings", {}))
+            from tkp_trm_chart import load_trm_settings_from_file
+            strategy_settings = dict(st.session_state.get("strategy_settings", load_trm_settings_from_file()))
 
             symbols = []
             for wl in all_wls_copy:
@@ -720,6 +721,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
