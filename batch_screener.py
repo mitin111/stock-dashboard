@@ -232,8 +232,8 @@ def main(args, ps_api=None, settings=None):
         if not settings:
             raise ValueError("❌ TRM settings missing in session_state! Cannot proceed without explicit settings.")
 
-        # Optional: verify required keys
-        required_keys = ["long", "short", "signal_length"]  # add all keys required by your indicators
+        # ✅ Verify required keys before proceeding
+        required_keys = ["long", "short", "signal_length", "macd_fast", "macd_slow", "macd_signal"]
         missing = [k for k in required_keys if k not in settings]
         if missing:
             raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
@@ -296,7 +296,10 @@ def main(args, ps_api=None, settings=None):
                 all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
                 print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
             except Exception as e:
-                all_order_responses.append({"symbol": r['symbol'], "response": {"stat": "Exception", "emsg": str(e)}})
+                all_order_responses.append({
+                    "symbol": r['symbol'],
+                    "response": {"stat": "Exception", "emsg": str(e)}
+                })
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
 
         time.sleep(args.delay_between_calls)
@@ -317,6 +320,7 @@ def main(args, ps_api=None, settings=None):
     # Return all order responses for dashboard/thread
     return all_order_responses
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
     parser.add_argument("--watchlists", type=str, default="1")
@@ -329,6 +333,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
