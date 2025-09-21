@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 batch_screener.py
-Batch TPSeries screener: fetch watchlist symbols, compute TRM/MACD/PAC, produce BUY/SELL signals.
+Batch TPSeries screener: fetch watchlist symbols, compute TRM/MACD/PAC, produce BUY/SELL signals and place orders automatically.
 
 Usage:
   python batch_screener.py --watchlists 1,2,3 --interval 5 --output signals.csv --place-orders
@@ -15,7 +15,7 @@ import pandas as pd
 
 # Local modules
 from prostocks_connector import ProStocksAPI
-from dashboard_logic import place_order_from_signal   # ✅ use dashboard_logic instead of prostocks_helper
+from dashboard_logic import load_credentials  # For session
 import tkp_trm_chart as trm
 
 # -----------------------
@@ -97,20 +97,54 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
+# Place Order Helper (manual order format)
+# -----------------------
+def place_order_from_signal(ps_api, sig):
+    """
+    Converts signal to ProStocksAPI manual order format
+    """
+    signal = sig.get("signal")
+    tsym = sig.get("symbol")  # tradingsymbol like SBIN-EQ
+    exch = "NSE"              # default NSE
+    qty = sig.get("suggested_qty", 1)
+    last_price = sig.get("last_price", 0)
+
+    if signal not in ["BUY", "SELL"]:
+        return None
+
+    bos = "B" if signal == "BUY" else "S"
+
+    price_type = "MKT"
+    price_val = None if price_type == "MKT" else last_price
+
+    try:
+        order = ps_api.place_order(
+            buy_or_sell=bos,
+            product_type="C",
+            exchange=exch,
+            tradingsymbol=tsym,
+            quantity=qty,
+            discloseqty=0,
+            price_type=price_type,
+            price=price_val,
+            remarks=f"batch_{signal}"
+        )
+        print(f"✅ Order placed for {tsym}: {signal} x {qty}")
+        return order
+    except Exception as e:
+        print(f"❌ Order failed for {tsym}: {e}")
+        return None
+
+# -----------------------
 # Per-symbol processing
 # -----------------------
 def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
-    exch = symbol_obj.get("exch")
-    token = str(symbol_obj.get("token"))
+    tsym = symbol_obj.get("tsym")  # always human-readable symbol
+    exch = symbol_obj.get("exch", "NSE")
+    token = str(symbol_obj.get("token", ""))
 
-    # ✅ Ensure tradingsymbol is always used
-    tsym = symbol_obj.get("tsym")
     if not tsym:
-        return {
-            "symbol": f"{exch}|{token}",
-            "status": "error",
-            "emsg": "Missing tsym for PlaceOrder"
-        }
+        return {"symbol": f"{exch}|{token}", "status": "error", "emsg": "Missing tsym for PlaceOrder"}
 
     try:
         df = ps_api.fetch_full_tpseries(exch, token, interval)
@@ -123,9 +157,7 @@ def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
         return {"symbol": tsym, "status": "no_data"}
 
     if "into" in df.columns and "open" not in df.columns:
-        df = df.rename(columns={
-            "into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"
-        })
+        df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
 
     df = tz_normalize_df(df)
     if df.empty:
@@ -135,7 +167,6 @@ def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
     if sig is None:
         return {"symbol": tsym, "status": "no_data_after_indicators"}
 
-    # ✅ Always return tradingsymbol in 'symbol' key
     return {
         "symbol": tsym,
         "exch": exch,
@@ -148,11 +179,7 @@ def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
 # Main runner
 # -----------------------
 def main(args, ps_api=None):
-    """
-    ps_api: Pass a logged-in ProStocksAPI instance from dashboard
-    """
     if ps_api is None:
-        from dashboard_logic import load_credentials
         creds = load_credentials()
         ps_api = ProStocksAPI(**creds)
         if not ps_api.is_logged_in():
@@ -160,9 +187,10 @@ def main(args, ps_api=None):
             return
         print("Using new session from credentials")
 
-    from tkp_trm_chart import load_trm_settings_from_file  # <-- new function
-    settings = load_trm_settings_from_file()  # only load from file
-  
+    from tkp_trm_chart import load_trm_settings_from_file
+    settings = load_trm_settings_from_file()
+
+    # Fetch symbols
     all_symbols = []
     if args.all_watchlists:
         wls = ps_api.get_watchlists()
@@ -209,7 +237,7 @@ def main(args, ps_api=None):
             r = {"symbol": sym.get("tsym"), "status": "error", "emsg": str(e)}
         results.append(r)
 
-        # ✅ Place order if enabled
+        # Place order automatically if enabled
         if args.place_orders and r.get("signal") in ["BUY", "SELL"]:
             place_order_from_signal(ps_api, r)
 
@@ -231,7 +259,5 @@ if __name__ == "__main__":
     parser.add_argument("--delay-between-calls", type=float, default=0.25)
     parser.add_argument("--place-orders", action="store_true", help="🚀 Place orders when BUY/SELL signal found")
     args = parser.parse_args()
-    main(args)  # ✅ non-interactive, uses dashboard session
-
-
+    main(args)
 
