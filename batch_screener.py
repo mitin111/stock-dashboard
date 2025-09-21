@@ -218,19 +218,20 @@ def main(args, ps_api=None, settings=None):
         ps_api = ProStocksAPI(**creds)
         if not ps_api.is_logged_in():
             print("❌ Not logged in. Login via dashboard first")
-            return
+            return []
         print("✅ Logged in successfully via credentials")
+
     if settings is None:
-      from tkp_trm_chart import load_trm_settings_from_file
-      settings = load_trm_settings_from_file()
-   
+        from tkp_trm_chart import load_trm_settings_from_file
+        settings = load_trm_settings_from_file()
+
     # Load all watchlist symbols
     all_symbols = []
     if args.all_watchlists:
         wls = ps_api.get_watchlists()
         if wls.get("stat") != "Ok":
             print("❌ Failed to list watchlists:", wls)
-            return
+            return []
         watchlist_ids = sorted(wls["values"], key=int)
     else:
         watchlist_ids = [w.strip() for w in args.watchlists.split(",") if w.strip()]
@@ -253,6 +254,7 @@ def main(args, ps_api=None, settings=None):
     print(f"ℹ️ Total symbols to process: {len(all_symbols)}")
 
     results = []
+    all_order_responses = []  # <--- Collect all order responses
     calls_made, window_start = 0, time.time()
 
     for idx, sym in enumerate(all_symbols, 1):
@@ -276,8 +278,10 @@ def main(args, ps_api=None, settings=None):
         if args.place_orders and r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
             try:
                 order_resp = place_order_from_signal(ps_api, r)
+                all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
                 print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
             except Exception as e:
+                all_order_responses.append({"symbol": r['symbol'], "response": {"stat": "Exception", "emsg": str(e)}})
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
 
         time.sleep(args.delay_between_calls)
@@ -287,13 +291,17 @@ def main(args, ps_api=None, settings=None):
     out_file = args.output or f"signals_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     out_df.to_csv(out_file, index=False)
     print(f"✅ Saved results to {out_file}")
-  
+
     if "signal" in out_df.columns:
         print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
     else:
         print("⚠️ 'signal' column not found in output DataFrame. Skipping summary.")
     print("DEBUG: out_df columns =", out_df.columns.tolist())
     print("DEBUG: first 5 rows =", out_df.head())
+
+    # Return all order responses for dashboard/thread
+    return all_order_responses
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
@@ -307,9 +315,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
-
-
-
