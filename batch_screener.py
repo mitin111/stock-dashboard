@@ -212,7 +212,7 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
 # -----------------------
 # Main runner
 # -----------------------
-def main(args, ps_api=None):
+def main(args, ps_api=None, settings=None):
     if ps_api is None:
         creds = load_credentials()
         ps_api = ProStocksAPI(**creds)
@@ -220,10 +220,10 @@ def main(args, ps_api=None):
             print("❌ Not logged in. Login via dashboard first")
             return
         print("✅ Logged in successfully via credentials")
-
-    from tkp_trm_chart import load_trm_settings_from_file
-    settings = load_trm_settings_from_file()
-
+    if settings is None:
+      from tkp_trm_chart import load_trm_settings_from_file
+      settings = load_trm_settings_from_file()
+   
     # Load all watchlist symbols
     all_symbols = []
     if args.all_watchlists:
@@ -307,6 +307,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
