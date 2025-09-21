@@ -227,8 +227,17 @@ def main(args, ps_api=None, settings=None):
         print("✅ Logged in successfully via credentials")
 
     if settings is None:
-        from tkp_trm_chart import load_trm_settings_from_file
-        settings = dict(st.session_state.get("strategy_settings", load_trm_settings_from_file()))
+        # ✅ Use only session_state settings, do NOT load defaults
+        settings = st.session_state.get("strategy_settings")
+        if not settings:
+            raise ValueError("❌ TRM settings missing in session_state! Cannot proceed without explicit settings.")
+
+        # Optional: verify required keys
+        required_keys = ["long", "short", "signal_length"]  # add all keys required by your indicators
+        missing = [k for k in required_keys if k not in settings]
+        if missing:
+            raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
+
         print("🔹 Loaded TRM settings for Auto Trader:", settings)
       
     # Load all watchlist symbols
@@ -308,7 +317,6 @@ def main(args, ps_api=None, settings=None):
     # Return all order responses for dashboard/thread
     return all_order_responses
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
     parser.add_argument("--watchlists", type=str, default="1")
@@ -321,6 +329,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
