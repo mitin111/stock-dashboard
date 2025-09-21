@@ -110,6 +110,21 @@ def rsi(series, length=14):
 # TRM Logic
 # =========================
 def calc_tkp_trm(df, settings):
+    # === Settings Validation (before indicators) ===
+    required_keys = ["long", "short", "signal", "len_rsi",
+                     "rsiBuyLevel", "rsiSellLevel",
+                     "macd_fast", "macd_slow", "macd_signal"]
+
+    if not settings:
+        raise ValueError("❌ TRM/MACD settings missing! Please configure them in dashboard.")
+
+    missing_keys = [k for k in required_keys if k not in settings]
+    if missing_keys:
+        raise ValueError(f"❌ TRM/MACD settings incomplete! Missing keys: {missing_keys}")
+
+    print("🔹 Strategy settings loaded OK:", settings)
+
+    # === Indicator Calculation ===
     price = df["close"]
     pc = price.diff()
 
@@ -130,10 +145,11 @@ def calc_tkp_trm(df, settings):
                                 np.where(isSell, "Sell", "Neutral"))
 
     df["barcolor"] = np.where(isBuy, settings["buyColor"],
-                       np.where(isSell, settings["sellColor"], settings["neutralColor"]))
+                              np.where(isSell, settings["sellColor"], settings["neutralColor"]))
     df["tsi"] = tsi
     df["tsi_signal"] = tsi_signal
     df["rsi"] = rsi_vals
+
     return df
 
 # =========================
@@ -445,3 +461,4 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
