@@ -142,7 +142,7 @@ with tab3:
 with tab4:
     st.subheader("📦 Position Quantity Mapping")
     from dashboard_logic import save_qty_map, load_qty_map, start_live_engine
-    import threading, time
+    import threading, time, queue
 
     # Load saved qty_map (agar None ya corrupt ho to default dict lo)
     current_map = load_qty_map()
@@ -164,6 +164,30 @@ with tab4:
         st.success("✅ Quantity mapping saved (persistent).")
 
     st.write("📌 Current Quantity Mapping:", qty_map)
+
+    # === UI Polling for Live Engine Events ===
+    if "ui_queue" in st.session_state:
+        while not st.session_state.ui_queue.empty():
+            event, payload = st.session_state.ui_queue.get()
+
+            if event == "tp_loaded":
+                df = payload
+                st.session_state.ohlc_x = list(df.index)
+                st.session_state.ohlc_o = list(df["open"])
+                st.session_state.ohlc_h = list(df["high"])
+                st.session_state.ohlc_l = list(df["low"])
+                st.session_state.ohlc_c = list(df["close"])
+                st.session_state.last_tp_dt = st.session_state.ohlc_x[-1]
+
+            elif event == "ws_started":
+                st.session_state.symbols_for_ws = payload["symbols"]
+                st.session_state.ws_started = True
+                st.success(f"📡 WebSocket started for {payload['symbols']} symbols")
+
+            elif event == "tick":
+                tick = payload
+                # TODO: update live chart/table with tick data
+                pass
 
     # --- Auto Trader Control ---
     st.subheader("🤖 Auto Trader Control")
@@ -225,9 +249,7 @@ with tab4:
                 ).start()
 
                 # --- START live engine here as well (TPSeries + WS) ---
-                # ensure ui_queue exists
                 if "ui_queue" not in st.session_state:
-                    import queue
                     st.session_state.ui_queue = queue.Queue()
 
                 # choose a watchlist to base live TPSeries on (use selected_watchlist if set)
@@ -710,6 +732,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
