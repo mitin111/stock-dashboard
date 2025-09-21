@@ -66,39 +66,51 @@ def load_credentials():
     }
 
 # === Order placement helper
+# dashboard_logic.py
+
 def place_order_from_signal(ps_api, result):
+    """
+    Places order via ProStocksAPI using signal dict from batch_screener.
+    result = {
+        'symbol': 'CANBK-EQ', 'signal': 'BUY', 'last_price': 123,
+        'suggested_qty': 8, 'exch': 'NSE', ...
+    }
+    """
     signal = result.get("signal")
     tsym = result.get("symbol")
     exch = result.get("exch")
-    qty = result.get("suggested_qty", 1)
-    price = result.get("last_price", 0)
+    qty = int(result.get("suggested_qty", 1))
+    price = float(result.get("last_price", 0))
 
     if signal not in ["BUY", "SELL"]:
+        print(f"⚠️ Skipping NEUTRAL signal for {tsym}")
         return None
 
-    bos = "B" if signal == "BUY" else "S"
+    trantype = "B" if signal == "BUY" else "S"
+
+    order_params = {
+        "uid": ps_api.uid,
+        "actid": ps_api.actid,
+        "exch": exch,
+        "tsym": tsym,           # must be tradingsymbol like CANBK-EQ
+        "qty": str(qty),
+        "prc": str(price),
+        "prd": "I",             # Intraday, can change to 'C' if delivery
+        "trantype": trantype,
+        "prctyp": "LMT",        # limit order, can change to 'MKT'
+        "ret": "DAY",
+        "ordersource": "WEB",
+        "remarks": f"batch_screener_{signal}"
+    }
 
     try:
-        print(f"🔹 Trying to place order: {tsym} signal={signal} qty={qty} price={price}")
-        order = ps_api.place_order(
-            buy_or_sell=bos,
-            product_type="C",
-            exchange=exch,
-            tradingsymbol=tsym,
-            quantity=qty,
-            discloseqty=0,
-            price_type="MKT",
-            price=price,
-            trigger_price=None,
-            retention="DAY",
-            remarks=f"batch_screener_{signal}"
-        )
-        print(f"✅ Order placed for {tsym}: {signal} x {qty}")
-        return order
+        print(f"🔹 Placing order: {tsym} {signal} qty={qty} price={price}")
+        resp = ps_api.place_order(order_params)
+        print(f"✅ Order response: {resp}")
+        return resp
     except Exception as e:
         print(f"❌ Order failed for {tsym}: {e}")
         return None
-
 
 # === Live engine helper: preload TPSeries + start WebSocket ===
 def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
@@ -170,3 +182,4 @@ def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
             ui_queue.put(("ws_empty", "No symbols for websocket"))
     except Exception as e:
         ui_queue.put(("ws_error", str(e)))
+
