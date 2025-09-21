@@ -192,8 +192,11 @@ with tab4:
     # --- Auto Trader Control ---
     st.subheader("🤖 Auto Trader Control")
 
-    # Thread function to run batch_screener.py logic continuously
-    def start_auto_trader_thread(symbols, ps_api, all_wls_copy):
+    # Local running flag for thread (thread-safe)
+    if "auto_trader_flag" not in st.session_state:
+        st.session_state["auto_trader_flag"] = {"running": False}
+
+    def start_auto_trader_thread(symbols, ps_api, all_wls_copy, running_flag):
         from batch_screener import main as batch_main
         import argparse
 
@@ -207,27 +210,23 @@ with tab4:
             place_orders=True
         )
 
-        # 🔁 continuous loop
-        while st.session_state["auto_trader"]["running"]:
+        running_flag["running"] = True
+        while running_flag["running"]:
             print("⚡ Running Auto Trader batch...")
             batch_main(args, ps_api=ps_api)
 
             # wait 5 minutes before next run
-            for _ in range(300):  # 300 sec = 5 min
-                if not st.session_state["auto_trader"]["running"]:
+            for _ in range(300):
+                if not running_flag["running"]:
                     print("🛑 Auto Trader stopped loop.")
                     return
                 time.sleep(1)
 
-    # Initialize auto_trader state if missing
-    if "auto_trader" not in st.session_state:
-        st.session_state["auto_trader"] = {"running": False}
-
-    # Start button (all watchlists ek saath)
+    # Start button
     if st.button("🚀 Start Auto Trader"):
         if "ps_api" in st.session_state and "all_watchlists" in st.session_state:
             ps_api = st.session_state["ps_api"]
-            all_wls_copy = st.session_state["all_watchlists"].copy()  # <-- copy here
+            all_wls_copy = st.session_state["all_watchlists"].copy()
 
             symbols = []
             for wl in all_wls_copy:
@@ -236,21 +235,18 @@ with tab4:
                     df = pd.DataFrame(wl_data["values"])
                     if not df.empty:
                         symbols.extend(df["tsym"].tolist())
-            symbols = list(set(symbols))  # duplicates hatao
+            symbols = list(set(symbols))
 
             if symbols:
-                st.session_state["auto_trader"]["running"] = True
-
-                # start the batch loop thread (thread-safe)
+                # Thread-safe flag update
+                st.session_state["auto_trader_flag"]["running"] = True
                 threading.Thread(
                     target=start_auto_trader_thread,
-                    args=(symbols, ps_api, all_wls_copy),
+                    args=(symbols, ps_api, all_wls_copy, st.session_state["auto_trader_flag"]),
                     daemon=True
                 ).start()
 
-                st.success(
-                    f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists"
-                )
+                st.success(f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists")
             else:
                 st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
         else:
@@ -258,7 +254,7 @@ with tab4:
 
     # Stop button
     if st.button("🛑 Stop Auto Trader"):
-        st.session_state["auto_trader"]["running"] = False
+        st.session_state["auto_trader_flag"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
 
         
@@ -718,6 +714,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
