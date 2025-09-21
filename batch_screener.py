@@ -102,7 +102,15 @@ def generate_signal_for_df(df, settings):
 def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
     exch = symbol_obj.get("exch")
     token = str(symbol_obj.get("token"))
-    tsym = symbol_obj.get("tsym", f"{exch}|{token}")
+
+    # ✅ Ensure tradingsymbol is always used
+    tsym = symbol_obj.get("tsym")
+    if not tsym:
+        return {
+            "symbol": f"{exch}|{token}",
+            "status": "error",
+            "emsg": "Missing tsym for PlaceOrder"
+        }
 
     try:
         df = ps_api.fetch_full_tpseries(exch, token, interval)
@@ -115,7 +123,9 @@ def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
         return {"symbol": tsym, "status": "no_data"}
 
     if "into" in df.columns and "open" not in df.columns:
-        df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
+        df = df.rename(columns={
+            "into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"
+        })
 
     df = tz_normalize_df(df)
     if df.empty:
@@ -125,6 +135,7 @@ def process_symbol_symbolic(ps_api, symbol_obj, interval, settings):
     if sig is None:
         return {"symbol": tsym, "status": "no_data_after_indicators"}
 
+    # ✅ Always return tradingsymbol in 'symbol' key
     return {
         "symbol": tsym,
         "exch": exch,
@@ -221,5 +232,6 @@ if __name__ == "__main__":
     parser.add_argument("--place-orders", action="store_true", help="🚀 Place orders when BUY/SELL signal found")
     args = parser.parse_args()
     main(args)  # ✅ non-interactive, uses dashboard session
+
 
 
