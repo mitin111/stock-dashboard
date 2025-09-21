@@ -99,6 +99,48 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
+# Place order from signal
+# -----------------------
+def place_order_from_signal(ps_api, sig):
+    """
+    ps_api: logged-in ProStocksAPI instance
+    sig: dict returned from process_symbol / generate_signal_for_df
+    """
+    if not sig or sig.get("signal") not in ["BUY", "SELL"]:
+        print(f"⚠️ Skipping order: invalid or NEUTRAL signal for {sig.get('symbol')}")
+        return {"stat": "Skipped", "emsg": "No valid signal"}
+
+    qty = sig.get("suggested_qty", 1)
+    last_price = sig.get("last_price", 0)
+    signal_type = sig.get("signal")  # "BUY" or "SELL"
+    stop_loss = sig.get("stop_loss") or 0
+
+    # Decide order type: MKT if last_price unknown, else LMT
+    price_type = "MKT" if last_price <= 0 else "LMT"
+    price = last_price if price_type == "LMT" else 0.0
+
+    try:
+        resp = ps_api.place_order(
+            buy_or_sell="B" if signal_type == "BUY" else "S",
+            product_type="C",  # Cash segment
+            exchange=sig.get("exch", "NSE"),
+            tradingsymbol=sig.get("symbol"),
+            quantity=qty,
+            discloseqty=0,
+            price_type=price_type,
+            price=price,
+            remarks="Auto order from batch_screener"
+        )
+        if resp.get("stat") == "Ok":
+            print(f"✅ Order placed for {sig.get('symbol')} | Qty={qty} | Type={signal_type}")
+        else:
+            print(f"❌ Order failed for {sig.get('symbol')}: {resp.get('emsg')}")
+        return resp
+    except Exception as e:
+        print(f"❌ Exception placing order for {sig.get('symbol')}: {e}")
+        return {"stat": "Exception", "emsg": str(e)}
+
+# -----------------------
 # Per-symbol processing
 # -----------------------
 def process_symbol(ps_api, symbol_obj, interval, settings):
@@ -235,4 +277,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
