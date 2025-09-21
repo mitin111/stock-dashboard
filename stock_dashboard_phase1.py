@@ -196,7 +196,7 @@ with tab4:
     if "auto_trader_flag" not in st.session_state:
         st.session_state["auto_trader_flag"] = {"running": False}
 
-    def start_auto_trader_thread(symbols, ps_api, all_wls_copy, running_flag):
+    def start_auto_trader_thread(symbols, ps_api, all_wls_copy, running_flag, strategy_settings):
         from batch_screener import main as batch_main
         import argparse
 
@@ -210,10 +210,15 @@ with tab4:
             place_orders=True
         )
 
+        print("✅ Auto Trader thread started with settings:", strategy_settings)
+
         running_flag["running"] = True
         while running_flag["running"]:
-            print("⚡ Running Auto Trader batch...")
-            batch_main(args, ps_api=ps_api)
+            try:
+                print("⚡ Running Auto Trader batch...")
+                batch_main(args, ps_api=ps_api, settings=strategy_settings)
+            except Exception as e:
+                print("❌ Auto Trader error:", e)
 
             # wait 5 minutes before next run
             for _ in range(300):
@@ -228,6 +233,9 @@ with tab4:
             ps_api = st.session_state["ps_api"]
             all_wls_copy = st.session_state["all_watchlists"].copy()
 
+            # ⚡ copy strategy settings here (dashboard se)
+            strategy_settings = dict(st.session_state.get("strategy_settings", {}))
+
             symbols = []
             for wl in all_wls_copy:
                 wl_data = ps_api.get_watchlist(wl)
@@ -238,11 +246,10 @@ with tab4:
             symbols = list(set(symbols))
 
             if symbols:
-                # Thread-safe flag update
                 st.session_state["auto_trader_flag"]["running"] = True
                 threading.Thread(
                     target=start_auto_trader_thread,
-                    args=(symbols, ps_api, all_wls_copy, st.session_state["auto_trader_flag"]),
+                    args=(symbols, ps_api, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings),
                     daemon=True
                 ).start()
 
@@ -256,7 +263,6 @@ with tab4:
     if st.button("🛑 Stop Auto Trader"):
         st.session_state["auto_trader_flag"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
-
         
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -714,6 +720,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
