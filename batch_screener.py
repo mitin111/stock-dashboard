@@ -55,7 +55,8 @@ def generate_signal_for_df(df, settings):
         df = trm.calc_atr_trails(df, settings)
         df = trm.calc_yhl(df)
     except Exception as e:
-        print(f"❌ Error calculating indicators: {e}")
+        print(f"❌ Error calculating indicators for {df.iloc[-1].name if not df.empty else 'unknown'}: {e}")
+        print("🔹 Last few rows of dataframe causing error:\n", df.tail())
         return None
 
     if df.empty:
@@ -199,6 +200,10 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         print(f"⚠️ [{tsym}] No data after timezone normalization")
         return result
 
+    # --- DEBUG: Print DF head and columns before indicator calculation ---
+    print(f"🔹 Debug [{tsym}] DF head:\n", df.head())
+    print(f"🔹 Debug [{tsym}] DF columns:\n", df.columns)
+
     # Generate signal
     sig = generate_signal_for_df(df, settings)
     if sig is None:
@@ -315,3 +320,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
