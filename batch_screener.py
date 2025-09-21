@@ -65,29 +65,37 @@ def generate_signal_for_df(df, settings):
     last = df.iloc[-1]
     last_price = float(last.get("close", 0))
     last_dt = last.get("datetime")
+
     tsi_sig = last.get("trm_signal", "Neutral")
-    macd_hist = last.get("macd_hist", 0)
+    macd_hist = float(last.get("macd_hist", 0) or 0)
     pacC = last.get("pacC", None)
     trail1 = last.get("Trail1", None)
 
-    reasons = []
-    signal = "NEUTRAL"
+    reasons, signal = [], "NEUTRAL"
 
-    if tsi_sig == "Buy" and (macd_hist and macd_hist > 0) and (pacC is None or last_price > pacC):
+    # ✅ Strong BUY
+    if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
         signal = "BUY"
         reasons.append("TSI=Buy & MACD hist >0")
         if pacC is not None:
             reasons.append("Price > PAC mid")
-    elif tsi_sig == "Sell" and (macd_hist and macd_hist < 0) and (pacC is None or last_price < pacC):
+
+    # ✅ Strong SELL
+    elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
         signal = "SELL"
         reasons.append("TSI=Sell & MACD hist <0")
         if pacC is not None:
             reasons.append("Price < PAC mid")
+
+    # ✅ Weak Neutral but log reason
     else:
-        reasons.append("No confluence")
+        if tsi_sig == "Neutral" and macd_hist != 0:
+            reasons.append(f"Weak confluence: TSI Neutral, MACD {'pos' if macd_hist>0 else 'neg'}")
+        else:
+            reasons.append("No confluence")
 
     stop_loss = trail1 if trail1 is not None else None
-    suggested_qty = suggested_qty_by_value(last_price, target_value_inr=1000)
+    suggested_qty = trm.suggested_qty_by_mapping(last_price)  # 👈 unified with chart logic
 
     return {
         "signal": signal,
@@ -299,6 +307,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
