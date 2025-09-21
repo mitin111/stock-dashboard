@@ -362,9 +362,22 @@ def add_trm_colored_candles(fig, df, settings, row=1, col=1, max_bars=1500):
 # Main TRM Chart
 # =========================
 def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=True):
-    df["datetime"] = pd.to_datetime(df["datetime"])
+    # === Settings Validation ===
+    required_keys = ["long", "short", "signal", "len_rsi",
+                     "rsiBuyLevel", "rsiSellLevel",
+                     "macd_fast", "macd_slow", "macd_signal"]
 
-    # Indicators
+    if not settings:
+        raise ValueError("❌ TRM/MACD settings missing! Please configure them in dashboard.")
+
+    missing_keys = [k for k in required_keys if k not in settings]
+    if missing_keys:
+        raise ValueError(f"❌ TRM/MACD settings incomplete! Missing: {missing_keys}")
+
+    print("🔹 Strategy settings loaded OK:", settings)
+
+    # === Indicator calculations ===
+    df["datetime"] = pd.to_datetime(df["datetime"])
     df = calc_tkp_trm(df, settings)
     df = calc_yhl(df)
     df = calc_pac(df, settings)
@@ -432,15 +445,3 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
-
-
-
-
-
-
-
-
-
-
-
-
