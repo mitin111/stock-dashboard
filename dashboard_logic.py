@@ -103,10 +103,12 @@ def place_order_from_signal(ps_api, result):
 # === Live engine helper: preload TPSeries + start WebSocket ===
 def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
     """Fetch TPSeries for the watchlist and start websocket in background."""
+
+    # --- TPSeries preload ---
     try:
         tpseries_results = ps_api.fetch_tpseries_for_watchlist(watchlist_id, interval)
     except Exception as e:
-        ui_queue.put(("tp_error", str(e)), block=False)
+        ui_queue.put(("tp_error", str(e)))
         return
 
     if tpseries_results:
@@ -114,58 +116,57 @@ def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
             df = tpseries_results[0]["data"].copy()
             if "datetime" in df.columns:
                 df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-                df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
+                df["datetime"] = df["datetime"].dt.tz_localize(
+                    "Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT"
+                )
                 df = df.dropna(subset=["datetime"]).set_index("datetime")
+
                 if "into" in df.columns and "open" not in df.columns:
-                    df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
-                for col in ["open","high","low","close","volume"]:
+                    df = df.rename(
+                        columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"}
+                    )
+
+                for col in ["open", "high", "low", "close", "volume"]:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
-                df = df.dropna(subset=["open","high","low","close"])
 
-                st.session_state.ohlc_x = list(df.index)
-                st.session_state.ohlc_o = list(df["open"].astype(float))
-                st.session_state.ohlc_h = list(df["high"].astype(float))
-                st.session_state.ohlc_l = list(df["low"].astype(float))
-                st.session_state.ohlc_c = list(df["close"].astype(float))
-                st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
-                ui_queue.put(("tp_loaded", {"count": len(df)}), block=False)
+                df = df.dropna(subset=["open", "high", "low", "close"])
+
+                # 👉 Instead of touching session_state, push to queue
+                ui_queue.put(("tp_loaded", df))
         except Exception as e:
-            ui_queue.put(("tp_error", str(e)), block=False)
+            ui_queue.put(("tp_error", str(e)))
     else:
-        ui_queue.put(("tp_empty", "No TPSeries data"), block=False)
+        ui_queue.put(("tp_empty", "No TPSeries data"))
 
-    # Start WebSocket
+    # --- WebSocket start ---
     try:
         wl_data = ps_api.get_watchlist(watchlist_id)
         scrips = wl_data.get("values", []) if isinstance(wl_data, dict) else []
         symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
         if symbols_for_ws:
-            st.session_state.symbols_for_ws = symbols_for_ws
-            st.session_state.ws_started = True
-            st.session_state.live_feed_flag["active"] = True
-
             def on_tick_callback(tick):
                 try:
-                    ui_queue.put(("tick", tick), block=False)
+                    ui_queue.put(("tick", tick))
                 except Exception:
                     pass
 
             ws = ps_api.connect_websocket(symbols_for_ws, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
 
             def heartbeat_loop():
-                while st.session_state.get("live_feed_flag", {}).get("active", False):
+                while True:
                     try:
                         ws.send("ping")
                         hb = datetime.now().strftime("%H:%M:%S")
-                        ui_queue.put(("heartbeat", hb), block=False)
+                        ui_queue.put(("heartbeat", hb))
                     except Exception:
                         break
                     time.sleep(20)
+
             threading.Thread(target=heartbeat_loop, daemon=True).start()
-            ui_queue.put(("ws_started", {"symbols": len(symbols_for_ws)}), block=False)
+            ui_queue.put(("ws_started", {"symbols": len(symbols_for_ws)}))
         else:
-            ui_queue.put(("ws_empty", "No symbols for websocket"), block=False)
+            ui_queue.put(("ws_empty", "No symbols for websocket"))
     except Exception as e:
-        ui_queue.put(("ws_error", str(e)), block=False)
+        ui_queue.put(("ws_error", str(e)))
