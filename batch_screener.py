@@ -167,15 +167,31 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         print(f"⚠️ [{tsym}] No TPSeries data")
         return result
 
+    # --- CONVERSION TO NUMERIC ---
     if "into" in df.columns and "open" not in df.columns:
-        df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
+        df = df.rename(columns={
+            "into": "open",
+            "inth": "high",
+            "intl": "low",
+            "intc": "close",
+            "intv": "volume"
+        })
 
+    # Convert OHLCV columns to numeric
+    for col in ["open", "high", "low", "close", "volume"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    # Drop rows with NaN in critical columns
+    df = df.dropna(subset=["open", "high", "low", "close"])
+
+    # Timezone normalization
     df = tz_normalize_df(df)
     if df.empty:
         result.update({"status": "no_data_after_norm"})
         print(f"⚠️ [{tsym}] No data after timezone normalization")
         return result
 
+    # Generate signal
     sig = generate_signal_for_df(df, settings)
     if sig is None:
         result.update({"status": "no_signal"})
@@ -283,6 +299,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
