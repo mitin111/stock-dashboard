@@ -193,12 +193,12 @@ with tab4:
     st.subheader("🤖 Auto Trader Control")
 
     # Thread function to run batch_screener.py logic continuously
-    def start_auto_trader_thread(symbols, ps_api):
+    def start_auto_trader_thread(symbols, ps_api, all_wls_copy):
         from batch_screener import main as batch_main
         import argparse
 
         args = argparse.Namespace(
-            watchlists=",".join([str(w) for w in st.session_state["all_watchlists"]]),
+            watchlists=",".join([str(w) for w in all_wls_copy]),
             all_watchlists=False,
             interval="5",
             output=None,
@@ -237,18 +237,19 @@ with tab4:
                     if not df.empty:
                         symbols.extend(df["tsym"].tolist())
             symbols = list(set(symbols))  # duplicates hatao
+
             if symbols:
                 st.session_state["auto_trader"]["running"] = True
-            
-                # start the batch loop thread (existing logic)
+
+                # start the batch loop thread (thread-safe)
                 threading.Thread(
                     target=start_auto_trader_thread,
-                    args=(symbols, ps_api),
+                    args=(symbols, ps_api, all_wls_copy),
                     daemon=True
                 ).start()
 
                 st.success(
-                    f"✅ Auto Trader started with {len(symbols)} symbols from {len(st.session_state['all_watchlists'])} watchlists"
+                    f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists"
                 )
             else:
                 st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
@@ -259,6 +260,7 @@ with tab4:
     if st.button("🛑 Stop Auto Trader"):
         st.session_state["auto_trader"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
+
         
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -716,6 +718,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
