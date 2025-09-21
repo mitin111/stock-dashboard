@@ -216,7 +216,9 @@ with tab4:
         while running_flag["running"]:
             try:
                 print("⚡ Running Auto Trader batch...")
-                batch_main(args, ps_api=ps_api, settings=strategy_settings)
+                order_responses = batch_main(args, ps_api=ps_api, settings=strategy_settings)
+                for resp in order_responses:
+                    print(f"📤 Auto Trader Order Response: {resp}")
             except Exception as e:
                 print("❌ Auto Trader error:", e)
 
@@ -721,6 +723,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
