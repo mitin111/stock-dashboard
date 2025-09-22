@@ -455,6 +455,20 @@ class ProStocksAPI:
                 if key not in self.candles:
                     self.candles[key] = {}
 
+                last_buckets = sorted(self.candles[key].keys())
+                if last_buckets:
+                    last_bucket = last_buckets[-1]
+                    if bucket > last_bucket:
+                        # ✅ Candle closed → trigger callback
+                        closed_candle = self.candles[key][last_bucket]
+                        df = pd.DataFrame(list(self.candles[key].values()))
+                        df["datetime"] = pd.to_datetime(df["ts"], unit="s")
+                        if hasattr(self, "on_new_candle") and self.on_new_candle:
+                            try:
+                                self.on_new_candle(f"{exch}|{token}", df)
+                            except Exception as e:
+                                print("❌ on_new_candle error:", e)
+
                 # --- Create or update candle ---
                 if bucket not in self.candles[key]:
                     # New candle
@@ -531,3 +545,4 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
