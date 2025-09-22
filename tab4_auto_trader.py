@@ -100,42 +100,25 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         st.session_state["auto_trader_flag"] = {"running": False}
 
     # Define the thread target
-    def start_auto_trader_thread(symbols, all_wls_copy, running_flag, strategy_settings, jData):
+    def start_auto_trader_thread(symbols, all_wls_copy, running_flag, strategy_settings, ps_api):
         """
         Thread-safe Auto Trader runner.
-        Creates its own ProStocksAPI instance so place_order works.
+        Directly uses ps_api passed from main thread.
         """
         try:
             from batch_screener import main as batch_main
-            from prostocks_connector import ProStocksAPI
         except Exception as e:
-            log("❌ Could not import batch_screener or ProStocksAPI:", e)
+            log("❌ Could not import batch_screener:", e)
             running_flag["running"] = False
             return
 
-        import argparse
-        from prostocks_connector import ProStocksAPI
-        ps_api = ProStocksAPI()
-        ps_api.jKey = st.session_state["ps_api"].jKey  # existing session from main app 
-
-        args = argparse.Namespace(
-            watchlists=",".join([str(w) for w in all_wls_copy]),
-            all_watchlists=False,
-            interval="5",
-            output=None,
-            max_calls_per_min=15,
-            delay_between_calls=0.25,
-            place_orders=True
-        )
-
         log("⚡ Auto Trader thread starting with settings:", strategy_settings)
         log("⚡ Symbols to trade:", symbols)
-
         running_flag["running"] = True
         while running_flag["running"]:
             try:
                 log("⚡ Running Auto Trader batch...")
-                order_responses = batch_main(args, ps_api=ps_api, settings=strategy_settings)
+                order_responses = batch_main(ps_api=ps_api, settings=strategy_settings, symbols=symbols)
                 log("⚡ Batch order_responses:", order_responses)
                 if isinstance(order_responses, (list, tuple)):
                     for resp in order_responses:
@@ -164,41 +147,35 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             ps_api = st.session_state["ps_api"]
             all_wls_copy = st.session_state["all_watchlists"].copy()
 
-            # ⚡ copy strategy settings here (dashboard se)
-            # Respect the flags: require_session_settings / allow_file_fallback
-            strategy_settings = st.session_state.get("strategy_settings") \
-                                or st.session_state.get("trm_settings") \
-                                or (load_trm_settings_from_file() if allow_file_fallback else None)
+            strategy_settings = (
+                st.session_state.get("strategy_settings")
+                or st.session_state.get("trm_settings")
+                or (load_trm_settings_from_file() if allow_file_fallback else None)
+            )
             if not strategy_settings:
                 st.error("❌ Strategy settings not found! Configure TRM settings in dashboard before starting Auto Trader.")
                 return
-            
-                st.session_state["strategy_settings"] = strategy_settings
 
-            if not strategy_settings:
-                st.error("❌ Strategy settings not found in session_state and file fallback not allowed. Configure settings in dashboard before starting Auto Trader.")
+            st.session_state["strategy_settings"] = strategy_settings
+            symbols = []
+            for wl in all_wls_copy:
+                wl_data = ps_api.get_watchlist(wl)
+                if wl_data.get("stat") == "Ok":
+                    df = pd.DataFrame(wl_data["values"])
+                    if not df.empty:
+                        symbols.extend(df["tsym"].tolist())
+            symbols = list(set(symbols))
+            if symbols:
+                st.session_state["auto_trader_flag"]["running"] = True
+                threading.Thread(
+                    target=start_auto_trader_thread,
+                    args=(symbols, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
+                    daemon=True
+                ).start()
+                st.success(f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists")
             else:
-                # Get unique symbols from all watchlists
-                symbols = []
-                for wl in all_wls_copy:
-                    wl_data = ps_api.get_watchlist(wl)
-                    if wl_data.get("stat") == "Ok":
-                        df = pd.DataFrame(wl_data["values"])
-                        if not df.empty:
-                            symbols.extend(df["tsym"].tolist())
-                symbols = list(set(symbols))
-
-                if symbols:
-                    st.session_state["auto_trader_flag"]["running"] = True
-                    threading.Thread(
-                        target=start_auto_trader_thread,
-                        args=(symbols, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, st.session_state.get("jData")),
-                        daemon=True
-                    ).start()
-
-                    st.success(f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists")
-                else:
-                    st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
+                st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
+                
         else:
             st.warning("⚠️ Please login first and load watchlists.")
 
@@ -241,6 +218,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
