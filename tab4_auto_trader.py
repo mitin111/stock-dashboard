@@ -124,13 +124,15 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             place_orders=True
         )
 
-        log("✅ Auto Trader thread started with settings:", strategy_settings)
+        log("⚡ Auto Trader thread starting with settings:", strategy_settings)
+        log("⚡ Symbols to trade:", symbols)
 
         running_flag["running"] = True
         while running_flag["running"]:
             try:
                 log("⚡ Running Auto Trader batch...")
                 order_responses = batch_main(args, ps_api=ps_api, settings=strategy_settings)
+                log("⚡ Batch order_responses:", order_responses)
                 if isinstance(order_responses, (list, tuple)):
                     for resp in order_responses:
                         log("📤 Auto Trader Order Response:", resp)
@@ -165,7 +167,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                                 or (load_trm_settings_from_file() if allow_file_fallback else None)
             if not strategy_settings:
                 st.error("❌ Strategy settings not found! Configure TRM settings in dashboard before starting Auto Trader.")
-            else:
+                return
+            
                 st.session_state["strategy_settings"] = strategy_settings
 
             if not strategy_settings:
@@ -234,6 +237,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
