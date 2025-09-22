@@ -175,7 +175,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     args=(symbols_with_tokens, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
                     daemon=True
                 ).start()
-                st.success(f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists")
+                st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols from {len(all_wls_copy)} watchlists")
             else:
                 st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
                 
@@ -221,6 +221,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
