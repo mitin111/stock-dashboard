@@ -160,17 +160,13 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
             # ⚡ copy strategy settings here (dashboard se)
             # Respect the flags: require_session_settings / allow_file_fallback
-            settings_from_session = st.session_state.get("strategy_settings")
-            settings = None
-            if settings_from_session:
-                settings = dict(settings_from_session)
+            strategy_settings = st.session_state.get("strategy_settings") \
+                                or st.session_state.get("trm_settings") \
+                                or (load_trm_settings_from_file() if allow_file_fallback else None)
+            if not strategy_settings:
+                st.error("❌ Strategy settings not found! Configure TRM settings in dashboard before starting Auto Trader.")
             else:
-                if allow_file_fallback and not require_session_settings:
-                    # File fallback allowed
-                    try:
-                        settings = load_trm_settings_from_file()
-                    except Exception as e:
-                        settings = None
+                st.session_state["strategy_settings"] = strategy_settings
 
             if not settings:
                 st.error("❌ Strategy settings not found in session_state and file fallback not allowed. Configure settings in dashboard before starting Auto Trader.")
@@ -238,5 +234,6 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
