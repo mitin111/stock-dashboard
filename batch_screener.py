@@ -217,7 +217,7 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
 # -----------------------
 # Main runner
 # -----------------------
-def main(args, ps_api=None, settings=None):
+def main(args=None, ps_api=None, settings=None, symbols=None):
     if ps_api is None:
         creds = load_credentials()
         ps_api = ProStocksAPI(**creds)
@@ -239,33 +239,38 @@ def main(args, ps_api=None, settings=None):
             raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
 
         print("🔹 Loaded TRM settings for Auto Trader:", settings)
-      
-    # Load all watchlist symbols
-    all_symbols = []
-    if args.all_watchlists:
-        wls = ps_api.get_watchlists()
-        if wls.get("stat") != "Ok":
-            print("❌ Failed to list watchlists:", wls)
-            return []
-        watchlist_ids = sorted(wls["values"], key=int)
+
+    # 🔹 Agar explicit symbols diye gaye hain to wahi use karo
+    if symbols:
+        all_symbols = [{"tsym": s, "exch": "NSE", "token": ""} for s in symbols]
     else:
-        watchlist_ids = [w.strip() for w in args.watchlists.split(",") if w.strip()]
+        # 🔹 Warna watchlist se symbols load karo
+        all_symbols = []
+        if args and args.all_watchlists:
+            wls = ps_api.get_watchlists()
+            if wls.get("stat") != "Ok":
+                print("❌ Failed to list watchlists:", wls)
+                return []
+            watchlist_ids = sorted(wls["values"], key=int)
+        else:
+            watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
 
-    for wl in watchlist_ids:
-        wl_data = ps_api.get_watchlist(wl)
-        if wl_data.get("stat") != "Ok":
-            print(f"❌ Could not load watchlist {wl}: {wl_data.get('emsg')}")
-            continue
-        all_symbols.extend(wl_data.get("values", []))
+        for wl in watchlist_ids:
+            wl_data = ps_api.get_watchlist(wl)
+            if wl_data.get("stat") != "Ok":
+                print(f"❌ Could not load watchlist {wl}: {wl_data.get('emsg')}")
+                continue
+            all_symbols.extend(wl_data.get("values", []))
 
-    # Remove duplicates
-    seen, unique_symbols = set(), []
-    for s in all_symbols:
-        key = f"{s.get('exch')}|{s.get('token')}"
-        if key not in seen:
-            seen.add(key)
-            unique_symbols.append(s)
-    all_symbols = unique_symbols
+        # Remove duplicates
+        seen, unique_symbols = set(), []
+        for s in all_symbols:
+            key = f"{s.get('exch')}|{s.get('token')}"
+            if key not in seen:
+                seen.add(key)
+                unique_symbols.append(s)
+        all_symbols = unique_symbols
+
     print(f"ℹ️ Total symbols to process: {len(all_symbols)}")
 
     results = []
@@ -275,7 +280,7 @@ def main(args, ps_api=None, settings=None):
     for idx, sym in enumerate(all_symbols, 1):
         calls_made += 1
         elapsed = time.time() - window_start
-        if calls_made > args.max_calls_per_min:
+        if args and calls_made > args.max_calls_per_min:
             to_wait = max(0, 60 - elapsed) + 0.5
             print(f"⏱ Rate limit reached. Sleeping {to_wait:.1f}s")
             time.sleep(to_wait)
@@ -283,14 +288,14 @@ def main(args, ps_api=None, settings=None):
 
         print(f"\n🔹 [{idx}/{len(all_symbols)}] Processing {sym.get('tsym') or sym.get('tradingsymbol')} ...")
         try:
-            r = process_symbol(ps_api, sym, args.interval, settings)
+            r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
         except Exception as e:
             r = {"symbol": sym.get("tsym"), "status": "exception", "emsg": str(e)}
             print(f"❌ Exception for {sym.get('tsym')}: {e}")
         results.append(r)
 
         # Place order if enabled
-        if args.place_orders and r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
+        if args and args.place_orders and r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
             try:
                 order_resp = place_order_from_signal(ps_api, r)
                 all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
@@ -302,11 +307,12 @@ def main(args, ps_api=None, settings=None):
                 })
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
 
-        time.sleep(args.delay_between_calls)
+        if args:
+            time.sleep(args.delay_between_calls)
 
     # Save results
     out_df = pd.DataFrame(results)
-    out_file = args.output or f"signals_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    out_file = (args.output if args else None) or f"signals_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     out_df.to_csv(out_file, index=False)
     print(f"✅ Saved results to {out_file}")
 
@@ -333,8 +339,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
-
-
