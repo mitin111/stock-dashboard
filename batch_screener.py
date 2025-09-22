@@ -228,11 +228,15 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
 
     if settings is None:
         # ✅ Use only session_state settings, do NOT load defaults
-        settings = st.session_state.get("strategy_settings")
+        try:
+            import streamlit as st
+            settings = st.session_state.get("strategy_settings")
+        except Exception:
+            settings = None
+
         if not settings:
             raise ValueError("❌ TRM settings missing in session_state! Cannot proceed without explicit settings.")
 
-        # ✅ Verify required keys before proceeding
         required_keys = ["long", "short", "signal_length", "macd_fast", "macd_slow", "macd_signal"]
         missing = [k for k in required_keys if k not in settings]
         if missing:
@@ -240,11 +244,17 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
 
         print("🔹 Loaded TRM settings for Auto Trader:", settings)
 
-    # 🔹 Agar explicit symbols diye gaye hain to wahi use karo
+    # ---------------- Symbol resolution ----------------
+    symbols_with_tokens = []
     if symbols:
-        all_symbols = [{"tsym": s, "exch": "NSE", "token": ""} for s in symbols]
+        # symbols explicitly passed from dashboard
+        for s in symbols:
+            symbols_with_tokens.append({
+                "tsym": s.get("tsym") if isinstance(s, dict) else s,
+                "exch": s.get("exch", "NSE") if isinstance(s, dict) else "NSE",
+                "token": s.get("token", "") if isinstance(s, dict) else ""
+            })
     else:
-        # 🔹 Warna watchlist se symbols load karo
         all_symbols = []
         if args and args.all_watchlists:
             wls = ps_api.get_watchlists()
@@ -262,24 +272,23 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
                 continue
             all_symbols.extend(wl_data.get("values", []))
 
-        # Remove duplicates
-        symbols_with_tokens = []
         for s in all_symbols:
             token = s.get("token", "")
             if token:
-              symbols_with_tokens.append({
-                  "tsym": s.get("tsym"),
-                  "exch": s.get("exch", "NSE"),
-                  "token": token
-              }) 
-                
+                symbols_with_tokens.append({
+                    "tsym": s.get("tsym"),
+                    "exch": s.get("exch", "NSE"),
+                    "token": token
+                })
+
     print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
+    # ---------------- Run screener ----------------
     results = []
-    all_order_responses = []  # <--- Collect all order responses
+    all_order_responses = []
     calls_made, window_start = 0, time.time()
 
-    for idx, sym in enumerate(all_symbols, 1):
+    for idx, sym in enumerate(symbols_with_tokens, 1):
         calls_made += 1
         elapsed = time.time() - window_start
         if args and calls_made > args.max_calls_per_min:
@@ -288,7 +297,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
             time.sleep(to_wait)
             window_start, calls_made = time.time(), 1
 
-        print(f"\n🔹 [{idx}/{len(all_symbols)}] Processing {sym.get('tsym') or sym.get('tradingsymbol')} ...")
+        print(f"\n🔹 [{idx}/{len(symbols_with_tokens)}] Processing {sym['tsym']} ...")
         try:
             r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
         except Exception as e:
@@ -301,7 +310,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
             try:
                 order_resp = place_order_from_signal(ps_api, r)
                 all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
-                print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
             except Exception as e:
                 all_order_responses.append({
                     "symbol": r['symbol'],
@@ -320,14 +328,8 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
 
     if "signal" in out_df.columns:
         print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
-    else:
-        print("⚠️ 'signal' column not found in output DataFrame. Skipping summary.")
-    print("DEBUG: out_df columns =", out_df.columns.tolist())
-    print("DEBUG: first 5 rows =", out_df.head())
 
-    # Return all order responses for dashboard/thread
     return all_order_responses
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
@@ -341,4 +343,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
