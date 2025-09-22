@@ -168,7 +168,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             else:
                 st.session_state["strategy_settings"] = strategy_settings
 
-            if not settings:
+            if not strategy_settings:
                 st.error("❌ Strategy settings not found in session_state and file fallback not allowed. Configure settings in dashboard before starting Auto Trader.")
             else:
                 # Get unique symbols from all watchlists
@@ -185,7 +185,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     st.session_state["auto_trader_flag"]["running"] = True
                     threading.Thread(
                         target=start_auto_trader_thread,
-                        args=(symbols, ps_api, all_wls_copy, st.session_state["auto_trader_flag"], settings),
+                        args=(symbols, ps_api, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings),
                         daemon=True
                     ).start()
 
@@ -234,6 +234,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
