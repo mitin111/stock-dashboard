@@ -46,7 +46,6 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
     # === UI Polling for Live Engine Events (ui_queue) ===
     if "ui_queue" not in st.session_state:
-        # use a simple in-memory queue object
         st.session_state["ui_queue"] = queue.Queue()
 
     # Drain ui_queue messages (non-blocking)
@@ -72,15 +71,10 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.success(f"📡 WebSocket started for {payload.get('symbols')} symbols")
 
         elif event == "tick":
-            tick = payload
-            # display minimal tick info
-            st.write("📩 Tick:", tick)
+            st.write("📩 Tick:", payload)
 
         elif event == "order_resp":
-            # show order responses in UI
-            sym = payload.get("symbol")
-            resp = payload.get("response")
-            st.write(f"📤 Order response — {sym}: {resp}")
+            st.write(f"📤 Order response — {payload.get('symbol')}: {payload.get('response')}")
 
         elif event == "tick_candle_update":
             sym = payload.get("symbol")
@@ -123,7 +117,6 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 if isinstance(order_responses, (list, tuple)):
                     for resp in order_responses:
                         log("📤 Auto Trader Order Response:", resp)
-                        # push to UI queue for main thread to show
                         if "ui_queue" in st.session_state:
                             try:
                                 st.session_state["ui_queue"].put(("order_resp", resp))
@@ -153,7 +146,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 or (load_trm_settings_from_file() if allow_file_fallback else None)
             )
             if not strategy_settings:
-                st.error("❌ Strategy settings not found! Configure TRM settings in dashboard before starting Auto Trader.")
+                st.error("❌ Strategy settings not found! Configure TRM settings before starting Auto Trader.")
                 return
 
             st.session_state["strategy_settings"] = strategy_settings
@@ -162,11 +155,13 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 wl_data = ps_api.get_watchlist(wl)
                 if wl_data.get("stat") == "Ok":
                     for s in wl_data["values"]:
-                        symbols_with_tokens.append({
-                            "tsym": s["tsym"],
-                            "exch": s["exch"],
-                            "token": s.get("token", "")  # Ensure token is included
-                        })
+                        token = s.get("token", "")
+                        if token:
+                            symbols_with_tokens.append({
+                                "tsym": s["tsym"],
+                                "exch": s["exch"],
+                                "token": token
+                            })
 
             if symbols_with_tokens:
                 st.session_state["auto_trader_flag"]["running"] = True
@@ -177,8 +172,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 ).start()
                 st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols from {len(all_wls_copy)} watchlists")
             else:
-                st.warning("⚠️ All watchlists are empty, cannot start Auto Trader.")
-                
+                st.warning("⚠️ All watchlists are empty or missing tokens; cannot start Auto Trader.")
         else:
             st.warning("⚠️ Please login first and load watchlists.")
 
@@ -221,6 +215,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
