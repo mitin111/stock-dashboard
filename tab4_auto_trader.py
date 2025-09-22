@@ -100,19 +100,22 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         st.session_state["auto_trader_flag"] = {"running": False}
 
     # Define the thread target
-    def start_auto_trader_thread(symbols, ps_api, all_wls_copy, running_flag, strategy_settings):
+    def start_auto_trader_thread(symbols, all_wls_copy, running_flag, strategy_settings, jData):
         """
-        Wrapper thread that calls batch_screener.main with provided settings.
-        We import inside the function to avoid circular imports on module load.
+        Thread-safe Auto Trader runner.
+        Creates its own ProStocksAPI instance so place_order works.
         """
         try:
             from batch_screener import main as batch_main
+            from prostocks_connector import ProStocksAPI
         except Exception as e:
-            log("❌ Could not import batch_screener.main in thread:", e)
+            log("❌ Could not import batch_screener or ProStocksAPI:", e)
             running_flag["running"] = False
             return
 
         import argparse
+        ps_api = ProStocksAPI()
+        ps_api.login(jData=jData)
 
         args = argparse.Namespace(
             watchlists=",".join([str(w) for w in all_wls_copy]),
@@ -188,7 +191,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     st.session_state["auto_trader_flag"]["running"] = True
                     threading.Thread(
                         target=start_auto_trader_thread,
-                        args=(symbols, ps_api, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings),
+                        args=(symbols, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, st.session_state.get("jData")),
                         daemon=True
                     ).start()
 
@@ -237,6 +240,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
