@@ -112,7 +112,12 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         while running_flag["running"]:
             try:
                 log("⚡ Running Auto Trader batch...")
-                order_responses = batch_main(ps_api=ps_api, settings=strategy_settings, symbols=symbols)
+                order_responses = batch_main(
+                    ps_api=ps_api,
+                    settings=strategy_settings,
+                    symbols=symbols,
+                    place_orders=True  # ✅ Streamlit se force enable
+                )
                 log("⚡ Batch order_responses:", order_responses)
                 if isinstance(order_responses, (list, tuple)):
                     for resp in order_responses:
@@ -215,6 +220,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
