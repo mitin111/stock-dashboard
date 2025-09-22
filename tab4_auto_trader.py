@@ -157,19 +157,22 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 return
 
             st.session_state["strategy_settings"] = strategy_settings
-            symbols = []
+            symbols_with_tokens = []
             for wl in all_wls_copy:
                 wl_data = ps_api.get_watchlist(wl)
                 if wl_data.get("stat") == "Ok":
-                    df = pd.DataFrame(wl_data["values"])
-                    if not df.empty:
-                        symbols.extend(df["tsym"].tolist())
-            symbols = list(set(symbols))
-            if symbols:
+                    for s in wl_data["values"]:
+                        symbols_with_tokens.append({
+                            "tsym": s["tsym"],
+                            "exch": s["exch"],
+                            "token": s.get("token", "")  # Ensure token is included
+                        })
+
+            if symbols_with_tokens:
                 st.session_state["auto_trader_flag"]["running"] = True
                 threading.Thread(
                     target=start_auto_trader_thread,
-                    args=(symbols, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
+                    args=(symbols_with_tokens, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
                     daemon=True
                 ).start()
                 st.success(f"✅ Auto Trader started with {len(symbols)} symbols from {len(all_wls_copy)} watchlists")
@@ -218,6 +221,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
