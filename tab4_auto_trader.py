@@ -116,7 +116,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         import argparse
         from prostocks_connector import ProStocksAPI
         ps_api = ProStocksAPI()
-        ps_api.jKey = jData 
+        ps_api.jKey = st.session_state["ps_api"].jKey  # existing session from main app 
 
         args = argparse.Namespace(
             watchlists=",".join([str(w) for w in all_wls_copy]),
@@ -241,6 +241,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
