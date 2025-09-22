@@ -263,15 +263,17 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
             all_symbols.extend(wl_data.get("values", []))
 
         # Remove duplicates
-        seen, unique_symbols = set(), []
+        symbols_with_tokens = []
         for s in all_symbols:
-            key = f"{s.get('exch')}|{s.get('token')}"
-            if key not in seen:
-                seen.add(key)
-                unique_symbols.append(s)
-        all_symbols = unique_symbols
-
-    print(f"ℹ️ Total symbols to process: {len(all_symbols)}")
+            token = s.get("token", "")
+            if token:
+              symbols_with_tokens.append({
+                  "tsym": s.get("tsym"),
+                  "exch": s.get("exch", "NSE"),
+                  "token": token
+              }) 
+                
+    print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
     results = []
     all_order_responses = []  # <--- Collect all order responses
@@ -339,3 +341,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
