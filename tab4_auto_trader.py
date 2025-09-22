@@ -203,3 +203,40 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     if st.button("🛑 Stop Auto Trader"):
         st.session_state["auto_trader_flag"]["running"] = False
         st.warning("⏹️ Auto Trader stopped.")
+
+# 🔹 Strategy Hook Registration
+def on_new_candle(symbol, df):
+    try:
+        from tkp_trm_chart import calc_tkp_trm
+        settings = st.session_state.get("strategy_settings")
+
+        if not settings:
+            raise ValueError("❌ Strategy settings missing! Dashboard pe configure karo.")
+
+        df = calc_tkp_trm(df.copy(), settings)
+        latest_signal = df["trm_signal"].iloc[-1]
+        print(f"📊 [{symbol}] Latest Signal → {latest_signal}")
+
+        # UI queue update
+        if "ui_queue" in st.session_state:
+            st.session_state["ui_queue"].put((
+                "tick_candle_update",
+                {"symbol": symbol, "candles": df, "signal": latest_signal}
+            ))
+
+        # Optional Auto Order
+        if st.session_state.get("auto_trade_enabled"):
+            if latest_signal == "Buy":
+                st.session_state["ps_api"].place_order(symbol, "BUY")
+            elif latest_signal == "Sell":
+                st.session_state["ps_api"].place_order(symbol, "SELL")
+
+    except Exception as e:
+        print(f"⚠️ Strategy error for {symbol}: {e}")
+
+
+# Register the hook with ps_api
+if "ps_api" in st.session_state:
+    st.session_state["ps_api"].on_new_candle = on_new_candle
+
+
