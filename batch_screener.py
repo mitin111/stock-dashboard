@@ -217,7 +217,11 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
 # -----------------------
 # Main runner
 # -----------------------
-def main(args=None, ps_api=None, settings=None, symbols=None):
+def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
+    """
+    Auto Trader batch runner.
+    place_orders: Streamlit ke liye explicit order trigger flag.
+    """
     if ps_api is None:
         creds = load_credentials()
         ps_api = ProStocksAPI(**creds)
@@ -305,17 +309,19 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
             print(f"❌ Exception for {sym.get('tsym')}: {e}")
         results.append(r)
 
-        # Place order if enabled
-        if args and args.place_orders and r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
-            try:
-                order_resp = place_order_from_signal(ps_api, r)
-                all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
-            except Exception as e:
-                all_order_responses.append({
-                    "symbol": r['symbol'],
-                    "response": {"stat": "Exception", "emsg": str(e)}
-                })
-                print(f"❌ Order placement failed for {r['symbol']}: {e}")
+        # ---------------- Order placement ----------------
+        if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
+            if (args and getattr(args, "place_orders", False)) or place_orders:
+                try:
+                    order_resp = place_order_from_signal(ps_api, r)
+                    all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
+                    print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
+                except Exception as e:
+                    all_order_responses.append({
+                        "symbol": r['symbol'],
+                        "response": {"stat": "Exception", "emsg": str(e)}
+                    })
+                    print(f"❌ Order placement failed for {r['symbol']}: {e}")
 
         if args:
             time.sleep(args.delay_between_calls)
@@ -331,6 +337,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None):
 
     return all_order_responses
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
     parser.add_argument("--watchlists", type=str, default="1")
@@ -343,5 +350,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
