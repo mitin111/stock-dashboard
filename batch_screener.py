@@ -322,17 +322,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                 })
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
               
-            
-          order_resp = place_order_from_signal(ps_api, r)
-          all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
-          print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
-                except Exception as e:
-                    all_order_responses.append({
-                        "symbol": r['symbol'],
-                        "response": {"stat": "Exception", "emsg": str(e)}
-                    })
-                    print(f"❌ Order placement failed for {r['symbol']}: {e}")
-
         if args:
             time.sleep(args.delay_between_calls)
 
@@ -360,4 +349,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
