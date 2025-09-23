@@ -43,7 +43,7 @@ def suggested_qty_by_value(price, target_value_inr=1000):
     qty = int(target_value_inr // price)
     return max(1, qty)
 
-# -----------------------
+# ----------------------- 
 # Signal generation with debug
 # -----------------------
 def generate_signal_for_df(df, settings):
@@ -72,6 +72,13 @@ def generate_signal_for_df(df, settings):
     pacC = last.get("pacC", None)
     trail1 = last.get("Trail1", None)
 
+    # --- Volatility calculation (today's candles) ---
+    latest_day = df["datetime"].iloc[-1].date()
+    day_data = df[df["datetime"].dt.date == latest_day]
+    day_high = day_data["high"].max() if not day_data.empty else last_price
+    day_low = day_data["low"].min() if not day_data.empty else last_price
+    volatility = ((day_high - day_low) / day_low) * 100 if day_low > 0 else 0
+
     reasons, signal = [], "NEUTRAL"
 
     # ✅ Strong BUY
@@ -95,8 +102,13 @@ def generate_signal_for_df(df, settings):
         else:
             reasons.append("No confluence")
 
+    # --- Apply volatility filter: only allow BUY/SELL if >2% ---
+    if volatility < 2:
+        signal = "NEUTRAL"
+        reasons.append(f"Volatility {volatility:.2f}% < 2%, skipping trade")
+
     stop_loss = trail1 if trail1 is not None else None
-    suggested_qty = trm.suggested_qty_by_mapping(last_price)  # 👈 unified with chart logic
+    suggested_qty = trm.suggested_qty_by_mapping(last_price)  # unified with chart logic
 
     return {
         "signal": signal,
@@ -104,9 +116,9 @@ def generate_signal_for_df(df, settings):
         "last_price": last_price,
         "last_dt": str(last_dt),
         "stop_loss": stop_loss,
-        "suggested_qty": suggested_qty
+        "suggested_qty": suggested_qty,
+        "volatility": round(volatility, 2)   # ✅ Add volatility to signal dict
     }
-
 # -----------------------
 # Place order from signal
 # -----------------------
@@ -349,5 +361,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
