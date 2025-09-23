@@ -369,6 +369,10 @@ class ProStocksAPI:
             print("❌ Place order exception:", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
 
+    # prostocks_connector.py ke andar ProStocksAPI class me add karein
+    def is_logged_in(self):
+        """Check if session key / jKey exists and is valid"""
+        return hasattr(self, "session_token") and self.session_token is not None and len(self.session_token) > 0
 
     def order_book(self):
         url = f"{self.base_url}/OrderBook"
@@ -612,6 +616,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
