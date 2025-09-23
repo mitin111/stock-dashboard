@@ -66,8 +66,6 @@ def load_credentials():
     }
 
 # === Order placement helper
-# dashboard_logic.py
-
 def place_order_from_signal(ps_api, result):
     """
     Places order via ProStocksAPI using signal dict from batch_screener.
@@ -88,24 +86,20 @@ def place_order_from_signal(ps_api, result):
 
     trantype = "B" if signal == "BUY" else "S"
 
-    order_params = {
-        "uid": ps_api.uid,
-        "actid": ps_api.actid,
-        "exch": exch,
-        "tsym": tsym,           # must be tradingsymbol like CANBK-EQ
-        "qty": str(qty),
-        "prc": str(price),
-        "prd": "I",             # Intraday, can change to 'C' if delivery
-        "trantype": trantype,
-        "prctyp": "LMT",        # limit order, can change to 'MKT'
-        "ret": "DAY",
-        "ordersource": "WEB",
-        "remarks": f"batch_screener_{signal}"
-    }
-
+    # ✅ Replace dict call with keyword-argument style
     try:
         print(f"🔹 Placing order: {tsym} {signal} qty={qty} price={price}")
-        resp = ps_api.place_order(order_params)
+        resp = ps_api.place_order(
+            buy_or_sell=trantype,
+            product_type="C",            # Cash segment
+            exchange=exch,
+            tradingsymbol=tsym,
+            quantity=qty,
+            discloseqty=0,
+            price_type="LMT" if price > 0 else "MKT",
+            price=price if price > 0 else 0.0,
+            remarks=f"batch_screener_{signal}"
+        )
         print(f"✅ Order response: {resp}")
         return resp
     except Exception as e:
@@ -182,4 +176,5 @@ def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
             ui_queue.put(("ws_empty", "No symbols for websocket"))
     except Exception as e:
         ui_queue.put(("ws_error", str(e)))
+
 
