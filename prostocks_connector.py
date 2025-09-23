@@ -325,24 +325,51 @@ class ProStocksAPI:
 
         return results
 
-    def place_order_easy(self, exch, tsym, qty, price=0.0, prd="I", buy_or_sell="BUY",
-                         prctyp="LMT", ret="DAY", remarks=""):
-        trantype = "B" if buy_or_sell.upper() == "BUY" else "S"
-        order_params = {
-            "uid": self.username,
-            "actid": self.accountid,
-            "exch": exch,
-            "tsym": tsym,
-            "qty": qty,
-            "prc": price,
-            "prd": prd,
-            "trantype": trantype,
-            "prctyp": prctyp,
-            "ret": ret,
+    def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
+                    quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
+                    retention='DAY', remarks=''):
+        """
+        Place an order on ProStocks
+        """
+        url = f"{self.base_url}/PlaceOrder"
+        order_data = {
+            "uid": self.userid,
+            "actid": self.userid,
+            "exch": exchange,
+            "tsym": tradingsymbol,
+            "qty": str(quantity),
+            "dscqty": str(discloseqty),
+            "prd": product_type,
+            "trantype": buy_or_sell,
+            "prctyp": price_type,
+            "ret": retention,
+            "ordersource": "API",
             "remarks": remarks
         }
-        return self.place_order(order_params)                     
+        # ✅ Price handling
+        if price_type.upper() == "MKT":
+            order_data["prc"] = "0"
+        elif price is not None:
+            order_data["prc"] = str(price)
+        else:
+            raise ValueError("Price is required for non-MKT orders.")
+        # ✅ Trigger price
+        if trigger_price is not None:
+            order_data["trgprc"] = str(trigger_price)
+        print("📦 Order Payload:", order_data)
 
+        jdata_str = json.dumps(order_data, separators=(",", ":"))
+        payload = f"jData={jdata_str}&jKey={self.session_token}"
+        self.headers["Content-Type"] = "application/x-www-form-urlencoded" 
+        try:
+            response = self.session.post(url, data=payload, headers=self.headers, timeout=10)
+            print("📨 Place Order Response:", response.text)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print("❌ Place order exception:", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
+
+        
   # ---------------- WebSocket helpers ----------------
     def _ws_on_message(self, ws, message):
         try:
@@ -563,6 +590,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
