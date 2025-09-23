@@ -325,6 +325,18 @@ class ProStocksAPI:
 
         return results
 
+    def place_order(self, order_params: dict):
+        """
+        Place an order. order_params dict must contain:
+        uid, actid, exch, tsym, qty, prc, prd, trantype, prctyp, ret
+        """
+        import urllib.parse
+        if "tsym" in order_params:
+            order_params["tsym"] = urllib.parse.quote(order_params["tsym"])
+        url = f"{self.base_url}/PlaceOrder"
+        payload = {k: str(v) for k, v in order_params.items() if v is not None}
+        return self._post_json(url, payload)
+
   # ---------------- WebSocket helpers ----------------
     def _ws_on_message(self, ws, message):
         try:
@@ -545,4 +557,5 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
