@@ -119,6 +119,16 @@ def generate_signal_for_df(df, settings):
         "suggested_qty": suggested_qty,
         "volatility": round(volatility, 2)   # ✅ Add volatility to signal dict
     }
+
+from datetime import datetime
+# --- After signal and stop_loss ---
+from trailing_sl_utils import calculate_trailing_sl
+sig["dynamic_trail_sl"] = calculate_trailing_sl(
+     entry_price=last_price,
+     current_price=last_price,
+     entry_time=last_dt,
+     signal_type=signal
+)
 # -----------------------
 # Place order from signal
 # -----------------------
@@ -163,7 +173,7 @@ def place_order_from_signal(ps_api, sig):
                 price=price,
                 bpprc=target,         # Book Profit (Target)
                 blprc=stop_loss,      # Book Loss (SL)
-                trailprc=sig.get("trail", 0),
+                trailprc=sig.get("dynamic_trail_sl", 0),
                 remarks="Auto Bracket order"
             )
         else:
@@ -388,6 +398,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
