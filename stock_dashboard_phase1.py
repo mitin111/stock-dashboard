@@ -107,8 +107,37 @@ with tab1:
 # === Tab 2: Dashboard ===
 with tab2:
     st.subheader("📊 Dashboard")
-    st.info("Coming soon...")
 
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+        st.warning("⚠️ Please login first to view Dashboard.")
+    else:
+        ps_api = st.session_state.ps_api
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 📑 Order Book")
+            try:
+                ob = ps_api.order_book()
+                if isinstance(ob, list) and len(ob) > 0:
+                    df_ob = pd.DataFrame(ob)
+                    st.dataframe(df_ob[["exch","tsym","trantype","qty","prc","prctyp","status","norenordno"]])
+                else:
+                    st.info("No orders found.")
+            except Exception as e:
+                st.error(f"❌ Error fetching Order Book: {e}")
+
+        with col2:
+            st.markdown("### 📑 Trade Book")
+            try:
+                tb = ps_api.trade_book()
+                if isinstance(tb, list) and len(tb) > 0:
+                    df_tb = pd.DataFrame(tb)
+                    st.dataframe(df_tb[["exch","tsym","trantype","fillshares","avgprc","norenordno"]])
+                else:
+                    st.info("No trades found.")
+            except Exception as e:
+                st.error(f"❌ Error fetching Trade Book: {e}")
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
@@ -600,6 +629,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
