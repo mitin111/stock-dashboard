@@ -110,8 +110,14 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"Volatility {volatility:.2f}% < 2%, skipping trade")
 
     stop_loss = trail1 if trail1 is not None else None
-    suggested_qty = trm.suggested_qty_by_mapping(last_price)  # unified with chart logic
-
+    suggested_qty = trm.suggested_qty_by_mapping(last_price)
+    # ✅ Calculate dynamic trailing SL inside the function
+    dynamic_trail_sl = calculate_trailing_sl(
+        entry_price=last_price,
+        current_price=last_price,
+        entry_time=last_dt,
+        signal_type=signal
+    )
     return {
         "signal": signal,
         "reason": " & ".join(reasons),
@@ -122,15 +128,6 @@ def generate_signal_for_df(df, settings):
         "volatility": round(volatility, 2)   # ✅ Add volatility to signal dict
     }
 
-from datetime import datetime
-# --- After signal and stop_loss ---
-from trailing_sl_utils import calculate_trailing_sl
-sig["dynamic_trail_sl"] = calculate_trailing_sl(
-     entry_price=last_price,
-     current_price=last_price,
-     entry_time=last_dt,
-     signal_type=signal
-)
 # -----------------------
 # Place order from signal
 # -----------------------
@@ -450,6 +447,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
