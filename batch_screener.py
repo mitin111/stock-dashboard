@@ -18,6 +18,8 @@ import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
+from trailing_sl_utils import calculate_trailing_sl
+import threading
 
 # -----------------------
 # Helpers
@@ -263,6 +265,56 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
     result.update({"status": "ok", **sig})
     return result
 
+# ------------------ Trailing SL loop ------------------
+if args.place_orders:
+    def start_trailing_sl():
+        from trailing_sl_utils import calculate_trailing_sl
+
+        def live_trailing_sl_loop(ps_api, interval=5):
+            import time
+            while True:
+                try:
+                    trade_book = ps_api.trade_book()
+                    if not trade_book:
+                        time.sleep(interval)
+                        continue
+
+                    for pos in trade_book:
+                        symbol = pos.get("tradingsymbol")
+                        exch = pos.get("exchange", "NSE")
+                        entry_price = float(pos.get("avgprice", 0))
+                        quantity = int(pos.get("quantity", 0))
+                        signal_type = "BUY" if pos.get("buy_or_sell") == "B" else "SELL"
+                        entry_time = pos.get("entry_time") or datetime.now()
+
+                        # Get current price
+                        ltp_data = ps_api.get_ltp(exch, symbol)
+                        current_price = float(ltp_data.get("ltp", entry_price))
+
+                        # Calculate new SL
+                        new_sl = calculate_trailing_sl(entry_price, current_price, entry_time, signal_type)
+                        existing_sl = float(pos.get("stop_loss", 0))
+
+                        if new_sl and new_sl != existing_sl:
+                            try:
+                                resp = ps_api.modify_order(
+                                    order_id=pos.get("order_id"),
+                                    blprc=new_sl
+                                )
+                                print(f"✅ SL updated for {symbol} | Old: {existing_sl} -> New: {new_sl}")
+                            except Exception as e:
+                                print(f"❌ Failed to modify SL for {symbol}: {e}")
+
+                    time.sleep(interval)
+
+                except Exception as e:
+                    print(f"❌ Error in trailing SL loop: {e}")
+                    time.sleep(interval)
+
+    # Start thread
+    t = threading.Thread(target=live_trailing_sl_loop, args=(ps_api, 5), daemon=True)
+    t.start()
+
 # -----------------------
 # Main runner
 # -----------------------
@@ -398,6 +450,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
