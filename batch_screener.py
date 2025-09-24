@@ -269,6 +269,12 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         print(f"⚠️ [{tsym}] Signal generation failed")
         return result
 
+    # ✅ Add yesterday close & today open
+    result.update({
+        "yclose": df["close"].iloc[-2] if len(df) > 1 else df["close"].iloc[-1],
+        "open": df["open"].iloc[-1]
+    })  
+
     result.update({"status": "ok", **sig})
     return result
 
@@ -484,6 +490,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
