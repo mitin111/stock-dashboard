@@ -273,7 +273,14 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
     result.update({
         "yclose": df["close"].iloc[-2] if len(df) > 1 else df["close"].iloc[-1],
         "open": df["open"].iloc[-1]
-    })  
+    })
+
+    # ✅ Skip first candle of the day
+    last_candle_time = pd.to_datetime(df["datetime"].iloc[-1])
+    if last_candle_time.strftime("%H:%M") == "09:15":
+        result.update({"status": "skip_first_candle"})
+        print(f"⏸ [{tsym}] Skipping trade on first candle of the day ({last_candle_time})")
+        return result
 
     result.update({"status": "ok", **sig})
     return result
@@ -490,6 +497,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
