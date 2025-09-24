@@ -412,6 +412,18 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         # ---------------- Order placement ----------------
         if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
             try:
+                # --- Check if symbol already has an open trade ---
+                trade_book = ps_api.trade_book() or []
+                open_symbols = [pos.get("tradingsymbol") for pos in trade_book if pos.get("quantity", 0) > 0]
+
+                if r['symbol'] in open_symbols:
+                    print(f"⚠️ Skipping order for {r['symbol']}: trade already open in trade book")
+                    all_order_responses.append({
+                        "symbol": r['symbol'],
+                        "response": {"stat": "Skipped", "emsg": "Open trade exists"}
+                    })
+                    continue
+                  
                 order_resp = place_order_from_signal(ps_api, r)
                 all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
                 print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
@@ -455,6 +467,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
