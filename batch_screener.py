@@ -413,8 +413,12 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
             try:
                 # --- Check if symbol already has an open trade ---
-                trade_book = ps_api.trade_book() or []
-                open_symbols = [pos.get("tradingsymbol") for pos in trade_book if pos.get("quantity", 0) > 0]
+                tb = ps_api.trade_book() or {}
+                trades = tb.get("trades", [])
+
+                if tb.get("stat") == "Not_Ok" and "no data" in tb.get("emsg", "").lower():
+                    trades = []
+                open_symbols = [pos.get("tsym") for pos in trades if float(pos.get("qty", 0)) > 0]
 
                 if r['symbol'] in open_symbols:
                     print(f"⚠️ Skipping order for {r['symbol']}: trade already open in trade book")
@@ -467,6 +471,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
