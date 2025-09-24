@@ -173,9 +173,6 @@ def place_order_from_signal(ps_api, sig):
             discloseqty=0,
             price_type=price_type,
             price=price,
-            bpprc=target or 0,             # optional
-            blprc=stop_loss or 0,          # optional
-            trailprc=sig.get("dynamic_trail_sl", 0),
             remarks="Auto Intraday order"
         )
         if resp.get("stat") == "Ok":
@@ -478,6 +475,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
