@@ -143,70 +143,51 @@ def generate_signal_for_df(df, settings):
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     """
-    ps_api: logged-in ProStocksAPI instance
-    sig: dict returned from process_symbol / generate_signal_for_df
-          must contain: signal, symbol, exch, last_price, suggested_qty
-          optional: stop_loss, target
+    Place only Intraday BUY/SELL orders
     """
-    if not sig or sig.get("signal") not in ["BUY", "SELL"]:
-        print(f"⚠️ Skipping order: invalid or NEUTRAL signal for {sig.get('symbol')}")
+    signal_type = sig.get("signal")
+    if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
+        print(f"⚠️ Skipping order: invalid or NEUTRAL signal for {sig.get('symbol')} (signal={signal_type})")
         return {"stat": "Skipped", "emsg": "No valid signal"}
-
+    signal_type = signal_type.upper()
+    
     qty = sig.get("suggested_qty", 1)
     last_price = sig.get("last_price", 0)
-    signal_type = sig.get("signal")  # "BUY" or "SELL"
-
+    
     price_type = "MKT" if last_price <= 0 else "LMT"
     price = last_price if price_type == "LMT" else 0.0
-
-    # --- Strategy-driven SL/Target ---
+    
     stop_loss = sig.get("stop_loss")
     target = sig.get("target")
-
-    # --- Decide product type (Cash vs Bracket) ---
-    if stop_loss and target:
-        product_type = "B"   # Bracket
-    else:
-        product_type = "C"   # Cash / Normal
-
+    
+    # ✅ Always Intraday
+    product_type = "I"
+    
     try:
-        if product_type == "B":
-            resp = ps_api.place_order(
-                buy_or_sell="B" if signal_type == "BUY" else "S",
-                product_type="B",  
-                exchange=sig.get("exch", "NSE"),
-                tradingsymbol=sig.get("symbol"),
-                quantity=qty,
-                discloseqty=0,
-                price_type=price_type,
-                price=price,
-                bpprc=target,         # Book Profit (Target)
-                blprc=stop_loss,      # Book Loss (SL)
-                trailprc=sig.get("dynamic_trail_sl", 0),
-                remarks="Auto Bracket order"
-            )
-        else:
-            resp = ps_api.place_order(
-                buy_or_sell="B" if signal_type == "BUY" else "S",
-                product_type="C",
-                exchange=sig.get("exch", "NSE"),
-                tradingsymbol=sig.get("symbol"),
-                quantity=qty,
-                discloseqty=0,
-                price_type=price_type,
-                price=price,
-                remarks="Auto Cash order"
-            )
-
+        resp = ps_api.place_order(
+            buy_or_sell="B" if signal_type == "BUY" else "S",
+            product_type=product_type,
+            exchange=sig.get("exch", "NSE"),
+            tradingsymbol=sig.get("symbol"),
+            quantity=qty,
+            discloseqty=0,
+            price_type=price_type,
+            price=price,
+            bpprc=target or 0,             # optional
+            blprc=stop_loss or 0,          # optional
+            trailprc=sig.get("dynamic_trail_sl", 0),
+            remarks="Auto Intraday order"
+        )
         if resp.get("stat") == "Ok":
-            print(f"✅ {product_type} Order placed for {sig.get('symbol')} | Qty={qty} | Type={signal_type}")
+            print(f"✅ Intraday Order placed for {sig.get('symbol')} | Qty={qty} | Type={signal_type}")
         else:
             print(f"❌ Order failed for {sig.get('symbol')}: {resp.get('emsg')}")
         return resp
-
+    
     except Exception as e:
         print(f"❌ Exception placing order for {sig.get('symbol')}: {e}")
         return {"stat": "Exception", "emsg": str(e)}
+      
 # -----------------------
 # Per-symbol processing
 # -----------------------
@@ -497,6 +478,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
