@@ -412,6 +412,19 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         # ---------------- Order placement ----------------
         if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
             try:
+                # --- Gap filter check ---
+                yclose = float(r.get("yclose", 0))
+                oprice = float(r.get("open", 0))
+                if yclose > 0 and oprice > 0:
+                    gap_pct = ((oprice - yclose) / yclose) * 100
+                    if abs(gap_pct) > 2:
+                        print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (yclose={yclose}, open={oprice})")
+                        all_order_responses.append({
+                            "symbol": r['symbol'],
+                            "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 2%"}
+                        })
+                        continue
+                      
                 # --- Check if symbol already has an open trade ---
                 tb = ps_api.trade_book() or {}
                 trades = tb.get("trades", [])
@@ -471,6 +484,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
