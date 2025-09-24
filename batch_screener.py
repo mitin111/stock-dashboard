@@ -81,7 +81,7 @@ def generate_signal_for_df(df, settings):
     day_low = day_data["low"].min() if not day_data.empty else last_price
     volatility = ((day_high - day_low) / day_low) * 100 if day_low > 0 else 0
 
-    reasons, signal = [], "NEUTRAL"
+    reasons, signal = [], None
 
     # ✅ Strong BUY
     if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
@@ -118,6 +118,9 @@ def generate_signal_for_df(df, settings):
         entry_time=last_dt,
         signal_type=signal
     )
+    if signal not in ["BUY", "SELL"]:
+       signal = None
+      
     return {
         "signal": signal,
         "reason": " & ".join(reasons),
@@ -445,6 +448,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
