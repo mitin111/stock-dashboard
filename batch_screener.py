@@ -263,8 +263,6 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
     return result
 
 
-from signal_processor import process_symbol, place_order_from_signal
-
 # ------------------ Trailing SL loop ------------------
 def start_trailing_sl(ps_api, interval=5):
     while True:
@@ -447,5 +445,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
