@@ -263,7 +263,6 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
     return result
 
 
-from prostocks_connector import ProStocksAPI, load_credentials
 from signal_processor import process_symbol, place_order_from_signal
 
 # ------------------ Trailing SL loop ------------------
@@ -448,4 +447,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
