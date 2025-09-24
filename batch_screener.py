@@ -145,9 +145,9 @@ def place_order_from_signal(ps_api, sig):
     """
     Place only Intraday BUY/SELL orders
     """
-    signal_type = sig.get("signal")
+    signal_type = sig.get("signal") if sig else None
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
-        print(f"⚠️ Skipping order: invalid or NEUTRAL signal for {sig.get('symbol')} (signal={signal_type})")
+        print(f"⚠️ Skipping order: invalid or NEUTRAL signal for {sig.get('symbol') if sig else 'unknown'} (signal={signal_type})")
         return {"stat": "Skipped", "emsg": "No valid signal"}
     signal_type = signal_type.upper()
     
@@ -441,6 +441,12 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                     "response": {"stat": "Exception", "emsg": str(e)}
                 })
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
+        else:
+            print(f"⏸ Skipping {r['symbol']} due to invalid signal: {r.get('signal')}")
+            all_order_responses.append({
+                "symbol": r['symbol'],
+                "response": {"stat": "Skipped", "emsg": f"Invalid signal {r.get('signal')}"}
+            })  
               
         if args:
             time.sleep(args.delay_between_calls)
@@ -475,6 +481,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
