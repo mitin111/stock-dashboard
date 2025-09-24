@@ -387,7 +387,10 @@ class ProStocksAPI:
 
     def trade_book(self):
         url = f"{self.base_url}/TradeBook"
-        jdata_str = json.dumps({"uid": self.userid})
+        jdata_str = json.dumps({
+            "uid": self.userid,
+            "actid": self.userid    # ✅ actid bhi bhejna zaruri hai
+        })
         payload = f"jData={jdata_str}&jKey={self.session_token}"
         try:
             resp = self.session.post(url, data=payload, headers=self.headers, timeout=10)
@@ -616,6 +619,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
