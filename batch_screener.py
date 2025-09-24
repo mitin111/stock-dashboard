@@ -109,6 +109,13 @@ def generate_signal_for_df(df, settings):
         signal = "NEUTRAL"
         reasons.append(f"Volatility {volatility:.2f}% < 2%, skipping trade")
 
+    # --- 2% move from today's open check ---
+    today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
+    price_move_pct = ((last_price - today_open) / today_open) * 100
+    if abs(price_move_pct) > 2:
+      signal = None
+      reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
+
     stop_loss = trail1 if trail1 is not None else None
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
     # ✅ Calculate dynamic trailing SL inside the function
@@ -448,6 +455,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
