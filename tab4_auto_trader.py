@@ -25,12 +25,12 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     if not isinstance(current_map, dict):
         current_map = {}
 
-    q1 = st.number_input("Q1 (170-200)", min_value=1, value=current_map.get("Q1", 10), key="q1_input")
-    q2 = st.number_input("Q2 (201-400)", min_value=1, value=current_map.get("Q2", 20), key="q2_input")
-    q3 = st.number_input("Q3 (401-600)", min_value=1, value=current_map.get("Q3", 30), key="q3_input")
-    q4 = st.number_input("Q4 (601-800)", min_value=1, value=current_map.get("Q4", 40), key="q4_input")
-    q5 = st.number_input("Q5 (801-1000)", min_value=1, value=current_map.get("Q5", 50), key="q5_input")
-    q6 = st.number_input("Q6 (Above 1000)", min_value=1, value=current_map.get("Q6", 60), key="q6_input")
+    q1 = st.number_input("Q1 (170-200)", min_value=1, value=current_map.get("Q1", 1), key="q1_input")
+    q2 = st.number_input("Q2 (201-400)", min_value=1, value=current_map.get("Q2", 1), key="q2_input")
+    q3 = st.number_input("Q3 (401-600)", min_value=1, value=current_map.get("Q3", 1), key="q3_input")
+    q4 = st.number_input("Q4 (601-800)", min_value=1, value=current_map.get("Q4", 1), key="q4_input")
+    q5 = st.number_input("Q5 (801-1000)", min_value=1, value=current_map.get("Q5", 1), key="q5_input")
+    q6 = st.number_input("Q6 (Above 1000)", min_value=1, value=current_map.get("Q6", 1), key="q6_input")
 
     qty_map = {"Q1": q1, "Q2": q2, "Q3": q3, "Q4": q4, "Q5": q5, "Q6": q6}
 
@@ -220,3 +220,4 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
