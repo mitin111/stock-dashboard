@@ -513,6 +513,8 @@ with tab5:
                     st.session_state.last_heartbeat = payload
                 elif msg_type == "ws_error":
                     placeholder_status.error(f"WS start error: {payload}")
+                    # allow retry later
+                    st.session_state.ws_started = False  
 
         placeholder_status.info(
             f"WS started: {st.session_state.get('ws_started', False)} | "
@@ -634,6 +636,7 @@ with tab5:
                 rangeslider_visible=False, rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
