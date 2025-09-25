@@ -605,25 +605,36 @@ with tab5:
         df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         # 6️⃣ Get settings & plot chart (clear old traces to avoid duplicate layers)
-        settings = get_trm_settings()
-        # reuse existing fig but clear traces (keeps layout and styles)
-        fig = st.session_state.live_fig
-        fig.data = []   # important: clear traces to prevent duplication / blink
-        fig = plot_trm_chart(
-            df_live,
-            settings,
-            rangebreaks=st.session_state["rangebreaks_obj"],
-            fig=fig,
-            show_macd_panel=True
-        )
-        st.session_state["live_fig"] = fig
-        # update xaxis layout & render
-        st.session_state.live_fig.update_xaxes(
-            showgrid=True, gridwidth=0.5, gridcolor="gray",
-            type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
-            rangeslider_visible=False, rangebreaks=rangebreaks
-        )
-        placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+        # --- Cheap guard: only continue heavy charting if candles changed or interval changed ---
+        _last_plot_key = st.session_state.get("_last_plot_key")
+        curr_key = (len(st.session_state.ohlc_x), selected_interval)
+
+        if _last_plot_key == curr_key:
+            # nothing changed — early render the last plot and skip heavy plotting
+            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+        else:
+            st.session_state["_last_plot_key"] = curr_key
+
+            settings = get_trm_settings()
+            # reuse existing fig but clear traces (keeps layout and styles)
+            fig = st.session_state.live_fig
+            fig.data = []   # important: clear traces to prevent duplication / blink
+            fig = plot_trm_chart(
+                df_live,
+                settings,
+                rangebreaks=st.session_state["rangebreaks_obj"],
+                fig=fig,
+                show_macd_panel=True
+            )
+            st.session_state["live_fig"] = fig
+            # update xaxis layout & render
+            st.session_state.live_fig.update_xaxes(
+                showgrid=True, gridwidth=0.5, gridcolor="gray",
+                type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
+                rangeslider_visible=False, rangebreaks=rangebreaks
+            )
+            placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
