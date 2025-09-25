@@ -297,7 +297,7 @@ def suggested_qty_by_mapping(price, qty_map=None):
     qty_map = {"Q1": 10, "Q2": 20, "Q3": 30, "Q4": 40, "Q5": 50, "Q6": 60}
     """
     if qty_map is None:
-        qty_map = {"Q1": 10, "Q2": 20, "Q3": 30, "Q4": 40, "Q5": 50, "Q6": 60}
+        qty_map = {"Q1": 1, "Q2": 1, "Q3": 1, "Q4": 1, "Q5": 1, "Q6": 1}
 
     if 170 <= price <= 200:
         return qty_map.get("Q1", 1)
@@ -461,4 +461,5 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
