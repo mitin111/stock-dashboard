@@ -395,9 +395,9 @@ with tab5:
                         ws.send("ping")
                         hb = datetime.now().strftime("%H:%M:%S")
                         ui_queue.put(("heartbeat", hb), block=False)
-                   except Exception:
-                       break
-                   time.sleep(20)
+                    except Exception:
+                        break
+                    time.sleep(20)
             threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
             ui_queue.put(("ws_error", str(e)), block=False)
@@ -633,6 +633,7 @@ with tab5:
                 rangeslider_visible=False, rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
