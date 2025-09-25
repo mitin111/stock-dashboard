@@ -217,10 +217,7 @@ with tab5:
         holiday_breaks.extend(times.to_pydatetime().tolist())
 
     # ✅ Guard clause: ps_api login check
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
-        st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
-        st.stop()
-        
+    
     ps_api = st.session_state.ps_api
 
     # UI controls
@@ -636,6 +633,7 @@ with tab5:
                 rangeslider_visible=False, rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
