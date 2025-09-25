@@ -18,6 +18,11 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     - require_session_settings: if True, do NOT use file fallback; settings must be in st.session_state["strategy_settings"].
     - allow_file_fallback: when False, never read settings from file.
     """
+    # --- ✅ Guard clause: check login / ps_api ---
+    if "ps_api" not in st.session_state:
+        st.warning("⚠️ Please login first before using Auto Trader.")
+        return
+        
     st.subheader("📦 Position Quantity Mapping")
 
     # Load saved qty_map (agar None ya corrupt ho to default dict lo)
@@ -230,6 +235,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
