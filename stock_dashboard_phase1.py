@@ -402,93 +402,93 @@ with tab5:
         except Exception as e:
             ui_queue.put(("ws_error", str(e)), block=False)
 
-   # --- Preload TPSeries history and auto-start WS ---
-   wl = st.session_state.selected_watchlist
-   interval = selected_interval
+     # --- Preload TPSeries history and auto-start WS ---
+     wl = st.session_state.selected_watchlist
+     interval = selected_interval
 
-   if ps_api.is_logged_in():
-       try:
-           tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
-       except Exception as e:
-           tpseries_results = []
-           st.warning(f"TPSeries fetch error: {e}")
+     if ps_api.is_logged_in():
+         try:
+             tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
+         except Exception as e:
+             tpseries_results = []
+             st.warning(f"TPSeries fetch error: {e}")
 
-       if tpseries_results:
-           df = tpseries_results[0]["data"].copy()
+         if tpseries_results:
+             df = tpseries_results[0]["data"].copy()
 
-           if "datetime" in df.columns:
-               df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-               df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
-               df = df.dropna(subset=["datetime"]).set_index("datetime")
+             if "datetime" in df.columns:
+                 df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+                 df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
+                 df = df.dropna(subset=["datetime"]).set_index("datetime")
 
-               # Numeric conversion + rename if needed
-               for col in ["into", "inth", "intl", "intc", "intv", "open", "high", "low", "close", "volume"]:
-                   if col in df.columns:
-                       df[col] = pd.to_numeric(df[col], errors="coerce")
-               if "into" in df.columns and "open" not in df.columns:
-                   df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
+                 # Numeric conversion + rename if needed
+                 for col in ["into", "inth", "intl", "intc", "intv", "open", "high", "low", "close", "volume"]:
+                     if col in df.columns:
+                         df[col] = pd.to_numeric(df[col], errors="coerce")
+                 if "into" in df.columns and "open" not in df.columns:
+                     df = df.rename(columns={"into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"})
 
-               df = df.dropna(subset=["open", "high", "low", "close"])
-               load_history_into_state(df)
-               st.write(f"📊 Loaded TPSeries candles: {len(df)}")
+                 df = df.dropna(subset=["open", "high", "low", "close"])
+                 load_history_into_state(df)
+                 st.write(f"📊 Loaded TPSeries candles: {len(df)}")
 
-               # --- Holiday breaks setup ---
-               if full_holidays is not None and len(full_holidays) > 0:
-                   holiday_breaks = []
-                   for h in full_holidays:
-                       h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
-                       holiday_breaks.append(h)
-                   holiday_values = [h.replace(tzinfo=None) for h in holiday_breaks]
+                 # --- Holiday breaks setup ---
+                 if full_holidays is not None and len(full_holidays) > 0:
+                     holiday_breaks = []
+                     for h in full_holidays:
+                         h = pd.Timestamp(h).tz_localize("Asia/Kolkata").to_pydatetime()
+                         holiday_breaks.append(h)
+                     holiday_values = [h.replace(tzinfo=None) for h in holiday_breaks]
 
-                   if "tpseries_debug_done" not in st.session_state:
-                       st.session_state.tpseries_debug_done = True
-                       # Compute naive holiday breaks for Plotly
-                       holiday_breaks_naive = []
-                       for h in full_holidays:
-                           start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                           end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                           holiday_breaks_naive.append(dict(bounds=[start.to_pydatetime().replace(tzinfo=None),
+                     if "tpseries_debug_done" not in st.session_state:
+                         st.session_state.tpseries_debug_done = True
+                         # Compute naive holiday breaks for Plotly
+                         holiday_breaks_naive = []
+                         for h in full_holidays:
+                             start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                             end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                             holiday_breaks_naive.append(dict(bounds=[start.to_pydatetime().replace(tzinfo=None),
                                                                  end.to_pydatetime().replace(tzinfo=None)]))
-                       st.session_state.holiday_values = holiday_values
-                       st.session_state.holiday_breaks = holiday_breaks_naive
+                         st.session_state.holiday_values = holiday_values
+                         st.session_state.holiday_breaks = holiday_breaks_naive
 
-               # Update X-axis & chart
-               st.session_state.live_fig.update_xaxes(
-                   showgrid=True, gridwidth=0.5, gridcolor="gray",
-                   type="date",
-                   tickformat="%d-%m-%Y\n%H:%M",
-                   tickangle=0,
-                   rangeslider_visible=False,
-                   rangebreaks=[
-                       dict(bounds=["sat", "mon"]),          # weekends
-                       dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
-                       *st.session_state.holiday_breaks
-                   ]
-               )
-               placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+                 # Update X-axis & chart
+                 st.session_state.live_fig.update_xaxes(
+                     showgrid=True, gridwidth=0.5, gridcolor="gray",
+                     type="date",
+                     tickformat="%d-%m-%Y\n%H:%M",
+                     tickangle=0,
+                     rangeslider_visible=False,
+                     rangebreaks=[
+                         dict(bounds=["sat", "mon"]),          # weekends
+                         dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
+                         *st.session_state.holiday_breaks
+                     ]
+                 )
+                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-               # --- Auto-start websocket (only once) ---
-               if symbols_for_ws and not st.session_state.get("ws_started", False):
-                   st.session_state.live_feed_flag["active"] = True
-                   st.session_state.symbols_for_ws = symbols_for_ws
-                   threading.Thread(
-                       target=start_ws,
-                       args=(symbols_for_ws, ps_api, ui_queue),
-                       daemon=True
-                   ).start()
-                   st.session_state.ws_started = True
-                   st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
+                 # --- Auto-start websocket (only once) ---
+                 if symbols_for_ws and not st.session_state.get("ws_started", False):
+                     st.session_state.live_feed_flag["active"] = True
+                     st.session_state.symbols_for_ws = symbols_for_ws
+                     threading.Thread(
+                         target=start_ws,
+                         args=(symbols_for_ws, ps_api, ui_queue),
+                         daemon=True
+                     ).start()
+                     st.session_state.ws_started = True
+                     st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
 
-           else:
-               st.error("⚠️ No datetime column in TPSeries data")
-       else:
-           st.warning("⚠️ No TPSeries data fetched")
+             else:
+                 st.error("⚠️ No datetime column in TPSeries data")
+         else:
+             st.warning("⚠️ No TPSeries data fetched")
 
-   else:
-       tpseries_results = []
-       st.warning("⚠️ Cannot fetch TPSeries: session not initialized")
-       placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-       # WebSocket start skip, session invalid
+     else:
+         tpseries_results = []
+         st.warning("⚠️ Cannot fetch TPSeries: session not initialized")
+         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
+         # WebSocket start skip, session invalid
                     
 
     # --- Drain queue and apply live ticks to last candle ---
@@ -624,6 +624,7 @@ with tab5:
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
         
+
 
 
 
