@@ -156,17 +156,21 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
             st.session_state["strategy_settings"] = strategy_settings
             symbols_with_tokens = []
+            ws_tokens = []
             for wl in all_wls_copy:
                 wl_data = ps_api.get_watchlist(wl)
                 if wl_data.get("stat") == "Ok":
                     for s in wl_data["values"]:
                         token = s.get("token", "")
+                        exch = s.get("exch", "NSE")   # ✅ exch lena zaroori hai
+                        tsym = s.get("tsym")
                         if token:
                             symbols_with_tokens.append({
-                                "tsym": s["tsym"],
-                                "exch": s["exch"],
+                                "tsym": tsym,
+                                "exch": exch,
                                 "token": token
                             })
+                            ws_tokens.append(f"{exch}|{token}")
 
             if symbols_with_tokens:
                 st.session_state["auto_trader_flag"]["running"] = True
@@ -175,7 +179,13 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     args=(symbols_with_tokens, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
                     daemon=True
                 ).start()
-                st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols from {len(all_wls_copy)} watchlists")
+                try:
+                    ps_api.ws_subscribe(ws_tokens)
+                    st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols "
+                               f"from {len(all_wls_copy)} watchlists (WS subscribed).")
+                except Exception as e:
+                    st.error(f"⚠️ Auto Trader started but WS subscribe failed: {e}")
+                    
             else:
                 st.warning("⚠️ All watchlists are empty or missing tokens; cannot start Auto Trader.")
         else:
@@ -220,6 +230,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
