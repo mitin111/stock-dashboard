@@ -18,11 +18,6 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     - require_session_settings: if True, do NOT use file fallback; settings must be in st.session_state["strategy_settings"].
     - allow_file_fallback: when False, never read settings from file.
     """
-    # --- ✅ Guard clause: check login / ps_api ---
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login first before using Auto Trader.")
-        return
-        
     st.subheader("📦 Position Quantity Mapping")
 
     # Load saved qty_map (agar None ya corrupt ho to default dict lo)
@@ -161,21 +156,17 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
             st.session_state["strategy_settings"] = strategy_settings
             symbols_with_tokens = []
-            ws_tokens = []
             for wl in all_wls_copy:
                 wl_data = ps_api.get_watchlist(wl)
                 if wl_data.get("stat") == "Ok":
                     for s in wl_data["values"]:
                         token = s.get("token", "")
-                        exch = s.get("exch", "NSE")   # ✅ exch lena zaroori hai
-                        tsym = s.get("tsym")
                         if token:
                             symbols_with_tokens.append({
-                                "tsym": tsym,
-                                "exch": exch,
+                                "tsym": s["tsym"],
+                                "exch": s["exch"],
                                 "token": token
                             })
-                            ws_tokens.append(f"{exch}|{token}")
 
             if symbols_with_tokens:
                 st.session_state["auto_trader_flag"]["running"] = True
@@ -184,13 +175,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     args=(symbols_with_tokens, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
                     daemon=True
                 ).start()
-                try:
-                    ps_api.ws_subscribe(ws_tokens)
-                    st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols "
-                               f"from {len(all_wls_copy)} watchlists (WS subscribed).")
-                except Exception as e:
-                    st.error(f"⚠️ Auto Trader started but WS subscribe failed: {e}")
-                    
+                st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols from {len(all_wls_copy)} watchlists")
             else:
                 st.warning("⚠️ All watchlists are empty or missing tokens; cannot start Auto Trader.")
         else:
@@ -235,18 +220,3 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
