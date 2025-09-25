@@ -190,28 +190,33 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 def on_new_candle(symbol, df):
     try:
         from tkp_trm_chart import calc_tkp_trm
-        settings = st.session_state.get("strategy_settings")
+        import streamlit as st
 
+        # ✅ Fetch strategy settings from session_state
+        settings = st.session_state.get("strategy_settings")
         if not settings:
             raise ValueError("❌ Strategy settings missing! Dashboard pe configure karo.")
 
-        df = calc_tkp_trm(df.copy(), settings)
-        latest_signal = df["trm_signal"].iloc[-1]
+        # ✅ Calculate TRM signals
+        df_processed = calc_tkp_trm(df.copy(), settings)
+        latest_signal = df_processed["trm_signal"].iloc[-1]
         print(f"📊 [{symbol}] Latest Signal → {latest_signal}")
 
-        # UI queue update
-        if "ui_queue" in st.session_state:
-            st.session_state["ui_queue"].put((
+        # ✅ Push update to UI queue if exists
+        ui_queue = st.session_state.get("ui_queue")
+        if ui_queue:
+            ui_queue.put((
                 "tick_candle_update",
-                {"symbol": symbol, "candles": df, "signal": latest_signal}
+                {"symbol": symbol, "candles": df_processed, "signal": latest_signal}
             ))
 
-        # Optional Auto Order
-        if st.session_state.get("auto_trade_enabled"):
+        # ✅ Optional Auto Order placement
+        if st.session_state.get("auto_trade_enabled") and "ps_api" in st.session_state:
+            ps_api = st.session_state["ps_api"]
             if latest_signal == "Buy":
-                st.session_state["ps_api"].place_order(symbol, "BUY")
+                ps_api.place_order(symbol, "BUY")
             elif latest_signal == "Sell":
-                st.session_state["ps_api"].place_order(symbol, "SELL")
+                ps_api.place_order(symbol, "SELL")
 
     except Exception as e:
         print(f"⚠️ Strategy error for {symbol}: {e}")
@@ -220,4 +225,5 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
