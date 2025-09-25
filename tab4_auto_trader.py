@@ -122,11 +122,10 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 if isinstance(order_responses, (list, tuple)):
                     for resp in order_responses:
                         log("📤 Auto Trader Order Response:", resp)
-                        if "ui_queue" in st.session_state:
-                            try:
-                                st.session_state["ui_queue"].put(("order_resp", resp))
-                            except Exception:
-                                pass
+                        try:
+                            ui_queue.put(("order_resp", resp))
+                        except Exception:
+                            pass
                 else:
                     log("ℹ️ batch_main returned non-list order_responses:", order_responses)
             except Exception as e:
@@ -225,5 +224,6 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
