@@ -177,6 +177,12 @@ with tab4:
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
+    # ===== Session & ps_api guard (put this near the top of Tab 5) =====
+    ps_api = st.session_state.get("ps_api")
+    if not ps_api or not getattr(ps_api, "is_logged_in", lambda: False)():
+        st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
+        st.stop()
+
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd, pytz
@@ -251,33 +257,34 @@ with tab5:
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
 
     # --- Figure init (only once) ---
-    if st.session_state.live_fig is None:
-        st.session_state.live_fig = go.Figure()
-        st.session_state.live_fig.add_trace(go.Candlestick(
+    if st.session_state.get("live_fig") is None:
+        fig0 = go.Figure()
+        fig0.add_trace(go.Candlestick(
             x=[], open=[], high=[], low=[], close=[],
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             name="Price"
         ))
-        st.session_state.live_fig.update_layout(
-            xaxis=dict(
-                rangeslider_visible=False,
-                type="date"
-            ),
-            yaxis=dict(
-                fixedrange=False  # y-axis zoom allowed
-            ),    
-            dragmode="pan",
-            hovermode="x unified",
-            showlegend=False,
-            template="plotly_dark",
-            height=700,
+        fig0.update_layout(
+            xaxis=dict(rangeslider_visible=False, type="date"),
+            yaxis=dict(fixedrange=False),
+            dragmode="pan", hovermode="x unified",
+            showlegend=False, template="plotly_dark", height=700,
             margin=dict(l=50, r=50, t=50, b=50),
-            plot_bgcolor="black",
-            paper_bgcolor="black",
-            font=dict(color="white"),
-            transition_duration=0,
+            plot_bgcolor="black", paper_bgcolor="black", font=dict(color="white"),
+            transition_duration=0
         )
+        st.session_state.live_fig = fig0
+    # helper to ensure a trace exists before using st.session_state.live_fig.data[0]
+    def ensure_main_trace():
+        if not getattr(st.session_state.live_fig, "data", None):
+            st.session_state.live_fig.add_trace(go.Candlestick(
+                x=[], open=[], high=[], low=[], close=[],
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
+                name="Price"
+            ))
+
 
     # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
     def load_history_into_state(df_history):
@@ -303,15 +310,13 @@ with tab5:
         ))
         st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
 
-    # --- Update last candle from tick (blink-free) ---
+    
     def update_last_candle_from_tick_local(tick, interval=1):
         try:
             ts = int(tick.get("ft") or tick.get("time") or 0)
             if ts == 0:
                 return
-            # tick timestamp is epoch seconds UTC -> convert to IST
             dt = datetime.fromtimestamp(ts, tz=pytz.UTC).astimezone(pytz.timezone("Asia/Kolkata"))
-
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
 
@@ -324,7 +329,15 @@ with tab5:
             if price is None:
                 return
 
-            # if no history loaded yet, initialize with this candle
+            # make sure ohlc arrays exist
+            if not isinstance(st.session_state.get("ohlc_x"), list):
+                st.session_state.ohlc_x = []
+                st.session_state.ohlc_o = []
+                st.session_state.ohlc_h = []
+                st.session_state.ohlc_l = []
+                st.session_state.ohlc_c = []
+
+            # use same logic as before to append/update
             if not st.session_state.ohlc_x:
                 st.session_state.ohlc_x = [candle_time]
                 st.session_state.ohlc_o = [price]
@@ -333,9 +346,7 @@ with tab5:
                 st.session_state.ohlc_c = [price]
                 st.session_state.last_tp_dt = candle_time
             else:
-                # Only update if candle_time is >= last known (allow new session)
                 if st.session_state.last_tp_dt is None or candle_time > st.session_state.last_tp_dt:
-                    # New candle after last TPSeries candle: append
                     st.session_state.ohlc_x.append(candle_time)
                     st.session_state.ohlc_o.append(price)
                     st.session_state.ohlc_h.append(price)
@@ -343,39 +354,26 @@ with tab5:
                     st.session_state.ohlc_c.append(price)
                     st.session_state.last_tp_dt = candle_time
                 elif candle_time == st.session_state.ohlc_x[-1]:
-                    # update existing last candle values
                     st.session_state.ohlc_h[-1] = max(st.session_state.ohlc_h[-1], price)
                     st.session_state.ohlc_l[-1] = min(st.session_state.ohlc_l[-1], price)
                     st.session_state.ohlc_c[-1] = price
                 else:
-                    # tick older than last candle -> ignore
                     return
 
-            # update the single trace in place (blink-free)
-            if st.session_state.live_fig.data:
-                trace = st.session_state.live_fig.data[0]
-                trace.x = st.session_state.ohlc_x
-                trace.open = st.session_state.ohlc_o
-                trace.high = st.session_state.ohlc_h
-                trace.low = st.session_state.ohlc_l
-                trace.close = st.session_state.ohlc_c
-            else:
-                st.session_state.live_fig.add_trace(go.Candlestick(
-                    x=st.session_state.ohlc_x,
-                    open=st.session_state.ohlc_o,
-                    high=st.session_state.ohlc_h,
-                    low=st.session_state.ohlc_l,
-                    close=st.session_state.ohlc_c,
-                    increasing_line_color="#26a69a",
-                    decreasing_line_color="#ef5350",
-                    name="Live"
-                ))
+            # update figure safely
+            ensure_main_trace()
+            trace = st.session_state.live_fig.data[0]
+            trace.x = st.session_state.ohlc_x
+            trace.open = st.session_state.ohlc_o
+            trace.high = st.session_state.ohlc_h
+            trace.low = st.session_state.ohlc_l
+            trace.close = st.session_state.ohlc_c
 
-            # refresh the chart
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
+    
 
     # --- WS forwarder (uses ps_api.connect_websocket) ---
     def start_ws(symbols, ps_api, ui_queue):
@@ -384,9 +382,14 @@ with tab5:
                 ui_queue.put(("tick", tick), block=False)
             except Exception:
                 pass
+
+        # Always double-check session inside thread starter
         try:
+            if not getattr(ps_api, "is_logged_in", lambda: False)():
+                ui_queue.put(("ws_error", "Session not initialized (ws)"), block=False)
+                return
             ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-            # heartbeat thread
+            # heartbeat thread inside WS
             def heartbeat(ws):
                 while True:
                     if not st.session_state.get("live_feed_flag", {}).get("active", False):
@@ -395,12 +398,13 @@ with tab5:
                         ws.send("ping")
                         hb = datetime.now().strftime("%H:%M:%S")
                         ui_queue.put(("heartbeat", hb), block=False)
-                    except Exception:
-                        break
-                    time.sleep(20)
+                   except Exception:
+                       break
+                   time.sleep(20)
             threading.Thread(target=heartbeat, args=(ws,), daemon=True).start()
         except Exception as e:
             ui_queue.put(("ws_error", str(e)), block=False)
+
 
     # --- Preload TPSeries history and auto-start WS ---
     wl = st.session_state.selected_watchlist
@@ -468,7 +472,9 @@ with tab5:
                 placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
                 # --- Auto-start websocket (only once) ---
+        
                 if symbols_for_ws and not st.session_state.get("ws_started", False):
+                    st.session_state.ws_started = True  # ✅ mark immediately (prevents double threads on rerun)
                     st.session_state.live_feed_flag["active"] = True
                     st.session_state.symbols_for_ws = symbols_for_ws
                     threading.Thread(
@@ -476,19 +482,16 @@ with tab5:
                         args=(symbols_for_ws, ps_api, ui_queue),
                         daemon=True
                     ).start()
-                    st.session_state.ws_started = True
                     st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")
 
-            else:
-                st.error("⚠️ No datetime column in TPSeries data")
-        else:
-            st.warning("⚠️ No TPSeries data fetched")
+                else:
+                    # No TPSeries or no datetime → skip WS start
+                    if not symbols_for_ws:
+                        st.warning("⚠️ No symbols available for WebSocket subscription")
+                    elif not st.session_state.get("ps_api") or not ps_api.is_logged_in():
+                        st.warning("⚠️ Cannot start WebSocket: session not initialized")
+                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
-    else:
-        tpseries_results = []
-        st.warning("⚠️ Cannot fetch TPSeries: session not initialized")
-        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-        # WebSocket start skip, session invalid
                     
 
     # --- Drain queue and apply live ticks to last candle ---
@@ -601,29 +604,28 @@ with tab5:
         # 5️⃣ Format datetime for Plotly
         df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-        # 6️⃣ Get settings & plot chart
+        # 6️⃣ Get settings & plot chart (clear old traces to avoid duplicate layers)
         settings = get_trm_settings()
+        # reuse existing fig but clear traces (keeps layout and styles)
+        fig = st.session_state.live_fig
+        fig.data = []   # important: clear traces to prevent duplication / blink
         fig = plot_trm_chart(
             df_live,
             settings,
             rangebreaks=st.session_state["rangebreaks_obj"],
-            fig=st.session_state.live_fig,   # 👈 yaha reuse karna hai
-            show_macd_panel=True             # ✅ MACD panel enable
+            fig=fig,
+            show_macd_panel=True
         )
         st.session_state["live_fig"] = fig
-        # 7️⃣ Render chart
+        # update xaxis layout & render
         st.session_state.live_fig.update_xaxes(
-            showgrid=True,
-            gridwidth=0.5,
-            gridcolor="gray",
-            type="date",
-            tickformat="%d-%m-%Y\n%H:%M",
-            tickangle=0,
-            rangeslider_visible=False,
-            rangebreaks=rangebreaks
-        )   
+            showgrid=True, gridwidth=0.5, gridcolor="gray",
+            type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
+            rangeslider_visible=False, rangebreaks=rangebreaks
+        )
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
-        
+
+
 
 
 
