@@ -50,10 +50,33 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     st.write("📌 Current Quantity Mapping:", qty_map)
 
     # === UI Polling for Live Engine Events (ui_queue) ===
+    # === UI Polling for Live Engine Events (ui_queue) ===
+    import queue, threading, time
+    from datetime import datetime
+    from tab4_auto_trader import start_ws   # ✅ your WS starter
+
+    # --- Queue & WS Init ---
     if "ui_queue" not in st.session_state:
         st.session_state["ui_queue"] = queue.Queue()
 
-    # Drain ui_queue messages (non-blocking)
+    if "_ws_stop_event" not in st.session_state:
+        st.session_state["_ws_stop_event"] = threading.Event()
+
+    # start websocket only once
+    if "ws" not in st.session_state or st.session_state["ws"] is None:
+        try:
+            ws = start_ws(
+                symbols,  # <- from your watchlist or session
+                st.session_state["ps_api"],
+                st.session_state["ui_queue"],
+                st.session_state["_ws_stop_event"]
+            )
+            st.session_state["ws"] = ws
+            st.success(f"📡 WebSocket started with {len(symbols)} symbols")
+        except Exception as e:
+            st.error(f"❌ WebSocket start failed: {e}")
+
+    # --- Poll queue events ---
     while not st.session_state["ui_queue"].empty():
         try:
             event, payload = st.session_state["ui_queue"].get_nowait()
@@ -67,16 +90,16 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.session_state["ohlc_h"] = list(df["high"])
             st.session_state["ohlc_l"] = list(df["low"])
             st.session_state["ohlc_c"] = list(df["close"])
-            st.session_state["last_tp_dt"] = st.session_state["ohlc_x"][-1] if st.session_state["ohlc_x"] else None
+            st.session_state["last_tp_dt"] = (
+                st.session_state["ohlc_x"][-1] if st.session_state["ohlc_x"] else None
+            )
             st.success("📥 TPSeries loaded into UI.")
-
-        elif event == "ws_started":
-            st.session_state["symbols_for_ws"] = payload.get("symbols")
-            st.session_state["ws_started"] = True
-            st.success(f"📡 WebSocket started for {payload.get('symbols')} symbols")
 
         elif event == "tick":
             st.write("📩 Tick:", payload)
+
+        elif event == "heartbeat":
+            st.caption(f"💓 WS Heartbeat @ {payload}")
 
         elif event == "order_resp":
             st.write(f"📤 Order response — {payload.get('symbol')}: {payload.get('response')}")
@@ -94,16 +117,11 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     # --- Auto Trader Control ---
     st.subheader("🤖 Auto Trader Control")
 
-    # Local running flag for thread (thread-safe)
     if "auto_trader_flag" not in st.session_state:
         st.session_state["auto_trader_flag"] = {"running": False}
 
-    # Define the thread target
-    def start_auto_trader_thread(symbols, all_wls_copy, running_flag, strategy_settings, ps_api):
-        """
-        Thread-safe Auto Trader runner.
-        Directly uses ps_api passed from main thread.
-        """
+    def start_auto_trader_thread(symbols, all_wls_copy, running_flag, strategy_settings, ps_api, ui_queue):
+        """Thread-safe Auto Trader runner."""
         try:
             from batch_screener import main as batch_main
         except Exception as e:
@@ -121,7 +139,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     ps_api=ps_api,
                     settings=strategy_settings,
                     symbols=symbols,
-                    place_orders=True  # ✅ Streamlit se force enable
+                    place_orders=True
                 )
                 log("⚡ Batch order_responses:", order_responses)
                 if isinstance(order_responses, (list, tuple)):
@@ -136,7 +154,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             except Exception as e:
                 log("❌ Auto Trader error:", e)
 
-            # wait 5 minutes before next run (but allow fast stop)
+            # wait 5 min before next run
             for _ in range(300):
                 if not running_flag["running"]:
                     log("🛑 Auto Trader stopped loop.")
@@ -152,11 +170,10 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             strategy_settings = (
                 st.session_state.get("strategy_settings")
                 or st.session_state.get("trm_settings")
-                or (load_trm_settings_from_file() if allow_file_fallback else None)
             )
             if not strategy_settings:
                 st.error("❌ Strategy settings not found! Configure TRM settings before starting Auto Trader.")
-                return
+                st.stop()
 
             st.session_state["strategy_settings"] = strategy_settings
             symbols_with_tokens = []
@@ -176,12 +193,14 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 st.session_state["auto_trader_flag"]["running"] = True
                 threading.Thread(
                     target=start_auto_trader_thread,
-                    args=(symbols_with_tokens, all_wls_copy, st.session_state["auto_trader_flag"], strategy_settings, ps_api),
+                    args=(symbols_with_tokens, all_wls_copy,
+                          st.session_state["auto_trader_flag"],
+                          strategy_settings, ps_api, st.session_state["ui_queue"]),
                     daemon=True
                 ).start()
                 st.success(f"✅ Auto Trader started with {len(symbols_with_tokens)} symbols from {len(all_wls_copy)} watchlists")
             else:
-                st.warning("⚠️ All watchlists are empty or missing tokens; cannot start Auto Trader.")
+                st.warning("⚠️ All watchlists empty or missing tokens.")
         else:
             st.warning("⚠️ Please login first and load watchlists.")
 
@@ -193,8 +212,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 # 🔹 Strategy Hook Registration
 def on_new_candle(symbol, df):
     try:
-        from tkp_trm_chart import calc_tkp_trm
         import streamlit as st
+        from tkp_trm_chart import calc_tkp_trm
 
         # ✅ Fetch strategy settings from session_state
         settings = st.session_state.get("strategy_settings")
@@ -229,7 +248,4 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
-
-
-
 
