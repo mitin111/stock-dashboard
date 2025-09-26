@@ -13,9 +13,44 @@ ui_queue = queue.Queue()
 AUTO_TRADE_FLAG = False
 strategy_settings_copy = None
 
+
 # Helper: safe print (so it shows in server logs)
 def log(*args, **kwargs):
     print(*args, **kwargs)
+
+
+# 🔹 WebSocket starter (define here, no import needed)
+def start_ws(symbols, ps_api, ui_queue, stop_event):
+    """Start WebSocket and push ticks into ui_queue."""
+
+    def on_tick_callback(tick):
+        try:
+            ui_queue.put(("tick", tick), block=False)
+        except Exception:
+            pass
+
+    try:
+        ws = ps_api.connect_websocket(
+            symbols, on_tick=on_tick_callback, tick_file="ticks_tab4.log"
+        )
+
+        # heartbeat thread
+        def heartbeat():
+            while not stop_event.is_set():
+                try:
+                    ws.send("ping")
+                    hb = time.strftime("%H:%M:%S")
+                    ui_queue.put(("heartbeat", hb), block=False)
+                except Exception:
+                    break
+                time.sleep(20)
+
+        threading.Thread(target=heartbeat, daemon=True).start()
+        return ws
+    except Exception as e:
+        ui_queue.put(("ws_error", str(e)), block=False)
+        return None
+
 
 def render_tab4(require_session_settings=False, allow_file_fallback=True):
     """
@@ -48,12 +83,6 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.error(f"❌ Could not save qty map: {e}")
 
     st.write("📌 Current Quantity Mapping:", qty_map)
-
-    # === UI Polling for Live Engine Events (ui_queue) ===
-    # === UI Polling for Live Engine Events (ui_queue) ===
-    import queue, threading, time
-    from datetime import datetime
-    from tab4_auto_trader import start_ws   # ✅ your WS starter
 
     # --- Queue & WS Init ---
     if "ui_queue" not in st.session_state:
@@ -248,4 +277,5 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
