@@ -377,38 +377,6 @@ with tab5:
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
-    # --- WS forwarder (uses ps_api.connect_websocket) ---
-    # --- WS forwarder (uses ps_api.connect_websocket) ---
-    def start_ws(symbols, ps_api, ui_queue):
-        def on_tick_callback(tick):
-            try:
-                ui_queue.put(("tick", tick), block=False)
-            except Exception:
-                pass
-
-        try:
-            ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
-
-            # ✅ create stop_event for heartbeat control
-            stop_event = threading.Event()
-            st.session_state["_ws_stop_event"] = stop_event  # store reference, main thread controls
-
-            def heartbeat(ws, stop_event):
-                while not stop_event.is_set():
-                    try:
-                        ws.send("ping")
-                        hb = datetime.now().strftime("%H:%M:%S")
-                        ui_queue.put(("heartbeat", hb), block=False)
-                    except Exception:
-                        break
-                    time.sleep(20)
-
-            threading.Thread(target=heartbeat, args=(ws, stop_event), daemon=True).start()
-
-        except Exception as e:
-            ui_queue.put(("ws_error", str(e)), block=False)
-
-
     # --- Preload TPSeries history and auto-start WS ---
     # Fetch history for the watchlist (first symbol)
     wl = st.session_state.selected_watchlist
@@ -487,17 +455,7 @@ with tab5:
                             ]
                         )
                         placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                        # --- Auto-start websocket (only once) ---
-                        if symbols_for_ws and not st.session_state.get("ws_started", False):
-                            st.session_state.live_feed_flag["active"] = True
-                            st.session_state.symbols_for_ws = symbols_for_ws
-                            threading.Thread(
-                                target=start_ws,
-                                args=(symbols_for_ws, ps_api, ui_queue),  # ✅ corrected here
-                                daemon=True
-                            ).start()
-                            st.session_state.ws_started = True
-                            st.info(f"📡 WebSocket started for {len(symbols_for_ws)} symbols.")   
+                        
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
@@ -635,4 +593,5 @@ with tab5:
             rangebreaks=rangebreaks
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
