@@ -152,14 +152,11 @@ def place_order_from_signal(ps_api, sig):
     signal_type = signal_type.upper()
     
     qty = sig.get("suggested_qty", 1)
-    last_price = sig.get("last_price", 0)
-    
-    price_type = "MKT" if last_price <= 0 else "LMT"
-    price = last_price if price_type == "LMT" else 0.0
-    
-    stop_loss = sig.get("stop_loss")
-    target = sig.get("target")
-    
+  
+    # ✅ Force Market order
+    price_type = "MKT"
+    price = 0.0  
+  
     # ✅ Always Intraday
     product_type = "I"
     
@@ -487,6 +484,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
