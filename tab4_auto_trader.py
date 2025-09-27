@@ -96,6 +96,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         try:
             ws = start_ws(
                 symbols,  # <- from your watchlist or session
+                st.session_state["symbols"],   # ✅ ab yaha se liya
                 st.session_state["ps_api"],
                 st.session_state["ui_queue"],
                 st.session_state["_ws_stop_event"]
@@ -277,5 +278,6 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
