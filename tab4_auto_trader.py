@@ -96,7 +96,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 st.stop()
                 
             ws = start_ws(
-                st.session_state["symbols"],   # ✅ ab yaha se liya
+                st.session_state["symbols_for_ws"],   # ✅ only string list
                 st.session_state["ps_api"],
                 st.session_state["ui_queue"],
                 st.session_state["_ws_stop_event"]
@@ -126,7 +126,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.success("📥 TPSeries loaded into UI.")
 
         elif event == "tick":
-            st.write("📩 Tick:", payload)
+            tsym = st.session_state["symbols_map"].get(payload.get("symbol"), payload.get("symbol"))
+            st.write(f"📩 Tick: {tsym} → {payload}")
 
         elif event == "heartbeat":
             st.caption(f"💓 WS Heartbeat @ {payload}")
@@ -136,6 +137,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
         elif event == "tick_candle_update":
             sym = payload.get("symbol")
+            tsym = st.session_state["symbols_map"].get(sym, sym)  # ✅ readable name
             df = payload.get("candles")
             sig = payload.get("signal")
             st.write(f"🔔 Live candle for {sym} — last signal: {sig}")
@@ -278,6 +280,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
