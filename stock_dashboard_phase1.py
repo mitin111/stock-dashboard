@@ -160,6 +160,20 @@ with tab3:
                 df = pd.DataFrame(wl_data["values"])
                 st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                 st.dataframe(df if not df.empty else pd.DataFrame())
+
+                # ✅ WebSocket + AutoTrader ke liye symbols prepare karo
+                symbols_with_tokens = []
+                for s in wl_data["values"]:
+                    token = s.get("token", "")
+                    if token:
+                        symbols_with_tokens.append({
+                            "tsym": s["tsym"],
+                            "exch": s["exch"],
+                            "token": token
+                        })
+                st.session_state["symbols"] = symbols_with_tokens
+                st.success(f"✅ {len(symbols_with_tokens)} symbols ready for WebSocket/AutoTrader")
+
             else:
                 st.warning(wl_data.get("emsg", "Failed to load watchlist."))
         else:
@@ -249,6 +263,13 @@ with tab5:
     # --- Load scrips & prepare WS symbol list ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
+
+    st.session_state["symbols_for_ws"] = symbols_for_ws
+    # ✅ add this
+    st.session_state["symbols"] = [
+        {"tsym": s["tsym"], "exch": s["exch"], "token": s["token"]}
+        for s in scrips if s.get("token")
+    ]    
 
     # --- Figure init (only once) ---
     if st.session_state.live_fig is None:
@@ -593,5 +614,6 @@ with tab5:
             rangebreaks=rangebreaks
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
