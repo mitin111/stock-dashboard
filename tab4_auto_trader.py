@@ -91,6 +91,10 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     # start websocket only once
     if "ws" not in st.session_state or st.session_state["ws"] is None:
         try:
+            if not st.session_state.get("symbols"):
+                st.error("⚠️ No symbols found. Please load a watchlist in Tab 3/5 before starting WebSocket.")
+                st.stop()
+                
             ws = start_ws(
                 st.session_state["symbols"],   # ✅ ab yaha se liya
                 st.session_state["ps_api"],
@@ -274,6 +278,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
