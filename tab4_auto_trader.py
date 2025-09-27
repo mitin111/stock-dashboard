@@ -21,8 +21,6 @@ def log(*args, **kwargs):
 
 # 🔹 WebSocket starter (define here, no import needed)
 def start_ws(symbols, ps_api, ui_queue, stop_event):
-    """Start WebSocket and push ticks into ui_queue."""
-
     def on_tick_callback(tick):
         try:
             ui_queue.put(("tick", tick), block=False)
@@ -30,23 +28,22 @@ def start_ws(symbols, ps_api, ui_queue, stop_event):
             pass
 
     try:
-        ws = ps_api.connect_websocket(
-            symbols, on_tick=on_tick_callback, tick_file="ticks_tab4.log"
-        )
+        ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
 
-        # heartbeat thread
-        def heartbeat():
+        # ✅ Heartbeat thread
+        def heartbeat(ws, stop_event):
             while not stop_event.is_set():
                 try:
                     ws.send("ping")
-                    hb = time.strftime("%H:%M:%S")
+                    hb = datetime.now().strftime("%H:%M:%S")
                     ui_queue.put(("heartbeat", hb), block=False)
                 except Exception:
                     break
                 time.sleep(20)
 
-        threading.Thread(target=heartbeat, daemon=True).start()
+        threading.Thread(target=heartbeat, args=(ws, stop_event), daemon=True).start()
         return ws
+
     except Exception as e:
         ui_queue.put(("ws_error", str(e)), block=False)
         return None
@@ -278,6 +275,7 @@ def on_new_candle(symbol, df):
 # Register the hook with ps_api
 if "ps_api" in st.session_state:
     st.session_state["ps_api"].on_new_candle = on_new_candle
+
 
 
 
