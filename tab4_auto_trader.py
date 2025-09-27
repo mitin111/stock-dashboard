@@ -278,8 +278,12 @@ def on_new_candle(symbol, df):
 
 
 # Register the hook with ps_api
-if "ps_api" in st.session_state:
-    st.session_state["ps_api"].on_new_candle = on_new_candle
+if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
+    try:
+        st.session_state["ps_api"].on_new_candle = on_new_candle
+    except Exception as e:
+        st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
