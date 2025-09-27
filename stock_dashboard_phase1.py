@@ -539,7 +539,7 @@ with tab5:
     )
 
     from plotly.subplots import make_subplots
-    from tkp_trm_chart import plot_trm_chart, get_trm_settings
+    from tkp_trm_chart import plot_trm_chart, get_trm_settings_safe
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
@@ -591,17 +591,24 @@ with tab5:
         df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         # 6️⃣ Get settings & plot chart
-        settings = get_trm_settings()
+        # 6️⃣ Get settings & plot chart
+        if "live_fig" not in st.session_state:
+            st.session_state["live_fig"] = make_subplots(rows=2, cols=1, shared_xaxes=True)
+
+        settings = get_trm_settings_safe()
         fig = plot_trm_chart(
             df_live,
             settings,
             rangebreaks=st.session_state["rangebreaks_obj"],
-            fig=st.session_state.live_fig,   # 👈 yaha reuse karna hai
-            show_macd_panel=True             # ✅ MACD panel enable
+            fig=st.session_state["live_fig"],   # 👈 reuse old fig
+            show_macd_panel=True                # ✅ MACD panel enable
         )
-        st.session_state["live_fig"] = fig
+
+        # overwrite latest fig in session_state
+        st.session_state["live_fig"] = fig  
+
         # 7️⃣ Render chart
-        st.session_state.live_fig.update_xaxes(
+        st.session_state["live_fig"].update_xaxes(
             showgrid=True,
             gridwidth=0.5,
             gridcolor="gray",
@@ -610,9 +617,11 @@ with tab5:
             tickangle=0,
             rangeslider_visible=False,
             rangebreaks=rangebreaks
-        )   
-        placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+        )
 
-
-
+        placeholder_chart.plotly_chart(
+            st.session_state["live_fig"], 
+            use_container_width=True,
+            config={"displayModeBar": False}  # optional: hide toolbar
+        )
 
