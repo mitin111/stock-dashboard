@@ -413,19 +413,22 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                         })
                         continue
                       
-                # --- Check if symbol already has an open trade ---
-                tb = ps_api.trade_book() or {}
-                trades = tb.get("trades", [])
+                # --- Check if symbol already has an open order ---
+                ob = ps_api.order_book() or {}
+                open_orders = []
+                if ob.get("stat") == "Ok":
+                    for order in ob.get("data", []):
+                        if (
+                            order.get("trading_symbol") == r['symbol'] and 
+                            order.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"]
+                        ):
+                            open_orders.append(order)
 
-                if tb.get("stat") == "Not_Ok" and "no data" in tb.get("emsg", "").lower():
-                    trades = []
-                open_symbols = [pos.get("tsym") for pos in trades if float(pos.get("qty", 0)) > 0]
-
-                if r['symbol'] in open_symbols:
-                    print(f"⚠️ Skipping order for {r['symbol']}: trade already open in trade book")
+                if open_orders:
+                    print(f"⚠️ Skipping {r['symbol']}: already has {len(open_orders)} open order(s)")
                     all_order_responses.append({
                         "symbol": r['symbol'],
-                        "response": {"stat": "Skipped", "emsg": "Open trade exists"}
+                        "response": {"stat": "Skipped", "emsg": "Open order exists"}
                     })
                     continue
                   
@@ -484,6 +487,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
