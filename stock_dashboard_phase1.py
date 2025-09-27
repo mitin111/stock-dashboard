@@ -262,15 +262,13 @@ with tab5:
 
     # --- Load scrips & prepare WS symbol list ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-    symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips]
-
+    symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips if s.get("token")]
     st.session_state["symbols_for_ws"] = symbols_for_ws
-    # ✅ add this
-    st.session_state["symbols"] = [
-        {"tsym": s["tsym"], "exch": s["exch"], "token": s["token"]}
-        for s in scrips if s.get("token")
-    ]    
-
+    # ✅ Mapping exch|token → tsym (readable name)
+    st.session_state["symbols_map"] = {
+        f"{s['exch']}|{s['token']}": s["tsym"] for s in scrips if s.get("token")
+    }    
+    
     # --- Figure init (only once) ---
     if st.session_state.live_fig is None:
         st.session_state.live_fig = go.Figure()
@@ -614,6 +612,7 @@ with tab5:
             rangebreaks=rangebreaks
         )   
         placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
