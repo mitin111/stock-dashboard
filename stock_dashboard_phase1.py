@@ -184,9 +184,17 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     from tab4_auto_trader import render_tab4
-    # require_session_settings=True will disallow using file defaults.
+    from tkp_trm_chart import trm_settings_ui
+
+    st.subheader("📀 Indicator & TRM Settings")
+
+    # AutoTrader settings panel
     render_tab4(require_session_settings=True, allow_file_fallback=False)
-        
+
+    # TRM/MACD settings panel
+    st.markdown("---")
+    trm_settings_ui()
+
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
@@ -620,3 +628,4 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
