@@ -96,11 +96,10 @@ def trm_settings_ui():
 # Background-safe access
 # =========================
 def get_trm_settings_safe():
-    """
-    Background threads or callbacks should use this function.
-    Never call st.xxx widgets here.
-    """
-    return st.session_state.get("trm_settings", {})
+    """Return TRM/MACD settings only if available, else None."""
+    if "trm_settings" not in st.session_state or not st.session_state["trm_settings"]:
+        return None
+    return st.session_state["trm_settings"]
 
 # =========================
 # Utility Functions
@@ -472,6 +471,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
