@@ -274,7 +274,7 @@ def start_trailing_sl(ps_api, interval=5):
                 symbol = pos.get("tradingsymbol")
                 exch = pos.get("exchange", "NSE")
                 entry_price = float(pos.get("avgprice", 0))
-                quantity = int(pos.get("quantity", 0))
+                existing_sl = float(pos.get("stop_loss", 0)) if pos.get("stop_loss") else 0.0
                 signal_type = "BUY" if pos.get("buy_or_sell") == "B" else "SELL"
                 entry_time = pos.get("entry_time") or datetime.now()
 
@@ -284,23 +284,31 @@ def start_trailing_sl(ps_api, interval=5):
 
                 # Calculate new SL
                 new_sl = calculate_trailing_sl(entry_price, current_price, entry_time, signal_type)
-                existing_sl = float(pos.get("stop_loss", 0))
 
                 if new_sl and new_sl != existing_sl:
                     try:
+                        # ✅ Calculate new TP if applicable
+                        new_tp = calculate_trailing_tp(pos, current_price)  # agar TP logic hai
                         resp = ps_api.modify_order(
-                            order_id=pos.get("order_id"),
-                            blprc=new_sl
+                            norenordno=pos.get("norenordno"),  # existing order ID
+                            tsym=symbol,
+                            blprc=new_sl,                     # trailing stop-loss
+                            bpprc=new_tp                      # trailing target
                         )
-                        print(f"✅ SL updated for {symbol} | Old: {existing_sl} -> New: {new_sl}")
+                        if resp.get("stat") == "Ok":
+                            print(f"✅ SL/TP updated for {symbol} | Old SL: {existing_sl} -> New SL: {new_sl} | TP: {new_tp}")
+                        else:
+                            print(f"❌ Failed to update SL/TP for {symbol}: {resp.get('emsg')}")
                     except Exception as e:
-                        print(f"❌ Failed to modify SL for {symbol}: {e}")
+                        print(f"❌ Exception updating SL/TP for {symbol}: {e}")
 
+            # Sleep between iterations
             time.sleep(interval)
 
         except Exception as e:
             print(f"❌ Error in trailing SL loop: {e}")
             time.sleep(interval)
+
 
 
 # -----------------------
@@ -487,6 +495,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
