@@ -378,7 +378,59 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             print("❌ Place order exception:", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
-                
+
+    
+    def modify_order(self, norenordno, tsym, blprc=None, bpprc=None, trgprc=None, qty=None, prc=None, prctyp=None, ret="DAY"):
+        """
+        Modify an existing order in ProStocks.
+        blprc : stop-loss
+        bpprc : target / book profit
+        trgprc: trigger price for SL-MKT / SL-LMT
+        qty   : modified quantity
+        prc   : modified price
+        prctyp: LMT / MKT / SL-MKT / SL-LMT
+        """
+        if not getattr(self, "jKey", None):
+            raise ValueError("❌ Not logged in / jKey missing")
+    
+        jdata = {
+            "norenordno": str(norenordno),
+            "tsym": tsym,
+            "blprc": blprc,
+            "bpprc": bpprc,
+            "trgprc": trgprc,
+            "qty": qty,
+            "prc": prc,
+            "prctyp": prctyp,
+            "ret": ret,
+            "uid": self.user_id  # user id from login
+        }
+    
+        # Remove None values
+        jdata = {k: v for k, v in jdata.items() if v is not None}
+    
+        payload = {
+            "jData": json.dumps(jdata),
+            "jKey": self.jKey
+        }
+    
+        url = f"{self.base_url}/ModifyOrder"
+    
+        try:
+            resp = self.session.post(url, data=payload, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+        
+            # ✅ Refresh order/trade books only if order modified successfully
+            if data.get("stat") == "Ok":
+                self._order_book = self.order_book()
+                self._trade_book = self.trade_book()
+        
+            return data
+        except Exception as e:
+            print(f"❌ ModifyOrder API failed: {e}")
+            return {"stat": "Exception", "emsg": str(e)}
+            
 
     # prostocks_connector.py ke andar ProStocksAPI class me add karein
     def is_logged_in(self):
@@ -630,6 +682,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
