@@ -118,7 +118,7 @@ with tab2:
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book()
+                ob = getattr(ps_api, "_order_book", [])
                 if isinstance(ob, list) and len(ob) > 0:
                     df_ob = pd.DataFrame(ob)
                     st.dataframe(df_ob[["exch","tsym","trantype","qty","prc","prctyp","status","norenordno"]])
@@ -130,7 +130,7 @@ with tab2:
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book()
+                tb = getattr(ps_api, "_trade_book", [])
                 if isinstance(tb, list) and len(tb) > 0:
                     df_tb = pd.DataFrame(tb)
                     st.dataframe(df_tb[["exch","tsym","trantype","fillshares","avgprc","norenordno"]])
@@ -628,4 +628,5 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
