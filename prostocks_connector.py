@@ -326,6 +326,7 @@ class ProStocksAPI:
         return results
 
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
+    def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
                     quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
                     retention='DAY', remarks=''):
         """
@@ -353,21 +354,32 @@ class ProStocksAPI:
             order_data["prc"] = str(price)
         else:
             raise ValueError("Price is required for non-MKT orders.")
+
         # ✅ Trigger price
         if trigger_price is not None:
             order_data["trgprc"] = str(trigger_price)
+
         print("📦 Order Payload:", order_data)
 
         jdata_str = json.dumps(order_data, separators=(",", ":"))
         payload = f"jData={jdata_str}&jKey={self.session_token}"
         self.headers["Content-Type"] = "application/x-www-form-urlencoded" 
+
         try:
             response = self.session.post(url, data=payload, headers=self.headers, timeout=10)
-            print("📨 Place Order Response:", response.text)
-            return response.json()
+            data = response.json()
+            print("📨 Place Order Response:", data)
+
+            # ✅ Refresh order/trade books only if order placed successfully
+            if data.get("stat") == "Ok":
+                self._order_book = self.order_book()
+                self._trade_book = self.trade_book()
+
+            return data
         except requests.exceptions.RequestException as e:
             print("❌ Place order exception:", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
+                
 
     # prostocks_connector.py ke andar ProStocksAPI class me add karein
     def is_logged_in(self):
@@ -619,6 +631,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
