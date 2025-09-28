@@ -326,7 +326,6 @@ class ProStocksAPI:
         return results
 
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
-    def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
                     quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
                     retention='DAY', remarks=''):
         """
@@ -631,6 +630,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
