@@ -146,9 +146,6 @@ def generate_signal_for_df(df, settings):
 # Place order from signal
 # -----------------------
 def place_order_from_signal(ps_api, sig):
-    """
-    Place Intraday Bracket BUY/SELL orders with SL from PAC bands
-    """
     signal_type = sig.get("signal") if sig else None
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
         print(f"⚠️ Skipping order: invalid/neutral signal for {sig.get('symbol') if sig else 'unknown'}")
@@ -160,23 +157,28 @@ def place_order_from_signal(ps_api, sig):
     exch = sig.get("exch", "NSE")
     symbol = sig.get("symbol")
 
-    # ✅ Bracket order product
     product_type = "B"
     price_type = "MKT"
     price = 0.0  
 
-    # --- Stoploss from PAC bands ---
+    # ✅ PAC stoploss logic
     pac_lower = sig.get("pac_lower")
     pac_upper = sig.get("pac_upper")
 
-    # ✅ Replace with PAC stoploss
-    if signal_type == "BUY":
-        new_sl = pos.get("pac_lower")
-        
-    elif signal_type == "SELL":
-        new_sl = pos.get("pac_upper")
-    else:
-        new_sl = None
+    stop_loss = None
+    if signal_type == "BUY" and pac_lower:
+        stop_loss = pac_lower
+    elif signal_type == "SELL" and pac_upper:
+        stop_loss = pac_upper
+
+    # ✅ Simple 1:2 RR target
+    target_price = None
+    if stop_loss:
+        if signal_type == "BUY":
+            target_price = last_price + (last_price - stop_loss) * 2
+        else:
+            target_price = last_price - (stop_loss - last_price) * 2
+
     try:
         resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
@@ -187,10 +189,13 @@ def place_order_from_signal(ps_api, sig):
             discloseqty=0,
             price_type=price_type,
             price=price,
-            trgprc=stop_loss,     # ✅ PAC-based Stoploss
-            bpprc=target_price,  # ✅ Target
+            trgprc=stop_loss,
+            bpprc=target_price,
             remarks="Auto Bracket Order with PAC SL"
         )
+        if isinstance(resp, list) and resp:   # ✅ handle list response
+            resp = resp[0]
+
         if resp.get("stat") == "Ok":
             print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
         else:
@@ -200,7 +205,6 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return {"stat": "Exception", "emsg": str(e)}
-
       
 # -----------------------
 # Per-symbol processing
@@ -506,6 +510,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
