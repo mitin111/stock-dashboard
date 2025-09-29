@@ -72,7 +72,8 @@ def generate_signal_for_df(df, settings):
     tsi_sig = last.get("trm_signal", "Neutral")
     macd_hist = float(last.get("macd_hist", 0) or 0)
     pacC = last.get("pacC", None)
-    trail1 = last.get("Trail1", None)
+    pac_lower = last.get("pacL", None)
+    pac_upper = last.get("pacU", None)
 
     # --- Volatility calculation (today's candles) ---
     latest_day = df["datetime"].iloc[-1].date()
@@ -113,20 +114,22 @@ def generate_signal_for_df(df, settings):
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
     if abs(price_move_pct) > 2:
-      signal = None
-      reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
+        signal = None
+        reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
-    stop_loss = trail1 if trail1 is not None else None
+    # ✅ Stoploss calculation using PAC bands
+    stop_loss = None
+    if signal == "BUY" and pac_lower is not None:
+        stop_loss = pac_lower
+        reasons.append(f"SL = PAC Lower {pac_lower:.2f}")
+    elif signal == "SELL" and pac_upper is not None:
+        stop_loss = pac_upper
+        reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
+
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
-    # ✅ Calculate dynamic trailing SL inside the function
-    dynamic_trail_sl = calculate_trailing_sl(
-        entry_price=last_price,
-        current_price=last_price,
-        entry_time=last_dt,
-        signal_type=signal
-    )
+
     if signal not in ["BUY", "SELL"]:
-       signal = None
+        signal = None
       
     return {
         "signal": signal,
@@ -135,7 +138,9 @@ def generate_signal_for_df(df, settings):
         "last_dt": str(last_dt),
         "stop_loss": stop_loss,
         "suggested_qty": suggested_qty,
-        "volatility": round(volatility, 2)   # ✅ Add volatility to signal dict
+        "volatility": round(volatility, 2),
+        "pac_lower": pac_lower,
+        "pac_upper": pac_upper
     }
 
 # -----------------------
@@ -143,44 +148,59 @@ def generate_signal_for_df(df, settings):
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     """
-    Place only Intraday BUY/SELL orders
+    Place Intraday Bracket BUY/SELL orders with SL from PAC bands
     """
     signal_type = sig.get("signal") if sig else None
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
-        print(f"⚠️ Skipping order: invalid or NEUTRAL signal for {sig.get('symbol') if sig else 'unknown'} (signal={signal_type})")
+        print(f"⚠️ Skipping order: invalid/neutral signal for {sig.get('symbol') if sig else 'unknown'}")
         return {"stat": "Skipped", "emsg": "No valid signal"}
     signal_type = signal_type.upper()
     
     qty = sig.get("suggested_qty", 1)
-  
-    # ✅ Force Market order
+    last_price = float(sig.get("last_price", 0))
+    exch = sig.get("exch", "NSE")
+    symbol = sig.get("symbol")
+
+    # ✅ Bracket order product
+    product_type = "B"
     price_type = "MKT"
     price = 0.0  
-  
-    # ✅ Always Intraday
-    product_type = "I"
-    
+
+    # --- Stoploss from PAC bands ---
+    pac_lower = sig.get("pac_lower")
+    pac_upper = sig.get("pac_upper")
+
+    if signal_type == "BUY":
+        stop_loss = pac_lower if pac_lower else round(last_price * 0.985, 2)
+        target_price = round(last_price * 1.015, 2)  # example: +1.5%
+    else:  # SELL
+        stop_loss = pac_upper if pac_upper else round(last_price * 1.015, 2)
+        target_price = round(last_price * 0.985, 2)  # example: -1.5%
+
     try:
         resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
             product_type=product_type,
-            exchange=sig.get("exch", "NSE"),
-            tradingsymbol=sig.get("symbol"),
+            exchange=exch,
+            tradingsymbol=symbol,
             quantity=qty,
             discloseqty=0,
             price_type=price_type,
             price=price,
-            remarks="Auto Intraday order"
+            trgprc=stop_loss,     # ✅ PAC-based Stoploss
+            bpprc=target_price,  # ✅ Target
+            remarks="Auto Bracket Order with PAC SL"
         )
         if resp.get("stat") == "Ok":
-            print(f"✅ Intraday Order placed for {sig.get('symbol')} | Qty={qty} | Type={signal_type}")
+            print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
         else:
-            print(f"❌ Order failed for {sig.get('symbol')}: {resp.get('emsg')}")
+            print(f"❌ BO failed for {symbol}: {resp.get('emsg')}")
         return resp
     
     except Exception as e:
-        print(f"❌ Exception placing order for {sig.get('symbol')}: {e}")
+        print(f"❌ Exception placing BO for {symbol}: {e}")
         return {"stat": "Exception", "emsg": str(e)}
+
       
 # -----------------------
 # Per-symbol processing
@@ -495,6 +515,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
