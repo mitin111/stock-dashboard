@@ -18,7 +18,6 @@ import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
-from trailing_sl_utils import calculate_trailing_sl
 import threading
 
 # -----------------------
@@ -170,13 +169,14 @@ def place_order_from_signal(ps_api, sig):
     pac_lower = sig.get("pac_lower")
     pac_upper = sig.get("pac_upper")
 
+    # ✅ Replace with PAC stoploss
     if signal_type == "BUY":
-        stop_loss = pac_lower if pac_lower else round(last_price * 0.985, 2)
-        target_price = round(last_price * 1.015, 2)  # example: +1.5%
-    else:  # SELL
-        stop_loss = pac_upper if pac_upper else round(last_price * 1.015, 2)
-        target_price = round(last_price * 0.985, 2)  # example: -1.5%
-
+        new_sl = pos.get("pac_lower")
+        
+    elif signal_type == "SELL":
+        new_sl = pos.get("pac_upper")
+    else:
+        new_sl = None
     try:
         resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
@@ -293,43 +293,34 @@ def start_trailing_sl(ps_api, interval=5):
             for pos in trade_book:
                 symbol = pos.get("tradingsymbol")
                 exch = pos.get("exchange", "NSE")
-                entry_price = float(pos.get("avgprice", 0))
-                existing_sl = float(pos.get("stop_loss", 0)) if pos.get("stop_loss") else 0.0
+                existing_sl = float(pos.get("stop_loss", 0) or 0.0)
                 signal_type = "BUY" if pos.get("buy_or_sell") == "B" else "SELL"
-                entry_time = pos.get("entry_time") or datetime.now()
 
-                # Get current price
-                ltp_data = ps_api.get_ltp(exch, symbol)
-                current_price = float(ltp_data.get("ltp", entry_price))
-
-                # Calculate new SL
-                new_sl = calculate_trailing_sl(entry_price, current_price, entry_time, signal_type)
+                # ✅ PAC stoploss logic
+                if signal_type == "BUY":
+                    new_sl = pos.get("pac_lower")
+                else:
+                    new_sl = pos.get("pac_upper")
 
                 if new_sl and new_sl != existing_sl:
                     try:
-                        # ✅ Calculate new TP if applicable
-                        new_tp = calculate_trailing_tp(pos, current_price)  # agar TP logic hai
                         resp = ps_api.modify_order(
-                            norenordno=pos.get("norenordno"),  # existing order ID
+                            norenordno=pos.get("norenordno"),
                             tsym=symbol,
-                            blprc=new_sl,                     # trailing stop-loss
-                            bpprc=new_tp                      # trailing target
+                            blprc=new_sl
                         )
                         if resp.get("stat") == "Ok":
-                            print(f"✅ SL/TP updated for {symbol} | Old SL: {existing_sl} -> New SL: {new_sl} | TP: {new_tp}")
+                            print(f"✅ SL updated for {symbol} | Old SL: {existing_sl} -> New SL: {new_sl}")
                         else:
-                            print(f"❌ Failed to update SL/TP for {symbol}: {resp.get('emsg')}")
+                            print(f"❌ Failed to update SL for {symbol}: {resp.get('emsg')}")
                     except Exception as e:
-                        print(f"❌ Exception updating SL/TP for {symbol}: {e}")
+                        print(f"❌ Exception updating SL for {symbol}: {e}")
 
-            # Sleep between iterations
             time.sleep(interval)
 
         except Exception as e:
             print(f"❌ Error in trailing SL loop: {e}")
             time.sleep(interval)
-
-
 
 # -----------------------
 # Main runner
@@ -515,6 +506,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
