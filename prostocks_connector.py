@@ -325,11 +325,13 @@ class ProStocksAPI:
 
         return results
 
+    
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
                     quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
+                    book_profit=None, book_loss=None, trail_price=None,
                     retention='DAY', remarks=''):
         """
-        Place an order on ProStocks
+        Place an order on ProStocks (supports normal, SL, BO/CO orders)
         """
         url = f"{self.base_url}/PlaceOrder"
         order_data = {
@@ -346,6 +348,7 @@ class ProStocksAPI:
             "ordersource": "WEB",
             "remarks": remarks
         }
+
         # ✅ Price handling
         if price_type.upper() == "MKT":
             order_data["prc"] = "0"
@@ -354,9 +357,17 @@ class ProStocksAPI:
         else:
             raise ValueError("Price is required for non-MKT orders.")
 
-        # ✅ Trigger price
+        # ✅ Stoploss trigger price
         if trigger_price is not None:
             order_data["trgprc"] = str(trigger_price)
+
+        # ✅ BO fields
+        if book_profit is not None:
+            order_data["bpprc"] = str(book_profit)
+        if book_loss is not None:
+            order_data["blprc"] = str(book_loss)
+        if trail_price is not None:
+            order_data["trailprc"] = str(trail_price)
 
         print("📦 Order Payload:", order_data)
 
@@ -686,6 +697,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
