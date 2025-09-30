@@ -281,7 +281,6 @@ def place_order_from_signal(ps_api, sig):
         atr=None             # ATR use karna hai to sig me pass karna hoga
     )
 
-
     try:
         resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
@@ -292,21 +291,25 @@ def place_order_from_signal(ps_api, sig):
             discloseqty=0,
             price_type=price_type,
             price=price,
-            trigger_price=stop_loss,   # ✅ yaha fix kiya (pehle trgprc tha)
-            book_profit=target_price,  # ✅ aapke place_order me bpprc map hoga
-            book_loss=stop_loss,       # ✅ agar BO supported hai
+            trigger_price=stop_loss,
+            book_profit=target_price,
+            book_loss=stop_loss,
             remarks="Auto Bracket Order with PAC SL"
         )
 
-        if isinstance(resp, list) and resp:   # ✅ handle list response
-            resp = resp[0]
+        # --- ✅ Normalize response safely ---
+        if isinstance(resp, list):
+            while isinstance(resp, list) and resp:
+                resp = resp[0]   # unwrap until dict
+        if not isinstance(resp, dict):
+            return {"stat": "Invalid", "emsg": f"Unexpected response type: {type(resp)}"}
 
         if resp.get("stat") == "Ok":
             print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
         else:
-            print(f"❌ BO failed for {symbol}: {resp.get('emsg')}")
+            print(f"❌ BO failed for {symbol}: {resp.get('emsg', resp)}")
         return resp
-    
+
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return {"stat": "Exception", "emsg": str(e)}
@@ -608,6 +611,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
