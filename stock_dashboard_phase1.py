@@ -138,6 +138,7 @@ with tab2:
                     st.info("No trades found.")
             except Exception as e:
                 st.error(f"❌ Error fetching Trade Book: {e}")
+
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
@@ -628,6 +629,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
