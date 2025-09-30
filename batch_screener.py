@@ -266,6 +266,10 @@ def place_order_from_signal(ps_api, sig):
     price_type = "MKT"
     price = 0.0  
 
+    # ✅ Extract PAC values
+    pac_lower = sig.get("pac_lower")
+    pac_upper = sig.get("pac_upper")
+  
     # ✅ Compute SL + TP using helper
     stop_loss, target_price = compute_safe_sl_tp(
         last_price=last_price,
@@ -612,6 +616,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
