@@ -589,14 +589,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     if "signal" in out_df.columns:
         print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
 
-    # ---------------- Order placement loop me, valid order ke baad
-    order_placed = False
-    for r in results:
-        if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
-            resp = place_order_from_signal(ps_api, r)
-            all_order_responses.append({"symbol": r['symbol'], "response": resp})
-            if resp.get("stat") == "Ok":
-                order_placed = True
 
     # ---------------- Start trailing SL thread only if at least 1 order placed
     if args and args.place_orders and order_placed:
@@ -616,6 +608,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
