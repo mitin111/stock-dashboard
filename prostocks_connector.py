@@ -454,7 +454,10 @@ class ProStocksAPI:
 
     def order_book(self):
         url = f"{self.base_url}/OrderBook"
-        jdata_str = json.dumps({"uid": self.userid})
+        jdata_str = json.dumps({
+            "uid": self.user_id,
+            "actid": self.user_id
+        })
         payload = f"jData={jdata_str}&jKey={self.session_token}"
         try:
             resp = self.session.post(url, data=payload, headers=self.headers, timeout=10)
@@ -466,8 +469,8 @@ class ProStocksAPI:
     def trade_book(self):
         url = f"{self.base_url}/TradeBook"
         jdata_str = json.dumps({
-            "uid": self.userid,
-            "actid": self.userid    # ✅ actid bhi bhejna zaruri hai
+            "uid": self.user_id,
+            "actid": self.user_id
         })
         payload = f"jData={jdata_str}&jKey={self.session_token}"
         try:
@@ -476,7 +479,7 @@ class ProStocksAPI:
             return resp.json()
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-
+   
   # ---------------- WebSocket helpers ----------------
     def _ws_on_message(self, ws, message):
         try:
@@ -697,6 +700,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
