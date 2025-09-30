@@ -118,9 +118,21 @@ with tab2:
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book()
-                if isinstance(ob, list) and len(ob) > 0:
-                    df_ob = pd.DataFrame(ob)
+                ob = ps_api.order_book() or []
+
+                # Normalize to a list of orders
+                if isinstance(ob, dict):
+                    if ob.get("stat") == "Ok":
+                        ob_list = ob.get("data", [])
+                    else:
+                        ob_list = []
+                elif isinstance(ob, list):
+                    ob_list = ob
+                else:
+                    ob_list = []
+
+                if ob_list:
+                    df_ob = pd.DataFrame(ob_list)
                     st.dataframe(df_ob[["exch","tsym","trantype","qty","prc","prctyp","status","norenordno"]])
                 else:
                     st.info("No orders found.")
@@ -130,9 +142,21 @@ with tab2:
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book()
-                if isinstance(tb, list) and len(tb) > 0:
-                    df_tb = pd.DataFrame(tb)
+                tb = ps_api.trade_book() or []
+
+                # Normalize to a list of trades
+                if isinstance(tb, dict):
+                    if tb.get("stat") == "Ok":
+                        tb_list = tb.get("data", [])
+                    else:
+                        tb_list = []
+                elif isinstance(tb, list):
+                    tb_list = tb
+                else:
+                    tb_list = []
+
+                if tb_list:
+                    df_tb = pd.DataFrame(tb_list)
                     st.dataframe(df_tb[["exch","tsym","trantype","fillshares","avgprc","norenordno"]])
                 else:
                     st.info("No trades found.")
@@ -629,6 +653,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
