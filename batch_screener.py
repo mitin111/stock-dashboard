@@ -157,7 +157,7 @@ def place_order_from_signal(ps_api, sig):
     exch = sig.get("exch", "NSE")
     symbol = sig.get("symbol")
 
-    product_type = "B"
+    product_type = "B"   # Bracket order
     price_type = "MKT"
     price = 0.0  
 
@@ -189,10 +189,12 @@ def place_order_from_signal(ps_api, sig):
             discloseqty=0,
             price_type=price_type,
             price=price,
-            trgprc=stop_loss,
-            bpprc=target_price,
+            trigger_price=stop_loss,   # ✅ yaha fix kiya (pehle trgprc tha)
+            book_profit=target_price,  # ✅ aapke place_order me bpprc map hoga
+            book_loss=stop_loss,       # ✅ agar BO supported hai
             remarks="Auto Bracket Order with PAC SL"
         )
+
         if isinstance(resp, list) and resp:   # ✅ handle list response
             resp = resp[0]
 
@@ -205,6 +207,7 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return {"stat": "Exception", "emsg": str(e)}
+
       
 # -----------------------
 # Per-symbol processing
@@ -510,6 +513,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
