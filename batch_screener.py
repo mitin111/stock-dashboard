@@ -20,6 +20,111 @@ from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
 import threading
 
+# Helper: compute safe SL and TP
+def compute_safe_sl_tp(last_price, pac_val, side,
+                       rr=2.0, max_sl_pct=0.03, min_sl_pct=0.001, atr=None):
+    """
+    last_price: float
+    pac_val: numeric or None (pac_lower for BUY, pac_upper for SELL)
+    side: "BUY" or "SELL"
+    rr: reward:risk (e.g. 2.0)
+    max_sl_pct: maximum allowed SL distance as fraction of price (e.g. 0.03 => 3%)
+    min_sl_pct: minimum allowed SL distance (avoid tiny SL)
+    atr: optional float to use as volatility-based distance fallback
+    Returns: (stop_loss, target_price)
+    """
+    try:
+        last_price = float(last_price)
+    except Exception:
+        return None, None
+
+    # normalize pac
+    pac = None
+    try:
+        if pac_val is not None and str(pac_val).strip() != "":
+            pac = float(pac_val)
+    except Exception:
+        pac = None
+
+    def cap_dist(dist):
+        # cap dist between min and max
+        max_dist = last_price * max_sl_pct
+        min_dist = last_price * min_sl_pct
+        if dist > max_dist:
+            return max_dist
+        if dist < min_dist:
+            return min_dist
+        return dist
+
+    stop = None
+
+    if side == "BUY":
+        if pac is not None and pac < last_price:
+            dist = last_price - pac
+            if (dist / last_price) > max_sl_pct:
+                # pac too far: cap
+                dist = cap_dist(dist)
+                stop = last_price - dist
+            elif (dist / last_price) < min_sl_pct:
+                # pac too tight: expand
+                dist = cap_dist(dist)
+                stop = last_price - dist
+            else:
+                stop = pac
+        else:
+            # invalid or missing pac -> use atr or percent
+            if atr:
+                try:
+                    dist = float(atr)
+                except Exception:
+                    dist = last_price * max_sl_pct
+            else:
+                dist = last_price * max_sl_pct
+            dist = cap_dist(dist)
+            stop = last_price - dist
+
+    else:  # SELL
+        if pac is not None and pac > last_price:
+            dist = pac - last_price
+            if (dist / last_price) > max_sl_pct:
+                dist = cap_dist(dist)
+                stop = last_price + dist
+            elif (dist / last_price) < min_sl_pct:
+                dist = cap_dist(dist)
+                stop = last_price + dist
+            else:
+                stop = pac
+        else:
+            # invalid pac -> use atr or percent
+            if atr:
+                try:
+                    dist = float(atr)
+                except Exception:
+                    dist = last_price * max_sl_pct
+            else:
+                dist = last_price * max_sl_pct
+            dist = cap_dist(dist)
+            stop = last_price + dist
+
+    # final safety: ensure stop is sensical
+    if side == "BUY" and stop >= last_price:
+        stop = last_price - (last_price * max_sl_pct)
+    if side == "SELL" and stop <= last_price:
+        stop = last_price + (last_price * max_sl_pct)
+
+    # calculate target from RR
+    if side == "BUY":
+        dist = last_price - stop
+        target = last_price + (dist * rr)
+    else:
+        dist = stop - last_price
+        target = last_price - (dist * rr)
+
+    # Round to 2 decimals (INR typical); adjust if you need different precision
+    stop = round(stop, 2)
+    target = round(target, 2)
+    return stop, target
+
 # -----------------------
 # Helpers
 # -----------------------
@@ -161,23 +266,17 @@ def place_order_from_signal(ps_api, sig):
     price_type = "MKT"
     price = 0.0  
 
-    # ✅ PAC stoploss logic
-    pac_lower = sig.get("pac_lower")
-    pac_upper = sig.get("pac_upper")
+    # ✅ Compute SL + TP using helper
+    stop_loss, target_price = compute_safe_sl_tp(
+        last_price=last_price,
+        pac_val=pac_lower if signal_type == "BUY" else pac_upper,
+        side=signal_type,
+        rr=2.0,              # Reward:Risk ratio
+        max_sl_pct=0.03,     # Max 3% SL
+        min_sl_pct=0.001,    # Min 0.1% SL
+        atr=None             # ATR use karna hai to sig me pass karna hoga
+    )
 
-    stop_loss = None
-    if signal_type == "BUY" and pac_lower:
-        stop_loss = pac_lower
-    elif signal_type == "SELL" and pac_upper:
-        stop_loss = pac_upper
-
-    # ✅ Simple 1:2 RR target
-    target_price = None
-    if stop_loss:
-        if signal_type == "BUY":
-            target_price = last_price + (last_price - stop_loss) * 2
-        else:
-            target_price = last_price - (stop_loss - last_price) * 2
 
     try:
         resp = ps_api.place_order(
@@ -513,6 +612,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
