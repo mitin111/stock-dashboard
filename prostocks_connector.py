@@ -118,6 +118,7 @@ class ProStocksAPI:
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
                     self.userid = data["uid"]
+                    self.actid = data["uid"]   # <-- add this
                     self.headers["Authorization"] = self.session_token
                     print("✅ Login Success!")
                     return True, self.session_token
@@ -702,6 +703,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
