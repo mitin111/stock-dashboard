@@ -343,7 +343,7 @@ class ProStocksAPI:
             "trantype": buy_or_sell,
             "prctyp": price_type,
             "ret": retention,
-            "ordersource": "API",
+            "ordersource": "WEB",
             "remarks": remarks
         }
         # ✅ Price handling
@@ -368,6 +368,10 @@ class ProStocksAPI:
             response = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             data = response.json()
             print("📨 Place Order Response:", data)
+
+            # ✅ Sometimes API returns a list instead of dict
+            if isinstance(data, list) and len(data) > 0:
+                data = data[0]
 
             # ✅ Refresh order/trade books only if order placed successfully
             if data.get("stat") == "Ok":
@@ -682,6 +686,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
