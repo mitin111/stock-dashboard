@@ -104,6 +104,9 @@ with tab1:
         "auto_exit_time": auto_exit_time.strftime("%H:%M")
     })
 
+import numpy as np
+import json
+
 # === Tab 2: Dashboard ===
 with tab2:
     st.subheader("📊 Dashboard")
@@ -128,7 +131,6 @@ with tab2:
                 if isinstance(ob, list):
                     ob_list = ob
                 elif isinstance(ob, dict):
-                    # Agar 'data' present hai aur list hai
                     if "data" in ob and isinstance(ob["data"], list):
                         ob_list = ob["data"]
                     else:
@@ -138,9 +140,9 @@ with tab2:
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
-                    # ✅ Safe reindex (fill missing columns)
+                    # ✅ Ensure all columns exist with NaN if missing
                     show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc"]
-                    df_ob = df_ob.reindex(columns=show_cols)
+                    df_ob = df_ob.reindex(columns=show_cols, fill_value=np.nan)
                     st.dataframe(df_ob)   # ✅ Show full table
                 else:
                     st.info("📭 No orders found.")
@@ -157,7 +159,6 @@ with tab2:
                 if isinstance(tb, str):
                     tb = json.loads(tb)
 
-                # Force normalize → always list
                 if isinstance(tb, list):
                     tb_list = tb
                 elif isinstance(tb, dict):
@@ -171,40 +172,8 @@ with tab2:
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
                     show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"]
-                    df_tb = df_tb.reindex(columns=show_cols)
+                    df_tb = df_tb.reindex(columns=show_cols, fill_value=np.nan)
                     st.dataframe(df_tb)
-                else:
-                    st.info("📭 No trades found.")
-            except Exception as e:
-                st.error(f"❌ Error fetching Trade Book: {e}")
-
-
-        # ------------------- TRADE BOOK -------------------
-        with col2:
-            st.markdown("### 📑 Trade Book")
-            try:
-                tb = ps_api.trade_book()
-
-                # ✅ Parse JSON if string
-                if isinstance(tb, str):
-                    tb = json.loads(tb)
-
-                # Force normalize → always list
-                if isinstance(tb, list):
-                    tb_list = tb
-                elif isinstance(tb, dict):
-                    if "data" in tb and isinstance(tb["data"], list):
-                        tb_list = tb["data"]
-                    else:
-                        tb_list = [tb] if tb else []
-                else:
-                    tb_list = []
-
-                if tb_list:
-                    df_tb = pd.DataFrame(tb_list)
-                    show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"]
-                    df_show = df_tb.reindex(columns=show_cols)   # fills missing cols with NaN
-                    st.dataframe(df_show)
                 else:
                     st.info("📭 No trades found.")
             except Exception as e:
@@ -701,6 +670,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
