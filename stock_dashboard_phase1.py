@@ -119,26 +119,17 @@ with tab2:
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book() or []
+                ob = ps_api.order_book()
 
-                # Normalize response
-                if isinstance(ob, dict):
-                    if ob.get("stat") == "Ok":
-                        ob_list = ob.get("data", [])
-                    else:
-                        ob_list = []
-                elif isinstance(ob, list):
-                    ob_list = ob
-                else:
-                    ob_list = []
+                # Force normalize → always list
+                ob_list = ob if isinstance(ob, list) else ob.get("data", []) if isinstance(ob, dict) else []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
-                    show_cols = [c for c in ["exch","tsym","trantype","qty","prc","prctyp","status","norenordno"] if c in df_ob.columns]
+                    show_cols = [c for c in ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc"] if c in df_ob.columns]
                     st.dataframe(df_ob[show_cols])
                 else:
-                    msg = ob.get("emsg") if isinstance(ob, dict) else None
-                    st.info(f"📭 No orders found. {msg if msg else ''}")
+                    st.info("📭 No orders found.")
             except Exception as e:
                 st.error(f"❌ Error fetching Order Book: {e}")
 
@@ -146,26 +137,17 @@ with tab2:
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book() or []
+                tb = ps_api.trade_book()
 
-                # Normalize response
-                if isinstance(tb, dict):
-                    if tb.get("stat") == "Ok":
-                        tb_list = tb.get("data", [])
-                    else:
-                        tb_list = []
-                elif isinstance(tb, list):
-                    tb_list = tb
-                else:
-                    tb_list = []
+                # Force normalize → always list
+                tb_list = tb if isinstance(tb, list) else tb.get("data", []) if isinstance(tb, dict) else []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
-                    show_cols = [c for c in ["exch","tsym","trantype","fillshares","avgprc","norenordno"] if c in df_tb.columns]
+                    show_cols = [c for c in ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"] if c in df_tb.columns]
                     st.dataframe(df_tb[show_cols])
                 else:
-                    msg = tb.get("emsg") if isinstance(tb, dict) else None
-                    st.info(f"📭 No trades found. {msg if msg else ''}")
+                    st.info("📭 No trades found.")
             except Exception as e:
                 st.error(f"❌ Error fetching Trade Book: {e}")
 
@@ -660,6 +642,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
