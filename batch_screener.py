@@ -297,12 +297,8 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order with PAC SL"
         )
 
-        # --- ✅ Normalize response safely ---
-        if isinstance(resp, list):
-            while isinstance(resp, list) and resp:
-                resp = resp[0]   # unwrap until dict
-        if not isinstance(resp, dict):
-            return {"stat": "Invalid", "emsg": f"Unexpected response type: {type(resp)}"}
+        # --- ✅ Use normalize_response helper ---
+        resp = ps_api.normalize_response(resp)
 
         if resp.get("stat") == "Ok":
             print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
@@ -611,6 +607,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
