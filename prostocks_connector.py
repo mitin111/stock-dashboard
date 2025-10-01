@@ -326,6 +326,20 @@ class ProStocksAPI:
 
         return results
 
+    def normalize_response(self, resp):
+        """
+        Normalize ProStocks API response into a single dict.
+        Handles dict, list-of-dicts, nested list, empty list.
+        """
+        if resp is None:
+            return {}
+        # unwrap nested lists
+        while isinstance(resp, list) and resp:
+            resp = resp[0]
+        if isinstance(resp, dict):
+            return resp
+        return {}
+
     
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
                     quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
@@ -380,6 +394,7 @@ class ProStocksAPI:
             response = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             data = response.json()
             print("📨 Place Order Response:", data)
+            data = self.normalize_response(data)   # ✅ cleanup
 
             # ✅ Sometimes API returns a list instead of dict
             if isinstance(data, list) and len(data) > 0:
@@ -436,6 +451,7 @@ class ProStocksAPI:
             resp = self.session.post(url, data=payload, timeout=5)
             resp.raise_for_status()
             data = resp.json()
+            data = self.normalize_response(data)   # ✅ cleanup
         
             # ✅ Refresh order/trade books only if order modified successfully
             if data.get("stat") == "Ok":
@@ -465,6 +481,7 @@ class ProStocksAPI:
             resp = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             print("📨 Order Book Response:", resp.text)
             return resp.json()
+            return self.normalize_response(data)   # ✅ cleanup
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
@@ -479,6 +496,7 @@ class ProStocksAPI:
             resp = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             print("📨 Trade Book Response:", resp.text)
             return resp.json()
+            return self.normalize_response(data)   # ✅ cleanup
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
     
@@ -703,6 +721,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
