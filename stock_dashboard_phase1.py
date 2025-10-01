@@ -115,33 +115,58 @@ with tab2:
 
         col1, col2 = st.columns(2)
 
+        # ------------------- ORDER BOOK -------------------
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book()
-                ob_list = ob.get("data", []) if ob.get("stat") == "Ok" else []
+                ob = ps_api.order_book() or []
+
+                # Normalize response
+                if isinstance(ob, dict):
+                    if ob.get("stat") == "Ok":
+                        ob_list = ob.get("data", [])
+                    else:
+                        ob_list = []
+                elif isinstance(ob, list):
+                    ob_list = ob
+                else:
+                    ob_list = []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
-                    st.dataframe(df_ob[["exch","tsym","trantype","qty","prc","prctyp","status","norenordno"]])
+                    show_cols = [c for c in ["exch","tsym","trantype","qty","prc","prctyp","status","norenordno"] if c in df_ob.columns]
+                    st.dataframe(df_ob[show_cols])
                 else:
-                    st.info("No orders found.")
+                    st.info("📭 No orders found.")
             except Exception as e:
                 st.error(f"❌ Error fetching Order Book: {e}")
 
+        # ------------------- TRADE BOOK -------------------
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book()
-                tb_list = tb.get("data", []) if tb.get("stat") == "Ok" else []
+                tb = ps_api.trade_book() or []
+
+                # Normalize response
+                if isinstance(tb, dict):
+                    if tb.get("stat") == "Ok":
+                        tb_list = tb.get("data", [])
+                    else:
+                        tb_list = []
+                elif isinstance(tb, list):
+                    tb_list = tb
+                else:
+                    tb_list = []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
-                    st.dataframe(df_tb[["exch","tsym","trantype","fillshares","avgprc","norenordno"]])
+                    show_cols = [c for c in ["exch","tsym","trantype","fillshares","avgprc","norenordno"] if c in df_tb.columns]
+                    st.dataframe(df_tb[show_cols])
                 else:
-                    st.info("No trades found.")
+                    st.info("📭 No trades found.")
             except Exception as e:
                 st.error(f"❌ Error fetching Trade Book: {e}")
+
 
 # === Tab 3: Market Data ===
 with tab3:
@@ -633,6 +658,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
