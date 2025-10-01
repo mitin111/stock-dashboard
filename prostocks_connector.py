@@ -480,7 +480,7 @@ class ProStocksAPI:
         try:
             resp = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             print("📨 Order Book Response:", resp.text)
-            return resp.json()
+            data = resp.json()
             return self.normalize_response(data)   # ✅ cleanup
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
@@ -495,11 +495,10 @@ class ProStocksAPI:
         try:
             resp = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             print("📨 Trade Book Response:", resp.text)
-            return resp.json()
+            data = resp.json()
             return self.normalize_response(data)   # ✅ cleanup
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
-    
    
   # ---------------- WebSocket helpers ----------------
     def _ws_on_message(self, ws, message):
@@ -721,6 +720,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
