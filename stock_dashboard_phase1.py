@@ -118,18 +118,8 @@ with tab2:
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book() or []
-
-                # Normalize to a list of orders
-                if isinstance(ob, dict):
-                    if ob.get("stat") == "Ok":
-                        ob_list = ob.get("data", [])
-                    else:
-                        ob_list = []
-                elif isinstance(ob, list):
-                    ob_list = ob
-                else:
-                    ob_list = []
+                ob = ps_api.order_book()
+                ob_list = ob.get("data", []) if ob.get("stat") == "Ok" else []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
@@ -142,18 +132,8 @@ with tab2:
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book() or []
-
-                # Normalize to a list of trades
-                if isinstance(tb, dict):
-                    if tb.get("stat") == "Ok":
-                        tb_list = tb.get("data", [])
-                    else:
-                        tb_list = []
-                elif isinstance(tb, list):
-                    tb_list = tb
-                else:
-                    tb_list = []
+                tb = ps_api.trade_book()
+                tb_list = tb.get("data", []) if tb.get("stat") == "Ok" else []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
@@ -653,6 +633,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
