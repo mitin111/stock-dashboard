@@ -120,12 +120,26 @@ with tab2:
             st.markdown("### 📑 Order Book")
             try:
                 ob = ps_api.order_book()
-                ob_list = ob if isinstance(ob, list) else ob.get("data", []) if isinstance(ob, dict) else []
+
+                # ✅ Parse JSON if string
+                if isinstance(ob, str):
+                    ob = json.loads(ob)
+
+                # Force normalize → always list
+                if isinstance(ob, list):
+                    ob_list = ob
+                elif isinstance(ob, dict):
+                    if "data" in ob and isinstance(ob["data"], list):
+                        ob_list = ob["data"]
+                    else:
+                        ob_list = [ob] if ob else []
+                else:
+                    ob_list = []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
                     show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc"]
-                    df_show = df_ob.reindex(columns=show_cols)   # ✅ Safe reindex (fills missing cols with NaN)
+                    df_show = df_ob.reindex(columns=show_cols)   # fills missing cols with NaN
                     st.dataframe(df_show)
                 else:
                     st.info("📭 No orders found.")
@@ -137,12 +151,26 @@ with tab2:
             st.markdown("### 📑 Trade Book")
             try:
                 tb = ps_api.trade_book()
-                tb_list = tb if isinstance(tb, list) else tb.get("data", []) if isinstance(tb, dict) else []
+
+                # ✅ Parse JSON if string
+                if isinstance(tb, str):
+                    tb = json.loads(tb)
+
+                # Force normalize → always list
+                if isinstance(tb, list):
+                    tb_list = tb
+                elif isinstance(tb, dict):
+                    if "data" in tb and isinstance(tb["data"], list):
+                        tb_list = tb["data"]
+                    else:
+                        tb_list = [tb] if tb else []
+                else:
+                    tb_list = []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
                     show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"]
-                    df_show = df_tb.reindex(columns=show_cols)   # ✅ Safe reindex
+                    df_show = df_tb.reindex(columns=show_cols)   # fills missing cols with NaN
                     st.dataframe(df_show)
                 else:
                     st.info("📭 No trades found.")
@@ -640,6 +668,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
