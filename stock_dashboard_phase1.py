@@ -120,14 +120,13 @@ with tab2:
             st.markdown("### 📑 Order Book")
             try:
                 ob = ps_api.order_book()
-
-                # Force normalize → always list
                 ob_list = ob if isinstance(ob, list) else ob.get("data", []) if isinstance(ob, dict) else []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
-                    show_cols = [c for c in ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc"] if c in df_ob.columns]
-                    st.dataframe(df_ob[show_cols])
+                    show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc"]
+                    df_show = df_ob.reindex(columns=show_cols)   # ✅ Safe reindex (fills missing cols with NaN)
+                    st.dataframe(df_show)
                 else:
                     st.info("📭 No orders found.")
             except Exception as e:
@@ -138,14 +137,13 @@ with tab2:
             st.markdown("### 📑 Trade Book")
             try:
                 tb = ps_api.trade_book()
-
-                # Force normalize → always list
                 tb_list = tb if isinstance(tb, list) else tb.get("data", []) if isinstance(tb, dict) else []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
-                    show_cols = [c for c in ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"] if c in df_tb.columns]
-                    st.dataframe(df_tb[show_cols])
+                    show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"]
+                    df_show = df_tb.reindex(columns=show_cols)   # ✅ Safe reindex
+                    st.dataframe(df_show)
                 else:
                     st.info("📭 No trades found.")
             except Exception as e:
@@ -642,6 +640,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
