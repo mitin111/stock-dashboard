@@ -376,7 +376,7 @@ with tab5:
             font=dict(color="white"),
             transition_duration=0,
         )
-    # --- Open / Close Chart buttons ---
+    
     # --- Open / Close Chart buttons ---
     col1, col2 = st.columns(2)
     with col1:
@@ -389,26 +389,28 @@ with tab5:
     # --- Chart placeholder (create once) ---
     if "chart_placeholder" not in st.session_state:
         st.session_state["chart_placeholder"] = st.empty()
-
     chart_placeholder = st.session_state["chart_placeholder"]
 
-    # --- Chart render if open ---
+    # --- Chart render ---
     if st.session_state.get("chart_open", False):
-        st.success("✅ Live Chart Opened")
+        # Clear previous content to avoid duplicate messages
+        chart_placeholder.empty()
         try:
             exch, token = selected_symbol_key.split("|")
             df = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, max_days=5)
             if df is not None and not df.empty:
-                # Use candlestick if live_fig exists
                 if st.session_state.get("live_fig") is not None:
                     chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
                 else:
                     chart_placeholder.line_chart(df["close"])
+                chart_placeholder.success("✅ Live Chart Opened")
             else:
                 chart_placeholder.warning("⚠️ No TPSeries data available.")
         except Exception as e:
             chart_placeholder.warning(f"⚠️ Chart fetch error: {e}")
     else:
+        # Clear previous chart when closed
+        chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
 
 
@@ -734,6 +736,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
