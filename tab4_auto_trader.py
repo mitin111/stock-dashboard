@@ -106,6 +106,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         except Exception as e:
             st.error(f"❌ WebSocket start failed: {e}")
 
+    show_ticks = st.checkbox("Show raw ticks (debug)", value=False)
+
     # --- Poll queue events ---
     while not st.session_state["ui_queue"].empty():
         try:
@@ -126,9 +128,12 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.success("📥 TPSeries loaded into UI.")
 
         elif event == "tick":
-            tsym = st.session_state["symbols_map"].get(payload.get("symbol"), payload.get("symbol"))
-            st.write(f"📩 Tick: {tsym} → {payload}")
-
+            if show_ticks:  # ✅ ticks only when debugging
+                tsym = st.session_state["symbols_map"].get(
+                    payload.get("symbol"), payload.get("symbol")
+                )
+                st.write(f"📩 Tick: {tsym} → {payload}")
+           
         elif event == "heartbeat":
             st.caption(f"💓 WS Heartbeat @ {payload}")
 
@@ -283,6 +288,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
