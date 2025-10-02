@@ -311,14 +311,39 @@ with tab5:
     placeholder_chart = st.empty()
 
     # --- Load scrips & prepare WS symbol list ---
+    # --- Load scrips & prepare WS symbol list ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-    symbols_for_ws = [f"{s['exch']}|{s['token']}" for s in scrips if s.get("token")]
-    st.session_state["symbols_for_ws"] = symbols_for_ws
-    # ✅ Mapping exch|token → tsym (readable name)
-    st.session_state["symbols_map"] = {
-        f"{s['exch']}|{s['token']}": s["tsym"] for s in scrips if s.get("token")
-    }    
-    
+    symbols_map = {f"{s['exch']}|{s['token']}": s["tsym"] for s in scrips if s.get("token")}
+
+    if not symbols_map:
+        st.warning("⚠️ No symbols found in this watchlist.")
+        st.stop()
+
+    # --- Select symbol from current watchlist ---
+    symbol_keys = list(symbols_map.keys())
+    symbol_labels = list(symbols_map.values())
+
+    default_symbol = st.session_state.get("selected_symbol", symbol_keys[0])
+    selected_label = st.selectbox("📌 Select Symbol", symbol_labels,
+                                  index=symbol_labels.index(symbols_map.get(default_symbol, symbol_labels[0])))
+
+    # Map back to exch|token
+    selected_symbol_key = [k for k, v in symbols_map.items() if v == selected_label][0]
+    st.session_state["selected_symbol"] = selected_symbol_key
+
+    # Save mapping (needed later for ticks)
+    st.session_state["symbols_map"] = symbols_map
+    st.session_state["symbols_for_ws"] = [selected_symbol_key]
+
+    # --- TPSeries fetch for selected symbol ---
+    try:
+        exch, token = selected_symbol_key.split("|")
+        tsym = symbols_map[selected_symbol_key]
+        tpseries_results = ps_api.fetch_tpseries(tsym, exch, interval=selected_interval)
+    except Exception as e:
+        tpseries_results = []
+        st.warning(f"TPSeries fetch error: {e}")
+
     # --- Figure init (only once) ---
     if st.session_state.live_fig is None:
         st.session_state.live_fig = go.Figure()
@@ -670,6 +695,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
