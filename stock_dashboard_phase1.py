@@ -339,7 +339,12 @@ with tab5:
     try:
         exch, token = selected_symbol_key.split("|")
         tsym = symbols_map[selected_symbol_key]
-        tpseries_results = ps_api.fetch_tpseries(tsym, exch, interval=selected_interval)
+        tpseries_results = ps_api.fetch_full_tpseries(
+            exch, 
+            token, 
+            interval=selected_interval, 
+            max_days=5
+        )   
     except Exception as e:
         tpseries_results = []
         st.warning(f"TPSeries fetch error: {e}")
@@ -695,6 +700,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
