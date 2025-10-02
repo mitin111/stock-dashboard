@@ -311,7 +311,6 @@ with tab5:
     placeholder_chart = st.empty()
 
     # --- Load scrips & prepare WS symbol list ---
-    # --- Load scrips & prepare WS symbol list ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_map = {f"{s['exch']}|{s['token']}": s["tsym"] for s in scrips if s.get("token")}
 
@@ -377,6 +376,31 @@ with tab5:
             font=dict(color="white"),
             transition_duration=0,
         )
+    # --- Open / Close Chart buttons ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📊 Open Chart"):
+            st.session_state["chart_open"] = True
+    with col2:
+        if st.button("❌ Close Chart"):
+            st.session_state["chart_open"] = False
+
+    # --- Chart render if open ---
+    if st.session_state.get("chart_open", False):
+        st.success("✅ Live Chart Opened")
+        chart_placeholder = st.empty()
+        try:
+            exch, token = selected_symbol_key.split("|")
+            df = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, max_days=5)
+            if df is not None and not df.empty:
+                chart_placeholder.line_chart(df["close"])
+            else:
+                chart_placeholder.warning("⚠️ No TPSeries data available.")
+        except Exception as e:
+            chart_placeholder.warning(f"⚠️ Chart fetch error: {e}")
+    else:
+        st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
+
 
     # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
     def load_history_into_state(df_history):
@@ -700,6 +724,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
