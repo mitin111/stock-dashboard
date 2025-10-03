@@ -296,6 +296,9 @@ def place_order_from_signal(ps_api, sig):
             book_loss=stop_loss,
             remarks="Auto Bracket Order with PAC SL"
         )
+        # --- Turant fetch karke placeholders update ---
+        ps_api._order_book = ps_api.order_book()
+        ps_api._trade_book = ps_api.trade_book()
 
         # --- ✅ Use normalize_response helper ---
         resp = ps_api.normalize_response(resp)
@@ -607,6 +610,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
