@@ -335,7 +335,7 @@ class ProStocksAPI:
             return []
 
         # Agar string aaya, convert to dict/list
-            if isinstance(resp, str):
+        if isinstance(resp, str):
             try:
                 resp = json.loads(resp)
             except:
@@ -741,6 +741,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
