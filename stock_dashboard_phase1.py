@@ -122,12 +122,12 @@ with tab2:
             st.markdown("### 📑 Order Book")
             try:
                 ob = ps_api.order_book()
-                
+
                 # ✅ Parse JSON if string
                 if isinstance(ob, str):
                     ob = json.loads(ob)
-                
-                # Force normalize → always list
+
+                # ✅ Force normalize → always list
                 if isinstance(ob, list):
                     ob_list = ob
                 elif isinstance(ob, dict):
@@ -143,7 +143,9 @@ with tab2:
                     # ✅ Ensure all columns exist with NaN if missing
                     show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc"]
                     df_ob = df_ob.reindex(columns=show_cols, fill_value=np.nan)
-                    st.dataframe(df_ob)   # ✅ Show full table
+
+                    # ✅ Wider + taller table
+                    st.dataframe(df_ob, use_container_width=True, height=400)
                 else:
                     st.info("📭 No orders found.")
             except Exception as e:
@@ -154,7 +156,7 @@ with tab2:
             st.markdown("### 📑 Trade Book")
             try:
                 tb = ps_api.trade_book()
-                
+
                 # ✅ Parse JSON if string
                 if isinstance(tb, str):
                     tb = json.loads(tb)
@@ -173,7 +175,9 @@ with tab2:
                     df_tb = pd.DataFrame(tb_list)
                     show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status"]
                     df_tb = df_tb.reindex(columns=show_cols, fill_value=np.nan)
-                    st.dataframe(df_tb)
+
+                    # ✅ Wider + taller table
+                    st.dataframe(df_tb, use_container_width=True, height=400)
                 else:
                     st.info("📭 No trades found.")
             except Exception as e:
@@ -736,6 +740,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
