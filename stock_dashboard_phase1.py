@@ -125,8 +125,13 @@ with tab2:
                 if isinstance(ob, str):
                     ob = json.loads(ob)
 
-                # ✅ Direct list fallback
-                ob_list = ob if isinstance(ob, list) else []
+                # ✅ Hybrid handling: dict with data OR direct list
+                if isinstance(ob, list):
+                    ob_list = ob
+                elif isinstance(ob, dict):
+                    ob_list = ob.get("data", [])
+                else:
+                    ob_list = []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
@@ -148,8 +153,12 @@ with tab2:
                 if isinstance(tb, str):
                     tb = json.loads(tb)
 
-                # ✅ Direct list fallback
-                tb_list = tb if isinstance(tb, list) else []
+                if isinstance(tb, list):
+                    tb_list = tb
+                elif isinstance(tb, dict):
+                    tb_list = tb.get("data", [])
+                else:
+                    tb_list = []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
@@ -161,7 +170,6 @@ with tab2:
                     st.info("📭 No trades found.")
             except Exception as e:
                 st.error(f"❌ Error fetching Trade Book: {e}")
-
 
 # === Tab 3: Market Data ===
 with tab3:
@@ -719,6 +727,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
