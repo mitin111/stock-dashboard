@@ -117,65 +117,68 @@ with tab2:
         ps_api = st.session_state.ps_api
         col1, col2 = st.columns(2)
 
+        # --- Manual Refresh Button ---
+        if st.button("🔄 Refresh Order/Trade Book"):
+            ps_api._order_book = ps_api.order_book()
+            ps_api._trade_book = ps_api.trade_book()
+
+        # --- Placeholders for blink-free display ---
+        ob_placeholder = st.empty()
+        tb_placeholder = st.empty()
+
         # ------------------- ORDER BOOK -------------------
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book()
-                if isinstance(ob, str):
-                    ob = json.loads(ob)
+                # Use cached/order update if exists
+                ob_list = ps_api._order_book if hasattr(ps_api, "_order_book") else ps_api.order_book()
 
-                # ✅ Always normalize to list
-                if isinstance(ob, list):
-                    ob_list = ob
-                elif isinstance(ob, dict):
-                    # agar single dict aaya
-                    ob_list = [ob]
-                else:
+                # Normalize to list
+                if isinstance(ob_list, dict):
+                    ob_list = [ob_list]
+                elif not isinstance(ob_list, list):
                     ob_list = []
 
-                if ob_list:
-                    df_ob = pd.DataFrame(ob_list)
+                df_ob = pd.DataFrame(ob_list)
+                if not df_ob.empty:
                     show_cols = [
                         "norenordno","exch","tsym","trantype","qty",
                         "prc","prctyp","status","rejreason",
                         "avgprc","ordenttm","norentm"
                     ]
                     df_ob = df_ob.reindex(columns=show_cols, fill_value=np.nan)
-                    st.dataframe(df_ob, use_container_width=True, height=400)
+                    ob_placeholder.dataframe(df_ob, use_container_width=True, height=400)
                 else:
-                    st.info("📭 No orders found.")
+                    ob_placeholder.info("📭 No orders found.")
             except Exception as e:
-                st.error(f"❌ Error fetching Order Book: {e}")
+                ob_placeholder.error(f"❌ Error fetching Order Book: {e}")
 
         # ------------------- TRADE BOOK -------------------
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book()
-                if isinstance(tb, str):
-                    tb = json.loads(tb)
+                # Use cached/trade update if exists
+                tb_list = ps_api._trade_book if hasattr(ps_api, "_trade_book") else ps_api.trade_book()
 
-                # ✅ Always normalize to list
-                if isinstance(tb, list):
-                    tb_list = tb
-                elif isinstance(tb, dict):
-                    tb_list = [tb]
-                else:
+                # Normalize to list
+                if isinstance(tb_list, dict):
+                    tb_list = [tb_list]
+                elif not isinstance(tb_list, list):
                     tb_list = []
 
-                if tb_list:
-                    df_tb = pd.DataFrame(tb_list)
+                df_tb = pd.DataFrame(tb_list)
+                if not df_tb.empty:
                     show_cols = [
                         "norenordno","exch","tsym","trantype",
                         "fillshares","avgprc","status","norentm"
                     ]
                     df_tb = df_tb.reindex(columns=show_cols, fill_value=np.nan)
-                    st.dataframe(df_tb, use_container_width=True, height=400)
+                    tb_placeholder.dataframe(df_tb, use_container_width=True, height=400)
                 else:
-                    st.info("📭 No trades found.")
+                    tb_placeholder.info("📭 No trades found.")
             except Exception as e:
-                st.error(f"❌ Error fetching Trade Book: {e}")
+                tb_placeholder.error(f"❌ Error fetching Trade Book: {e}")
+
 
 # === Tab 3: Market Data ===
 with tab3:
@@ -733,6 +736,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
