@@ -121,15 +121,17 @@ with tab2:
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                ob = ps_api.order_book()
-                if isinstance(ob, str):
-                    ob = json.loads(ob)
+                raw_ob = ps_api.order_book()
+                st.write("🔎 Debug OB:", raw_ob)   # 👈 temporary debug line
 
-                # ✅ Hybrid handling: dict with data OR direct list
-                if isinstance(ob, list):
-                    ob_list = ob
-                elif isinstance(ob, dict):
-                    ob_list = ob.get("data", [])
+                if isinstance(raw_ob, str):
+                    raw_ob = json.loads(raw_ob)
+
+                if isinstance(raw_ob, list):
+                    ob_list = raw_ob
+                elif isinstance(raw_ob, dict):
+                    # if wrapped by normalize_response
+                    ob_list = raw_ob.get("data") if "data" in raw_ob else [raw_ob]
                 else:
                     ob_list = []
 
@@ -149,14 +151,16 @@ with tab2:
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                tb = ps_api.trade_book()
-                if isinstance(tb, str):
-                    tb = json.loads(tb)
+                raw_tb = ps_api.trade_book()
+                st.write("🔎 Debug TB:", raw_tb)   # 👈 temporary debug line
 
-                if isinstance(tb, list):
-                    tb_list = tb
-                elif isinstance(tb, dict):
-                    tb_list = tb.get("data", [])
+                if isinstance(raw_tb, str):
+                    raw_tb = json.loads(raw_tb)
+
+                if isinstance(raw_tb, list):
+                    tb_list = raw_tb
+                elif isinstance(raw_tb, dict):
+                    tb_list = raw_tb.get("data") if "data" in raw_tb else [raw_tb]
                 else:
                     tb_list = []
 
@@ -727,6 +731,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
