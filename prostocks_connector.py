@@ -344,7 +344,7 @@ class ProStocksAPI:
         # Agar dict me 'data' key hai aur list hai → use it
         if isinstance(resp, dict):
             if "data" in resp and isinstance(resp["data"], list):
-            return resp["data"]
+                return resp["data"]
             # Agar dict me stat=Ok aur order details → wrap in list
             elif resp.get("stat") == "Ok":
                 # Check if dict has keys other than 'stat'
@@ -741,6 +741,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
