@@ -121,25 +121,26 @@ with tab2:
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                raw_ob = ps_api.order_book()
-                st.write("🔎 Debug OB:", raw_ob)   # 👈 temporary debug line
+                ob = ps_api.order_book()
+                if isinstance(ob, str):
+                    ob = json.loads(ob)
 
-                if isinstance(raw_ob, str):
-                    raw_ob = json.loads(raw_ob)
-
-                if isinstance(raw_ob, list):
-                    ob_list = raw_ob
-                elif isinstance(raw_ob, dict):
-                    # if wrapped by normalize_response
-                    ob_list = raw_ob.get("data") if "data" in raw_ob else [raw_ob]
+                # ✅ Always normalize to list
+                if isinstance(ob, list):
+                    ob_list = ob
+                elif isinstance(ob, dict):
+                    # agar single dict aaya
+                    ob_list = [ob]
                 else:
                     ob_list = []
 
                 if ob_list:
                     df_ob = pd.DataFrame(ob_list)
-                    show_cols = ["norenordno","exch","tsym","trantype","qty",
-                                 "prc","prctyp","status","rejreason",
-                                 "avgprc","ordenttm","norentm"]
+                    show_cols = [
+                        "norenordno","exch","tsym","trantype","qty",
+                        "prc","prctyp","status","rejreason",
+                        "avgprc","ordenttm","norentm"
+                    ]
                     df_ob = df_ob.reindex(columns=show_cols, fill_value=np.nan)
                     st.dataframe(df_ob, use_container_width=True, height=400)
                 else:
@@ -151,23 +152,24 @@ with tab2:
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                raw_tb = ps_api.trade_book()
-                st.write("🔎 Debug TB:", raw_tb)   # 👈 temporary debug line
+                tb = ps_api.trade_book()
+                if isinstance(tb, str):
+                    tb = json.loads(tb)
 
-                if isinstance(raw_tb, str):
-                    raw_tb = json.loads(raw_tb)
-
-                if isinstance(raw_tb, list):
-                    tb_list = raw_tb
-                elif isinstance(raw_tb, dict):
-                    tb_list = raw_tb.get("data") if "data" in raw_tb else [raw_tb]
+                # ✅ Always normalize to list
+                if isinstance(tb, list):
+                    tb_list = tb
+                elif isinstance(tb, dict):
+                    tb_list = [tb]
                 else:
                     tb_list = []
 
                 if tb_list:
                     df_tb = pd.DataFrame(tb_list)
-                    show_cols = ["norenordno","exch","tsym","trantype",
-                                 "fillshares","avgprc","status","norentm"]
+                    show_cols = [
+                        "norenordno","exch","tsym","trantype",
+                        "fillshares","avgprc","status","norentm"
+                    ]
                     df_tb = df_tb.reindex(columns=show_cols, fill_value=np.nan)
                     st.dataframe(df_tb, use_container_width=True, height=400)
                 else:
@@ -731,6 +733,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
