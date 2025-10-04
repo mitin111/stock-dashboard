@@ -326,32 +326,33 @@ class ProStocksAPI:
 
         return results
 
-    def normalize_response(self, resp):
+    def normalize_response(self, resp, expect_list=False):
         """
-        Normalize ProStocks API response → always return a dict.
-        Handles dict, list-of-dicts, nested 'data' key, empty list.
+        Normalize ProStocks API response.
+        - expect_list=False → returns dict (default for single API calls like place_order)
+        - expect_list=True  → returns list (for order_book/trade_book)
         """
         if resp is None:
-            return {}
+            return [] if expect_list else {}
 
         # Agar string aaya, convert
         if isinstance(resp, str):
             try:
                 resp = json.loads(resp)
             except:
-                return {}
+                return [] if expect_list else {}
 
         # Agar dict hai
         if isinstance(resp, dict):
             if "data" in resp and isinstance(resp["data"], list):
-                return resp["data"][0] if len(resp["data"]) > 0 else {}
-            return resp
+                return resp["data"] if expect_list else (resp["data"][0] if resp["data"] else {})
+            return [resp] if expect_list else resp
 
         # Agar list hai
         if isinstance(resp, list):
-            return resp[0] if len(resp) > 0 else {}
+            return resp if expect_list else (resp[0] if resp else {})
 
-        return {}
+        return [] if expect_list else {}
 
     
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
@@ -729,6 +730,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
