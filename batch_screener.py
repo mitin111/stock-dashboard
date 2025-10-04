@@ -296,11 +296,10 @@ def place_order_from_signal(ps_api, sig):
             book_loss=stop_loss,
             remarks="Auto Bracket Order with PAC SL"
         )
-        # --- Ensure resp is a dict ---
-        if isinstance(resp, list) and len(resp) > 0:
-            resp = resp[0]
-        elif isinstance(resp, list) and len(resp) == 0:
-            resp = {}
+        # ✅ Ensure resp is a dict (for single order)
+        if isinstance(resp, list):
+            resp = resp[0] if len(resp) > 0 else {}
+            
         elif not isinstance(resp, dict):
             resp = {}
 
@@ -615,6 +614,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
