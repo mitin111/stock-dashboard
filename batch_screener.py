@@ -300,9 +300,15 @@ def place_order_from_signal(ps_api, sig):
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-        # --- ✅ Use normalize_response helper ---
-        resp = ps_api.normalize_response(resp)
-
+        # --- ✅ Normalize response safely ---
+        resp_list = ps_api.normalize_response(resp)
+        if isinstance(resp_list, list) and len(resp_list) > 0:
+            resp = resp_list[0]
+        elif isinstance(resp_list, dict):
+            resp = resp_list
+        else:
+            resp = {}
+          
         if resp.get("stat") == "Ok":
             print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
         else:
@@ -610,6 +616,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
