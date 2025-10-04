@@ -297,26 +297,28 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order with PAC SL"
         )
         # ✅ Ensure resp is a dict (for single order)
-        if isinstance(resp, list):
-            resp = resp[0] if len(resp) > 0 else {}
+        if isinstance(resp, dict):
+            resp = [resp]
             
-        elif not isinstance(resp, dict):
-            resp = {}
+        elif not isinstance(resp, list):
+            resp = []
 
         # --- Turant fetch karke placeholders update (full list) ---
         ps_api._order_book = ps_api.normalize_response(ps_api.order_book(), expect_list=True)
         ps_api._trade_book = ps_api.normalize_response(ps_api.trade_book(), expect_list=True)
           
-        if resp.get("stat") == "Ok":
-            print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
-        else:
-            print(f"❌ BO failed for {symbol}: {resp.get('emsg', resp)}")
+        # --- Log each response ---
+        for r in resp:
+            if r.get("stat") == "Ok":
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
+            else:
+                print(f"❌ BO failed for {symbol}: {r.get('emsg', r)}")
+
         return resp
 
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
-        return {"stat": "Exception", "emsg": str(e)}
-
+        return [{"stat": "Exception", "emsg": str(e)}]
       
 # -----------------------
 # Per-symbol processing
@@ -614,6 +616,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
