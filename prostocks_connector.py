@@ -326,33 +326,42 @@ class ProStocksAPI:
 
         return results
 
-    def normalize_response(self, resp, expect_list=False):
+    def normalize_response(self, resp):
         """
-        Normalize ProStocks API response.
-        - expect_list=False → returns dict (default for single API calls like place_order)
-        - expect_list=True  → returns list (for order_book/trade_book)
+        Normalize ProStocks API response → always return a list of dicts.
+        Handles dict, list-of-dicts, nested 'data' key, empty list.
         """
         if resp is None:
-            return [] if expect_list else {}
+            return []
 
-        # Agar string aaya, convert
+        # Agar string aaya, convert to dict/list
         if isinstance(resp, str):
             try:
                 resp = json.loads(resp)
             except:
-                return [] if expect_list else {}
+                return []
 
-        # Agar dict hai
+        # Agar dict me 'data' key hai aur list hai → use it
         if isinstance(resp, dict):
             if "data" in resp and isinstance(resp["data"], list):
-                return resp["data"] if expect_list else (resp["data"][0] if resp["data"] else {})
-            return [resp] if expect_list else resp
+                return resp["data"]
+            # Agar dict me stat=Ok aur order details → wrap in list
+            elif resp.get("stat") == "Ok":
+                # Check if dict has keys other than 'stat'
+                keys = set(resp.keys()) - {"stat"}
+                if keys:
+                    return [resp]
+                else:
+                    return []
+            else:
+                return []
 
-        # Agar list hai
-        if isinstance(resp, list):
-            return resp if expect_list else (resp[0] if resp else {})
+    # Agar already list → return as-is
+    if isinstance(resp, list):
+        return resp
 
-        return [] if expect_list else {}
+    return []
+   
 
     
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
@@ -730,6 +739,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
