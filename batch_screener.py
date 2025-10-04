@@ -254,7 +254,7 @@ def place_order_from_signal(ps_api, sig):
     signal_type = sig.get("signal") if sig else None
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
         print(f"⚠️ Skipping order: invalid/neutral signal for {sig.get('symbol') if sig else 'unknown'}")
-        return {"stat": "Skipped", "emsg": "No valid signal"}
+        return [{"stat": "Skipped", "emsg": "No valid signal"}]
     signal_type = signal_type.upper()
     
     qty = sig.get("suggested_qty", 1)
@@ -275,14 +275,14 @@ def place_order_from_signal(ps_api, sig):
         last_price=last_price,
         pac_val=pac_lower if signal_type == "BUY" else pac_upper,
         side=signal_type,
-        rr=2.0,              # Reward:Risk ratio
-        max_sl_pct=0.03,     # Max 3% SL
-        min_sl_pct=0.001,    # Min 0.1% SL
-        atr=None             # ATR use karna hai to sig me pass karna hoga
+        rr=2.0,
+        max_sl_pct=0.03,
+        min_sl_pct=0.001,
+        atr=None
     )
 
     try:
-        resp = ps_api.place_order(
+        raw_resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
             product_type=product_type,
             exchange=exch,
@@ -296,29 +296,33 @@ def place_order_from_signal(ps_api, sig):
             book_loss=stop_loss,
             remarks="Auto Bracket Order with PAC SL"
         )
-        # ✅ Ensure resp is a dict (for single order)
-        if isinstance(resp, dict):
-            resp = [resp]
-            
-        elif not isinstance(resp, list):
-            resp = []
+
+        # ✅ Normalize response → always list of dicts
+        if isinstance(raw_resp, dict):
+            resp_list = [raw_resp]
+        elif isinstance(raw_resp, list):
+            resp_list = raw_resp
+        else:
+            resp_list = []
 
         # --- Turant fetch karke placeholders update (full list) ---
         ps_api._order_book = ps_api.normalize_response(ps_api.order_book(), expect_list=True)
         ps_api._trade_book = ps_api.normalize_response(ps_api.trade_book(), expect_list=True)
-          
-        # --- Log each response ---
-        for r in resp:
-            if r.get("stat") == "Ok":
+
+        # --- Iterate each dict response ---
+        for r in resp_list:
+            stat = r.get("stat")
+            if stat == "Ok":
                 print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
             else:
                 print(f"❌ BO failed for {symbol}: {r.get('emsg', r)}")
 
-        return resp
+        return resp_list
 
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
+
       
 # -----------------------
 # Per-symbol processing
@@ -616,6 +620,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
