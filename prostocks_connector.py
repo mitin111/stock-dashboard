@@ -413,11 +413,11 @@ class ProStocksAPI:
             data = response.json()
             print("📨 Place Order Response:", data)
 
-            # ✅ Normalize once → always dict
+            # ✅ Normalize once → always list
             data = self.normalize_response(data)
 
             # ✅ Refresh only if successful
-            if data.get("stat") == "Ok":
+            if data and isinstance(data, list) and data[0].get("stat") == "Ok":
                 self._order_book = self.order_book()
                 self._trade_book = self.trade_book()
 
@@ -425,7 +425,7 @@ class ProStocksAPI:
 
         except requests.exceptions.RequestException as e:
             print("❌ Place order exception:", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
+            return [{"stat": "Not_Ok", "emsg": str(e)}]   # ✅ return list
                 
     
     def modify_order(self, norenordno, tsym, blprc=None, bpprc=None, trgprc=None, qty=None, prc=None, prctyp=None, ret="DAY"):
@@ -471,7 +471,7 @@ class ProStocksAPI:
             data = self.normalize_response(data)   # ✅ cleanup
         
             # ✅ Refresh order/trade books only if order modified successfully
-            if data.get("stat") == "Ok":
+            if data and isinstance(data, list) and data[0].get("stat") == "Ok":
                 self._order_book = self.order_book()
                 self._trade_book = self.trade_book()
         
@@ -737,6 +737,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
