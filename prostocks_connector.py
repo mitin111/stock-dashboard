@@ -328,47 +328,36 @@ class ProStocksAPI:
 
     def normalize_response(self, resp):
         """
-        Normalize ProStocks API response → always return a list of dicts.
+        Normalize ProStocks API response → always return a dict.
         Handles dict, list-of-dicts, nested 'data' key, empty list.
         """
         if resp is None:
-            return []
+            return {}
 
-        # Agar string aaya, convert to dict/list
+        # Agar string aaya, convert
         if isinstance(resp, str):
             try:
                 resp = json.loads(resp)
             except:
-                return []
+                return {}
 
-        # Agar dict me 'data' key hai aur list hai → use it
+        # Agar dict hai
         if isinstance(resp, dict):
             if "data" in resp and isinstance(resp["data"], list):
-                return resp["data"]
-            # Agar dict me stat=Ok aur order details → wrap in list
-            elif resp.get("stat") == "Ok":
-                # Check if dict has keys other than 'stat'
-                keys = set(resp.keys()) - {"stat"}
-                if keys:
-                    return [resp]
-                else:
-                    return []
-            else:
-                return []
-
-        # Agar already list → return as-is
-        if isinstance(resp, list):
+                return resp["data"][0] if len(resp["data"]) > 0 else {}
             return resp
 
-        return []
+        # Agar list hai
+        if isinstance(resp, list):
+            return resp[0] if len(resp) > 0 else {}
+
+        return {}
+
     
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
                     quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
                     book_profit=None, book_loss=None, trail_price=None,
                     retention='DAY', remarks=''):
-        """
-        Place an order on ProStocks (supports normal, SL, BO/CO orders)
-        """
         url = f"{self.base_url}/PlaceOrder"
         order_data = {
             "uid": self.userid,
@@ -415,22 +404,21 @@ class ProStocksAPI:
             response = self.session.post(url, data=payload, headers=self.headers, timeout=10)
             data = response.json()
             print("📨 Place Order Response:", data)
-            data = self.normalize_response(data)   # ✅ cleanup
 
-            # ✅ Sometimes API returns a list instead of dict
-            if isinstance(data, list) and len(data) > 0:
-                data = data[0]
+            # ✅ Normalize once → always dict
+            data = self.normalize_response(data)
 
-            # ✅ Refresh order/trade books only if order placed successfully
+            # ✅ Refresh only if successful
             if data.get("stat") == "Ok":
                 self._order_book = self.order_book()
                 self._trade_book = self.trade_book()
 
             return data
+
         except requests.exceptions.RequestException as e:
             print("❌ Place order exception:", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
-
+                
     
     def modify_order(self, norenordno, tsym, blprc=None, bpprc=None, trgprc=None, qty=None, prc=None, prctyp=None, ret="DAY"):
         """
@@ -741,6 +729,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
