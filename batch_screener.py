@@ -296,7 +296,15 @@ def place_order_from_signal(ps_api, sig):
             book_loss=stop_loss,
             remarks="Auto Bracket Order with PAC SL"
         )
-        # --- Turant fetch karke placeholders update ---
+        # --- Ensure resp is a dict ---
+        if isinstance(resp, list) and len(resp) > 0:
+            resp = resp[0]
+        elif isinstance(resp, list) and len(resp) == 0:
+            resp = {}
+        elif not isinstance(resp, dict):
+            resp = {}
+
+        # --- Turant fetch karke placeholders update (full list) ---
         ps_api._order_book = ps_api.normalize_response(ps_api.order_book(), expect_list=True)
         ps_api._trade_book = ps_api.normalize_response(ps_api.trade_book(), expect_list=True)
           
@@ -607,6 +615,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
