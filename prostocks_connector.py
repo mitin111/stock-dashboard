@@ -478,7 +478,7 @@ class ProStocksAPI:
             return data
         except Exception as e:
             print(f"❌ ModifyOrder API failed: {e}")
-            return {"stat": "Exception", "emsg": str(e)}
+            return [{"stat": "Exception", "emsg": str(e)}]   # ✅ wrapped in list
             
 
     # prostocks_connector.py ke andar ProStocksAPI class me add karein
@@ -737,6 +737,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
