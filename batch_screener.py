@@ -646,13 +646,11 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     if "signal" in out_df.columns:
         print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
 
-    # ---------------- Start trailing SL thread only if at least 1 order placed and PLACED via non-BO product
+    # ---------------- Skip trailing SL thread for Bracket Orders ----------------
     if getattr(args, 'place_orders', False) and order_placed:
-        # If you place only Bracket orders (product_type 'B') you can skip this thread.
-        # We start it only if user explicitly requests and product_type might require it.
-        t = threading.Thread(target=start_trailing_sl, args=(ps_api, 5), daemon=True)
-        t.start()
-        print("📡 Trailing SL thread started...")
+        # ✅ Since we are placing only Bracket Orders (product_type='B'),
+        # no need to run trailing SL loop — handled internally by RMS.
+        print("✅ Skipping trailing SL thread (Bracket Orders manage SL internally).")
 
     return {
         "results": results,
@@ -672,3 +670,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
