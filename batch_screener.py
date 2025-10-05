@@ -297,45 +297,34 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order with PAC SL"
         )
 
-        # 🔍 Debug: show raw structure before normalize
-        print(f"📦 Raw order response type: {type(raw_resp)} | Value: {raw_resp}")
-
-        resp_list = ps_api.normalize_response(raw_resp)
-
-        # 🔍 Debug: show after normalization
-        print(f"📜 Normalized response type: {type(resp_list)} | Value: {resp_list}")
+        # ✅ Handle raw_resp directly (avoid double wrapping)
+        if isinstance(raw_resp, dict):
+            resp_list = [raw_resp]
+        elif isinstance(raw_resp, list):
+            # flatten one level if needed
+            if len(raw_resp) > 0 and isinstance(raw_resp[0], list):
+                resp_list = raw_resp[0]
+            else:
+                resp_list = raw_resp
+        else:
+            resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
 
         # --- Refresh local books
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-        # ✅ FORCE FLATTENING / SANITIZATION
-        if isinstance(resp_list, dict):
-            resp_list = [resp_list]
-        elif isinstance(resp_list, list):
-            # If it's a list of lists, flatten it
-            flat = []
-            for x in resp_list:
-                if isinstance(x, list):
-                    flat.extend(x)
-                else:
-                    flat.append(x)
-            resp_list = flat
-        else:
-            resp_list = [{"stat": "Error", "emsg": f"Unexpected type: {type(resp_list)}"}]
-
-        # --- Now handle each element safely ---
-        for r in resp_list:
-            if not isinstance(r, dict):
-                print(f"⚠️ Unexpected element type in resp_list: {type(r)} | Value: {r}")
+        # --- Process each response safely ---
+        for item in resp_list:
+            if not isinstance(item, dict):
+                print(f"⚠️ Unexpected response type: {type(item)} | Value: {item}")
                 continue
 
-            stat = r.get("stat", "NA")
+            stat = item.get("stat")
             if stat == "Ok":
                 print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss:.2f} | TP={target_price:.2f}")
             else:
-                rej = r.get("rejreason") or r.get("emsg") or "Unknown Error"
-                print(f"❌ BO failed for {symbol}: {rej}")
+                reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
+                print(f"❌ BO failed for {symbol}: {reason}")
 
         return resp_list
 
@@ -639,6 +628,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
