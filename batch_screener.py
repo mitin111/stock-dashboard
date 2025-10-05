@@ -297,29 +297,40 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order with PAC SL"
         )
 
-        # ✅ normalize once only
+        # 🔍 Debug: show raw structure before normalize
+        print(f"📦 Raw order response type: {type(raw_resp)} | Value: {raw_resp}")
+
         resp_list = ps_api.normalize_response(raw_resp)
+
+        # 🔍 Debug: show after normalization
+        print(f"📜 Normalized response type: {type(resp_list)} | Value: {resp_list}")
 
         # --- Refresh local books
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-        # ✅ Ensure resp_list is always list of dicts
-        # Flatten if nested list
-        if isinstance(resp_list, list) and len(resp_list) == 1 and isinstance(resp_list[0], list):
-            resp_list = resp_list[0]
-        elif isinstance(resp_list, dict):
+        # ✅ FORCE FLATTENING / SANITIZATION
+        if isinstance(resp_list, dict):
             resp_list = [resp_list]
-        elif not isinstance(resp_list, list):
-            resp_list = [{"stat": "Error", "emsg": str(resp_list)}]
+        elif isinstance(resp_list, list):
+            # If it's a list of lists, flatten it
+            flat = []
+            for x in resp_list:
+                if isinstance(x, list):
+                    flat.extend(x)
+                else:
+                    flat.append(x)
+            resp_list = flat
+        else:
+            resp_list = [{"stat": "Error", "emsg": f"Unexpected type: {type(resp_list)}"}]
 
-        # --- Iterate each dict response ---
+        # --- Now handle each element safely ---
         for r in resp_list:
             if not isinstance(r, dict):
-                print(f"⚠️ Unexpected response format for {symbol}: {r}")
+                print(f"⚠️ Unexpected element type in resp_list: {type(r)} | Value: {r}")
                 continue
 
-            stat = r.get("stat")
+            stat = r.get("stat", "NA")
             if stat == "Ok":
                 print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss:.2f} | TP={target_price:.2f}")
             else:
@@ -628,6 +639,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
