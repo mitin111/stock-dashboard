@@ -325,10 +325,11 @@ class ProStocksAPI:
                 break
 
         return results
-
+        
     def normalize_response(self, resp):
         """
         Normalize ProStocks API response → always return a flat list of dicts.
+        Prevents nested list-of-lists problem.
         """
         if resp is None:
             return []
@@ -349,16 +350,19 @@ class ProStocksAPI:
                 return []
 
         if isinstance(resp, list):
-            # Flatten nested lists
+            # ✅ If already list of dicts → return as-is
+            if all(isinstance(i, dict) for i in resp):
+                return resp
+            # Otherwise flatten
             flat = []
             for item in resp:
                 if isinstance(item, list):
                     flat.extend(item)
-                else:
+                elif isinstance(item, dict):
                     flat.append(item)
             return flat
 
-        return []
+        return []    
   
     
     def place_order(self, buy_or_sell, product_type, exchange, tradingsymbol,
@@ -736,6 +740,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
