@@ -303,21 +303,34 @@ def place_order_from_signal(ps_api, sig):
         # --- Refresh local books
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
-       
+
+        # ✅ Ensure resp_list is always list of dicts
+        # Flatten if nested list
+        if isinstance(resp_list, list) and len(resp_list) == 1 and isinstance(resp_list[0], list):
+            resp_list = resp_list[0]
+        elif isinstance(resp_list, dict):
+            resp_list = [resp_list]
+        elif not isinstance(resp_list, list):
+            resp_list = [{"stat": "Error", "emsg": str(resp_list)}]
+
         # --- Iterate each dict response ---
         for r in resp_list:
+            if not isinstance(r, dict):
+                print(f"⚠️ Unexpected response format for {symbol}: {r}")
+                continue
+
             stat = r.get("stat")
             if stat == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss} | TP={target_price}")
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss:.2f} | TP={target_price:.2f}")
             else:
-                print(f"❌ BO failed for {symbol}: {r.get('emsg', r)}")
+                rej = r.get("rejreason") or r.get("emsg") or "Unknown Error"
+                print(f"❌ BO failed for {symbol}: {rej}")
 
         return resp_list
 
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
-
       
 # -----------------------
 # Per-symbol processing
@@ -615,6 +628,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
