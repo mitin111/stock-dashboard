@@ -23,22 +23,11 @@ import threading
 # Helper: compute safe SL and TP
 def compute_safe_sl_tp(last_price, pac_val, side,
                        rr=2.0, max_sl_pct=0.03, min_sl_pct=0.001, atr=None):
-    """
-    last_price: float
-    pac_val: numeric or None (pac_lower for BUY, pac_upper for SELL)
-    side: "BUY" or "SELL"
-    rr: reward:risk (e.g. 2.0)
-    max_sl_pct: maximum allowed SL distance as fraction of price (e.g. 0.03 => 3%)
-    min_sl_pct: minimum allowed SL distance (avoid tiny SL)
-    atr: optional float to use as volatility-based distance fallback
-    Returns: (stop_loss, target_price)
-    """
     try:
         last_price = float(last_price)
     except Exception:
         return None, None
 
-    # normalize pac
     pac = None
     try:
         if pac_val is not None and str(pac_val).strip() != "":
@@ -47,7 +36,6 @@ def compute_safe_sl_tp(last_price, pac_val, side,
         pac = None
 
     def cap_dist(dist):
-        # cap dist between min and max
         max_dist = last_price * max_sl_pct
         min_dist = last_price * min_sl_pct
         if dist > max_dist:
@@ -62,17 +50,14 @@ def compute_safe_sl_tp(last_price, pac_val, side,
         if pac is not None and pac < last_price:
             dist = last_price - pac
             if (dist / last_price) > max_sl_pct:
-                # pac too far: cap
                 dist = cap_dist(dist)
                 stop = last_price - dist
             elif (dist / last_price) < min_sl_pct:
-                # pac too tight: expand
                 dist = cap_dist(dist)
                 stop = last_price - dist
             else:
                 stop = pac
         else:
-            # invalid or missing pac -> use atr or percent
             if atr:
                 try:
                     dist = float(atr)
@@ -95,7 +80,6 @@ def compute_safe_sl_tp(last_price, pac_val, side,
             else:
                 stop = pac
         else:
-            # invalid pac -> use atr or percent
             if atr:
                 try:
                     dist = float(atr)
@@ -106,13 +90,11 @@ def compute_safe_sl_tp(last_price, pac_val, side,
             dist = cap_dist(dist)
             stop = last_price + dist
 
-    # final safety: ensure stop is sensical
     if side == "BUY" and stop >= last_price:
         stop = last_price - (last_price * max_sl_pct)
     if side == "SELL" and stop <= last_price:
         stop = last_price + (last_price * max_sl_pct)
 
-    # calculate target from RR
     if side == "BUY":
         dist = last_price - stop
         target = last_price + (dist * rr)
@@ -120,7 +102,6 @@ def compute_safe_sl_tp(last_price, pac_val, side,
         dist = stop - last_price
         target = last_price - (dist * rr)
 
-    # Round to 2 decimals (INR typical); adjust if you need different precision
     stop = round(stop, 2)
     target = round(target, 2)
     return stop, target
@@ -148,32 +129,24 @@ def suggested_qty_by_value(price, target_value_inr=1000):
         return 0
     qty = int(target_value_inr // price)
     return max(1, qty)
-  
+
 # -----------------------
 # API response helpers
 # -----------------------
 def resp_to_status_and_list(resp):
-    """
-    Normalize ProStocks API returns into (stat, items_list).
-    - If resp is dict with 'stat' and 'data' -> return (stat, data)
-    - If resp is list -> return (None, resp) (list considered the items)
-    - Else -> return (None, [])
-    """
     if isinstance(resp, dict):
         stat = resp.get("stat")
         data = resp.get("data")
-        # if data is a dict or single item, wrap into list
         if data is None:
-            # some endpoints might return the payload itself as dict (single item)
-            # attempt to infer list-like fields:
-            # if keys look like an order, return [resp]
-            # But default: return empty list
+            # If dict looks like an item (has order-like keys), return it as single-item list
+            # Heuristic: presence of 'norenordno' or 'tsym' or 'trantype'
+            if any(k in resp for k in ("norenordno", "tsym", "trantype", "trading_symbol")):
+                return stat, [resp]
             return stat, []
         if isinstance(data, list):
             return stat, data
         if isinstance(data, dict):
             return stat, [data]
-        # fallback: unknown type -> empty list
         return stat, []
     elif isinstance(resp, list):
         return None, resp
@@ -210,7 +183,6 @@ def generate_signal_for_df(df, settings):
     pac_lower = last.get("pacL", None)
     pac_upper = last.get("pacU", None)
 
-    # --- Volatility calculation (today's candles) ---
     latest_day = df["datetime"].iloc[-1].date()
     day_data = df[df["datetime"].dt.date == latest_day]
     day_high = day_data["high"].max() if not day_data.empty else last_price
@@ -219,40 +191,32 @@ def generate_signal_for_df(df, settings):
 
     reasons, signal = [], None
 
-    # ✅ Strong BUY
     if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
         signal = "BUY"
         reasons.append("TSI=Buy & MACD hist >0")
         if pacC is not None:
             reasons.append("Price > PAC mid")
-
-    # ✅ Strong SELL
     elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
         signal = "SELL"
         reasons.append("TSI=Sell & MACD hist <0")
         if pacC is not None:
             reasons.append("Price < PAC mid")
-
-    # ✅ Weak Neutral but log reason
     else:
         if tsi_sig == "Neutral" and macd_hist != 0:
             reasons.append(f"Weak confluence: TSI Neutral, MACD {'pos' if macd_hist>0 else 'neg'}")
         else:
             reasons.append("No confluence")
 
-    # --- Apply volatility filter: only allow BUY/SELL if >2% ---
     if volatility < 2:
         signal = "NEUTRAL"
         reasons.append(f"Volatility {volatility:.2f}% < 2%, skipping trade")
 
-    # --- 2% move from today's open check ---
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
     if abs(price_move_pct) > 2:
         signal = None
         reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
-    # ✅ Stoploss calculation using PAC bands
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -265,7 +229,7 @@ def generate_signal_for_df(df, settings):
 
     if signal not in ["BUY", "SELL"]:
         signal = None
-      
+
     return {
         "signal": signal,
         "reason": " & ".join(reasons),
@@ -279,7 +243,7 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# Place order from signal
+# Place order from signal (delegated to dashboard_logic.place_order_from_signal)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     signal_type = sig.get("signal") if sig else None
@@ -362,7 +326,8 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
-      
+
+
 # -----------------------
 # Per-symbol processing
 # -----------------------
@@ -373,7 +338,6 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
 
     result = {"symbol": tsym, "exch": exch, "token": token, "status": "unknown"}
 
-    # Fetch TPSeries data
     try:
         df = ps_api.fetch_full_tpseries(exch, token, interval)
     except Exception as e:
@@ -390,7 +354,6 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         print(f"⚠️ [{tsym}] No TPSeries data")
         return result
 
-    # --- CONVERSION TO NUMERIC ---
     if "into" in df.columns and "open" not in df.columns:
         df = df.rename(columns={
             "into": "open",
@@ -400,38 +363,31 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
             "intv": "volume"
         })
 
-    # Convert OHLCV columns to numeric
     for col in ["open", "high", "low", "close", "volume"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-    # Drop rows with NaN in critical columns
     df = df.dropna(subset=["open", "high", "low", "close"])
 
-    # Timezone normalization
     df = tz_normalize_df(df)
     if df.empty:
         result.update({"status": "no_data_after_norm"})
         print(f"⚠️ [{tsym}] No data after timezone normalization")
         return result
 
-    # --- DEBUG: Print DF head and columns before indicator calculation ---
     print(f"🔹 Debug [{tsym}] DF head:\n", df.head())
     print(f"🔹 Debug [{tsym}] DF columns:\n", df.columns)
 
-    # Generate signal
     sig = generate_signal_for_df(df, settings)
     if sig is None:
         result.update({"status": "no_signal"})
         print(f"⚠️ [{tsym}] Signal generation failed")
         return result
 
-    # ✅ Add yesterday close & today open
     result.update({
         "yclose": df["close"].iloc[-2] if len(df) > 1 else df["close"].iloc[-1],
         "open": df["open"].iloc[-1]
     })
 
-    # ✅ Skip first candle of the day
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1])
     if last_candle_time.strftime("%H:%M") == "09:15":
         result.update({"status": "skip_first_candle"})
@@ -446,34 +402,49 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
 def start_trailing_sl(ps_api, interval=5):
     while True:
         try:
-            trade_book = ps_api.trade_book()
-            if not trade_book:
+            trade_raw = ps_api.trade_book()
+            tb_stat, tb_list = resp_to_status_and_list(trade_raw)
+
+            if not tb_list:
                 time.sleep(interval)
                 continue
 
-            for pos in trade_book:
-                symbol = pos.get("tradingsymbol")
-                exch = pos.get("exchange", "NSE")
-                existing_sl = float(pos.get("stop_loss", 0) or 0.0)
-                signal_type = "BUY" if pos.get("buy_or_sell") == "B" else "SELL"
+            for pos in tb_list:
+                if not isinstance(pos, dict):
+                    print(f"⚠️ Skipping unexpected trade_book element: {pos}")
+                    continue
 
-                # ✅ PAC stoploss logic
-                if signal_type == "BUY":
-                    new_sl = pos.get("pac_lower")
-                else:
-                    new_sl = pos.get("pac_upper")
+                symbol = pos.get("tradingsymbol") or pos.get("tsym") or pos.get("tsym")
+                exch = pos.get("exchange") or pos.get("exch") or "NSE"
+                try:
+                    existing_sl = float(pos.get("stop_loss", 0) or 0.0)
+                except Exception:
+                    existing_sl = 0.0
+                signal_type = "BUY" if (pos.get("buy_or_sell") == "B" or pos.get("trantype") == "B") else "SELL"
+
+                new_sl = pos.get("pac_lower") if signal_type == "BUY" else pos.get("pac_upper")
+                if new_sl is None:
+                    continue
+
+                try:
+                    new_sl = float(new_sl)
+                except Exception:
+                    continue
 
                 if new_sl and new_sl != existing_sl:
                     try:
                         resp = ps_api.modify_order(
-                            norenordno=pos.get("norenordno"),
+                            norenordno=pos.get("norenordno") or pos.get("norenordno"),
                             tsym=symbol,
                             blprc=new_sl
                         )
-                        if resp.get("stat") == "Ok":
+                        _, resp_list = resp_to_status_and_list(resp)
+                        first = resp_list[0] if resp_list else (resp if isinstance(resp, dict) else None)
+                        if isinstance(first, dict) and first.get("stat") == "Ok":
                             print(f"✅ SL updated for {symbol} | Old SL: {existing_sl} -> New SL: {new_sl}")
                         else:
-                            print(f"❌ Failed to update SL for {symbol}: {resp.get('emsg')}")
+                            emsg = first.get("emsg") if isinstance(first, dict) else str(first)
+                            print(f"❌ Failed to update SL for {symbol}: {emsg}")
                     except Exception as e:
                         print(f"❌ Exception updating SL for {symbol}: {e}")
 
@@ -483,14 +454,25 @@ def start_trailing_sl(ps_api, interval=5):
             print(f"❌ Error in trailing SL loop: {e}")
             time.sleep(interval)
 
+
 # -----------------------
 # Main runner
 # -----------------------
 def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
-    """
-    Auto Trader batch runner.
-    place_orders: Streamlit ke liye explicit order trigger flag.
-    """
+    if args is None:
+        # create a safe args-like object with sane defaults for interactive use
+        class _A:
+            delay_between_calls = 0.25
+            max_calls_per_min = 15
+            watchlists = "1"
+            all_watchlists = False
+            interval = "5"
+            output = None
+            place_orders = False
+        args = _A()
+
+    order_placed = False
+
     if ps_api is None:
         creds = load_credentials()
         ps_api = ProStocksAPI(**creds)
@@ -500,7 +482,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         print("✅ Logged in successfully via credentials")
 
     if settings is None:
-        # ✅ Use only session_state settings, do NOT load defaults
         try:
             import streamlit as st
             settings = st.session_state.get("strategy_settings")
@@ -517,7 +498,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
         print("🔹 Loaded TRM settings for Auto Trader:", settings)
 
-    # ---------------- Symbol resolution ----------------
     symbols_with_tokens = []
     if symbols:
         for s in symbols:
@@ -528,21 +508,23 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             })
     else:
         all_symbols = []
-        if args and args.all_watchlists:
+        if args and getattr(args, 'all_watchlists', False):
             wls = ps_api.get_watchlists()
-            if wls.get("stat") != "Ok":
+            stat, values = resp_to_status_and_list(wls)
+            if stat != "Ok":
                 print("❌ Failed to list watchlists:", wls)
                 return []
-            watchlist_ids = sorted(wls["values"], key=int)
+            watchlist_ids = sorted(values, key=int)
         else:
             watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
 
         for wl in watchlist_ids:
             wl_data = ps_api.get_watchlist(wl)
-            if wl_data.get("stat") != "Ok":
-                print(f"❌ Could not load watchlist {wl}: {wl_data.get('emsg')}")
+            wl_stat, wl_list = resp_to_status_and_list(wl_data)
+            if wl_stat != "Ok":
+                print(f"❌ Could not load watchlist {wl}: {wl_data}")
                 continue
-            all_symbols.extend(wl_data.get("values", []))
+            all_symbols.extend(wl_list)
 
         for s in all_symbols:
             token = s.get("token", "")
@@ -555,7 +537,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
     print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
-    # ---------------- Run screener ----------------
     results = []
     all_order_responses = []
     calls_made, window_start = 0, time.time()
@@ -563,7 +544,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     for idx, sym in enumerate(symbols_with_tokens, 1):
         calls_made += 1
         elapsed = time.time() - window_start
-        if args and calls_made > args.max_calls_per_min:
+        if args and calls_made > getattr(args, 'max_calls_per_min', 15):
             to_wait = max(0, 60 - elapsed) + 0.5
             print(f"⏱ Rate limit reached. Sleeping {to_wait:.1f}s")
             time.sleep(to_wait)
@@ -578,9 +559,8 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         results.append(r)
 
         # ---------------- Order placement ----------------
-        if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"]:
+        if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
             try:
-                # --- Gap filter check ---
                 yclose = float(r.get("yclose", 0))
                 oprice = float(r.get("open", 0))
                 if yclose > 0 and oprice > 0:
@@ -591,18 +571,17 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                             "symbol": r['symbol'],
                             "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 2%"}
                         })
+                        time.sleep(getattr(args, 'delay_between_calls', 0.25))
                         continue
-                      
+
                 # --- Check if symbol already has an open order ---
                 ob_raw = ps_api.order_book()
                 ob_stat, ob_list = resp_to_status_and_list(ob_raw)
 
                 open_orders = []
-                # ob_list is a list of order dicts (safe to iterate)
                 for order in ob_list:
                     if not isinstance(order, dict):
                         continue
-                    # NOTE: API uses different keys for trading symbol - check both
                     ts = (
                         order.get("trading_symbol")
                         or order.get("tsym")
@@ -623,30 +602,40 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                         "symbol": r["symbol"],
                         "response": {"stat": "Skipped", "emsg": "Open order exists"}
                     })
+                    time.sleep(getattr(args, 'delay_between_calls', 0.25))
                     continue
 
-                # --- Place order since no open one found ---
                 order_resp = place_order_from_signal(ps_api, r)
                 all_order_responses.append({"symbol": r["symbol"], "response": order_resp})
                 print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
 
+                # mark if any OK
+                # order_resp can be list/dict
+                if isinstance(order_resp, dict) and order_resp.get('stat') == 'Ok':
+                    order_placed = True
+                elif isinstance(order_resp, list):
+                    for it in order_resp:
+                        if isinstance(it, dict) and it.get('stat') == 'Ok':
+                            order_placed = True
+                            break
+
             except Exception as e:
                 all_order_responses.append({
-                    "symbol": r["symbol"],
+                    "symbol": r['symbol'],
                     "response": {"stat": "Exception", "emsg": str(e)}
                 })
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
 
-            else:
-                print(f"⏸ Skipping {r['symbol']} due to invalid signal: {r.get('signal')}")
-                all_order_responses.append({
-                    "symbol": r["symbol"],
-                    "response": {"stat": "Skipped", "emsg": f"Invalid signal {r.get('signal')}"}
-                })
+            # rate limit delay between order calls
+            time.sleep(getattr(args, 'delay_between_calls', 0.25))
 
-# --- Delay between calls (rate-limit safe) ---
-if args:
-    time.sleep(args.delay_between_calls)
+        else:
+            print(f"⏸ Skipping {r['symbol']} due to invalid signal or place_orders disabled: {r.get('signal')}")
+            all_order_responses.append({
+                "symbol": r['symbol'],
+                "response": {"stat": "Skipped", "emsg": f"Invalid signal {r.get('signal') or 'None'} or place_orders disabled"}
+            })
+            time.sleep(getattr(args, 'delay_between_calls', 0.25))
 
     # Save results
     out_df = pd.DataFrame(results)
@@ -657,12 +646,19 @@ if args:
     if "signal" in out_df.columns:
         print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
 
-
-    # ---------------- Start trailing SL thread only if at least 1 order placed
-    if args and args.place_orders and order_placed:
+    # ---------------- Start trailing SL thread only if at least 1 order placed and PLACED via non-BO product
+    if getattr(args, 'place_orders', False) and order_placed:
+        # If you place only Bracket orders (product_type 'B') you can skip this thread.
+        # We start it only if user explicitly requests and product_type might require it.
         t = threading.Thread(target=start_trailing_sl, args=(ps_api, 5), daemon=True)
         t.start()
-        print("📡 Trailing SL thread started in background...")
+        print("📡 Trailing SL thread started...")
+
+    return {
+        "results": results,
+        "orders": all_order_responses
+    }
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
@@ -676,31 +672,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
