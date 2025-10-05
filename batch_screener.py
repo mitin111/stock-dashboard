@@ -148,6 +148,37 @@ def suggested_qty_by_value(price, target_value_inr=1000):
         return 0
     qty = int(target_value_inr // price)
     return max(1, qty)
+  
+# -----------------------
+# API response helpers
+# -----------------------
+def resp_to_status_and_list(resp):
+    """
+    Normalize ProStocks API returns into (stat, items_list).
+    - If resp is dict with 'stat' and 'data' -> return (stat, data)
+    - If resp is list -> return (None, resp) (list considered the items)
+    - Else -> return (None, [])
+    """
+    if isinstance(resp, dict):
+        stat = resp.get("stat")
+        data = resp.get("data")
+        # if data is a dict or single item, wrap into list
+        if data is None:
+            # some endpoints might return the payload itself as dict (single item)
+            # attempt to infer list-like fields:
+            # if keys look like an order, return [resp]
+            # But default: return empty list
+            return stat, []
+        if isinstance(data, list):
+            return stat, data
+        if isinstance(data, dict):
+            return stat, [data]
+        # fallback: unknown type -> empty list
+        return stat, []
+    elif isinstance(resp, list):
+        return None, resp
+    else:
+        return None, []
 
 # ----------------------- 
 # Signal generation with debug
@@ -563,42 +594,59 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                         continue
                       
                 # --- Check if symbol already has an open order ---
-                ob = ps_api.order_book() or {}
+                ob_raw = ps_api.order_book()
+                ob_stat, ob_list = resp_to_status_and_list(ob_raw)
+
                 open_orders = []
-                if ob.get("stat") == "Ok":
-                    for order in ob.get("data", []):
-                        if (
-                            order.get("trading_symbol") == r['symbol'] and 
-                            order.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"]
-                        ):
-                            open_orders.append(order)
+                # ob_list is a list of order dicts (safe to iterate)
+                for order in ob_list:
+                    if not isinstance(order, dict):
+                        continue
+                    # NOTE: API uses different keys for trading symbol - check both
+                    ts = (
+                        order.get("trading_symbol")
+                        or order.get("tsym")
+                        or order.get("symbol")
+                    )
+                    status = (
+                        order.get("status")
+                        or order.get("st_intrn")
+                        or order.get("stat")
+                    )
+
+                    if ts == r["symbol"] and status in ["OPEN", "PENDING", "TRIGGER PENDING"]:
+                        open_orders.append(order)
 
                 if open_orders:
                     print(f"⚠️ Skipping {r['symbol']}: already has {len(open_orders)} open order(s)")
                     all_order_responses.append({
-                        "symbol": r['symbol'],
+                        "symbol": r["symbol"],
                         "response": {"stat": "Skipped", "emsg": "Open order exists"}
                     })
                     continue
-                  
+
+                # --- Place order since no open one found ---
                 order_resp = place_order_from_signal(ps_api, r)
-                all_order_responses.append({"symbol": r['symbol'], "response": order_resp})
+                all_order_responses.append({"symbol": r["symbol"], "response": order_resp})
                 print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
+
             except Exception as e:
                 all_order_responses.append({
-                    "symbol": r['symbol'],
+                    "symbol": r["symbol"],
                     "response": {"stat": "Exception", "emsg": str(e)}
                 })
                 print(f"❌ Order placement failed for {r['symbol']}: {e}")
-        else:
-            print(f"⏸ Skipping {r['symbol']} due to invalid signal: {r.get('signal')}")
-            all_order_responses.append({
-                "symbol": r['symbol'],
-                "response": {"stat": "Skipped", "emsg": f"Invalid signal {r.get('signal')}"}
-            })  
-              
-        if args:
-            time.sleep(args.delay_between_calls)
+
+            else:
+                print(f"⏸ Skipping {r['symbol']} due to invalid signal: {r.get('signal')}")
+                all_order_responses.append({
+                    "symbol": r["symbol"],
+                    "response": {"stat": "Skipped", "emsg": f"Invalid signal {r.get('signal')}"}
+                })
+
+# --- Delay between calls (rate-limit safe) ---
+if args:
+    time.sleep(args.delay_between_calls)
 
     # Save results
     out_df = pd.DataFrame(results)
@@ -628,6 +676,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
