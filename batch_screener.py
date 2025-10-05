@@ -297,18 +297,13 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order with PAC SL"
         )
 
-        # ✅ Normalize response → always list of dicts
-        if isinstance(raw_resp, dict):
-            resp_list = [raw_resp]
-        elif isinstance(raw_resp, list):
-            resp_list = raw_resp
-        else:
-            resp_list = []
+        # ✅ normalize once only
+        resp_list = ps_api.normalize_response(raw_resp)
 
-        # --- Turant fetch karke placeholders update (full list) ---
-        ps_api._order_book = ps_api.normalize_response(ps_api.order_book(), expect_list=True)
-        ps_api._trade_book = ps_api.normalize_response(ps_api.trade_book(), expect_list=True)
-
+        # --- Refresh local books
+        ps_api._order_book = ps_api.order_book()
+        ps_api._trade_book = ps_api.trade_book()
+       
         # --- Iterate each dict response ---
         for r in resp_list:
             stat = r.get("stat")
@@ -620,6 +615,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
