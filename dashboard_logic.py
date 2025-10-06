@@ -49,7 +49,7 @@ def load_qty_map() -> dict:
                 return json.load(f)
         except Exception:
             pass
-    return {"Q1": 10, "Q2": 20, "Q3": 30, "Q4": 40, "Q5": 50, "Q6": 60}
+    return {"Q1": 1, "Q2": 1, "Q3": 1, "Q4": 1, "Q5": 1, "Q6": 1}
 
 # === Load ProStocks credentials
 def load_credentials():
@@ -176,5 +176,6 @@ def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
             ui_queue.put(("ws_empty", "No symbols for websocket"))
     except Exception as e:
         ui_queue.put(("ws_error", str(e)))
+
 
 
