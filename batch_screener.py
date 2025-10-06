@@ -277,15 +277,24 @@ def place_order_from_signal(ps_api, sig):
     )
 
     # =========================================
-    # ✅ Fetch Live LTP using ProStocks GetQuotes
+    # ✅ Fetch Live LTP using ProStocks GetQuotes (universal-safe)
     # =========================================
     import requests, json
     try:
+        uid = getattr(ps_api, "uid", None) or getattr(ps_api, "user_id", None)
+        if not uid and hasattr(ps_api, "session_data"):
+            uid = ps_api.session_data.get("uid")
+
+        if not uid:
+            raise AttributeError("Missing UID in ps_api session")
+
+        token = ps_api.get_token(symbol, exch)
+
         url = f"{ps_api.base_url}/NorenWClientTP/GetQuotes"
         payload = {
-            "uid": ps_api.uid,
+            "uid": uid,
             "exch": exch,
-            "token": ps_api.get_token(symbol, exch)
+            "token": token
         }
         resp = requests.post(url, json={"jData": payload, "jKey": ps_api.jKey})
         quote = resp.json()
@@ -296,6 +305,7 @@ def place_order_from_signal(ps_api, sig):
         else:
             print(f"⚠️ No valid LTP in quote response for {symbol}: {quote}")
             ltp = float(last_price or 0)
+
     except Exception as e:
         print(f"⚠️ GetQuotes API call failed for {symbol}: {e}")
         ltp = float(last_price or 0)
@@ -353,6 +363,10 @@ def place_order_from_signal(ps_api, sig):
         sig_args = []
 
     safe_payload = {k: v for k, v in payload_debug.items() if k in sig_args}
+    # ✅ Always keep BO-related fields (ProStocks expects them even if not in signature)
+    for k in ["bpprc", "blprc"]:
+        if k not in safe_payload and k in payload_debug:
+            safe_payload[k] = payload_debug[k]
 
     # --- Some SDKs need extra fields for BO
     if "remarks" in sig_args and "remarks" not in safe_payload:
@@ -754,6 +768,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
