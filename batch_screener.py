@@ -344,11 +344,27 @@ def place_order_from_signal(ps_api, sig):
     print("🔹 Order Payload:", payload_debug)
 
     # =========================================
+    # ✅ Safe Compatibility Patch for ProStocks API
+    # =========================================
+    try:
+        import inspect
+        sig_args = inspect.signature(ps_api.place_order).parameters.keys()
+    except Exception:
+        sig_args = []
+
+    safe_payload = {k: v for k, v in payload_debug.items() if k in sig_args}
+
+    # --- Some SDKs need extra fields for BO
+    if "remarks" in sig_args and "remarks" not in safe_payload:
+        safe_payload["remarks"] = "Auto Bracket Order"
+
+    print("🔹 Final Order Payload (compatible):", safe_payload)
+
+    # =========================================
     # ✅ Place Order via ProStocks API
     # =========================================
     try:
-        raw_resp = ps_api.place_order(**payload_debug)
-
+        raw_resp = ps_api.place_order(**safe_payload)
         # ✅ Wrap response safely
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
@@ -738,6 +754,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
