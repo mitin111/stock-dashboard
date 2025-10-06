@@ -243,7 +243,7 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# Place order from signal (patched for BO point system)
+# ✅ Place order from signal (patched for BO point system + Live LTP)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     signal_type = sig.get("signal") if sig else None
@@ -265,7 +265,7 @@ def place_order_from_signal(ps_api, sig):
     pac_lower = sig.get("pac_lower")
     pac_upper = sig.get("pac_upper")
   
-    # ✅ Compute SL + TP using helper
+    # ✅ Compute SL + TP using helper (for fallback logic)
     stop_loss, target_price = compute_safe_sl_tp(
         last_price=last_price,
         pac_val=pac_lower if signal_type == "BUY" else pac_upper,
@@ -276,18 +276,56 @@ def place_order_from_signal(ps_api, sig):
         atr=None
     )
 
-    if stop_loss is None or target_price is None:
-        print(f"❌ Could not compute SL/TP for {symbol}")
-        return [{"stat": "Skipped", "emsg": "Invalid SL/TP"}]
+    # =========================================
+    # ✅ Fetch Live LTP using ProStocks GetQuotes
+    # =========================================
+    import requests, json
+    try:
+        url = f"{ps_api.base_url}/NorenWClientTP/GetQuotes"
+        payload = {
+            "uid": ps_api.uid,
+            "exch": exch,
+            "token": ps_api.get_token(symbol, exch)
+        }
+        resp = requests.post(url, json={"jData": payload, "jKey": ps_api.jKey})
+        quote = resp.json()
 
-    # ✅ Convert absolute price → point difference
-    if signal_type == "BUY":
-        book_profit = round(target_price - last_price, 2)  # target gap
-        book_loss   = round(last_price - stop_loss, 2)     # SL gap
-    else:  # SELL
-        book_profit = round(last_price - target_price, 2)  # target gap
-        book_loss   = round(stop_loss - last_price, 2)     # SL gap
+        if quote.get("stat") == "Ok" and quote.get("lp"):
+            ltp = float(quote["lp"])
+            print(f"📊 Live LTP fetched from ProStocks: {symbol} = {ltp}")
+        else:
+            print(f"⚠️ No valid LTP in quote response for {symbol}: {quote}")
+            ltp = float(last_price or 0)
+    except Exception as e:
+        print(f"⚠️ GetQuotes API call failed for {symbol}: {e}")
+        ltp = float(last_price or 0)
 
+    # =========================================
+    # ✅ Compute absolute Target & Stoploss from LTP
+    # =========================================
+    target_pct = 1.0   # 1% profit target
+    sl_pct = 0.5       # 0.5% stoploss
+    target_gap = round(ltp * (target_pct / 100), 2)
+    sl_gap = round(ltp * (sl_pct / 100), 2)
+
+    bpprc = str(target_gap)
+    blprc = str(sl_gap)
+
+    # ✅ Compute PAC-based SL/TP fallback (if LTP failed)
+    if ltp <= 0:
+        if stop_loss is None or target_price is None:
+            print(f"❌ Could not compute SL/TP for {symbol}")
+            return [{"stat": "Skipped", "emsg": "Invalid SL/TP"}]
+        if signal_type == "BUY":
+            bpprc = str(round(target_price - last_price, 2))
+            blprc = str(round(last_price - stop_loss, 2))
+        else:
+            bpprc = str(round(last_price - target_price, 2))
+            blprc = str(round(stop_loss - last_price, 2))
+
+    # =========================================
+    # ✅ Build Payload
+    # =========================================
     payload_debug = {
         "buy_or_sell": "B" if signal_type == "BUY" else "S",
         "product_type": product_type,
@@ -297,13 +335,17 @@ def place_order_from_signal(ps_api, sig):
         "discloseqty": 0,
         "price_type": price_type,
         "price": price,
-        "trigger_price": 0,  # ✅ usually 0 for BO-MKT
-        "book_profit": book_profit,
-        "book_loss": book_loss,
-        "remarks": "Auto Bracket Order with PAC SL"
+        "trigger_price": 0,
+        "bpprc": bpprc,   # ✅ absolute target (points)
+        "blprc": blprc,   # ✅ absolute stoploss (points)
+        "remarks": "Auto Bracket Order with Live LTP SL/TP"
     }
+
     print("🔹 Order Payload:", payload_debug)
 
+    # =========================================
+    # ✅ Place Order via ProStocks API
+    # =========================================
     try:
         raw_resp = ps_api.place_order(**payload_debug)
 
@@ -330,7 +372,7 @@ def place_order_from_signal(ps_api, sig):
 
             stat = item.get("stat")
             if stat == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SLgap={book_loss:.2f} | TPgap={book_profit:.2f}")
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SLgap={blprc} | TPgap={bpprc}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
                 print(f"❌ BO failed for {symbol}: {reason}")
@@ -696,6 +738,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
