@@ -471,7 +471,19 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             place_orders = False
         args = _A()
 
-    order_placed = False
+    # --- Fix: ensure dashboard place_orders=True overrides default args ---
+    if place_orders:
+        if args is None:
+            class _A:
+                watchlists = []
+                place_orders = True
+                min_volatility = 0.5
+                min_price = 100
+                max_price = 2000
+                skip_no_data = True
+            args = _A()
+        else:
+            setattr(args, "place_orders", True)
 
     if ps_api is None:
         creds = load_credentials()
@@ -670,4 +682,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
