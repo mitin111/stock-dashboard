@@ -243,7 +243,7 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# Place order from signal (delegated to dashboard_logic.place_order_from_signal)
+# Place order from signal (patched for BO point system)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     signal_type = sig.get("signal") if sig else None
@@ -276,27 +276,41 @@ def place_order_from_signal(ps_api, sig):
         atr=None
     )
 
-    try:
-        raw_resp = ps_api.place_order(
-            buy_or_sell="B" if signal_type == "BUY" else "S",
-            product_type=product_type,
-            exchange=exch,
-            tradingsymbol=symbol,
-            quantity=qty,
-            discloseqty=0,
-            price_type=price_type,
-            price=price,
-            trigger_price=stop_loss,
-            book_profit=target_price,
-            book_loss=stop_loss,
-            remarks="Auto Bracket Order with PAC SL"
-        )
+    if stop_loss is None or target_price is None:
+        print(f"❌ Could not compute SL/TP for {symbol}")
+        return [{"stat": "Skipped", "emsg": "Invalid SL/TP"}]
 
-        # ✅ Handle raw_resp directly (avoid double wrapping)
+    # ✅ Convert absolute price → point difference
+    if signal_type == "BUY":
+        book_profit = round(target_price - last_price, 2)  # target gap
+        book_loss   = round(last_price - stop_loss, 2)     # SL gap
+    else:  # SELL
+        book_profit = round(last_price - target_price, 2)  # target gap
+        book_loss   = round(stop_loss - last_price, 2)     # SL gap
+
+    payload_debug = {
+        "buy_or_sell": "B" if signal_type == "BUY" else "S",
+        "product_type": product_type,
+        "exchange": exch,
+        "tradingsymbol": symbol,
+        "quantity": qty,
+        "discloseqty": 0,
+        "price_type": price_type,
+        "price": price,
+        "trigger_price": 0,  # ✅ usually 0 for BO-MKT
+        "book_profit": book_profit,
+        "book_loss": book_loss,
+        "remarks": "Auto Bracket Order with PAC SL"
+    }
+    print("🔹 Order Payload:", payload_debug)
+
+    try:
+        raw_resp = ps_api.place_order(**payload_debug)
+
+        # ✅ Wrap response safely
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
-            # flatten one level if needed
             if len(raw_resp) > 0 and isinstance(raw_resp[0], list):
                 resp_list = raw_resp[0]
             else:
@@ -308,7 +322,7 @@ def place_order_from_signal(ps_api, sig):
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-        # --- Process each response safely ---
+        # --- Log result
         for item in resp_list:
             if not isinstance(item, dict):
                 print(f"⚠️ Unexpected response type: {type(item)} | Value: {item}")
@@ -316,7 +330,7 @@ def place_order_from_signal(ps_api, sig):
 
             stat = item.get("stat")
             if stat == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss:.2f} | TP={target_price:.2f}")
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SLgap={book_loss:.2f} | TPgap={book_profit:.2f}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
                 print(f"❌ BO failed for {symbol}: {reason}")
@@ -682,5 +696,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
