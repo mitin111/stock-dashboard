@@ -243,186 +243,86 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# ✅ Place order from signal (patched for BO point system + Live LTP + HTTP fallback)
+# ✅ Place order from signal (BO + LTP + PAC + Rs-gap SL/TP)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
-    # --- Ensure valid session before placing any order ---
-    symbol = sig.get("symbol") if sig else "UNKNOWN"
-    if not ps_api.is_logged_in() or not getattr(ps_api, "jKey", None):
-        print(f"⚠️ Session expired before placing order for {symbol}, re-logging in...")
-        try:
-            ps_api.relogin_if_needed()
-        except Exception as e:
-            print(f"❌ Relogin failed for {symbol}: {e}")
-            return [{"stat": "Error", "emsg": "Session expired and relogin failed"}]
-
-    # --- Proceed with normal signal validation ---
-    signal_type = sig.get("signal") if sig else None
+    symbol = sig.get("symbol")
+    signal_type = sig.get("signal")
+    
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
-        print(f"⚠️ Skipping order: invalid/neutral signal for {sig.get('symbol') if sig else 'unknown'}")
+        print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
+    
     signal_type = signal_type.upper()
-
     qty = sig.get("suggested_qty", 1)
     last_price = float(sig.get("last_price", 0))
     exch = sig.get("exch", "NSE")
-    symbol = sig.get("symbol")
 
-    product_type = "B"   # Bracket Order
-    price_type = "MKT"
-    price = 0.0
-
-    # ✅ Extract PAC values
+    # --- PAC values (Rs) ---
     pac_lower = sig.get("pac_lower")
     pac_upper = sig.get("pac_upper")
 
-    # ✅ Compute fallback SL + TP
+    # --- Compute SL/TP in Rs ---
     stop_loss, target_price = compute_safe_sl_tp(
         last_price=last_price,
-        pac_val=pac_lower if signal_type == "BUY" else pac_upper,
+        pac_val=pac_lower if signal_type=="BUY" else pac_upper,
         side=signal_type,
         rr=2.0,
         max_sl_pct=0.03,
         min_sl_pct=0.001,
-        atr=None
+        atr=None,
+        return_in_rs=True   # make sure compute_safe_sl_tp returns Rs gap
     )
 
-    # =========================================
-    # ✅ Fetch Live LTP via GetQuotes
-    # =========================================
-    import requests, json
+    # --- Fetch LTP safely ---
     try:
-        uid = getattr(ps_api, "uid", None) or getattr(ps_api, "user_id", None)
-        if not uid and hasattr(ps_api, "session_data"):
-            uid = ps_api.session_data.get("uid")
-
-        token = ps_api.get_token(symbol, exch)
-        url = f"{ps_api.base_url}/NorenWClientTP/GetQuotes"
-        payload = {"uid": uid, "exch": exch, "token": token}
-        resp = requests.post(url, json={"jData": payload, "jKey": ps_api.jKey})
-        quote = resp.json()
-
-        if quote.get("stat") == "Ok" and quote.get("lp"):
-            ltp = float(quote["lp"])
-            print(f"📊 Live LTP fetched: {symbol} = {ltp}")
-        else:
-            print(f"⚠️ Invalid quote for {symbol}: {quote}")
-            ltp = float(last_price or 0)
+        quote = ps_api.get_quotes(symbol, exch)
+        ltp = float(quote.get("lp") or last_price)
     except Exception as e:
         print(f"⚠️ GetQuotes failed for {symbol}: {e}")
-        ltp = float(last_price or 0)
+        ltp = last_price
 
-    # =========================================
-    # ✅ Compute SL/TP Gaps (respect NSE tick rules)
-    # =========================================
-    tick = 0.01 if ltp < 200 else 0.05  # NSE tick size rule
-    target_pct = 1.0
-    sl_pct = 0.5
-    target_gap = round(round(ltp * (target_pct / 100)) / tick) * tick
-    sl_gap = round(round(ltp * (sl_pct / 100)) / tick) * tick
+    # --- Compute tick-size compliant gaps ---
+    tick = 0.01 if ltp < 200 else 0.05
+    blprc = round(stop_loss / tick) * tick
+    bpprc = round(target_price / tick) * tick
 
-    bpprc = f"{target_gap:.2f}"
-    blprc = f"{sl_gap:.2f}"
-
-    # ✅ Fallback if LTP missing
-    if ltp <= 0:
-        if stop_loss and target_price:
-            if signal_type == "BUY":
-                bpprc = str(round(target_price - last_price, 2))
-                blprc = str(round(last_price - stop_loss, 2))
-            else:
-                bpprc = str(round(last_price - target_price, 2))
-                blprc = str(round(stop_loss - last_price, 2))
-        else:
-            return [{"stat": "Skipped", "emsg": "Invalid SL/TP"}]
-
-    # =========================================
-    # ✅ Build Payload
-    # =========================================
-    payload_debug = {
-        "buy_or_sell": "B" if signal_type == "BUY" else "S",
-        "product_type": product_type,
+    # --- Build order payload for Bracket Order ---
+    payload = {
+        "buy_or_sell": "B" if signal_type=="BUY" else "S",
+        "product_type": "B",
         "exchange": exch,
         "tradingsymbol": symbol,
         "quantity": qty,
         "discloseqty": 0,
-        "price_type": price_type,
-        "price": price,
+        "price_type": "MKT",
+        "price": 0.0,
         "trigger_price": 0,
-        "bpprc": bpprc,
-        "blprc": blprc,
-        "remarks": "Auto Bracket Order (LTP-based)"
+        "bpprc": f"{bpprc:.2f}",
+        "blprc": f"{blprc:.2f}",
+        "remarks": "Auto Bracket Order (LTP+PAC)"
     }
-    print("🔹 Order Payload:", payload_debug)
+    print("🔹 Order Payload:", payload)
 
-    # =========================================
-    # ✅ Try SDK call → fallback to HTTP if needed
-    # =========================================
+    # --- Place order directly via ps_api.place_order() ---
     try:
-        import inspect
-        args = list(inspect.signature(ps_api.place_order).parameters.keys())
-
-        if "bpprc" in args and "blprc" in args:
-            raw_resp = ps_api.place_order(**payload_debug)
-        else:
-            # --- Manual HTTP POST fallback ---
-            uid = getattr(ps_api, "uid", None) or getattr(ps_api, "user_id", None)
-            if not uid and hasattr(ps_api, "session_data"):
-                uid = ps_api.session_data.get("uid")
-
-            manual_payload = {
-                "uid": uid,
-                "actid": uid,
-                "exch": payload_debug["exchange"],
-                "tsym": payload_debug["tradingsymbol"],
-                "qty": str(payload_debug["quantity"]),
-                "dscqty": "0",
-                "prd": payload_debug["product_type"],
-                "trantype": payload_debug["buy_or_sell"],
-                "prctyp": payload_debug["price_type"],
-                "ret": "DAY",
-                "ordersource": "WEB",
-                "remarks": payload_debug.get("remarks", ""),
-                "prc": str(payload_debug["price"]),
-                "trgprc": str(payload_debug.get("trigger_price", 0)),
-                "bpprc": payload_debug.get("bpprc", "0"),
-                "blprc": payload_debug.get("blprc", "0"),
-            }
-
-            print("📦 HTTP Mode Order Payload:", manual_payload)
-            url = f"{ps_api.base_url}/NorenWClientTP/PlaceOrder"
-
-            # ✅ Encode jData as JSON string, and send as form-data (not JSON)
-            data = {
-                "jData": json.dumps(manual_payload),
-                "jKey": ps_api.jKey
-            }
-
-            resp = requests.post(url, data=data)
-            try:
-                raw_resp = resp.json()
-            except Exception as e:
-                print("⚠️ Invalid JSON response from PlaceOrder:", resp.text)
-                raw_resp = {"stat": "Exception", "emsg": str(e)}
-
-        # ✅ Wrap response
+        raw_resp = ps_api.place_order(**payload)
+        # --- Normalize response ---
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
             resp_list = raw_resp
         else:
-            resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
+            resp_list = [{"stat":"Error","emsg":str(raw_resp)}]
 
-        # --- Refresh books
+        # --- Refresh books ---
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
+        # --- Print status ---
         for item in resp_list:
-            if not isinstance(item, dict):
-                continue
-            stat = item.get("stat")
-            if stat == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SLgap={blprc} | TPgap={bpprc}")
+            if item.get("stat")=="Ok":
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc} | TP={bpprc}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
                 print(f"❌ BO failed for {symbol}: {reason}")
@@ -431,8 +331,7 @@ def place_order_from_signal(ps_api, sig):
 
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
-        return [{"stat": "Exception", "emsg": str(e)}]
-
+        return [{"stat":"Exception","emsg":str(e)}]
 
 # -----------------------
 # Per-symbol processing
@@ -788,6 +687,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
