@@ -186,6 +186,7 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
+    
     # --- ADD HERE ---
     def get_token(self, symbol, exch="NSE"):
         token = self._tokens.get(symbol)
@@ -214,17 +215,20 @@ class ProStocksAPI:
 
     def get_quotes(self, symbol, exch="NSE", wlname=None):
         """
-        Universal safe GetQuotes fetch for LTP.
+        Safe GetQuotes fetch for LTP.
         If token is missing, try fetching from provided watchlist (wlname).
         """
+        if not self.is_logged_in():
+            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login first."}
+
         uid = getattr(self, "userid", None)
-        token = self._tokens.get(symbol)
+        token = self.get_token(symbol, exch)
 
         # --- Auto-fetch token from watchlist if missing ---
         if not token and wlname:
             print(f"⚠️ Token for {symbol} missing. Fetching watchlist '{wlname}'...")
             self.fetch_watchlist_tokens(wlname)
-            token = self._tokens.get(symbol)
+            token = self.get_token(symbol, exch)
 
         if not token:
             return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
@@ -235,11 +239,12 @@ class ProStocksAPI:
         try:
             jdata = json.dumps(payload, separators=(",", ":"))
             resp = self.session.post(url, data={"jData": jdata, "jKey": self.session_token}, timeout=10)
-            print("📨 GetQuotes Response:", resp.text)
+            print(f"📨 GetQuotes Response for {symbol}:", resp.text)
             return resp.json()
         except Exception as e:
-            print("❌ Exception in get_quotes():", e)
+            print(f"❌ Exception in get_quotes() for {symbol}:", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
        # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
@@ -798,6 +803,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
