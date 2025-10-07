@@ -263,16 +263,16 @@ def place_order_from_signal(ps_api, sig):
     pac_upper = sig.get("pac_upper")
 
     # --- Compute SL/TP in Rs ---
-    stop_loss, target_price = compute_safe_sl_tp(
-        last_price=last_price,
-        pac_val=pac_lower if signal_type=="BUY" else pac_upper,
-        side=signal_type,
-        rr=2.0,
-        max_sl_pct=0.03,
-        min_sl_pct=0.001,
-        atr=None,
-        return_in_rs=True   # make sure compute_safe_sl_tp returns Rs gap
-    )
+    # If PAC available, use it; else fallback to % of LTP
+    min_gap = 3.0  # Minimum Rs gap
+    target_pct = 3.0
+
+    if signal_type == "BUY":
+        sl_gap = max(abs(last_price - (pac_lower or last_price)), min_gap)
+        tp_gap = max(last_price * target_pct / 100, min_gap)
+    else:
+        sl_gap = max(abs((pac_upper or last_price) - last_price), min_gap)
+        tp_gap = max(last_price * target_pct / 100, min_gap)
 
     # --- Fetch LTP safely ---
     try:
@@ -284,8 +284,8 @@ def place_order_from_signal(ps_api, sig):
 
     # --- Compute tick-size compliant gaps ---
     tick = 0.01 if ltp < 200 else 0.05
-    blprc = round(stop_loss / tick) * tick
-    bpprc = round(target_price / tick) * tick
+    blprc = round(sl_gap / tick) * tick
+    bpprc = round(tp_gap / tick) * tick
 
     # --- Build order payload for Bracket Order ---
     payload = {
@@ -332,6 +332,7 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat":"Exception","emsg":str(e)}]
+
 
 # -----------------------
 # Per-symbol processing
@@ -687,6 +688,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
