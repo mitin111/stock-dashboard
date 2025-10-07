@@ -263,9 +263,8 @@ def place_order_from_signal(ps_api, sig):
     pac_upper = sig.get("pac_upper")
 
     # --- Compute SL/TP in Rs ---
-    # If PAC available, use it; else fallback to % of LTP
     min_gap = 3.0  # Minimum Rs gap
-    target_pct = 3.0
+    target_pct = 3.0  # Target % of LTP
 
     if signal_type == "BUY":
         sl_gap = max(abs(last_price - (pac_lower or last_price)), min_gap)
@@ -282,31 +281,28 @@ def place_order_from_signal(ps_api, sig):
         print(f"⚠️ GetQuotes failed for {symbol}: {e}")
         ltp = last_price
 
-    # --- Compute tick-size compliant gaps ---
+    # --- Tick-size adjustment ---
     tick = 0.01 if ltp < 200 else 0.05
     blprc = round(sl_gap / tick) * tick
     bpprc = round(tp_gap / tick) * tick
 
-    # --- Build order payload for Bracket Order ---
-    payload = {
-        "buy_or_sell": "B" if signal_type=="BUY" else "S",
-        "product_type": "B",
-        "exchange": exch,
-        "tradingsymbol": symbol,
-        "quantity": qty,
-        "discloseqty": 0,
-        "price_type": "MKT",
-        "price": 0.0,
-        "trigger_price": 0,
-        "bpprc": f"{bpprc:.2f}",
-        "blprc": f"{blprc:.2f}",
-        "remarks": "Auto Bracket Order (LTP+PAC)"
-    }
-    print("🔹 Order Payload:", payload)
-
-    # --- Place order directly via ps_api.place_order() ---
+    # --- Place order directly via SDK ---
     try:
-        raw_resp = ps_api.place_order(**payload)
+        raw_resp = ps_api.place_order(
+            buy_or_sell="B" if signal_type=="BUY" else "S",
+            product_type="B",
+            exchange=exch,
+            tradingsymbol=symbol,
+            quantity=qty,
+            discloseqty=0,
+            price_type="MKT",
+            price=0.0,
+            trigger_price=0,  # optional
+            book_profit=round(bpprc, 2),
+            book_loss=round(blprc, 2),
+            remarks="Auto Bracket Order (LTP+PAC)"
+        )
+
         # --- Normalize response ---
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
@@ -315,7 +311,7 @@ def place_order_from_signal(ps_api, sig):
         else:
             resp_list = [{"stat":"Error","emsg":str(raw_resp)}]
 
-        # --- Refresh books ---
+        # --- Refresh local books ---
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
@@ -688,6 +684,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
