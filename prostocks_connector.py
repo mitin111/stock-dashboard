@@ -212,10 +212,20 @@ class ProStocksAPI:
         print(f"✅ _tokens populated from watchlist {wlname}: {list(self._tokens.keys())}")
         return list(self._tokens.keys())
 
-    def get_quotes(self, symbol, exch="NSE"):
-        """Universal safe GetQuotes fetch for LTP"""
+    def get_quotes(self, symbol, exch="NSE", wlname=None):
+        """
+        Universal safe GetQuotes fetch for LTP.
+        If token is missing, try fetching from provided watchlist (wlname).
+        """
         uid = getattr(self, "userid", None)
-        token = self.get_token(symbol, exch)
+        token = self._tokens.get(symbol)
+
+        # --- Auto-fetch token from watchlist if missing ---
+        if not token and wlname:
+            print(f"⚠️ Token for {symbol} missing. Fetching watchlist '{wlname}'...")
+            self.fetch_watchlist_tokens(wlname)
+            token = self._tokens.get(symbol)
+
         if not token:
             return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
 
@@ -230,7 +240,7 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ Exception in get_quotes():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
-            
+
        # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
@@ -788,6 +798,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
