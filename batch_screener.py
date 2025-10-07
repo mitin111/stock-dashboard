@@ -243,7 +243,7 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# ✅ Place order from signal (BO + LTP + PAC + Rs-gap SL/TP)
+# ✅ Place order from signal (BO + LTP + PAC + dynamic Rs-gap SL/TP)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     symbol = sig.get("symbol")
@@ -262,16 +262,24 @@ def place_order_from_signal(ps_api, sig):
     pac_lower = sig.get("pac_lower")
     pac_upper = sig.get("pac_upper")
 
-    # --- Compute SL/TP in Rs ---
-    min_gap = 3.0  # Minimum Rs gap
-    target_pct = 3.0  # Target % of LTP
+    # --- Dynamic SL/TP logic ---
+    min_sl_pct = 0.5   # 0.5% minimum SL
+    max_sl_pct = 2.0   # 2% maximum SL
+    target_pct = 3.0   # TP % of LTP
 
-    if signal_type == "BUY":
-        sl_gap = max(abs(last_price - (pac_lower or last_price)), min_gap)
-        tp_gap = max(last_price * target_pct / 100, min_gap)
-    else:
-        sl_gap = max(abs((pac_upper or last_price) - last_price), min_gap)
-        tp_gap = max(last_price * target_pct / 100, min_gap)
+    # PAC fallback
+    pac_price = pac_lower if signal_type == "BUY" else pac_upper
+    if pac_price is None:
+        pac_price = last_price
+
+    # SL Rs gap based on PAC proximity
+    pac_gap = abs(last_price - pac_price)
+    min_sl_rs = last_price * min_sl_pct / 100
+    max_sl_rs = last_price * max_sl_pct / 100
+    sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
+
+    # TP Rs gap (minimum = min SL)
+    tp_gap = max(last_price * target_pct / 100, min_sl_rs)
 
     # --- Fetch LTP safely ---
     try:
@@ -286,7 +294,7 @@ def place_order_from_signal(ps_api, sig):
     blprc = round(sl_gap / tick) * tick
     bpprc = round(tp_gap / tick) * tick
 
-    # --- Place order directly via SDK ---
+    # --- Place order via SDK ---
     try:
         raw_resp = ps_api.place_order(
             buy_or_sell="B" if signal_type=="BUY" else "S",
@@ -300,7 +308,7 @@ def place_order_from_signal(ps_api, sig):
             trigger_price=0,  # optional
             book_profit=round(bpprc, 2),
             book_loss=round(blprc, 2),
-            remarks="Auto Bracket Order (LTP+PAC)"
+            remarks="Auto Bracket Order (LTP+PAC dynamic SL/TP)"
         )
 
         # --- Normalize response ---
@@ -311,14 +319,14 @@ def place_order_from_signal(ps_api, sig):
         else:
             resp_list = [{"stat":"Error","emsg":str(raw_resp)}]
 
-        # --- Refresh local books ---
+        # --- Refresh books ---
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
         # --- Print status ---
         for item in resp_list:
             if item.get("stat")=="Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc} | TP={bpprc}")
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc:.2f} | TP={bpprc:.2f}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
                 print(f"❌ BO failed for {symbol}: {reason}")
@@ -683,6 +691,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
