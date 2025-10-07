@@ -213,39 +213,43 @@ class ProStocksAPI:
         print(f"✅ _tokens populated from watchlist {wlname}: {list(self._tokens.keys())}")
         return list(self._tokens.keys())
 
+
     def get_quotes(self, symbol, exch="NSE", wlname=None):
-        """
-        Safe GetQuotes fetch for LTP.
-        If token is missing, try fetching from provided watchlist (wlname).
-        """
-        if not self.is_logged_in():
-            return {"stat": "Not_Ok", "emsg": "Session token missing. Please login first."}
-
-        uid = getattr(self, "userid", None)
-        token = self.get_token(symbol, exch)
-
-        # --- Auto-fetch token from watchlist if missing ---
+        token = self._tokens.get(symbol)
+    
+        # Auto-fetch token from watchlist if missing
         if not token and wlname:
-            print(f"⚠️ Token for {symbol} missing. Fetching watchlist '{wlname}'...")
             self.fetch_watchlist_tokens(wlname)
-            token = self.get_token(symbol, exch)
-
+            token = self._tokens.get(symbol)
+    
         if not token:
             return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
+    
+        uid = getattr(self, "userid", None)
+        jKey = getattr(self, "jKey", None)
+    
+        if not uid or not jKey:
+            return {"stat": "Not_Ok", "emsg": "uid or jKey missing"}
 
         payload = {"uid": uid, "exch": exch, "token": token}
-        url = f"{self.base_url}/NorenWClientTP/GetQuotes"
+        data = f"jData={json.dumps(payload, separators=(',', ':'))}&jKey={jKey}"
 
         try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            resp = self.session.post(url, data={"jData": jdata, "jKey": self.session_token}, timeout=10)
-            print(f"📨 GetQuotes Response for {symbol}:", resp.text)
-            return resp.json()
+            resp = self.session.post(
+                f"{self.base_url}/NorenWClientTP/GetQuotes",
+                data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=10
+            )
+            try:
+                jresp = resp.json()
+            except:
+                jresp = {"stat":"Exception","emsg":f"Invalid response: {resp.text}"}
+
+            return jresp
         except Exception as e:
-            print(f"❌ Exception in get_quotes() for {symbol}:", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}
-
-
+            return {"stat":"Exception","emsg": str(e)}
+    
        # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
@@ -803,6 +807,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
