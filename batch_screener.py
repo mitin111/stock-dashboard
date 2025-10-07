@@ -207,9 +207,21 @@ def generate_signal_for_df(df, settings):
         else:
             reasons.append("No confluence")
 
-    if volatility < 2:
+    # Time-based volatility threshold
+    last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
+    vol_threshold = 2.0  # default
+
+    if last_candle_time >= datetime.strptime("09:15", "%H:%M").time() and last_candle_time < datetime.strptime("11:00", "%H:%M").time():
+        vol_threshold = 2.0
+    elif last_candle_time >= datetime.strptime("11:00", "%H:%M").time() and last_candle_time < datetime.strptime("12:00", "%H:%M").time():
+        vol_threshold = 2.3
+    elif last_candle_time >= datetime.strptime("12:00", "%H:%M").time() and last_candle_time <= datetime.strptime("15:30", "%H:%M").time():
+        vol_threshold = 3.0
+
+    if volatility < vol_threshold:
         signal = "NEUTRAL"
-        reasons.append(f"Volatility {volatility:.2f}% < 2%, skipping trade")
+        reasons.append(f"Volatility {volatility:.2f}% < {vol_threshold}, skipping trade")
+
 
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
@@ -691,6 +703,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
