@@ -117,10 +117,11 @@ class ProStocksAPI:
                 data = response.json()
                 if data.get("stat") == "Ok":
                     self.session_token = data["susertoken"]
+                    self.jKey = self.session_token   # ✅ fix for scripts using ps_api.jKey
                     self.userid = data["uid"]
                     self.actid = data["uid"]   # <-- add this
                     self.headers["Authorization"] = self.session_token
-                    print("✅ Login Success!")
+                    print(f"✅ Login Success! Session token set: {self.session_token[:8]}...")
                     return True, self.session_token
                 else:
                     return False, data.get("emsg", "Unknown login error")
@@ -163,7 +164,8 @@ class ProStocksAPI:
         url = f"{self.base_url}/NorenWClientTP/GetQuotes"
 
         try:
-            resp = requests.post(url, json={"jData": payload, "jKey": self.session_token}, timeout=10)
+            jdata = json.dumps(payload, separators=(",", ":"))
+            resp = requests.post(url, data={"jData": jdata, "jKey": self.session_token}, timeout=10)
             print("📨 GetQuotes Response:", resp.text)
             return resp.json()
         except Exception as e:
@@ -760,6 +762,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
