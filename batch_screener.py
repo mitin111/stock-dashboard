@@ -303,13 +303,17 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order (LTP+PAC)"
         )
 
-        # --- Normalize response ---
+        # ✅ Handle raw_resp directly (avoid double wrapping)
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
-            resp_list = raw_resp
+            # flatten one level if needed
+            if len(raw_resp) > 0 and isinstance(raw_resp[0], list):
+                resp_list = raw_resp[0]
+            else:
+                resp_list = raw_resp
         else:
-            resp_list = [{"stat":"Error","emsg":str(raw_resp)}]
+            resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
 
         # --- Refresh local books ---
         ps_api._order_book = ps_api.order_book()
@@ -684,6 +688,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
