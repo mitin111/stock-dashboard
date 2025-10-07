@@ -391,8 +391,19 @@ def place_order_from_signal(ps_api, sig):
 
             print("📦 HTTP Mode Order Payload:", manual_payload)
             url = f"{ps_api.base_url}/NorenWClientTP/PlaceOrder"
-            resp = requests.post(url, json={"jData": manual_payload, "jKey": ps_api.jKey})
-            raw_resp = resp.json()
+
+            # ✅ Encode jData as JSON string, and send as form-data (not JSON)
+            data = {
+                "jData": json.dumps(manual_payload),
+                "jKey": ps_api.jKey
+            }
+
+            resp = requests.post(url, data=data)
+            try:
+                raw_resp = resp.json()
+            except Exception as e:
+                print("⚠️ Invalid JSON response from PlaceOrder:", resp.text)
+                raw_resp = {"stat": "Exception", "emsg": str(e)}
 
         # ✅ Wrap response
         if isinstance(raw_resp, dict):
@@ -777,6 +788,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
