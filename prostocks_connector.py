@@ -436,6 +436,9 @@ class ProStocksAPI:
                     quantity, discloseqty=0, price_type="MKT", price=None, trigger_price=None,
                     book_profit=None, book_loss=None, trail_price=None,
                     retention='DAY', remarks=''):
+        """
+        Place order (Normal / Bracket / SL)
+        """
         url = f"{self.base_url}/PlaceOrder"
         order_data = {
             "uid": self.userid,
@@ -452,41 +455,49 @@ class ProStocksAPI:
             "remarks": remarks
         }
 
-        # ✅ Price handling
+        # --- Price handling ---
         if price_type.upper() == "MKT":
             order_data["prc"] = "0"
         elif price is not None:
             order_data["prc"] = str(price)
         else:
-            raise ValueError("Price is required for non-MKT orders.")
+            order_data["prc"] = "0"  # fallback safe default
 
-        # ✅ Stoploss trigger price
         if trigger_price is not None:
             order_data["trgprc"] = str(trigger_price)
 
-        # ✅ BO fields
-        if book_profit is not None:
-            order_data["bpprc"] = str(book_profit)
-        if book_loss is not None:
-            order_data["blprc"] = str(book_loss)
-        if trail_price is not None:
-            order_data["trailprc"] = str(trail_price)
+        # --- Only include BO fields if product_type is 'B' ---
+        if product_type == "B":
+            if book_profit is not None:
+                order_data["bpprc"] = str(book_profit)
+            if book_loss is not None:
+                order_data["blprc"] = str(book_loss)
+            if trail_price is not None:
+                order_data["trailprc"] = str(trail_price)
 
         print("📦 Order Payload:", order_data)
 
         jdata_str = json.dumps(order_data, separators=(",", ":"))
         payload = f"jData={jdata_str}&jKey={self.session_token}"
-        self.headers["Content-Type"] = "application/x-www-form-urlencoded" 
 
         try:
-            response = self.session.post(url, data=payload, headers=self.headers, timeout=10)
-            data = response.json()
-            print("📨 Place Order Response:", data)
+            response = self.session.post(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=10
+            )
 
-            # ✅ Normalize once → always list
+            print("📨 Raw Response Text:", response.text)
+
+            # Try parsing JSON safely
+            try:
+                data = response.json()
+            except Exception:
+                return [{"stat": "Exception", "emsg": f"Invalid JSON response: {response.text[:200]}"}]
+
             data = self.normalize_response(data)
 
-            # ✅ Refresh only if successful
             if data and isinstance(data, list) and data[0].get("stat") == "Ok":
                 self._order_book = self.order_book()
                 self._trade_book = self.trade_book()
@@ -495,7 +506,7 @@ class ProStocksAPI:
 
         except requests.exceptions.RequestException as e:
             print("❌ Place order exception:", e)
-            return [{"stat": "Not_Ok", "emsg": str(e)}]   # ✅ return list
+            return [{"stat": "Not_Ok", "emsg": str(e)}]
                 
     
     def modify_order(self, norenordno, tsym, blprc=None, bpprc=None, trgprc=None, qty=None, prc=None, prctyp=None, ret="DAY"):
@@ -807,6 +818,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
