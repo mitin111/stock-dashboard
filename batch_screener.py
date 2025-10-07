@@ -303,42 +303,31 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order (LTP+PAC)"
         )
 
-        # ✅ Handle raw_resp directly (avoid double wrapping)
+        # --- Normalize response ---
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
-            # flatten one level if needed
-            if len(raw_resp) > 0 and isinstance(raw_resp[0], list):
-                resp_list = raw_resp[0]
-            else:
-                resp_list = raw_resp
+            resp_list = raw_resp
         else:
-            resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
+            resp_list = [{"stat":"Error","emsg":str(raw_resp)}]
 
         # --- Refresh local books ---
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-       # --- Process each response safely ---
+        # --- Print status ---
         for item in resp_list:
-            if not isinstance(item, dict):
-                print(f"⚠️ Unexpected response type: {type(item)} | Value: {item}")
-                continue
-
-            stat = item.get("stat")
-            if stat == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={stop_loss:.2f} | TP={target_price:.2f}")
+            if item.get("stat")=="Ok":
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc} | TP={bpprc}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
                 print(f"❌ BO failed for {symbol}: {reason}")
 
         return resp_list
 
-
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat":"Exception","emsg":str(e)}]
-
 
 # -----------------------
 # Per-symbol processing
@@ -694,6 +683,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
