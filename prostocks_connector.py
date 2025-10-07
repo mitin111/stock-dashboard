@@ -216,18 +216,18 @@ class ProStocksAPI:
 
     def get_quotes(self, symbol, exch="NSE", wlname=None):
         token = self._tokens.get(symbol)
-    
+
         # Auto-fetch token from watchlist if missing
         if not token and wlname:
             self.fetch_watchlist_tokens(wlname)
             token = self._tokens.get(symbol)
-    
+
         if not token:
             return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
-    
+
         uid = getattr(self, "userid", None)
         jKey = getattr(self, "jKey", None)
-    
+
         if not uid or not jKey:
             return {"stat": "Not_Ok", "emsg": "uid or jKey missing"}
 
@@ -241,15 +241,27 @@ class ProStocksAPI:
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=10
             )
+
+            # ✅ Step 2 patch: handle empty or invalid response
+            if not resp.text.strip():
+                print(f"⚠️ Empty GetQuotes response for {symbol}")
+                return {"stat": "Exception", "emsg": "Empty response from server"}
+
             try:
                 jresp = resp.json()
-            except:
-                jresp = {"stat":"Exception","emsg":f"Invalid response: {resp.text}"}
+            except Exception as e:
+                print(f"⚠️ Invalid JSON in GetQuotes for {symbol}: {e} | Raw: {resp.text[:200]}")
+                return {"stat": "Exception", "emsg": f"Invalid JSON: {e}"}
+
+            if jresp.get("stat") != "Ok":
+                print(f"⚠️ GetQuotes error for {symbol}: {jresp.get('emsg')}")
+                return jresp
 
             return jresp
+
         except Exception as e:
-            return {"stat":"Exception","emsg": str(e)}
-    
+            return {"stat": "Exception", "emsg": str(e)}
+
        # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
@@ -818,6 +830,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
