@@ -246,6 +246,17 @@ def generate_signal_for_df(df, settings):
 # ✅ Place order from signal (patched for BO point system + Live LTP + HTTP fallback)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
+    # --- Ensure valid session before placing any order ---
+    symbol = sig.get("symbol") if sig else "UNKNOWN"
+    if not ps_api.is_logged_in() or not getattr(ps_api, "jKey", None):
+        print(f"⚠️ Session expired before placing order for {symbol}, re-logging in...")
+        try:
+            ps_api.relogin_if_needed()
+        except Exception as e:
+            print(f"❌ Relogin failed for {symbol}: {e}")
+            return [{"stat": "Error", "emsg": "Session expired and relogin failed"}]
+
+    # --- Proceed with normal signal validation ---
     signal_type = sig.get("signal") if sig else None
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
         print(f"⚠️ Skipping order: invalid/neutral signal for {sig.get('symbol') if sig else 'unknown'}")
@@ -766,6 +777,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
