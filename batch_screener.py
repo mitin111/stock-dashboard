@@ -243,7 +243,7 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# ✅ Place order from signal (patched for BO point system + Live LTP)
+# ✅ Place order from signal (patched for BO point system + Live LTP + HTTP fallback)
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     signal_type = sig.get("signal") if sig else None
@@ -251,21 +251,21 @@ def place_order_from_signal(ps_api, sig):
         print(f"⚠️ Skipping order: invalid/neutral signal for {sig.get('symbol') if sig else 'unknown'}")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
     signal_type = signal_type.upper()
-    
+
     qty = sig.get("suggested_qty", 1)
     last_price = float(sig.get("last_price", 0))
     exch = sig.get("exch", "NSE")
     symbol = sig.get("symbol")
 
-    product_type = "B"   # Bracket order
+    product_type = "B"   # Bracket Order
     price_type = "MKT"
-    price = 0.0  
+    price = 0.0
 
     # ✅ Extract PAC values
     pac_lower = sig.get("pac_lower")
     pac_upper = sig.get("pac_upper")
-  
-    # ✅ Compute SL + TP using helper (for fallback logic)
+
+    # ✅ Compute fallback SL + TP
     stop_loss, target_price = compute_safe_sl_tp(
         last_price=last_price,
         pac_val=pac_lower if signal_type == "BUY" else pac_upper,
@@ -277,7 +277,7 @@ def place_order_from_signal(ps_api, sig):
     )
 
     # =========================================
-    # ✅ Fetch Live LTP using ProStocks GetQuotes (universal-safe)
+    # ✅ Fetch Live LTP via GetQuotes
     # =========================================
     import requests, json
     try:
@@ -285,53 +285,45 @@ def place_order_from_signal(ps_api, sig):
         if not uid and hasattr(ps_api, "session_data"):
             uid = ps_api.session_data.get("uid")
 
-        if not uid:
-            raise AttributeError("Missing UID in ps_api session")
-
         token = ps_api.get_token(symbol, exch)
-
         url = f"{ps_api.base_url}/NorenWClientTP/GetQuotes"
-        payload = {
-            "uid": uid,
-            "exch": exch,
-            "token": token
-        }
+        payload = {"uid": uid, "exch": exch, "token": token}
         resp = requests.post(url, json={"jData": payload, "jKey": ps_api.jKey})
         quote = resp.json()
 
         if quote.get("stat") == "Ok" and quote.get("lp"):
             ltp = float(quote["lp"])
-            print(f"📊 Live LTP fetched from ProStocks: {symbol} = {ltp}")
+            print(f"📊 Live LTP fetched: {symbol} = {ltp}")
         else:
-            print(f"⚠️ No valid LTP in quote response for {symbol}: {quote}")
+            print(f"⚠️ Invalid quote for {symbol}: {quote}")
             ltp = float(last_price or 0)
-
     except Exception as e:
-        print(f"⚠️ GetQuotes API call failed for {symbol}: {e}")
+        print(f"⚠️ GetQuotes failed for {symbol}: {e}")
         ltp = float(last_price or 0)
 
     # =========================================
-    # ✅ Compute absolute Target & Stoploss from LTP
+    # ✅ Compute SL/TP Gaps (respect NSE tick rules)
     # =========================================
-    target_pct = 1.0   # 1% profit target
-    sl_pct = 0.5       # 0.5% stoploss
-    target_gap = round(ltp * (target_pct / 100), 2)
-    sl_gap = round(ltp * (sl_pct / 100), 2)
+    tick = 0.01 if ltp < 200 else 0.05  # NSE tick size rule
+    target_pct = 1.0
+    sl_pct = 0.5
+    target_gap = round(round(ltp * (target_pct / 100)) / tick) * tick
+    sl_gap = round(round(ltp * (sl_pct / 100)) / tick) * tick
 
-    bpprc = str(target_gap)
-    blprc = str(sl_gap)
+    bpprc = f"{target_gap:.2f}"
+    blprc = f"{sl_gap:.2f}"
 
-    # ✅ Compute PAC-based SL/TP fallback (if LTP failed)
+    # ✅ Fallback if LTP missing
     if ltp <= 0:
-        if stop_loss is None or target_price is None:
-            print(f"❌ Could not compute SL/TP for {symbol}")
-            return [{"stat": "Skipped", "emsg": "Invalid SL/TP"}]
-        if signal_type == "BUY":
-            bpprc = str(round(target_price - last_price, 2))
-            blprc = str(round(last_price - stop_loss, 2))
+        if stop_loss and target_price:
+            if signal_type == "BUY":
+                bpprc = str(round(target_price - last_price, 2))
+                blprc = str(round(last_price - stop_loss, 2))
+            else:
+                bpprc = str(round(last_price - target_price, 2))
+                blprc = str(round(stop_loss - last_price, 2))
         else:
-            bpprc = str(round(last_price - target_price, 2))
-            blprc = str(round(stop_loss - last_price, 2))
+            return [{"stat": "Skipped", "emsg": "Invalid SL/TP"}]
 
     # =========================================
     # ✅ Build Payload
@@ -346,60 +338,66 @@ def place_order_from_signal(ps_api, sig):
         "price_type": price_type,
         "price": price,
         "trigger_price": 0,
-        "bpprc": bpprc,   # ✅ absolute target (points)
-        "blprc": blprc,   # ✅ absolute stoploss (points)
-        "remarks": "Auto Bracket Order with Live LTP SL/TP"
+        "bpprc": bpprc,
+        "blprc": blprc,
+        "remarks": "Auto Bracket Order (LTP-based)"
     }
-
     print("🔹 Order Payload:", payload_debug)
 
     # =========================================
-    # ✅ Safe Compatibility Patch for ProStocks API
+    # ✅ Try SDK call → fallback to HTTP if needed
     # =========================================
     try:
         import inspect
-        sig_args = inspect.signature(ps_api.place_order).parameters.keys()
-    except Exception:
-        sig_args = []
+        args = list(inspect.signature(ps_api.place_order).parameters.keys())
 
-    safe_payload = {k: v for k, v in payload_debug.items() if k in sig_args}
-    # ✅ Always keep BO-related fields (ProStocks expects them even if not in signature)
-    for k in ["bpprc", "blprc"]:
-        if k not in safe_payload and k in payload_debug:
-            safe_payload[k] = payload_debug[k]
+        if "bpprc" in args and "blprc" in args:
+            raw_resp = ps_api.place_order(**payload_debug)
+        else:
+            # --- Manual HTTP POST fallback ---
+            uid = getattr(ps_api, "uid", None) or getattr(ps_api, "user_id", None)
+            if not uid and hasattr(ps_api, "session_data"):
+                uid = ps_api.session_data.get("uid")
 
-    # --- Some SDKs need extra fields for BO
-    if "remarks" in sig_args and "remarks" not in safe_payload:
-        safe_payload["remarks"] = "Auto Bracket Order"
+            manual_payload = {
+                "uid": uid,
+                "actid": uid,
+                "exch": payload_debug["exchange"],
+                "tsym": payload_debug["tradingsymbol"],
+                "qty": str(payload_debug["quantity"]),
+                "dscqty": "0",
+                "prd": payload_debug["product_type"],
+                "trantype": payload_debug["buy_or_sell"],
+                "prctyp": payload_debug["price_type"],
+                "ret": "DAY",
+                "ordersource": "WEB",
+                "remarks": payload_debug.get("remarks", ""),
+                "prc": str(payload_debug["price"]),
+                "trgprc": str(payload_debug.get("trigger_price", 0)),
+                "bpprc": payload_debug.get("bpprc", "0"),
+                "blprc": payload_debug.get("blprc", "0"),
+            }
 
-    print("🔹 Final Order Payload (compatible):", safe_payload)
+            print("📦 HTTP Mode Order Payload:", manual_payload)
+            url = f"{ps_api.base_url}/NorenWClientTP/PlaceOrder"
+            resp = requests.post(url, json={"jData": manual_payload, "jKey": ps_api.jKey})
+            raw_resp = resp.json()
 
-    # =========================================
-    # ✅ Place Order via ProStocks API
-    # =========================================
-    try:
-        raw_resp = ps_api.place_order(**safe_payload)
-        # ✅ Wrap response safely
+        # ✅ Wrap response
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
-            if len(raw_resp) > 0 and isinstance(raw_resp[0], list):
-                resp_list = raw_resp[0]
-            else:
-                resp_list = raw_resp
+            resp_list = raw_resp
         else:
             resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
 
-        # --- Refresh local books
+        # --- Refresh books
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-        # --- Log result
         for item in resp_list:
             if not isinstance(item, dict):
-                print(f"⚠️ Unexpected response type: {type(item)} | Value: {item}")
                 continue
-
             stat = item.get("stat")
             if stat == "Ok":
                 print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SLgap={blprc} | TPgap={bpprc}")
@@ -768,6 +766,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
