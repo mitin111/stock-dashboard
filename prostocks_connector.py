@@ -62,6 +62,17 @@ class ProStocksAPI:
     def sha256(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
+    # ---------------- Token Helper ----------------
+    def get_token(self, symbol, exch="NSE"):
+        """
+        Return contract token for a symbol.
+        Must populate self._tokens manually or via MarketWatch API.
+        """
+        token = self._tokens.get(symbol)
+        if not token:
+            print(f"⚠️ Token not found for {symbol}. Please fetch/populate _tokens first.")
+        return token
+
     # ---------------- Auth ----------------
     def send_otp(self):
         url = f"{self.base_url}/QuickAuth"
@@ -762,6 +773,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
