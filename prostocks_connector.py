@@ -150,6 +150,26 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
+    # ✅ --- NEW: Universal LTP fetcher ---
+    def get_quotes(self, symbol, exch="NSE"):
+        """Universal safe GetQuotes fetch for LTP"""
+        import requests, json
+        uid = getattr(self, "userid", None)
+        token = self.get_token(symbol, exch)
+        if not token:
+            return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
+
+        payload = {"uid": uid, "exch": exch, "token": token}
+        url = f"{self.base_url}/NorenWClientTP/GetQuotes"
+
+        try:
+            resp = requests.post(url, json={"jData": payload, "jKey": self.session_token}, timeout=10)
+            print("📨 GetQuotes Response:", resp.text)
+            return resp.json()
+        except Exception as e:
+            print("❌ Exception in get_quotes():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}    
+
     # ------------- Watchlists -------------
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
@@ -740,6 +760,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
