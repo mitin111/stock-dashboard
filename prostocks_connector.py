@@ -53,6 +53,7 @@ class ProStocksAPI:
 
         # ✅ Tick Queue + File init YAHAN karna hai
         import queue
+        self._tokens = {}  # symbol → token mapping
         self.tick_queue = queue.Queue()
         self.tick_file = "ticks.log"
 
@@ -61,17 +62,6 @@ class ProStocksAPI:
     # ---------------- Utils ----------------
     def sha256(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
-
-    # ---------------- Token Helper ----------------
-    def get_token(self, symbol, exch="NSE"):
-        """
-        Return contract token for a symbol.
-        Must populate self._tokens manually or via MarketWatch API.
-        """
-        token = self._tokens.get(symbol)
-        if not token:
-            print(f"⚠️ Token not found for {symbol}. Please fetch/populate _tokens first.")
-        return token
 
     # ---------------- Auth ----------------
     def send_otp(self):
@@ -162,27 +152,6 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"stat": "Not_Ok", "emsg": str(e)}
 
-    # ✅ --- NEW: Universal LTP fetcher ---
-    def get_quotes(self, symbol, exch="NSE"):
-        """Universal safe GetQuotes fetch for LTP"""
-        import requests, json
-        uid = getattr(self, "userid", None)
-        token = self.get_token(symbol, exch)
-        if not token:
-            return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
-
-        payload = {"uid": uid, "exch": exch, "token": token}
-        url = f"{self.base_url}/NorenWClientTP/GetQuotes"
-
-        try:
-            jdata = json.dumps(payload, separators=(",", ":"))
-            resp = requests.post(url, data={"jData": jdata, "jKey": self.session_token}, timeout=10)
-            print("📨 GetQuotes Response:", resp.text)
-            return resp.json()
-        except Exception as e:
-            print("❌ Exception in get_quotes():", e)
-            return {"stat": "Not_Ok", "emsg": str(e)}    
-
     # ------------- Watchlists -------------
     def get_watchlists(self):
         url = f"{self.base_url}/MWList"
@@ -217,6 +186,51 @@ class ProStocksAPI:
         payload = {"uid": self.userid, "wlname": wlname, "scrips": scrips_str}
         return self._post_json(url, payload)
 
+    # --- ADD HERE ---
+    def get_token(self, symbol, exch="NSE"):
+        token = self._tokens.get(symbol)
+        if not token:
+            print(f"⚠️ Token not found for {symbol}. Please fetch/populate _tokens first.")
+        return token
+
+    def fetch_watchlist_tokens(self, wlname):
+        """
+        Fetch symbols from a watchlist and populate self._tokens
+        """
+        wl = self.get_watchlist(wlname)
+        if not wl or "values" not in wl:
+            print(f"⚠️ No symbols found in watchlist {wlname}")
+            return []
+
+        for s in wl["values"]:
+            sym = s.get("tsym")
+            tok = s.get("token")
+            exch = s.get("exch", "NSE")
+            if sym and tok:
+                self._tokens[sym] = tok
+
+        print(f"✅ _tokens populated from watchlist {wlname}: {list(self._tokens.keys())}")
+        return list(self._tokens.keys())
+
+    def get_quotes(self, symbol, exch="NSE"):
+        """Universal safe GetQuotes fetch for LTP"""
+        uid = getattr(self, "userid", None)
+        token = self.get_token(symbol, exch)
+        if not token:
+            return {"stat": "Not_Ok", "emsg": f"Token not found for {symbol}"}
+
+        payload = {"uid": uid, "exch": exch, "token": token}
+        url = f"{self.base_url}/NorenWClientTP/GetQuotes"
+
+        try:
+            jdata = json.dumps(payload, separators=(",", ":"))
+            resp = self.session.post(url, data={"jData": jdata, "jKey": self.session_token}, timeout=10)
+            print("📨 GetQuotes Response:", resp.text)
+            return resp.json()
+        except Exception as e:
+            print("❌ Exception in get_quotes():", e)
+            return {"stat": "Not_Ok", "emsg": str(e)}
+            
        # ------------- TPSeries -------------
     def get_tpseries(self, exch, token, interval="5", st=None, et=None):
         """
@@ -259,6 +273,7 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ Exception in get_tpseries():", e)
             return {"stat": "Not_Ok", "emsg": str(e)}
+
 
     # ---------------- TPSeries fetch ----------------
     def fetch_full_tpseries(self, exch, token, interval="5", chunk_days=5, max_days=60):
@@ -773,6 +788,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
