@@ -52,12 +52,13 @@ def start_ws(symbols, ps_api, ui_queue, stop_event):
 def render_tab4(require_session_settings=False, allow_file_fallback=True):
     """
     Render the Indicator Settings / Auto Trader control UI (Tab 4).
-    - require_session_settings: if True, do NOT use file fallback; settings must be in st.session_state["strategy_settings"].
-    - allow_file_fallback: when False, never read settings from file.
     """
-    st.subheader("📦 Position Quantity Mapping")
+    # ✅ Show subheader only once per session
+    if "trm_qty_subheader_shown" not in st.session_state:
+        st.subheader("📦 Position Quantity Mapping")
+        st.session_state["trm_qty_subheader_shown"] = True
 
-    # Load saved qty_map (agar None ya corrupt ho to default dict lo)
+    # Load saved qty_map
     current_map = load_qty_map()
     if not isinstance(current_map, dict):
         current_map = {}
@@ -76,10 +77,13 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         try:
             save_qty_map(qty_map)
             st.success("✅ Quantity mapping saved (persistent).")
+            # ✅ Reset flag to show subheader again after save if needed
+            st.session_state["trm_qty_subheader_shown"] = False
         except Exception as e:
             st.error(f"❌ Could not save qty map: {e}")
 
     st.write("📌 Current Quantity Mapping:", qty_map)
+  
 
     # --- Queue & WS Init ---
     if "ui_queue" not in st.session_state:
@@ -289,6 +293,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
