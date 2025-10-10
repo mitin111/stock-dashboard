@@ -570,12 +570,14 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
     print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
+   
     results = []
     all_order_responses = []
+
     # ----------------------- Rate limit setup -----------------------
     calls_made, window_start = 0, time.time()
     MAX_CALLS_PER_MIN = 70           # Fixed rate limit
-    DELAY_BETWEEN_CALLS = 0.20       # 0.20 seconds between symbols
+    DELAY_BETWEEN_CALLS = 0.05      # 0.05 seconds between symbols (faster)
 
     for idx, sym in enumerate(symbols_with_tokens, 1):
         calls_made += 1
@@ -589,7 +591,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             window_start, calls_made = time.time(), 1
 
         print(f"\n🔹 [{idx}/{len(symbols_with_tokens)}] Processing {sym['tsym']} ...")
-    
+
         # ---------------- Process symbol ----------------
         try:
             r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
@@ -599,8 +601,9 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
         results.append(r)
 
-        # ---------------- Delay between symbols ----------------
+        # ---------------- Delay between calls ----------------
         time.sleep(DELAY_BETWEEN_CALLS)
+
 
 
         # ---------------- Order placement ----------------
@@ -715,6 +718,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
