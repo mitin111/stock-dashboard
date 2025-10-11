@@ -88,7 +88,6 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.session_state["qty_map"] = qty_map  # ✅ Update in session_state
             st.success("✅ Quantity mapping saved & loaded successfully.")
             # ✅ Reset flag to show subheader again after save if needed
-            st.session_state["trm_qty_subheader_shown"] = False
         except Exception as e:
             st.error(f"❌ Could not save qty map: {e}")
 
@@ -303,6 +302,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
