@@ -79,13 +79,16 @@ def render_trm_settings_ui_body():
         "show_info_panels": show_info_panels
     }
 
-    if st.button("💾 Save TRM Settings"):
-        st.session_state["trm_settings"] = settings
-        save_trm_settings(settings)
-        st.success("✅ TRM Settings saved successfully!")
-        # Reset header flag (optional)
-        if "trm_settings_expander_rendered" in st.session_state:
-            del st.session_state["trm_settings_expander_rendered"]
+    # --- Render Save button only once per session ---
+    if "trm_save_button_rendered" not in st.session_state:
+        st.session_state["trm_save_button_rendered"] = False
+
+    if not st.session_state["trm_save_button_rendered"]:
+        if st.button("💾 Save TRM Settings"):
+            st.session_state["trm_settings"] = settings
+            save_trm_settings(settings)
+            st.success("✅ TRM Settings saved successfully!")
+        st.session_state["trm_save_button_rendered"] = True
 
     return settings
 
@@ -496,6 +499,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
