@@ -8,6 +8,17 @@ from tkp_trm_chart import load_trm_settings_from_file
 from dashboard_logic import save_qty_map, load_qty_map
 import json
 
+
+# --- Ensure TRM settings loaded in session_state
+if "trm_settings" not in st.session_state or not st.session_state["trm_settings"]:
+    st.session_state["trm_settings"] = load_trm_settings_from_file()
+
+
+# --- Ensure Qty Map loaded in session_state
+if "qty_map" not in st.session_state or not st.session_state["qty_map"]:
+    st.session_state["qty_map"] = load_qty_map()
+
+    
 # 🔹 Global queue for thread -> UI communication
 ui_queue = queue.Queue()
 AUTO_TRADE_FLAG = False
@@ -58,10 +69,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
         st.subheader("📦 Position Quantity Mapping")
         st.session_state["trm_qty_subheader_shown"] = True
 
-    # Load saved qty_map
-    current_map = load_qty_map()
-    if not isinstance(current_map, dict):
-        current_map = {}
+    # ✅ Load qty_map from session_state (auto-loaded above)
+    current_map = st.session_state.get("qty_map", {})
 
     q1 = st.number_input("Q1 (170-200)", min_value=1, value=current_map.get("Q1", 1), key="q1_input")
     q2 = st.number_input("Q2 (201-400)", min_value=1, value=current_map.get("Q2", 1), key="q2_input")
@@ -76,7 +85,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     if st.button("💾 Save Quantity Mapping"):
         try:
             save_qty_map(qty_map)
-            st.success("✅ Quantity mapping saved (persistent).")
+            st.session_state["qty_map"] = qty_map  # ✅ Update in session_state
+            st.success("✅ Quantity mapping saved & loaded successfully.")
             # ✅ Reset flag to show subheader again after save if needed
             st.session_state["trm_qty_subheader_shown"] = False
         except Exception as e:
@@ -293,6 +303,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
