@@ -102,6 +102,13 @@ else:
     # just render inside existing container (avoids double header)
     settings = render_trm_settings_ui_body()
 
+# =====================================================
+# 🔹 Legacy Wrapper for Backward Compatibility
+# =====================================================
+def trm_settings_ui():
+    """Legacy wrapper for backward compatibility (old imports)"""
+    return render_trm_settings_ui_body()
+
 
 # =========================
 # Background-safe access
@@ -489,4 +496,5 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
