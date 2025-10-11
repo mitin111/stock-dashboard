@@ -94,13 +94,13 @@ def render_trm_settings_ui_body():
 if "trm_settings_expander_rendered" not in st.session_state:
     st.session_state["trm_settings_expander_rendered"] = False
 
+# --- Render TRM Settings only once per session ---
 if not st.session_state["trm_settings_expander_rendered"]:
     with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
-        st.session_state["trm_settings_expander_rendered"] = True
-        settings = render_trm_settings_ui_body()
+        render_trm_settings_ui_body()
+    st.session_state["trm_settings_expander_rendered"] = True
 else:
-    # just render inside existing container (avoids double header)
-    settings = render_trm_settings_ui_body()
+    st.empty()  # clears any stray duplicate container
 
 # =====================================================
 # 🔹 Legacy Wrapper for Backward Compatibility
@@ -496,5 +496,6 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
