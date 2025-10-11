@@ -42,10 +42,8 @@ def trm_settings_ui():
     """Single clean TRM Settings expander (always visible, no duplicates)."""
     current = st.session_state.get("trm_settings", {})
 
-    st.subheader("⚙️ TRM Settings (Manual Adjust)")
-
-    # Always render expander (no UI flags or reruns)
-    with st.expander("Edit TRM Settings", expanded=True):
+    # ✅ Only expander, no separate subheader
+    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=True):
         long = st.number_input("TSI Long Length", 1, 900, current.get("long", 25))
         short = st.number_input("TSI Short Length", 1, 200, current.get("short", 5))
         signal = st.number_input("TSI Signal Length", 1, 200, current.get("signal", 14))
@@ -478,6 +476,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
