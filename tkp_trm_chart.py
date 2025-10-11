@@ -39,11 +39,13 @@ if "trm_settings" not in st.session_state:
 # Streamlit Settings Panel (UI only)
 # =========================
 def trm_settings_ui():
-    """TRM Settings — single expander, manual save only."""
+    """
+    Safe UI: Only call st.xxx widgets here.
+    Background threads should not call this.
+    """
     current = st.session_state.get("trm_settings", {})
 
-    # Always render the expander (no separate tabs, no session flag)
-    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=True):
+    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
         long = st.number_input("TSI Long Length", 1, 900, current.get("long", 25))
         short = st.number_input("TSI Short Length", 1, 200, current.get("short", 5))
         signal = st.number_input("TSI Signal Length", 1, 200, current.get("signal", 14))
@@ -70,8 +72,8 @@ def trm_settings_ui():
 
         show_info_panels = st.checkbox("Show Info Panels", current.get("show_info_panels", True))
 
-        # Build settings dict (update session state on change, no auto save)
-        st.session_state["trm_settings"] = {
+        # Build settings dict
+        settings = {
             "long": long, "short": short, "signal": signal,
             "len_rsi": len_rsi, "rsiBuyLevel": rsiBuyLevel, "rsiSellLevel": rsiSellLevel,
             "buyColor": buyColor, "sellColor": sellColor, "neutralColor": neutralColor,
@@ -83,10 +85,12 @@ def trm_settings_ui():
         }
 
         if st.button("💾 Save TRM Settings"):
-            save_trm_settings(st.session_state["trm_settings"])
+            st.session_state["trm_settings"] = settings
+            save_trm_settings(settings)
             st.success("✅ TRM Settings saved successfully!")
 
-    return st.session_state["trm_settings"]
+    return settings
+
 
 # =========================
 # Background-safe access
@@ -474,14 +478,3 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
-
-
-
-
-
-
-
-
-
-
-
