@@ -95,13 +95,17 @@ def trm_settings_ui():
             }
 
             if st.button("💾 Save TRM Settings"):
-                st.session_state["trm_settings"] = settings
-                save_trm_settings(settings)
-                st.success("✅ TRM Settings saved successfully!")
-                # do NOT reset the UI flag here — keep expander rendered only once
-        # mark as shown so subsequent reruns won't render another expander
-        st.session_state["trm_settings_ui_shown"] = True
+               st.session_state["trm_settings"] = settings
+               save_trm_settings(settings)
+               st.success("✅ TRM Settings saved successfully!")
 
+               # ✅ Reopen TRM Settings right after save
+               st.session_state.pop("trm_settings_ui_shown", None)
+               st.rerun()
+
+           # mark as shown so subsequent reruns won't render another expander
+           st.session_state["trm_settings_ui_shown"] = True
+    
     else:
         # If already shown once, still allow editing via a compact inline UI
         # (optional) we show a small notice and a button to open full settings.
@@ -501,6 +505,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
