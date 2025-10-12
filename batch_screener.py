@@ -216,7 +216,7 @@ def generate_signal_for_df(df, settings):
     elif last_candle_time >= datetime.strptime("11:00", "%H:%M").time() and last_candle_time < datetime.strptime("12:00", "%H:%M").time():
         vol_threshold = 2.3
     elif last_candle_time >= datetime.strptime("12:00", "%H:%M").time() and last_candle_time <= datetime.strptime("15:30", "%H:%M").time():
-        vol_threshold = 3.0
+        vol_threshold = 2.7
 
     if volatility < vol_threshold:
         signal = "NEUTRAL"
@@ -718,6 +718,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
