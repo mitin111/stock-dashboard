@@ -339,18 +339,29 @@ def suggested_qty_by_mapping(price, qty_map=None):
     if not isinstance(qty_map, dict) or not qty_map:
         return None   # ❌ no fallback default
 
-    if 170 <= price <= 200:
+    # --- Updated price ranges (1–100 ... 1000+)
+    if 1 <= price <= 100:
         return qty_map.get("Q1")
-    elif 201 <= price <= 400:
+    elif 101 <= price <= 200:
         return qty_map.get("Q2")
-    elif 401 <= price <= 600:
+    elif 201 <= price <= 300:
         return qty_map.get("Q3")
-    elif 601 <= price <= 800:
+    elif 301 <= price <= 400:
         return qty_map.get("Q4")
-    elif 801 <= price <= 1000:
+    elif 401 <= price <= 500:
         return qty_map.get("Q5")
-    elif price > 1000:
+    elif 501 <= price <= 600:
         return qty_map.get("Q6")
+    elif 601 <= price <= 700:
+        return qty_map.get("Q7")
+    elif 701 <= price <= 800:
+        return qty_map.get("Q8")
+    elif 801 <= price <= 900:
+        return qty_map.get("Q9")
+    elif 901 <= price <= 1000:
+        return qty_map.get("Q10")
+    elif price > 1000:
+        return qty_map.get("Q11")
     else:
         return None   # ❌ invalid range → no qty
 
@@ -501,6 +512,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
