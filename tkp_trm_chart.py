@@ -79,38 +79,36 @@ def render_trm_settings_ui_body():
         "show_info_panels": show_info_panels
     }
 
-    # --- Render Save button only once per session ---
-    if "trm_save_button_rendered" not in st.session_state:
-        st.session_state["trm_save_button_rendered"] = False
-
-    if not st.session_state["trm_save_button_rendered"]:
-        if st.button("💾 Save TRM Settings"):
-            st.session_state["trm_settings"] = settings
-            save_trm_settings(settings)
-            st.success("✅ TRM Settings saved successfully!")
-        st.session_state["trm_save_button_rendered"] = True
+    # --- Button always rendered; Streamlit handles reruns gracefully ---
+    if st.button("💾 Save TRM Settings"):
+        st.session_state["trm_settings"] = settings
+        save_trm_settings(settings)
+        st.success("✅ TRM Settings saved successfully!")
 
     return settings
 
 
-# --- Prevent TRM Settings expander from duplicating on rerun ---
+# --- Prevent expander duplication ---
 if "trm_settings_expander_rendered" not in st.session_state:
     st.session_state["trm_settings_expander_rendered"] = False
 
-# --- Render TRM Settings only once per session ---
+# --- Render TRM Settings Expander only once (UI visible always) ---
 if not st.session_state["trm_settings_expander_rendered"]:
     with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
         render_trm_settings_ui_body()
     st.session_state["trm_settings_expander_rendered"] = True
 else:
-    st.empty()  # clears any stray duplicate container
+    # If already rendered once, just show expander again (UI stays consistent)
+    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
+        render_trm_settings_ui_body()
 
 # =====================================================
 # 🔹 Legacy Wrapper for Backward Compatibility
 # =====================================================
 def trm_settings_ui():
     """Legacy wrapper for backward compatibility (old imports)"""
-    return render_trm_settings_ui_body()
+    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
+        return render_trm_settings_ui_body()
 
 
 # =========================
@@ -499,6 +497,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
