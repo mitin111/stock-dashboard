@@ -279,9 +279,8 @@ def place_order_from_signal(ps_api, sig):
 
     # --- Dynamic SL/TP logic ---
     min_sl_pct = 0.5   # 0.5% minimum SL
-    max_sl_pct = 2.0   # 2% maximum SL
-    target_pct = 3.0   # TP % of LTP
-
+    max_sl_pct = 1.6   # 🔹 1.6% maximum SL (changed from 2.0)
+    target_pct = 2.2   # 🔹 TP = 2.2% of LTP (changed from 3.0)
     # PAC fallback
     pac_price = pac_lower if signal_type == "BUY" else pac_upper
     if pac_price is None:
@@ -721,6 +720,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
