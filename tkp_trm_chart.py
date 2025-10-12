@@ -88,19 +88,23 @@ def render_trm_settings_ui_body():
     return settings
 
 
-# --- Prevent expander duplication ---
+# --- Prevent expander duplication safely ---
 if "trm_settings_expander_rendered" not in st.session_state:
     st.session_state["trm_settings_expander_rendered"] = False
 
-# --- Render TRM Settings Expander only once (UI visible always) ---
-if not st.session_state["trm_settings_expander_rendered"]:
-    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
-        render_trm_settings_ui_body()
-    st.session_state["trm_settings_expander_rendered"] = True
-else:
-    # If already rendered once, just show expander again (UI stays consistent)
-    with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
-        render_trm_settings_ui_body()
+def render_trm_settings_once():
+    """Render TRM Settings UI once per rerun"""
+    if not st.session_state["trm_settings_expander_rendered"]:
+        with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
+            render_trm_settings_ui_body()
+        st.session_state["trm_settings_expander_rendered"] = True
+    else:
+        # show expander header only, without body duplication
+        st.markdown("### ⚙️ TRM Settings (Manual Adjust) *(Already loaded)*")
+
+# ✅ call this safely
+render_trm_settings_once()
+
 
 # =====================================================
 # 🔹 Legacy Wrapper for Backward Compatibility
@@ -497,6 +501,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
