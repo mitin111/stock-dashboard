@@ -213,9 +213,9 @@ def generate_signal_for_df(df, settings):
     vol_threshold = 2.0  # default fallback
 
     if last_candle_time >= datetime.strptime("09:15", "%H:%M").time() and last_candle_time < datetime.strptime("10:00", "%H:%M").time():
-        vol_threshold = 1.7
-    elif last_candle_time >= datetime.strptime("10:00", "%H:%M").time() and last_candle_time < datetime.strptime("11:00", "%H:%M").time():
         vol_threshold = 2.0
+    elif last_candle_time >= datetime.strptime("10:00", "%H:%M").time() and last_candle_time < datetime.strptime("11:00", "%H:%M").time():
+        vol_threshold = 2.2
     elif last_candle_time >= datetime.strptime("11:00", "%H:%M").time() and last_candle_time < datetime.strptime("12:00", "%H:%M").time():
         vol_threshold = 2.3
     elif last_candle_time >= datetime.strptime("12:00", "%H:%M").time() and last_candle_time <= datetime.strptime("15:30", "%H:%M").time():
@@ -720,6 +720,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
