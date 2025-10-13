@@ -267,7 +267,25 @@ def place_order_from_signal(ps_api, sig):
     if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
         print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
-    
+
+    # -----------------------
+    # ✅ PAC Band filter (max 1% gap from band)
+    # -----------------------
+    lower_band = sig.get("pac_lower")
+    upper_band = sig.get("pac_upper")
+    ltp = sig.get("ltp")
+
+    if signal_type == "BUY" and ltp > lower_band * 1.01:
+        print(f"⚠️ {symbol}: Skipping BUY — price gap {ltp - lower_band:.2f} > 1% above lower band")
+        return [{"stat": "Skipped", "emsg": "BUY beyond PAC lower band"}]
+
+    elif signal_type == "SELL" and ltp < upper_band * 0.99:
+        print(f"⚠️ {symbol}: Skipping SELL — price gap {upper_band - ltp:.2f} > 1% below upper band")
+        return [{"stat": "Skipped", "emsg": "SELL below PAC upper band"}]
+
+    # ✅ Proceed only if within PAC band range
+    print(f"📈 {symbol}: {signal_type} signal triggered within PAC range")
+
     signal_type = signal_type.upper()
     qty = sig.get("suggested_qty", 1)
     last_price = float(sig.get("last_price", 0))
@@ -279,9 +297,8 @@ def place_order_from_signal(ps_api, sig):
 
     # --- Dynamic SL/TP logic ---
     min_sl_pct = 0.5   # 0.5% minimum SL
-    max_sl_pct = 1.6   # 🔹 1.6% maximum SL (changed from 2.0)
-    target_pct = 2.2   # 🔹 TP = 2.2% of LTP (changed from 3.0)
-    # PAC fallback
+    max_sl_pct = 1.6   # 🔹 1.6% maximum SL
+    target_pct = 2.2   # 🔹 TP = 2.2% of LTP
     pac_price = pac_lower if signal_type == "BUY" else pac_upper
     if pac_price is None:
         pac_price = last_price
@@ -311,7 +328,7 @@ def place_order_from_signal(ps_api, sig):
     # --- Place order via SDK ---
     try:
         raw_resp = ps_api.place_order(
-            buy_or_sell="B" if signal_type=="BUY" else "S",
+            buy_or_sell="B" if signal_type == "BUY" else "S",
             product_type="B",
             exchange=exch,
             tradingsymbol=symbol,
@@ -319,7 +336,7 @@ def place_order_from_signal(ps_api, sig):
             discloseqty=0,
             price_type="MKT",
             price=0.0,
-            trigger_price=0,  # optional
+            trigger_price=0,
             book_profit=round(bpprc, 2),
             book_loss=round(blprc, 2),
             remarks="Auto Bracket Order (LTP+PAC dynamic SL/TP)"
@@ -331,7 +348,7 @@ def place_order_from_signal(ps_api, sig):
         elif isinstance(raw_resp, list):
             resp_list = raw_resp
         else:
-            resp_list = [{"stat":"Error","emsg":str(raw_resp)}]
+            resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
 
         # --- Refresh books ---
         ps_api._order_book = ps_api.order_book()
@@ -339,7 +356,7 @@ def place_order_from_signal(ps_api, sig):
 
         # --- Print status ---
         for item in resp_list:
-            if item.get("stat")=="Ok":
+            if item.get("stat") == "Ok":
                 print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc:.2f} | TP={bpprc:.2f}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
@@ -349,7 +366,8 @@ def place_order_from_signal(ps_api, sig):
 
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
-        return [{"stat":"Exception","emsg":str(e)}]
+        return [{"stat": "Exception", "emsg": str(e)}]
+
 
 # -----------------------
 # Per-symbol processing
@@ -720,6 +738,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
