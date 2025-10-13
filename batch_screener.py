@@ -271,17 +271,27 @@ def place_order_from_signal(ps_api, sig):
     # -----------------------
     # ✅ PAC Band filter (max 1% gap from band)
     # -----------------------
+    # ✅ PAC Band filter (max 1% gap from band)
     lower_band = sig.get("pac_lower")
     upper_band = sig.get("pac_upper")
     ltp = sig.get("ltp")
 
+    # --- Validate values ---
+    if ltp is None or lower_band is None or upper_band is None:
+        print(f"⚠️ {symbol}: Missing PAC data — skipping order (ltp={ltp}, lower={lower_band}, upper={upper_band})")
+        return [{"stat": "Skipped", "emsg": "Missing PAC band data"}]
+
+    # --- Apply PAC gap condition ---
     if signal_type == "BUY" and ltp > lower_band * 1.01:
-        print(f"⚠️ {symbol}: Skipping BUY — price gap {ltp - lower_band:.2f} > 1% above lower band")
+        gap_pct = ((ltp - lower_band) / lower_band) * 100
+        print(f"⚠️ {symbol}: Skipping BUY — price {gap_pct:.2f}% above lower band (>1%)")
         return [{"stat": "Skipped", "emsg": "BUY beyond PAC lower band"}]
 
     elif signal_type == "SELL" and ltp < upper_band * 0.99:
-        print(f"⚠️ {symbol}: Skipping SELL — price gap {upper_band - ltp:.2f} > 1% below upper band")
+        gap_pct = ((upper_band - ltp) / upper_band) * 100
+        print(f"⚠️ {symbol}: Skipping SELL — price {gap_pct:.2f}% below upper band (>1%)")
         return [{"stat": "Skipped", "emsg": "SELL below PAC upper band"}]
+
 
     # ✅ Proceed only if within PAC band range
     print(f"📈 {symbol}: {signal_type} signal triggered within PAC range")
@@ -738,6 +748,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
