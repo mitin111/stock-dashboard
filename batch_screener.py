@@ -276,6 +276,16 @@ def place_order_from_signal(ps_api, sig):
     upper_band = sig.get("pac_upper")
     ltp = sig.get("ltp")
 
+    # --- Auto-fetch LTP if missing ---
+    if ltp is None:
+        try:
+            quote = ps_api.get_quotes(sig.get("symbol"), sig.get("exch", "NSE"))
+            ltp = float(quote.get("lp"))
+            print(f"ℹ️ {symbol}: LTP fetched on-demand = {ltp}")
+        except Exception as e:
+            print(f"⚠️ {symbol}: Failed to fetch LTP — {e}")
+            ltp = None
+
     # --- Validate values ---
     if ltp is None or lower_band is None or upper_band is None:
         print(f"⚠️ {symbol}: Missing PAC data — skipping order (ltp={ltp}, lower={lower_band}, upper={upper_band})")
@@ -748,6 +758,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
