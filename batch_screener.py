@@ -277,9 +277,10 @@ def place_order_from_signal(ps_api, sig):
     # === Step 1: Auto-fetch LTP if missing ===
     if ltp is None:
         try:
-            quote = ps_api.get_quote(symbol)
-            if quote and quote.get("stat") == "Ok":
-                ltp = float(quote.get("lp", 0))
+            exch = sig.get("exch", "NSE")
+            quote_resp = ps_api.get_quotes(symbol, exch)
+            if quote_resp and quote_resp.get("stat") == "Ok":
+                ltp = float(quote_resp.get("lp") or 0)
                 sig["ltp"] = ltp
                 print(f"ℹ️ {symbol}: LTP fetched live → {ltp}")
             else:
@@ -744,6 +745,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
