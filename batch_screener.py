@@ -276,21 +276,37 @@ def place_order_from_signal(ps_api, sig):
     upper_band = sig.get("pac_upper")
     ltp = sig.get("ltp")
 
-    # --- Auto-fetch LTP if missing ---
+   # === Step 1: Auto-fetch LTP if missing ===
     if ltp is None:
         try:
-            quote = ps_api.get_quotes(sig.get("symbol"), sig.get("exch", "NSE"))
-            ltp = float(quote.get("lp"))
-            print(f"ℹ️ {symbol}: LTP fetched on-demand = {ltp}")
+            quote = ps_api.get_quote(symbol)
+            if quote and quote.get("stat") == "Ok":
+                ltp = float(quote.get("lp", 0))
+                sig["ltp"] = ltp
+                print(f"ℹ️ {symbol}: LTP fetched live → {ltp}")
+            else:
+                print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
+                continue
         except Exception as e:
-            print(f"⚠️ {symbol}: Failed to fetch LTP — {e}")
-            ltp = None
+            print(f"⚠️ {symbol}: Error fetching LTP → {e}")
+            continue
 
-    # --- Validate values ---
-    if ltp is None or lower_band is None or upper_band is None:
-        print(f"⚠️ {symbol}: Missing PAC data — skipping order (ltp={ltp}, lower={lower_band}, upper={upper_band})")
-        return [{"stat": "Skipped", "emsg": "Missing PAC band data"}]
+    # === Step 2: Check PAC band data ===
+    if lower_band is None or upper_band is None:
+        print(f"⚠️ {symbol}: Missing PAC band data — skipping order")
+        continue
 
+    # === Step 3: PAC band 1% gap filter ===
+    if signal_type == "BUY" and ltp > lower_band * 1.01:
+        print(f"⚠️ {symbol}: Skipping BUY — price gap {ltp - lower_band:.2f} > 1% above lower band")
+        continue
+    elif signal_type == "SELL" and ltp < upper_band * 0.99:
+        print(f"⚠️ {symbol}: Skipping SELL — price gap {upper_band - ltp:.2f} > 1% below upper band")
+        continue
+
+    # === Step 4: Proceed with order ===
+    print(f"📈 {symbol}: {signal_type} signal triggered within PAC range")
+    place_order_from_signal(ps_api, sig)
     # --- Apply PAC gap condition ---
     if signal_type == "BUY" and ltp > lower_band * 1.01:
         gap_pct = ((ltp - lower_band) / lower_band) * 100
@@ -758,6 +774,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
