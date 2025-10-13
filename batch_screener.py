@@ -262,21 +262,19 @@ def generate_signal_for_df(df, settings):
 # -----------------------
 def place_order_from_signal(ps_api, sig):
     symbol = sig.get("symbol")
-    signal_type = sig.get("signal")
-    
-    if not signal_type or signal_type.upper() not in ["BUY", "SELL"]:
+    signal_type = (sig.get("signal") or "").upper()
+
+    # --- Early skip invalid signal ---
+    if signal_type not in ["BUY", "SELL"]:
         print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
 
-    # -----------------------
-    # ✅ PAC Band filter (max 1% gap from band)
-    # -----------------------
-    # ✅ PAC Band filter (max 1% gap from band)
+    # --- PAC and LTP values ---
     lower_band = sig.get("pac_lower")
     upper_band = sig.get("pac_upper")
     ltp = sig.get("ltp")
 
-   # === Step 1: Auto-fetch LTP if missing ===
+    # === Step 1: Auto-fetch LTP if missing ===
     if ltp is None:
         try:
             quote = ps_api.get_quote(symbol)
@@ -286,75 +284,47 @@ def place_order_from_signal(ps_api, sig):
                 print(f"ℹ️ {symbol}: LTP fetched live → {ltp}")
             else:
                 print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
-                continue
+                return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
         except Exception as e:
             print(f"⚠️ {symbol}: Error fetching LTP → {e}")
-            continue
+            return [{"stat": "Skipped", "emsg": f"LTP fetch exception: {e}"}]
 
     # === Step 2: Check PAC band data ===
     if lower_band is None or upper_band is None:
         print(f"⚠️ {symbol}: Missing PAC band data — skipping order")
-        continue
+        return [{"stat": "Skipped", "emsg": "Missing PAC band data"}]
 
     # === Step 3: PAC band 1% gap filter ===
     if signal_type == "BUY" and ltp > lower_band * 1.01:
-        print(f"⚠️ {symbol}: Skipping BUY — price gap {ltp - lower_band:.2f} > 1% above lower band")
-        continue
-    elif signal_type == "SELL" and ltp < upper_band * 0.99:
-        print(f"⚠️ {symbol}: Skipping SELL — price gap {upper_band - ltp:.2f} > 1% below upper band")
-        continue
-
-    # === Step 4: Proceed with order ===
-    print(f"📈 {symbol}: {signal_type} signal triggered within PAC range")
-    place_order_from_signal(ps_api, sig)
-    # --- Apply PAC gap condition ---
-    if signal_type == "BUY" and ltp > lower_band * 1.01:
         gap_pct = ((ltp - lower_band) / lower_band) * 100
         print(f"⚠️ {symbol}: Skipping BUY — price {gap_pct:.2f}% above lower band (>1%)")
-        return [{"stat": "Skipped", "emsg": "BUY beyond PAC lower band"}]
+        return [{"stat": "Skipped", "emsg": f"BUY beyond PAC lower band ({gap_pct:.2f}% gap)"}]
 
-    elif signal_type == "SELL" and ltp < upper_band * 0.99:
+    if signal_type == "SELL" and ltp < upper_band * 0.99:
         gap_pct = ((upper_band - ltp) / upper_band) * 100
         print(f"⚠️ {symbol}: Skipping SELL — price {gap_pct:.2f}% below upper band (>1%)")
-        return [{"stat": "Skipped", "emsg": "SELL below PAC upper band"}]
+        return [{"stat": "Skipped", "emsg": f"SELL below PAC upper band ({gap_pct:.2f}% gap)"}]
 
-
-    # ✅ Proceed only if within PAC band range
+    # === Step 4: Proceed with order placement ===
     print(f"📈 {symbol}: {signal_type} signal triggered within PAC range")
 
-    signal_type = signal_type.upper()
     qty = sig.get("suggested_qty", 1)
-    last_price = float(sig.get("last_price", 0))
+    last_price = float(sig.get("last_price", ltp))
     exch = sig.get("exch", "NSE")
 
-    # --- PAC values (Rs) ---
-    pac_lower = sig.get("pac_lower")
-    pac_upper = sig.get("pac_upper")
+    # --- PAC values for SL/TP ---
+    pac_price = lower_band if signal_type == "BUY" else upper_band
+    pac_price = pac_price or last_price
 
     # --- Dynamic SL/TP logic ---
-    min_sl_pct = 0.5   # 0.5% minimum SL
-    max_sl_pct = 1.6   # 🔹 1.6% maximum SL
-    target_pct = 2.2   # 🔹 TP = 2.2% of LTP
-    pac_price = pac_lower if signal_type == "BUY" else pac_upper
-    if pac_price is None:
-        pac_price = last_price
-
-    # SL Rs gap based on PAC proximity
+    min_sl_pct = 0.5
+    max_sl_pct = 1.6
+    target_pct = 2.2
     pac_gap = abs(last_price - pac_price)
     min_sl_rs = last_price * min_sl_pct / 100
     max_sl_rs = last_price * max_sl_pct / 100
     sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
-
-    # TP Rs gap (minimum = min SL)
     tp_gap = max(last_price * target_pct / 100, min_sl_rs)
-
-    # --- Fetch LTP safely ---
-    try:
-        quote = ps_api.get_quotes(symbol, exch)
-        ltp = float(quote.get("lp") or last_price)
-    except Exception as e:
-        print(f"⚠️ GetQuotes failed for {symbol}: {e}")
-        ltp = last_price
 
     # --- Tick-size adjustment ---
     tick = 0.01 if ltp < 200 else 0.05
@@ -774,6 +744,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
