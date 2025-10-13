@@ -279,16 +279,22 @@ def place_order_from_signal(ps_api, sig):
         try:
             exch = sig.get("exch", "NSE")
             quote_resp = ps_api.get_quotes(symbol, exch)
-            if quote_resp and quote_resp.get("stat") == "Ok":
-                ltp = float(quote_resp.get("lp") or 0)
+            if quote_resp and quote_resp.get("stat") == "Ok" and quote_resp.get("lp") is not None:
+                ltp = float(quote_resp.get("lp"))
                 sig["ltp"] = ltp
                 print(f"ℹ️ {symbol}: LTP fetched live → {ltp}")
             else:
-                print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
-                return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
+                # Fallback: last close from TPSeries
+                ltp = float(sig.get("last_price") or 0)
+                if ltp > 0:
+                    print(f"ℹ️ {symbol}: Using fallback LTP → {ltp}")
+                else:
+                    print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
+                    return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
         except Exception as e:
             print(f"⚠️ {symbol}: Error fetching LTP → {e}")
             return [{"stat": "Skipped", "emsg": f"LTP fetch exception: {e}"}]
+
 
     # === Step 2: Check PAC band data ===
     if lower_band is None or upper_band is None:
@@ -745,6 +751,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
