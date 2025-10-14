@@ -678,25 +678,24 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     results = []
     all_order_responses = []
 
-    # ----------------------- Rate limit setup -----------------------
     calls_made, window_start = 0, time.time()
-    MAX_CALLS_PER_MIN = 70           # Fixed rate limit
-    DELAY_BETWEEN_CALLS = 0.05      # 0.05 seconds between symbols (faster)
+    MAX_CALLS_PER_MIN = 150
+    DELAY_BETWEEN_CALLS = 0.01  # minimal delay
 
     for idx, sym in enumerate(symbols_with_tokens, 1):
         calls_made += 1
         elapsed = time.time() - window_start
 
-        # Check if max calls per minute reached
+        # Rate-limit check
         if calls_made > MAX_CALLS_PER_MIN:
-            to_wait = max(0, 60 - elapsed) + 0.5
+            to_wait = max(0, 60 - elapsed)
             print(f"⏱ Rate limit reached. Sleeping {to_wait:.1f}s")
             time.sleep(to_wait)
             window_start, calls_made = time.time(), 1
 
         print(f"\n🔹 [{idx}/{len(symbols_with_tokens)}] Processing {sym['tsym']} ...")
 
-        # ---------------- Process symbol ----------------
+        # Process symbol
         try:
             r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
         except Exception as e:
@@ -704,10 +703,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             print(f"❌ Exception for {sym.get('tsym')}: {e}")
 
         results.append(r)
-
-        # ---------------- Delay between calls ----------------
         time.sleep(DELAY_BETWEEN_CALLS)
-
 
 
         # ---------------- Order placement ----------------
@@ -822,6 +818,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
