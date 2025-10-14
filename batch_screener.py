@@ -27,35 +27,42 @@ import threading
 def check_trade_cycle_status(ps_api, symbol):
     """
     Ensure only one complete BUY and one complete SELL cycle per symbol per day.
-    Detects if both entry and exit completed on any side.
+    Works with both list or dict response from ps_api.order_book().
     """
     try:
         resp = ps_api.order_book()
-        if not resp or resp.get("stat") != "Ok":
+        # Normalize response
+        if not resp:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
-        all_orders = resp.get("data", [])
+        if isinstance(resp, list):
+            all_orders = resp
+        elif isinstance(resp, dict):
+            all_orders = resp.get("data", [])
+        else:
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
         if not all_orders:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
-        # Filter only this symbol and today's orders
+        # Filter this symbol + today's orders
         today = datetime.now().strftime("%d-%m-%Y")
-        orders = [o for o in all_orders
-                  if o.get("tsym") == symbol and today in (o.get("norentm") or "")]
-
+        orders = [
+            o for o in all_orders
+            if o.get("tsym") == symbol and today in (o.get("norentm") or "")
+        ]
         if not orders:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
-        # Keep only completed trades
+        # Completed only
         completed = [o for o in orders if (o.get("status") or "").upper() == "COMPLETE"]
         if not completed:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
-        # Extract sides with timestamp order
+        # Sort and analyze transitions
         completed.sort(key=lambda x: x.get("norentm") or "")
         sides = [o.get("trantype") for o in completed]
 
-        # Group continuous BUYs and SELLs as cycles
         buy_cycles, sell_cycles = 0, 0
         last_side = None
         for s in sides:
@@ -66,10 +73,8 @@ def check_trade_cycle_status(ps_api, symbol):
                     sell_cycles += 1
                 last_side = s
 
-        # Determine completion per side
         buy_cycle_done = buy_cycles >= 2 or (buy_cycles >= 1 and sell_cycles >= 1)
         sell_cycle_done = sell_cycles >= 2 or (buy_cycles >= 1 and sell_cycles >= 1)
-
         last_status = "BUY_COMPLETED" if sides[-1] == "B" else "SELL_COMPLETED"
 
         print(f"📊 {symbol} | Orders={len(orders)} | BUY_CYCLES={buy_cycles} | SELL_CYCLES={sell_cycles} | LAST={last_status}")
@@ -817,6 +822,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
