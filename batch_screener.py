@@ -402,7 +402,7 @@ def place_order_from_signal(ps_api, sig):
     # --- Dynamic SL/TP logic ---
     min_sl_pct = 0.5
     max_sl_pct = 1.1
-    target_pct = 1.9
+    target_pct = 1.5
     pac_gap = abs(last_price - pac_price)
     min_sl_rs = last_price * min_sl_pct / 100
     max_sl_rs = last_price * max_sl_pct / 100
@@ -818,6 +818,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
