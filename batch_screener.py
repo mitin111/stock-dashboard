@@ -26,44 +26,61 @@ import threading
 
 def check_trade_cycle_status(ps_api, symbol):
     """
-    Check today's completed BUY/SELL cycles for a symbol.
-    Returns:
-        {
-            "buy_cycle_done": True/False,
-            "sell_cycle_done": True/False,
-            "last_status": "BUY_COMPLETED"/"SELL_COMPLETED"/"NONE"
-        }
+    Ensure only one complete BUY and one complete SELL cycle per symbol per day.
+    Detects if both entry and exit completed on any side.
     """
     try:
         resp = ps_api.order_book()
         if not resp or resp.get("stat") != "Ok":
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
-        orders = [o for o in resp.get("data", []) if o.get("tsym") == symbol]
+        all_orders = resp.get("data", [])
+        if not all_orders:
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
+        # Filter only this symbol and today's orders
+        today = datetime.now().strftime("%d-%m-%Y")
+        orders = [o for o in all_orders
+                  if o.get("tsym") == symbol and today in (o.get("norentm") or "")]
+
         if not orders:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
-        today = datetime.now().strftime("%d-%m-%Y")
-        todays_orders = [o for o in orders if today in (o.get("norentm") or "")]
-        completed = [o for o in todays_orders if o.get("status") == "COMPLETE"]
+        # Keep only completed trades
+        completed = [o for o in orders if (o.get("status") or "").upper() == "COMPLETE"]
         if not completed:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
+        # Extract sides with timestamp order
         completed.sort(key=lambda x: x.get("norentm") or "")
-        last_order = completed[-1]
-        last_side = last_order.get("trantype")  # 'B' or 'S'
+        sides = [o.get("trantype") for o in completed]
 
-        buy_done = any(o.get("trantype") == "B" for o in completed)
-        sell_done = any(o.get("trantype") == "S" for o in completed)
+        # Group continuous BUYs and SELLs as cycles
+        buy_cycles, sell_cycles = 0, 0
+        last_side = None
+        for s in sides:
+            if s != last_side:
+                if s == "B":
+                    buy_cycles += 1
+                elif s == "S":
+                    sell_cycles += 1
+                last_side = s
 
+        # Determine completion per side
+        buy_cycle_done = buy_cycles >= 2 or (buy_cycles >= 1 and sell_cycles >= 1)
+        sell_cycle_done = sell_cycles >= 2 or (buy_cycles >= 1 and sell_cycles >= 1)
+
+        last_status = "BUY_COMPLETED" if sides[-1] == "B" else "SELL_COMPLETED"
+
+        print(f"📊 {symbol} | Orders={len(orders)} | BUY_CYCLES={buy_cycles} | SELL_CYCLES={sell_cycles} | LAST={last_status}")
         return {
-            "buy_cycle_done": buy_done and sell_done if last_side == "S" else buy_done,
-            "sell_cycle_done": sell_done and buy_done if last_side == "B" else sell_done,
-            "last_status": "BUY_COMPLETED" if last_side == "B" else "SELL_COMPLETED"
+            "buy_cycle_done": buy_cycle_done,
+            "sell_cycle_done": sell_cycle_done,
+            "last_status": last_status
         }
 
     except Exception as e:
-        print(f"⚠️ Error checking cycle for {symbol}: {e}")
+        print(f"⚠️ Error in check_trade_cycle_status({symbol}): {e}")
         return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
 # Helper: compute safe SL and TP
@@ -800,6 +817,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
