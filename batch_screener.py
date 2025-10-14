@@ -713,11 +713,11 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                 oprice = float(r.get("open", 0))
                 if yclose > 0 and oprice > 0:
                     gap_pct = ((oprice - yclose) / yclose) * 100
-                    if abs(gap_pct) > 1.2:
+                    if abs(gap_pct) > 1.0:
                         print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (yclose={yclose}, open={oprice})")
                         all_order_responses.append({
                             "symbol": r['symbol'],
-                            "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.2%"}
+                            "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
                         })
                         time.sleep(getattr(args, 'delay_between_calls', 0.25))
                         continue
@@ -818,6 +818,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
