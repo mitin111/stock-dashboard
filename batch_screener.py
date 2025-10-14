@@ -20,6 +20,53 @@ from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
 import threading
 
+# -----------------------------
+# ✅ Trade-cycle tracker (1 BUY + 1 SELL per day)
+# -----------------------------
+from datetime import datetime
+
+def check_trade_cycle_status(ps_api, symbol):
+    """
+    Check today's completed BUY/SELL cycles for a symbol.
+    Returns:
+        {
+            "buy_cycle_done": True/False,
+            "sell_cycle_done": True/False,
+            "last_status": "BUY_COMPLETED"/"SELL_COMPLETED"/"NONE"
+        }
+    """
+    try:
+        resp = ps_api.order_book()
+        if not resp or resp.get("stat") != "Ok":
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
+        orders = [o for o in resp.get("data", []) if o.get("tsym") == symbol]
+        if not orders:
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
+        today = datetime.now().strftime("%d-%m-%Y")
+        todays_orders = [o for o in orders if today in (o.get("norentm") or "")]
+        completed = [o for o in todays_orders if o.get("status") == "COMPLETE"]
+        if not completed:
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
+        completed.sort(key=lambda x: x.get("norentm") or "")
+        last_order = completed[-1]
+        last_side = last_order.get("trantype")  # 'B' or 'S'
+
+        buy_done = any(o.get("trantype") == "B" for o in completed)
+        sell_done = any(o.get("trantype") == "S" for o in completed)
+
+        return {
+            "buy_cycle_done": buy_done and sell_done if last_side == "S" else buy_done,
+            "sell_cycle_done": sell_done and buy_done if last_side == "B" else sell_done,
+            "last_status": "BUY_COMPLETED" if last_side == "B" else "SELL_COMPLETED"
+        }
+
+    except Exception as e:
+        print(f"⚠️ Error checking cycle for {symbol}: {e}")
+        return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
 # Helper: compute safe SL and TP
 def compute_safe_sl_tp(last_price, pac_val, side,
                        rr=2.0, max_sl_pct=0.03, min_sl_pct=0.001, atr=None):
@@ -269,6 +316,17 @@ def place_order_from_signal(ps_api, sig):
         print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
 
+    # === 🧩 Step 0: Prevent duplicate trades for the day ===
+    cycle = check_trade_cycle_status(ps_api, symbol)
+
+    if signal_type == "BUY" and cycle["buy_cycle_done"]:
+        print(f"⏸ Skipping {symbol}: BUY cycle already completed today.")
+        return [{"stat": "Skipped", "emsg": "BUY cycle completed"}]
+
+    if signal_type == "SELL" and cycle["sell_cycle_done"]:
+        print(f"⏸ Skipping {symbol}: SELL cycle already completed today.")
+        return [{"stat": "Skipped", "emsg": "SELL cycle completed"}]
+
     # --- PAC and LTP values ---
     lower_band = sig.get("pac_lower")
     upper_band = sig.get("pac_upper")
@@ -284,7 +342,6 @@ def place_order_from_signal(ps_api, sig):
                 sig["ltp"] = ltp
                 print(f"ℹ️ {symbol}: LTP fetched live → {ltp}")
             else:
-                # Fallback: last close from TPSeries
                 ltp = float(sig.get("last_price") or 0)
                 if ltp > 0:
                     print(f"ℹ️ {symbol}: Using fallback LTP → {ltp}")
@@ -294,7 +351,6 @@ def place_order_from_signal(ps_api, sig):
         except Exception as e:
             print(f"⚠️ {symbol}: Error fetching LTP → {e}")
             return [{"stat": "Skipped", "emsg": f"LTP fetch exception: {e}"}]
-
 
     # === Step 2: Check PAC band data ===
     if lower_band is None or upper_band is None:
@@ -319,7 +375,6 @@ def place_order_from_signal(ps_api, sig):
     last_price = float(sig.get("last_price", ltp))
     exch = sig.get("exch", "NSE")
 
-    # --- PAC values for SL/TP ---
     pac_price = lower_band if signal_type == "BUY" else upper_band
     pac_price = pac_price or last_price
 
@@ -333,7 +388,6 @@ def place_order_from_signal(ps_api, sig):
     sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
     tp_gap = max(last_price * target_pct / 100, min_sl_rs)
 
-    # --- Tick-size adjustment ---
     tick = 0.01 if ltp < 200 else 0.05
     blprc = round(sl_gap / tick) * tick
     bpprc = round(tp_gap / tick) * tick
@@ -355,7 +409,6 @@ def place_order_from_signal(ps_api, sig):
             remarks="Auto Bracket Order (LTP+PAC dynamic SL/TP)"
         )
 
-        # --- Normalize response ---
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
@@ -363,11 +416,9 @@ def place_order_from_signal(ps_api, sig):
         else:
             resp_list = [{"stat": "Error", "emsg": str(raw_resp)}]
 
-        # --- Refresh books ---
         ps_api._order_book = ps_api.order_book()
         ps_api._trade_book = ps_api.trade_book()
 
-        # --- Print status ---
         for item in resp_list:
             if item.get("stat") == "Ok":
                 print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc:.2f} | TP={bpprc:.2f}")
@@ -380,7 +431,6 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
-
 
 # -----------------------
 # Per-symbol processing
@@ -751,6 +801,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
