@@ -379,14 +379,14 @@ def place_order_from_signal(ps_api, sig):
         return [{"stat": "Skipped", "emsg": "Missing PAC band data"}]
 
     # === Step 3: PAC band 1% gap filter ===
-    if signal_type == "BUY" and ltp > lower_band * 1.01:
+    if signal_type == "BUY" and ltp > lower_band * 2.01:
         gap_pct = ((ltp - lower_band) / lower_band) * 100
-        print(f"⚠️ {symbol}: Skipping BUY — price {gap_pct:.2f}% above lower band (>1%)")
+        print(f"⚠️ {symbol}: Skipping BUY — price {gap_pct:.2f}% above lower band (>2%)")
         return [{"stat": "Skipped", "emsg": f"BUY beyond PAC lower band ({gap_pct:.2f}% gap)"}]
 
-    if signal_type == "SELL" and ltp < upper_band * 0.99:
+    if signal_type == "SELL" and ltp < upper_band * 1.99:
         gap_pct = ((upper_band - ltp) / upper_band) * 100
-        print(f"⚠️ {symbol}: Skipping SELL — price {gap_pct:.2f}% below upper band (>1%)")
+        print(f"⚠️ {symbol}: Skipping SELL — price {gap_pct:.2f}% below upper band (>2%)")
         return [{"stat": "Skipped", "emsg": f"SELL below PAC upper band ({gap_pct:.2f}% gap)"}]
 
     # === Step 4: Proceed with order placement ===
@@ -818,6 +818,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
