@@ -449,7 +449,7 @@ class ProStocksAPI:
                     book_profit=None, book_loss=None, trail_price=None,
                     retention='DAY', remarks=''):
         """
-        Place order (Normal / Bracket / SL)
+        Place order (Normal / Bracket / SL) with support for Trailing Stop
         """
         url = f"{self.base_url}/PlaceOrder"
         order_data = {
@@ -467,28 +467,31 @@ class ProStocksAPI:
             "remarks": remarks
         }
 
-        # --- Price handling ---
+        # --- Price logic ---
         if price_type.upper() == "MKT":
             order_data["prc"] = "0"
         elif price is not None:
             order_data["prc"] = str(price)
         else:
-            order_data["prc"] = "0"  # fallback safe default
+            order_data["prc"] = "0"
 
         if trigger_price is not None:
             order_data["trgprc"] = str(trigger_price)
 
-        # --- Only include BO fields if product_type is 'B' ---
+        # --- BO-specific fields ---
         if product_type == "B":
             if book_profit is not None:
                 order_data["bpprc"] = str(book_profit)
             if book_loss is not None:
                 order_data["blprc"] = str(book_loss)
-            if trail_price is not None:
+            if trail_price is not None and float(trail_price) > 0:
                 order_data["trailprc"] = str(trail_price)
+            else:
+                print("ℹ️ No trailing price applied (trail_price=None or 0).")
 
         print("📦 Order Payload:", order_data)
 
+        # --- API request ---
         jdata_str = json.dumps(order_data, separators=(",", ":"))
         payload = f"jData={jdata_str}&jKey={self.session_token}"
 
@@ -502,14 +505,14 @@ class ProStocksAPI:
 
             print("📨 Raw Response Text:", response.text)
 
-            # Try parsing JSON safely
             try:
                 data = response.json()
             except Exception:
-                return [{"stat": "Exception", "emsg": f"Invalid JSON response: {response.text[:200]}"}]
+                return [{"stat": "Exception", "emsg": f"Invalid JSON: {response.text[:200]}"}]
 
             data = self.normalize_response(data)
 
+            # Auto-refresh order/trade books if success
             if data and isinstance(data, list) and data[0].get("stat") == "Ok":
                 self._order_book = self.order_book()
                 self._trade_book = self.trade_book()
@@ -519,7 +522,7 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             print("❌ Place order exception:", e)
             return [{"stat": "Not_Ok", "emsg": str(e)}]
-                
+                 
     
     def modify_order(self, norenordno, tsym, blprc=None, bpprc=None, trgprc=None, qty=None, prc=None, prctyp=None, ret="DAY"):
         """
@@ -830,6 +833,7 @@ class ProStocksAPI:
         # Run WebSocket in background
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
+
 
 
 
