@@ -419,6 +419,14 @@ def place_order_from_signal(ps_api, sig):
 
     # --- Place order via SDK ---
     try:
+        # === Optional Trailing Logic ===
+        # You can make this dynamic (based on volatility or price)
+        trail_rs = 0.0
+
+        # Simple logic: 0.5% of price or minimum Rs. 0.5
+        trail_rs = max(last_price * 0.005, 0.5)
+        trail_rs = round(trail_rs, 2)
+
         raw_resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
             product_type="B",
@@ -431,7 +439,8 @@ def place_order_from_signal(ps_api, sig):
             trigger_price=0,
             book_profit=round(bpprc, 2),
             book_loss=round(blprc, 2),
-            remarks="Auto Bracket Order (LTP+PAC dynamic SL/TP)"
+            trail_price=trail_rs,   # ✅ Added trailing
+            remarks=f"Auto BO with Trail={trail_rs} (LTP+PAC dynamic SL/TP)"
         )
 
         if isinstance(raw_resp, dict):
@@ -446,7 +455,7 @@ def place_order_from_signal(ps_api, sig):
 
         for item in resp_list:
             if item.get("stat") == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc:.2f} | TP={bpprc:.2f}")
+                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc:.2f} | TP={bpprc:.2f} | Trail={trail_rs:.2f}")
             else:
                 reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
                 print(f"❌ BO failed for {symbol}: {reason}")
@@ -456,6 +465,7 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
+
 
 # -----------------------
 # Per-symbol processing
@@ -822,6 +832,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
