@@ -280,16 +280,21 @@ def generate_signal_for_df(df, settings):
     # Time-based volatility threshold
     # --- Time-based volatility threshold ---
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
-    vol_threshold = 2.0  # default fallback
 
-    if last_candle_time >= datetime.strptime("09:15", "%H:%M").time() and last_candle_time < datetime.strptime("10:00", "%H:%M").time():
-        vol_threshold = 1.9
-    elif last_candle_time >= datetime.strptime("10:00", "%H:%M").time() and last_candle_time < datetime.strptime("11:00", "%H:%M").time():
-        vol_threshold = 2.1
-    elif last_candle_time >= datetime.strptime("11:00", "%H:%M").time() and last_candle_time < datetime.strptime("12:00", "%H:%M").time():
-        vol_threshold = 2.2
-    elif last_candle_time >= datetime.strptime("12:00", "%H:%M").time() and last_candle_time <= datetime.strptime("15:30", "%H:%M").time():
-        vol_threshold = 2.7
+    if datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.strptime("09:20", "%H:%M").time():
+        vol_threshold = 1.19
+    elif datetime.strptime("09:20", "%H:%M").time() <= last_candle_time < datetime.strptime("10:00", "%H:%M").time():
+        vol_threshold = 1.29
+    elif datetime.strptime("10:00", "%H:%M").time() <= last_candle_time < datetime.strptime("11:00", "%H:%M").time():
+        vol_threshold = 1.60
+    elif datetime.strptime("11:00", "%H:%M").time() <= last_candle_time < datetime.strptime("12:00", "%H:%M").time():
+        vol_threshold = 2.00
+    elif datetime.strptime("12:00", "%H:%M").time() <= last_candle_time < datetime.strptime("13:00", "%H:%M").time():
+        vol_threshold = 2.20
+    elif datetime.strptime("13:00", "%H:%M").time() <= last_candle_time < datetime.strptime("14:00", "%H:%M").time():
+        vol_threshold = 2.80
+    elif datetime.strptime("14:00", "%H:%M").time() <= last_candle_time <= datetime.strptime("14:45", "%H:%M").time():
+        vol_threshold = 2.80
 
     if volatility < vol_threshold:
         signal = "NEUTRAL"
@@ -866,6 +871,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
