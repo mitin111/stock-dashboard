@@ -342,7 +342,8 @@ def get_dynamic_target_trail(volatility):
         table = [
             (1.2,1.4,1.0,0.5),(1.41,1.6,1.3,0.6),(1.61,1.8,1.7,0.7),
             (1.81,2.0,2.0,0.9),(2.01,2.2,2.2,1.0),(2.21,2.4,2.7,1.1),
-            (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7)
+            (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7),
+            (3.01,999,4.0,1.7)  # 🔸 Above 3.01%
         ]
     # === 09:30–10:00 ===
     elif in_range(time(9,30), time(10,0)):
@@ -350,39 +351,44 @@ def get_dynamic_target_trail(volatility):
             (1.3,1.4,1.0,0.5),(1.41,1.6,1.3,0.6),(1.61,1.8,1.7,0.7),
             (1.81,2.0,2.0,0.9),(2.01,2.2,2.2,1.0),(2.21,2.4,2.7,1.1),
             (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7),
-            (3.01,3.2,4.5,1.7),(3.21,4.0,5.0,1.7)
+            (3.01,3.2,4.5,1.7),(3.21,999,5.0,1.7)  # 🔸 Above 3.21%
         ]
     # === 10:00–11:00 ===
     elif in_range(time(10,0), time(11,0)):
         table = [
             (1.61,1.8,1.1,0.5),(1.81,2.0,1.5,0.7),(2.01,2.2,1.7,0.75),
             (2.21,2.4,2.0,0.85),(2.41,2.6,2.5,1.0),(2.61,2.8,2.7,1.2),
-            (2.81,3.0,3.0,1.3),(3.01,3.2,3.2,1.4),(3.21,4.0,3.4,1.4)
+            (2.81,3.0,3.0,1.3),(3.01,3.2,3.2,1.4),(3.21,999,3.4,1.4)
         ]
     # === 11:00–12:00 ===
     elif in_range(time(11,0), time(12,0)):
         table = [
             (2.01,2.2,1.0,0.5),(2.21,2.4,1.1,0.6),(2.41,2.6,1.3,0.7),
-            (2.61,2.8,1.5,0.7),(2.81,3.0,2.0,0.9),(3.01,4.0,3.0,1.1)
+            (2.61,2.8,1.5,0.7),(2.81,3.0,2.0,0.9),(3.01,999,3.0,1.1)
         ]
     # === 12:00–13:00 ===
     elif in_range(time(12,0), time(13,0)):
         table = [
             (2.21,2.4,0.75,0.3),(2.41,2.6,0.85,0.4),(2.61,2.8,1.0,0.5),
-            (2.81,3.0,1.1,0.6),(3.01,4.0,1.3,0.7)
+            (2.81,3.0,1.1,0.6),(3.01,999,1.3,0.7)
         ]
     # === 13:00–14:00 ===
     elif in_range(time(13,0), time(14,0)):
-        table = [(2.81,3.0,1.0,0.4),(3.01,4.0,1.3,0.5)]
+        table = [
+            (2.81,3.0,1.0,0.4),(3.01,999,1.3,0.5)
+        ]
     # === 14:00–14:45 ===
     elif in_range(time(14,0), time(14,45)):
-        table = [(2.81,3.0,1.0,0.35),(3.01,4.0,1.0,0.4)]
+        table = [
+            (2.81,3.0,1.0,0.35),(3.01,999,1.0,0.4)
+        ]
     else:
-        return (None, None)  # 🔸 Skip trade if no match
+        return (None, None)  # 🔸 Skip trade if time not matched
 
     for lo, hi, tgt, trail in table:
         if lo <= volatility <= hi:
             return (tgt, trail)
+
     return (None, None)  # 🔸 Skip if volatility doesn’t match
 
 
@@ -471,7 +477,7 @@ def place_order_from_signal(ps_api, sig):
             remarks=f"Auto BO | Vol={vol:.2f}% | Tgt={target_pct}% | Trail={trail_pct}%"
         )
 
-        # ✅ Response normalization restored
+        # ✅ Normalize response type (dict/list/string)
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
@@ -492,6 +498,7 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
+
 
 
 # -----------------------
@@ -859,6 +866,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
