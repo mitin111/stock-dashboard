@@ -277,29 +277,28 @@ def generate_signal_for_df(df, settings):
         else:
             reasons.append("No confluence")
 
-    # Time-based volatility threshold
+    
     # --- Time-based volatility threshold ---
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
 
-    if datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.strptime("09:20", "%H:%M").time():
+    if datetime.datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("09:20", "%H:%M").time():
         vol_threshold = 1.19
-    elif datetime.strptime("09:20", "%H:%M").time() <= last_candle_time < datetime.strptime("10:00", "%H:%M").time():
+    elif datetime.datetime.strptime("09:20", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("10:00", "%H:%M").time():
         vol_threshold = 1.29
-    elif datetime.strptime("10:00", "%H:%M").time() <= last_candle_time < datetime.strptime("11:00", "%H:%M").time():
+    elif datetime.datetime.strptime("10:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("11:00", "%H:%M").time():
         vol_threshold = 1.60
-    elif datetime.strptime("11:00", "%H:%M").time() <= last_candle_time < datetime.strptime("12:00", "%H:%M").time():
+    elif datetime.datetime.strptime("11:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("12:00", "%H:%M").time():
         vol_threshold = 2.00
-    elif datetime.strptime("12:00", "%H:%M").time() <= last_candle_time < datetime.strptime("13:00", "%H:%M").time():
+    elif datetime.datetime.strptime("12:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("13:00", "%H:%M").time():
         vol_threshold = 2.20
-    elif datetime.strptime("13:00", "%H:%M").time() <= last_candle_time < datetime.strptime("14:00", "%H:%M").time():
+    elif datetime.datetime.strptime("13:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("14:00", "%H:%M").time():
         vol_threshold = 2.80
-    elif datetime.strptime("14:00", "%H:%M").time() <= last_candle_time <= datetime.strptime("14:45", "%H:%M").time():
+    elif datetime.datetime.strptime("14:00", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("14:45", "%H:%M").time():
         vol_threshold = 2.80
 
     if volatility < vol_threshold:
         signal = "NEUTRAL"
         reasons.append(f"Volatility {volatility:.2f}% < {vol_threshold}, skipping trade")
-
 
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
@@ -882,6 +881,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
