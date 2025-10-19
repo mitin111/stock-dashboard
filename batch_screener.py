@@ -328,121 +328,150 @@ def generate_signal_for_df(df, settings):
     }
 
 # -----------------------
-# ✅ Place order from signal (BO + LTP + PAC + dynamic Rs-gap SL/TP)
+# ✅ Place order from signal (BO + LTP + PAC + dynamic Rs-gap SL/TP + time-volatility dynamic target/trail)
 # -----------------------
+from datetime import datetime, time
+
+def get_dynamic_target_trail(volatility):
+    """Return (target_pct, trail_pct) based on current time and volatility."""
+    now = datetime.now().time()
+    def in_range(start, end): return start <= now < end
+
+    # === 09:20–09:30 ===
+    if in_range(time(9,20), time(9,30)):
+        table = [
+            (1.2,1.4,1.0,0.5),(1.41,1.6,1.3,0.6),(1.61,1.8,1.7,0.7),
+            (1.81,2.0,2.0,0.9),(2.01,2.2,2.2,1.0),(2.21,2.4,2.7,1.1),
+            (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7)
+        ]
+    # === 09:30–10:00 ===
+    elif in_range(time(9,30), time(10,0)):
+        table = [
+            (1.3,1.4,1.0,0.5),(1.41,1.6,1.3,0.6),(1.61,1.8,1.7,0.7),
+            (1.81,2.0,2.0,0.9),(2.01,2.2,2.2,1.0),(2.21,2.4,2.7,1.1),
+            (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7),
+            (3.01,3.2,4.5,1.7),(3.21,4.0,5.0,1.7)
+        ]
+    # === 10:00–11:00 ===
+    elif in_range(time(10,0), time(11,0)):
+        table = [
+            (1.61,1.8,1.1,0.5),(1.81,2.0,1.5,0.7),(2.01,2.2,1.7,0.75),
+            (2.21,2.4,2.0,0.85),(2.41,2.6,2.5,1.0),(2.61,2.8,2.7,1.2),
+            (2.81,3.0,3.0,1.3),(3.01,3.2,3.2,1.4),(3.21,4.0,3.4,1.4)
+        ]
+    # === 11:00–12:00 ===
+    elif in_range(time(11,0), time(12,0)):
+        table = [
+            (2.01,2.2,1.0,0.5),(2.21,2.4,1.1,0.6),(2.41,2.6,1.3,0.7),
+            (2.61,2.8,1.5,0.7),(2.81,3.0,2.0,0.9),(3.01,4.0,3.0,1.1)
+        ]
+    # === 12:00–13:00 ===
+    elif in_range(time(12,0), time(13,0)):
+        table = [
+            (2.21,2.4,0.75,0.3),(2.41,2.6,0.85,0.4),(2.61,2.8,1.0,0.5),
+            (2.81,3.0,1.1,0.6),(3.01,4.0,1.3,0.7)
+        ]
+    # === 13:00–14:00 ===
+    elif in_range(time(13,0), time(14,0)):
+        table = [(2.81,3.0,1.0,0.4),(3.01,4.0,1.3,0.5)]
+    # === 14:00–14:45 ===
+    elif in_range(time(14,0), time(14,45)):
+        table = [(2.81,3.0,1.0,0.35),(3.01,4.0,1.0,0.4)]
+    else:
+        return (None, None)  # 🔸 Skip trade if no match
+
+    for lo, hi, tgt, trail in table:
+        if lo <= volatility <= hi:
+            return (tgt, trail)
+    return (None, None)  # 🔸 Skip if volatility doesn’t match
+
+
 def place_order_from_signal(ps_api, sig):
     symbol = sig.get("symbol")
     signal_type = (sig.get("signal") or "").upper()
 
-    # --- Early skip invalid signal ---
     if signal_type not in ["BUY", "SELL"]:
         print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
 
-    # === 🧩 Step 0: Prevent duplicate trades for the day ===
+    # === Step 0: Prevent duplicate trades ===
     cycle = check_trade_cycle_status(ps_api, symbol)
-
     if signal_type == "BUY" and cycle["buy_cycle_done"]:
-        print(f"⏸ Skipping {symbol}: BUY cycle already completed today.")
         return [{"stat": "Skipped", "emsg": "BUY cycle completed"}]
-
     if signal_type == "SELL" and cycle["sell_cycle_done"]:
-        print(f"⏸ Skipping {symbol}: SELL cycle already completed today.")
         return [{"stat": "Skipped", "emsg": "SELL cycle completed"}]
 
-    # --- PAC and LTP values ---
     lower_band = sig.get("pac_lower")
     upper_band = sig.get("pac_upper")
     ltp = sig.get("ltp")
-
-    # === Step 1: Auto-fetch LTP if missing ===
-    if ltp is None:
-        try:
-            exch = sig.get("exch", "NSE")
-            quote_resp = ps_api.get_quotes(symbol, exch)
-            if quote_resp and quote_resp.get("stat") == "Ok" and quote_resp.get("lp") is not None:
-                ltp = float(quote_resp.get("lp"))
-                sig["ltp"] = ltp
-                print(f"ℹ️ {symbol}: LTP fetched live → {ltp}")
-            else:
-                ltp = float(sig.get("last_price") or 0)
-                if ltp > 0:
-                    print(f"ℹ️ {symbol}: Using fallback LTP → {ltp}")
-                else:
-                    print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
-                    return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
-        except Exception as e:
-            print(f"⚠️ {symbol}: Error fetching LTP → {e}")
-            return [{"stat": "Skipped", "emsg": f"LTP fetch exception: {e}"}]
-
-    # === Step 2: Check PAC band data ===
-    if lower_band is None or upper_band is None:
-        print(f"⚠️ {symbol}: Missing PAC band data — skipping order")
-        return [{"stat": "Skipped", "emsg": "Missing PAC band data"}]
-
-    # === Step 3: PAC band 1% gap filter ===
-    # === Step 3: PAC band 2% gap filter ===
-    if signal_type == "BUY" and ltp > lower_band * 1.02:
-        gap_pct = ((ltp - lower_band) / lower_band) * 100
-        print(f"⚠️ {symbol}: Skipping BUY — price {gap_pct:.2f}% above lower band (>2%)")
-        return [{"stat": "Skipped", "emsg": f"BUY beyond PAC lower band ({gap_pct:.2f}% gap)"}]
-
-    if signal_type == "SELL" and ltp < upper_band * 0.98:
-        gap_pct = ((upper_band - ltp) / upper_band) * 100
-        print(f"⚠️ {symbol}: Skipping SELL — price {gap_pct:.2f}% below upper band (>2%)")
-        return [{"stat": "Skipped", "emsg": f"SELL below PAC upper band ({gap_pct:.2f}% gap)"}]
-
-
-    # === Step 4: Proceed with order placement ===
-    print(f"📈 {symbol}: {signal_type} signal triggered within PAC range")
-
-    qty = sig.get("suggested_qty", 1)
-    last_price = float(sig.get("last_price", ltp))
     exch = sig.get("exch", "NSE")
 
-    pac_price = lower_band if signal_type == "BUY" else upper_band
-    pac_price = pac_price or last_price
+    # === Step 1: Fetch LTP if missing ===
+    if not ltp:
+        try:
+            quote_resp = ps_api.get_quotes(symbol, exch)
+            if quote_resp and quote_resp.get("stat") == "Ok":
+                ltp = float(quote_resp["lp"])
+                sig["ltp"] = ltp
+            else:
+                print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
+                return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
+        except Exception as e:
+            print(f"⚠️ {symbol}: Error fetching LTP → {e}")
+            return [{"stat": "Skipped", "emsg": str(e)}]
 
-    # --- Dynamic SL/TP logic ---
-    min_sl_pct = 0.5
-    max_sl_pct = 1.1
-    target_pct = 1.5
+    # === Step 2: PAC validation ===
+    if lower_band is None or upper_band is None:
+        print(f"⚠️ {symbol}: Missing PAC band data — skipping order")
+        return [{"stat": "Skipped", "emsg": "Missing PAC band"}]
+
+    # === Step 3: 2% PAC filter ===
+    if signal_type == "BUY" and ltp > lower_band * 1.02:
+        return [{"stat": "Skipped", "emsg": "BUY >2% above lower band"}]
+    if signal_type == "SELL" and ltp < upper_band * 0.98:
+        return [{"stat": "Skipped", "emsg": "SELL >2% below upper band"}]
+
+    # === Step 4: Dynamic SL/TP logic ===
+    vol = float(sig.get("volatility", 0))
+    target_pct, trail_pct = get_dynamic_target_trail(vol)
+    if target_pct is None:
+        print(f"🚫 Skipping {symbol}: no match for vol {vol:.2f}% & current time")
+        return [{"stat": "Skipped", "emsg": "No dynamic match"}]
+
+    print(f"🕒 {symbol}: Vol={vol:.2f}% | Target={target_pct}% | Trail={trail_pct}%")
+
+    pac_price = lower_band if signal_type == "BUY" else upper_band
+    last_price = float(sig.get("last_price", ltp))
     pac_gap = abs(last_price - pac_price)
-    min_sl_rs = last_price * min_sl_pct / 100
-    max_sl_rs = last_price * max_sl_pct / 100
+    min_sl_rs = last_price * 0.5 / 100
+    max_sl_rs = last_price * 1.1 / 100
     sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
     tp_gap = max(last_price * target_pct / 100, min_sl_rs)
 
     tick = 0.01 if ltp < 200 else 0.05
     blprc = round(sl_gap / tick) * tick
     bpprc = round(tp_gap / tick) * tick
+    trail_rs = round(last_price * trail_pct / 100, 2)
 
-    # --- Place order via SDK ---
+    # === Step 5: Place Order ===
     try:
-        # === Optional Trailing Logic ===
-        # You can make this dynamic (based on volatility or price)
-        trail_rs = 0.0
-
-        # Simple logic: 0.5% of price or minimum Rs. 0.5
-        trail_rs = max(last_price * 0.005, 0.5)
-        trail_rs = round(trail_rs, 2)
-
         raw_resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
             product_type="B",
             exchange=exch,
             tradingsymbol=symbol,
-            quantity=qty,
+            quantity=sig.get("suggested_qty", 1),
             discloseqty=0,
             price_type="MKT",
             price=0.0,
             trigger_price=0,
-            book_profit=round(bpprc, 2),
-            book_loss=round(blprc, 2),
-            trail_price=trail_rs,   # ✅ Added trailing
-            remarks=f"Auto BO with Trail={trail_rs} (LTP+PAC dynamic SL/TP)"
+            book_profit=bpprc,
+            book_loss=blprc,
+            trail_price=trail_rs,
+            remarks=f"Auto BO | Vol={vol:.2f}% | Tgt={target_pct}% | Trail={trail_pct}%"
         )
 
+        # ✅ Response normalization restored
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
@@ -455,11 +484,9 @@ def place_order_from_signal(ps_api, sig):
 
         for item in resp_list:
             if item.get("stat") == "Ok":
-                print(f"✅ BO placed for {symbol} | {signal_type} | Qty={qty} | SL={blprc:.2f} | TP={bpprc:.2f} | Trail={trail_rs:.2f}")
+                print(f"✅ BO placed {symbol} | {signal_type} | SL={blprc} | TP={bpprc} | Trail={trail_rs}")
             else:
-                reason = item.get("rejreason") or item.get("emsg") or "Unknown Error"
-                print(f"❌ BO failed for {symbol}: {reason}")
-
+                print(f"❌ BO failed {symbol}: {item.get('rejreason') or item.get('emsg')}")
         return resp_list
 
     except Exception as e:
@@ -832,6 +859,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
