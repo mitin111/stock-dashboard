@@ -391,7 +391,7 @@ def get_dynamic_target_trail(volatility: float):
         ]
 
     # === 14:00–14:45 ===
-    elif in_range(datetime.time(14, 0), datetime.time(14, 45)):
+    elif in_range(datetime.time(14, 0), datetime.time(20, 45)):
         table = [
             (2.81, 3.0, 1.0, 0.35), (3.01, 999, 1.0, 0.4)
         ]
@@ -882,6 +882,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
