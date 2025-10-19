@@ -332,71 +332,84 @@ def generate_signal_for_df(df, settings):
         "pac_upper": pac_upper
     }
 
-# -----------------------
-# ✅ Place order from signal (BO + LTP + PAC + dynamic Rs-gap SL/TP + time-volatility dynamic target/trail)
-# -----------------------
+# ================================================================
+# ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
+# ================================================================
 from datetime import datetime, time
 
-def get_dynamic_target_trail(volatility):
+def get_dynamic_target_trail(volatility: float):
     """Return (target_pct, trail_pct) based on current time and volatility."""
     now = datetime.now().time()
-    def in_range(start, end): return start <= now < end
+
+    def in_range(start, end):
+        return start <= now < end
 
     # === 09:20–09:30 ===
-    if in_range(time(9,20), time(9,30)):
+    if in_range(time(9, 20), time(9, 30)):
         table = [
-            (1.2,1.4,1.0,0.5),(1.41,1.6,1.3,0.6),(1.61,1.8,1.7,0.7),
-            (1.81,2.0,2.0,0.9),(2.01,2.2,2.2,1.0),(2.21,2.4,2.7,1.1),
-            (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7),
-            (3.01,999,4.0,1.7)  # 🔸 Above 3.01%
+            (1.2, 1.4, 1.0, 0.5), (1.41, 1.6, 1.3, 0.6), (1.61, 1.8, 1.7, 0.7),
+            (1.81, 2.0, 2.0, 0.9), (2.01, 2.2, 2.2, 1.0), (2.21, 2.4, 2.7, 1.1),
+            (2.41, 2.6, 3.0, 1.2), (2.61, 2.8, 3.5, 1.5), (2.81, 3.0, 4.0, 1.7),
+            (3.01, 999, 4.0, 1.7)  # Above 3.01%
         ]
-    # === 09:30–10:00 ===
-    elif in_range(time(9,30), time(10,0)):
-        table = [
-            (1.3,1.4,1.0,0.5),(1.41,1.6,1.3,0.6),(1.61,1.8,1.7,0.7),
-            (1.81,2.0,2.0,0.9),(2.01,2.2,2.2,1.0),(2.21,2.4,2.7,1.1),
-            (2.41,2.6,3.0,1.2),(2.61,2.8,3.5,1.5),(2.81,3.0,4.0,1.7),
-            (3.01,3.2,4.5,1.7),(3.21,999,5.0,1.7)  # 🔸 Above 3.21%
-        ]
-    # === 10:00–11:00 ===
-    elif in_range(time(10,0), time(11,0)):
-        table = [
-            (1.61,1.8,1.1,0.5),(1.81,2.0,1.5,0.7),(2.01,2.2,1.7,0.75),
-            (2.21,2.4,2.0,0.85),(2.41,2.6,2.5,1.0),(2.61,2.8,2.7,1.2),
-            (2.81,3.0,3.0,1.3),(3.01,3.2,3.2,1.4),(3.21,999,3.4,1.4)
-        ]
-    # === 11:00–12:00 ===
-    elif in_range(time(11,0), time(12,0)):
-        table = [
-            (2.01,2.2,1.0,0.5),(2.21,2.4,1.1,0.6),(2.41,2.6,1.3,0.7),
-            (2.61,2.8,1.5,0.7),(2.81,3.0,2.0,0.9),(3.01,999,3.0,1.1)
-        ]
-    # === 12:00–13:00 ===
-    elif in_range(time(12,0), time(13,0)):
-        table = [
-            (2.21,2.4,0.75,0.3),(2.41,2.6,0.85,0.4),(2.61,2.8,1.0,0.5),
-            (2.81,3.0,1.1,0.6),(3.01,999,1.3,0.7)
-        ]
-    # === 13:00–14:00 ===
-    elif in_range(time(13,0), time(14,0)):
-        table = [
-            (2.81,3.0,1.0,0.4),(3.01,999,1.3,0.5)
-        ]
-    # === 14:00–14:45 ===
-    elif in_range(time(14,0), time(14,45)):
-        table = [
-            (2.81,3.0,1.0,0.35),(3.01,999,1.0,0.4)
-        ]
-    else:
-        return (None, None)  # 🔸 Skip trade if time not matched
 
+    # === 09:30–10:00 ===
+    elif in_range(time(9, 30), time(10, 0)):
+        table = [
+            (1.3, 1.4, 1.0, 0.5), (1.41, 1.6, 1.3, 0.6), (1.61, 1.8, 1.7, 0.7),
+            (1.81, 2.0, 2.0, 0.9), (2.01, 2.2, 2.2, 1.0), (2.21, 2.4, 2.7, 1.1),
+            (2.41, 2.6, 3.0, 1.2), (2.61, 2.8, 3.5, 1.5), (2.81, 3.0, 4.0, 1.7),
+            (3.01, 3.2, 4.5, 1.7), (3.21, 999, 5.0, 1.7)
+        ]
+
+    # === 10:00–11:00 ===
+    elif in_range(time(10, 0), time(11, 0)):
+        table = [
+            (1.61, 1.8, 1.1, 0.5), (1.81, 2.0, 1.5, 0.7), (2.01, 2.2, 1.7, 0.75),
+            (2.21, 2.4, 2.0, 0.85), (2.41, 2.6, 2.5, 1.0), (2.61, 2.8, 2.7, 1.2),
+            (2.81, 3.0, 3.0, 1.3), (3.01, 3.2, 3.2, 1.4), (3.21, 999, 3.4, 1.4)
+        ]
+
+    # === 11:00–12:00 ===
+    elif in_range(time(11, 0), time(12, 0)):
+        table = [
+            (2.01, 2.2, 1.0, 0.5), (2.21, 2.4, 1.1, 0.6), (2.41, 2.6, 1.3, 0.7),
+            (2.61, 2.8, 1.5, 0.7), (2.81, 3.0, 2.0, 0.9), (3.01, 999, 3.0, 1.1)
+        ]
+
+    # === 12:00–13:00 ===
+    elif in_range(time(12, 0), time(13, 0)):
+        table = [
+            (2.21, 2.4, 0.75, 0.3), (2.41, 2.6, 0.85, 0.4), (2.61, 2.8, 1.0, 0.5),
+            (2.81, 3.0, 1.1, 0.6), (3.01, 999, 1.3, 0.7)
+        ]
+
+    # === 13:00–14:00 ===
+    elif in_range(time(13, 0), time(14, 0)):
+        table = [
+            (2.81, 3.0, 1.0, 0.4), (3.01, 999, 1.3, 0.5)
+        ]
+
+    # === 14:00–14:45 ===
+    elif in_range(time(14, 0), time(14, 45)):
+        table = [
+            (2.81, 3.0, 1.0, 0.35), (3.01, 999, 1.0, 0.4)
+        ]
+
+    else:
+        return (None, None)
+
+    # Match volatility range
     for lo, hi, tgt, trail in table:
         if lo <= volatility <= hi:
             return (tgt, trail)
 
-    return (None, None)  # 🔸 Skip if volatility doesn’t match
+    return (None, None)
 
 
+# ================================================================
+# ✅ Auto Place Order Logic (Bracket Order + Dynamic SL/TP)
+# ================================================================
 def place_order_from_signal(ps_api, sig):
     symbol = sig.get("symbol")
     signal_type = (sig.get("signal") or "").upper()
@@ -405,7 +418,7 @@ def place_order_from_signal(ps_api, sig):
         print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
 
-    # === Step 0: Prevent duplicate trades ===
+    # Step 0: Check existing trade cycle
     cycle = check_trade_cycle_status(ps_api, symbol)
     if signal_type == "BUY" and cycle["buy_cycle_done"]:
         return [{"stat": "Skipped", "emsg": "BUY cycle completed"}]
@@ -417,7 +430,7 @@ def place_order_from_signal(ps_api, sig):
     ltp = sig.get("ltp")
     exch = sig.get("exch", "NSE")
 
-    # === Step 1: Fetch LTP if missing ===
+    # Step 1: Fetch LTP if missing
     if not ltp:
         try:
             quote_resp = ps_api.get_quotes(symbol, exch)
@@ -431,18 +444,18 @@ def place_order_from_signal(ps_api, sig):
             print(f"⚠️ {symbol}: Error fetching LTP → {e}")
             return [{"stat": "Skipped", "emsg": str(e)}]
 
-    # === Step 2: PAC validation ===
+    # Step 2: PAC validation
     if lower_band is None or upper_band is None:
         print(f"⚠️ {symbol}: Missing PAC band data — skipping order")
         return [{"stat": "Skipped", "emsg": "Missing PAC band"}]
 
-    # === Step 3: 2% PAC filter ===
+    # Step 3: 2% PAC filter
     if signal_type == "BUY" and ltp > lower_band * 1.02:
         return [{"stat": "Skipped", "emsg": "BUY >2% above lower band"}]
     if signal_type == "SELL" and ltp < upper_band * 0.98:
         return [{"stat": "Skipped", "emsg": "SELL >2% below upper band"}]
 
-    # === Step 4: Dynamic SL/TP logic ===
+    # Step 4: Dynamic SL/TP logic
     vol = float(sig.get("volatility", 0))
     target_pct, trail_pct = get_dynamic_target_trail(vol)
     if target_pct is None:
@@ -454,6 +467,7 @@ def place_order_from_signal(ps_api, sig):
     pac_price = lower_band if signal_type == "BUY" else upper_band
     last_price = float(sig.get("last_price", ltp))
     pac_gap = abs(last_price - pac_price)
+
     min_sl_rs = last_price * 0.5 / 100
     max_sl_rs = last_price * 1.1 / 100
     sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
@@ -464,7 +478,7 @@ def place_order_from_signal(ps_api, sig):
     bpprc = round(tp_gap / tick) * tick
     trail_rs = round(last_price * trail_pct / 100, 2)
 
-    # === Step 5: Place Order ===
+    # Step 5: Place Order
     try:
         raw_resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
@@ -482,7 +496,6 @@ def place_order_from_signal(ps_api, sig):
             remarks=f"Auto BO | Vol={vol:.2f}% | Tgt={target_pct}% | Trail={trail_pct}%"
         )
 
-        # ✅ Normalize response type (dict/list/string)
         if isinstance(raw_resp, dict):
             resp_list = [raw_resp]
         elif isinstance(raw_resp, list):
@@ -503,7 +516,6 @@ def place_order_from_signal(ps_api, sig):
     except Exception as e:
         print(f"❌ Exception placing BO for {symbol}: {e}")
         return [{"stat": "Exception", "emsg": str(e)}]
-
 
 
 # -----------------------
@@ -871,6 +883,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
