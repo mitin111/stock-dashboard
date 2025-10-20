@@ -342,14 +342,17 @@ def generate_signal_for_df(df, settings):
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
-import datetime
+import datetime, pytz
 
 def get_dynamic_target_trail(volatility: float):
     """Return (target_pct, trail_pct) based on current time and volatility."""
-    now = datetime.datetime.now().time()  # ✅ safe
+
+    # --- Fixes applied ---
+    volatility = round(float(volatility), 2)  # ✅ float precision fix
+    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()  # ✅ IST time fix
 
     def in_range(start, end):
-        return start <= now < end
+        return start <= now <= end  # ✅ equality fix
 
     # === 09:20–09:30 ===
     if in_range(datetime.time(9, 20), datetime.time(9, 30)):
@@ -357,7 +360,7 @@ def get_dynamic_target_trail(volatility: float):
             (1.2, 1.4, 1.0, 0.5), (1.41, 1.6, 1.3, 0.6), (1.61, 1.8, 1.7, 0.7),
             (1.81, 2.0, 2.0, 0.9), (2.01, 2.2, 2.2, 1.0), (2.21, 2.4, 2.7, 1.1),
             (2.41, 2.6, 3.0, 1.2), (2.61, 2.8, 3.5, 1.5), (2.81, 3.0, 4.0, 1.7),
-            (3.01, 999, 4.0, 1.7)  # Above 3.01%
+            (3.01, 999, 4.0, 1.7)
         ]
 
     # === 09:30–10:00 ===
@@ -406,12 +409,13 @@ def get_dynamic_target_trail(volatility: float):
     else:
         return (None, None)
 
-    # Match volatility range
+    # --- Match volatility to range ---
     for lo, hi, tgt, trail in table:
         if lo <= volatility <= hi:
             return (tgt, trail)
 
     return (None, None)
+
 
 # ================================================================
 # ✅ Auto Place Order Logic (Bracket Order + Dynamic SL/TP)
@@ -909,6 +913,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
