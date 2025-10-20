@@ -437,18 +437,38 @@ def place_order_from_signal(ps_api, sig):
     exch = sig.get("exch", "NSE")
 
     # Step 1: Fetch LTP if missing
-    if not ltp:
+    # Step 1: Fetch LTP if missing
+    from datetime import datetime, time
+    now = datetime.now().time()
+    market_open = time(9, 15)
+    market_close = time(15, 30)
+
+    if ltp is None:
         try:
             quote_resp = ps_api.get_quotes(symbol, exch)
-            if quote_resp and quote_resp.get("stat") == "Ok":
+            if quote_resp and quote_resp.get("stat") == "Ok" and quote_resp.get("lp"):
                 ltp = float(quote_resp["lp"])
                 sig["ltp"] = ltp
+                print(f"📈 {symbol}: Live LTP fetched → {ltp}")
             else:
-                print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
-                return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
+                # fallback to last known price
+                ltp = float(sig.get("last_price") or 0)
+                if ltp > 0:
+                    print(f"🕒 {symbol}: Using fallback LTP → {ltp}")
+                else:
+                    if not (market_open <= now <= market_close):
+                        print(f"⏳ {symbol}: Market closed ({now.strftime('%H:%M:%S')}) — using no trade mode")
+                        return [{"stat": "Skipped", "emsg": "Market closed"}]
+                    else:
+                        print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
+                        return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
         except Exception as e:
-            print(f"⚠️ {symbol}: Error fetching LTP → {e}")
-            return [{"stat": "Skipped", "emsg": str(e)}]
+            print(f"⚠️ {symbol}: Exception fetching LTP → {e}")
+            ltp = float(sig.get("last_price") or 0)
+            if ltp > 0:
+                print(f"ℹ️ {symbol}: Using last_price fallback after exception → {ltp}")
+            else:
+                return [{"stat": "Skipped", "emsg": f"LTP fetch exception: {e}"}]
 
     # Step 2: PAC validation
     if lower_band is None or upper_band is None:
@@ -889,6 +909,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
