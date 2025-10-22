@@ -283,8 +283,7 @@ with tab5:
         # Plotly expects tz-naive datetimes for bounds in our code path — convert to naive:
         holiday_rangebreaks.append(dict(bounds=[start.tz_convert(None), end.tz_convert(None)]))
 
-    # 2) Partial days -> skip everything EXCEPT allowed windows.
-    #    Achieve by adding exclusion ranges *before* first allowed window and *after* last allowed window.
+    # --- Partial day exclusion logic ---
     for date_str, allowed_windows in special_partial_days.items():
         day = pd.Timestamp(date_str).tz_localize("Asia/Kolkata")
         market_open = day.replace(hour=9, minute=15)
@@ -309,6 +308,14 @@ with tab5:
         last_end = pd.Timestamp(f"{date_str} {allowed_windows_sorted[-1][1]}").tz_localize("Asia/Kolkata")
         if market_close > last_end:
             holiday_rangebreaks.append(dict(bounds=[last_end.tz_convert(None), market_close.tz_convert(None)]))
+
+        # ✅ NEW: add overnight gap before this partial day starts (previous day's close → today's open)
+        prev_close = (day - pd.Timedelta(days=1)).replace(hour=15, minute=30)
+        first_start_naive = first_start.tz_convert(None)
+        prev_close_naive = prev_close.tz_convert(None)
+        if first_start_naive > prev_close_naive:
+            holiday_rangebreaks.append(dict(bounds=[prev_close_naive, first_start_naive]))
+
 
     # --- Now combine with regular rangebreaks (weekends + non-market hours) ---
     rangebreaks = [
@@ -781,6 +788,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
