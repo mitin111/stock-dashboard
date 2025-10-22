@@ -318,17 +318,6 @@ with tab5:
     ]
 
     # Use `rangebreaks` when updating xaxes later
-    st.session_state.live_fig.update_xaxes(
-        showgrid=True,
-        gridwidth=0.5,
-        gridcolor="gray",
-        type="date",
-        tickformat="%d-%m-%Y\n%H:%M",
-        tickangle=0,
-        rangeslider_visible=False,
-        rangebreaks=rangebreaks
-    )
-
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -792,6 +781,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
