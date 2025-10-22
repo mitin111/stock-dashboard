@@ -709,7 +709,8 @@ with tab5:
 
     from plotly.subplots import make_subplots
     from tkp_trm_chart import plot_trm_chart, get_trm_settings_safe
-     # --- Render TKP TRM + PAC + YHL chart ---
+
+    # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
             "datetime": pd.to_datetime(st.session_state.ohlc_x),
@@ -718,37 +719,30 @@ with tab5:
             "low": st.session_state.ohlc_l,
             "close": st.session_state.ohlc_c
         })
+
+        # Ensure datetime in Asia/Kolkata
         if df_live["datetime"].dt.tz is None:
             df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
         else:
             df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
         df_live["datetime"] = df_live["datetime"].apply(lambda x: x.replace(tzinfo=None))    
-        
+
         df_live = (
             df_live.drop_duplicates(subset="datetime")
                    .sort_values("datetime")
                    .reset_index(drop=True)
         )
-        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
-            holiday_values = [
-                pd.Timestamp(h).tz_localize("Asia/Kolkata").date().isoformat()
-                for h in full_holidays
-            ]
-            holiday_breaks = []
-            for h in full_holidays:
-                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                # Convert to tz-naive for Plotly
-                start_naive = start.tz_convert(None)
-                end_naive   = end.tz_convert(None)
-                holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
 
-            st.session_state.holiday_values = holiday_values
-            st.session_state.holiday_breaks = holiday_breaks
-            st.write("holiday_breaks final (session IST):", holiday_breaks[:3]) 
-        else:
-            holiday_values = st.session_state.holiday_values
-            holiday_breaks = st.session_state.holiday_breaks
+        # --- Build or use cached holiday_rangebreaks ---
+        if "holiday_rangebreaks" not in st.session_state:
+            st.session_state.holiday_rangebreaks = build_holiday_rangebreaks(full_holidays, special_partial_days)
+            st.session_state.holiday_values = [
+                pd.Timestamp(h).tz_localize("Asia/Kolkata").date().isoformat() for h in full_holidays
+            ]
+
+        holiday_breaks = st.session_state.holiday_rangebreaks
+
+        # Rangebreaks for Plotly
         rangebreaks = [
             dict(bounds=["sat", "mon"]),                 # weekends
             dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
@@ -756,11 +750,10 @@ with tab5:
         ]
         st.session_state["rangebreaks_obj"] = rangebreaks
 
-        # 5️⃣ Format datetime for Plotly
+        # Format datetime for Plotly
         df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-        # 6️⃣ Get settings & plot chart
-        # 6️⃣ Get settings & plot chart
+        # Initialize figure if needed
         if "live_fig" not in st.session_state:
             st.session_state["live_fig"] = make_subplots(rows=2, cols=1, shared_xaxes=True)
 
@@ -777,7 +770,7 @@ with tab5:
             )
             st.session_state["live_fig"] = fig
 
-            # 7️⃣ Render chart
+            # Update X-axis with holidays + weekends + non-market hours
             st.session_state.live_fig.update_xaxes(
                 showgrid=True,
                 gridwidth=0.5,
@@ -788,32 +781,6 @@ with tab5:
                 rangeslider_visible=False,
                 rangebreaks=rangebreaks
             )
+
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
