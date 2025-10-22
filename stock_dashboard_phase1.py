@@ -260,46 +260,35 @@ with tab5:
             st.session_state[key] = default
 
     # --- Define Indian market holidays (with Muhurat session fix) ---
+    # --- Define Indian market holidays (with Muhurat session fix) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
-        "2025-10-02","2025-10-22","2025-11-05","2025-12-25"   # 🟢 21 Oct removed
+        "2025-10-02","2025-10-22","2025-11-05","2025-12-25"  # 🟢 21 Oct removed
     ]).normalize()
 
-    # --- Prepare holiday rangebreaks ---
     holiday_breaks = []
 
-    # 🪔 Special handling for 21-Oct-2025 (Muhurat Trading Day)
+    # 🪔 Special handling for Muhurat Trading (21-Oct-2025)
     muhurat_day = pd.Timestamp("2025-10-21").tz_localize("Asia/Kolkata")
-    muhurat_session_start = muhurat_day.replace(hour=13, minute=45)
-    muhurat_session_end   = muhurat_day.replace(hour=14, minute=45)
+    muhurat_start = muhurat_day.replace(hour=13, minute=45)
+    muhurat_end   = muhurat_day.replace(hour=14, minute=45)
 
-    # ❌ Skip before Muhurat (9:15 → 13:45)
-    holiday_breaks.append(dict(
-        values=pd.date_range(
-            start=muhurat_day.replace(hour=9, minute=15),
-            end=muhurat_session_start,
-            freq="5min"
-        ).to_pydatetime().tolist()
-    ))
+    # ✅ Merge 20-Oct overnight + morning gap together (20 Oct 15:30 → 21 Oct 13:45)
+    gap_start = (muhurat_day - pd.Timedelta(days=1)).replace(hour=15, minute=30)
+    gap_end   = muhurat_start
+    holiday_breaks.append(dict(bounds=[gap_start, gap_end]))
 
-    # ❌ Skip after Muhurat (14:45 → 15:30)
-    holiday_breaks.append(dict(
-        values=pd.date_range(
-            start=muhurat_session_end,
-            end=muhurat_day.replace(hour=15, minute=30),
-            freq="5min"
-        ).to_pydatetime().tolist()
-    ))
+    # ✅ Post-Muhurat close (21 Oct 14:45 → next day 09:15)
+    gap_start2 = muhurat_end
+    gap_end2   = muhurat_day + pd.Timedelta(days=1, hours=9, minutes=15)
+    holiday_breaks.append(dict(bounds=[gap_start2, gap_end2]))
 
-    # 🗓️ Add full-holiday breaks for all other holidays
+    # 🗓️ Add full-holiday breaks for other holidays
     for h in full_holidays:
-        times = pd.date_range(
-            start=h + pd.Timedelta(hours=9, minutes=15),
-            end=h + pd.Timedelta(hours=15, minutes=30),
-            freq="5min"
-        )
-        holiday_breaks.append(dict(values=times.to_pydatetime().tolist()))
+        start = h + pd.Timedelta(hours=9, minutes=15)
+        end   = h + pd.Timedelta(hours=15, minutes=30)
+        holiday_breaks.append(dict(bounds=[start, end]))
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -763,4 +752,5 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
