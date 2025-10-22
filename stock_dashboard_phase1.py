@@ -260,71 +260,70 @@ with tab5:
             st.session_state[key] = default
 
     # --- Define Indian market holidays (global) ---
-    # --- Holidays: full and special (partial) ---
+    # --- Define Indian market holidays (global) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
         "2025-10-02","2025-10-22","2025-11-05","2025-12-25"
     ]).normalize()
 
-    # special (partial) holidays: key = YYYY-MM-DD, value = list of allowed trading windows (start, end) in HH:MM (IST)
     special_partial_days = {
-        "2025-10-21": [("13:45","14:45")],   # Muhurta: allow only 13:45-14:45 (IST)
-        # example: "2025-12-24": [("09:15","12:30"), ("14:00","15:30")]
+        "2025-10-21": [("13:45", "14:45")],   # Muhurta Trading
     }
 
-    # Build Plotly rangebreaks list
-    holiday_rangebreaks = []
+    # ✅ Helper function to build and cache Plotly rangebreaks
+    def build_holiday_rangebreaks(full_holidays, special_partial_days):
+        holiday_rangebreaks = []
 
-    # 1) Full-day holidays -> skip whole market hours (09:15-15:30) for those dates
-    for h in full_holidays:
-        start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-        end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-        # Plotly expects tz-naive datetimes for bounds in our code path — convert to naive:
-        holiday_rangebreaks.append(dict(bounds=[start.tz_convert(None), end.tz_convert(None)]))
+        # full-day holidays
+        for h in full_holidays:
+            start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+            end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+            holiday_rangebreaks.append(dict(bounds=[start.tz_convert(None), end.tz_convert(None)]))
 
-    # --- Partial day exclusion logic ---
-    for date_str, allowed_windows in special_partial_days.items():
-        day = pd.Timestamp(date_str).tz_localize("Asia/Kolkata")
-        market_open = day.replace(hour=9, minute=15)
-        market_close = day.replace(hour=15, minute=30)
+        # partial/special days (exclude everything except allowed windows)
+        for date_str, allowed_windows in (special_partial_days or {}).items():
+            day = pd.Timestamp(date_str).tz_localize("Asia/Kolkata")
+            market_open = day.replace(hour=9, minute=15)
+            market_close = day.replace(hour=15, minute=30)
 
-        # sort allowed windows
-        allowed_windows_sorted = sorted(allowed_windows, key=lambda x: x[0])
+            allowed_windows_sorted = sorted(allowed_windows, key=lambda x: x[0])
 
-        # exclude from market_open up to first allowed window start
-        first_start = pd.Timestamp(f"{date_str} {allowed_windows_sorted[0][0]}").tz_localize("Asia/Kolkata")
-        if first_start > market_open:
-            holiday_rangebreaks.append(dict(bounds=[market_open.tz_convert(None), first_start.tz_convert(None)]))
+            # before first allowed window
+            first_start = pd.Timestamp(f"{date_str} {allowed_windows_sorted[0][0]}").tz_localize("Asia/Kolkata")
+            if first_start > market_open:
+                holiday_rangebreaks.append(dict(bounds=[market_open.tz_convert(None), first_start.tz_convert(None)]))
 
-        # exclude in-between gaps between allowed windows
-        for (a_start, a_end), (b_start, b_end) in zip(allowed_windows_sorted, allowed_windows_sorted[1:]):
-            gap_start = pd.Timestamp(f"{date_str} {a_end}").tz_localize("Asia/Kolkata")
-            gap_end   = pd.Timestamp(f"{date_str} {b_start}").tz_localize("Asia/Kolkata")
-            if gap_end > gap_start:
-                holiday_rangebreaks.append(dict(bounds=[gap_start.tz_convert(None), gap_end.tz_convert(None)]))
+            # between allowed windows
+            for (a_start, a_end), (b_start, b_end) in zip(allowed_windows_sorted, allowed_windows_sorted[1:]):
+                gap_start = pd.Timestamp(f"{date_str} {a_end}").tz_localize("Asia/Kolkata")
+                gap_end   = pd.Timestamp(f"{date_str} {b_start}").tz_localize("Asia/Kolkata")
+                if gap_end > gap_start:
+                    holiday_rangebreaks.append(dict(bounds=[gap_start.tz_convert(None), gap_end.tz_convert(None)]))
 
-        # exclude from last allowed window end to market_close
-        last_end = pd.Timestamp(f"{date_str} {allowed_windows_sorted[-1][1]}").tz_localize("Asia/Kolkata")
-        if market_close > last_end:
-            holiday_rangebreaks.append(dict(bounds=[last_end.tz_convert(None), market_close.tz_convert(None)]))
+            # after last allowed window till market close
+            last_end = pd.Timestamp(f"{date_str} {allowed_windows_sorted[-1][1]}").tz_localize("Asia/Kolkata")
+            if market_close > last_end:
+                holiday_rangebreaks.append(dict(bounds=[last_end.tz_convert(None), market_close.tz_convert(None)]))
 
-        # ✅ NEW: add overnight gap before this partial day starts (previous day's close → today's open)
-        prev_close = (day - pd.Timedelta(days=1)).replace(hour=15, minute=30)
-        first_start_naive = first_start.tz_convert(None)
-        prev_close_naive = prev_close.tz_convert(None)
-        if first_start_naive > prev_close_naive:
-            holiday_rangebreaks.append(dict(bounds=[prev_close_naive, first_start_naive]))
+            # overnight gap (previous day close → first allowed window start)
+            prev_close = (day - pd.Timedelta(days=1)).replace(hour=15, minute=30)
+            prev_close_naive = prev_close.tz_convert(None)
+            first_start_naive = first_start.tz_convert(None)
+            if first_start_naive > prev_close_naive:
+                holiday_rangebreaks.append(dict(bounds=[prev_close_naive, first_start_naive]))
 
+        return holiday_rangebreaks
 
-    # --- Now combine with regular rangebreaks (weekends + non-market hours) ---
+    # ✅ Build and cache once
+    st.session_state.holiday_rangebreaks = build_holiday_rangebreaks(full_holidays, special_partial_days)
+
+    # --- Combine with regular rangebreaks ---
     rangebreaks = [
         dict(bounds=["sat", "mon"]),                 # weekends
-        dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours daily
-        *holiday_rangebreaks
+        dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
+        *st.session_state.holiday_rangebreaks
     ]
-
-    # Use `rangebreaks` when updating xaxes later
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -613,36 +612,38 @@ with tab5:
 
                         st.session_state.tpseries_debug_done = True
 
-                        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
-                            holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
-                            holiday_breaks = []
-                            for h in full_holidays:
-                                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                                start_naive = start.to_pydatetime().replace(tzinfo=None)
-                                end_naive   = end.to_pydatetime().replace(tzinfo=None)
-                                holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
-                            st.session_state.holiday_values = holiday_values
-                            st.session_state.holiday_breaks = holiday_breaks
-                            st.write("holiday_breaks final (session IST):", holiday_breaks[:3])
-                        else:
-                            holiday_values = st.session_state.holiday_values
-                            holiday_breaks = st.session_state.holiday_breaks
+                        # --- Use the cached holiday_rangebreaks (ensure special partial days included) ---
+                        if "holiday_rangebreaks" not in st.session_state:
+                            st.session_state.holiday_rangebreaks = build_holiday_rangebreaks(full_holidays, special_partial_days)
 
+                        holiday_breaks = st.session_state.holiday_rangebreaks
+
+                        # also store human-friendly holiday_values (dates)
+                        st.session_state.holiday_values = [
+                            pd.Timestamp(h).tz_localize("Asia/Kolkata").date().isoformat() for h in full_holidays
+                        ]
+                        st.session_state.holiday_breaks = holiday_breaks
+
+                        st.write("holiday_breaks final (session IST):", holiday_breaks[:6])
+
+                        # ✅ Update Plotly chart axes
                         st.session_state.live_fig.update_xaxes(
-                            showgrid=True, gridwidth=0.5, gridcolor="gray",
+                            showgrid=True,
+                            gridwidth=0.5,
+                            gridcolor="gray",
                             type="date",
                             tickformat="%d-%m-%Y\n%H:%M",
                             tickangle=0,
                             rangeslider_visible=False,
                             rangebreaks=[
-                                dict(bounds=["sat", "mon"]),    # weekends skip
+                                dict(bounds=["sat", "mon"]),                # weekends skip
                                 dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours skip
                                 *holiday_breaks
                             ]
                         )
-                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                        
+
+                        # ✅ Render final chart
+                        placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)        
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
@@ -788,6 +789,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
