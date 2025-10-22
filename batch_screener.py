@@ -223,26 +223,30 @@ def resp_to_status_and_list(resp):
     else:
         return None, []
 
-# ----------------------- 
-# Signal generation with debug
+# -----------------------
+# Signal generation with debug (Buy above YH / Sell below YL + TSI/MACD confluence)
 # -----------------------
 def generate_signal_for_df(df, settings):
+    import datetime
+    import pandas as pd
+
     try:
         df = df.copy()
         df = trm.calc_tkp_trm(df, settings)
         df = trm.calc_macd(df, settings)
         df = trm.calc_pac(df, settings)
         df = trm.calc_atr_trails(df, settings)
-        df = trm.calc_yhl(df)
+        df = trm.calc_yhl(df)  # ✅ ensures y_high, y_low, y_close columns
     except Exception as e:
         print(f"❌ Error calculating indicators for {df.iloc[-1].name if not df.empty else 'unknown'}: {e}")
-        print("🔹 Last few rows of dataframe causing error:\n", df.tail())
+        print("🔹 Last few rows:\n", df.tail())
         return None
 
     if df.empty:
         print("⚠️ Dataframe empty after indicators")
         return None
 
+    # --- Extract last candle data ---
     last = df.iloc[-1]
     last_price = float(last.get("close", 0))
     last_dt = last.get("datetime")
@@ -252,38 +256,45 @@ def generate_signal_for_df(df, settings):
     pacC = last.get("pacC", None)
     pac_lower = last.get("pacL", None)
     pac_upper = last.get("pacU", None)
+    y_high = last.get("y_high", None)
+    y_low = last.get("y_low", None)
 
+    # --- Day-level stats ---
     latest_day = df["datetime"].iloc[-1].date()
     day_data = df[df["datetime"].dt.date == latest_day]
     day_high = day_data["high"].max() if not day_data.empty else last_price
     day_low = day_data["low"].min() if not day_data.empty else last_price
     volatility = ((day_high - day_low) / day_low) * 100 if day_low > 0 else 0
 
+    # -------------------------------
+    # ✅ Main logic: YH/YL breakout + confluence
+    # -------------------------------
     reasons, signal = [], None
 
-    if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+    # --- Priority: Breakout above YH / below YL ---
+    if y_high and last_price > y_high:
         signal = "BUY"
-        reasons.append("TSI=Buy & MACD hist >0")
-        if pacC is not None:
-            reasons.append("Price > PAC mid")
-    elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+        reasons.append(f"Price {last_price:.2f} > Yesterday High {y_high:.2f}")
+    elif y_low and last_price < y_low:
         signal = "SELL"
-        reasons.append("TSI=Sell & MACD hist <0")
-        if pacC is not None:
-            reasons.append("Price < PAC mid")
+        reasons.append(f"Price {last_price:.2f} < Yesterday Low {y_low:.2f}")
     else:
-        if tsi_sig == "Neutral" and macd_hist != 0:
-            reasons.append(f"Weak confluence: TSI Neutral, MACD {'pos' if macd_hist>0 else 'neg'}")
+        # --- Secondary: Use TSI + MACD confluence ---
+        if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+            signal = "BUY"
+            reasons.append("TSI=Buy & MACD>0 & Price>PAC mid")
+        elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+            signal = "SELL"
+            reasons.append("TSI=Sell & MACD<0 & Price<PAC mid")
         else:
-            reasons.append("No confluence")
+            signal = None
+            reasons.append("No breakout or confluence")
 
-    
-    # --- Time-based volatility threshold ---
-    # --- Time-based volatility threshold ---
+    # -------------------------------
+    # ✅ Time-based volatility filter
+    # -------------------------------
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
-
-    # ✅ Default safeguard (agar koi range match na ho)
-    vol_threshold = 1.0  
+    vol_threshold = 1.0  # default fallback
 
     if datetime.datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("09:20", "%H:%M").time():
         vol_threshold = 1.19
@@ -300,20 +311,24 @@ def generate_signal_for_df(df, settings):
     elif datetime.datetime.strptime("14:00", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("14:45", "%H:%M").time():
         vol_threshold = 2.80
     elif datetime.datetime.strptime("14:45", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("15:25", "%H:%M").time():
-        vol_threshold = 2.60  # ✅ optional last session range (2.45–3.25)
+        vol_threshold = 2.60
 
-    # --- Compare volatility vs threshold ---
     if volatility < vol_threshold:
-        signal = "NEUTRAL"
-        reasons.append(f"Volatility {volatility:.2f}% < {vol_threshold}, skipping trade")
+        reasons.append(f"Vol {volatility:.2f}% < {vol_threshold}% → skip trade")
+        signal = None
 
-
+    # -------------------------------
+    # ✅ Skip if price too far from open
+    # -------------------------------
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
     if abs(price_move_pct) > 2:
+        reasons.append(f"Price moved {price_move_pct:.2f}% from open (>2%), skipping trade")
         signal = None
-        reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
+    # -------------------------------
+    # ✅ Stop Loss suggestion
+    # -------------------------------
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -322,11 +337,18 @@ def generate_signal_for_df(df, settings):
         stop_loss = pac_upper
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
+    # -------------------------------
+    # ✅ Suggested qty by price
+    # -------------------------------
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
+    # Final safety cleanup
     if signal not in ["BUY", "SELL"]:
         signal = None
 
+    # -------------------------------
+    # ✅ Return result
+    # -------------------------------
     return {
         "signal": signal,
         "reason": " & ".join(reasons),
@@ -336,9 +358,10 @@ def generate_signal_for_df(df, settings):
         "suggested_qty": suggested_qty,
         "volatility": round(volatility, 2),
         "pac_lower": pac_lower,
-        "pac_upper": pac_upper
+        "pac_upper": pac_upper,
+        "y_high": y_high,
+        "y_low": y_low
     }
-
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
@@ -913,6 +936,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
