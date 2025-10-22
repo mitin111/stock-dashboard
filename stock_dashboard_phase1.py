@@ -260,19 +260,75 @@ with tab5:
             st.session_state[key] = default
 
     # --- Define Indian market holidays (global) ---
+    # --- Holidays: full and special (partial) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
-        "2025-10-02","2025-10-21","2025-10-22","2025-11-05","2025-12-25"
+        "2025-10-02","2025-10-22","2025-11-05","2025-12-25"
     ]).normalize()
 
-    # Precompute holiday rangebreak datetimes (plotly expects datetimes)
-    holiday_breaks = []
+    # special (partial) holidays: key = YYYY-MM-DD, value = list of allowed trading windows (start, end) in HH:MM (IST)
+    special_partial_days = {
+        "2025-10-21": [("13:45","14:45")],   # Muhurta: allow only 13:45-14:45 (IST)
+        # example: "2025-12-24": [("09:15","12:30"), ("14:00","15:30")]
+    }
+
+    # Build Plotly rangebreaks list
+    holiday_rangebreaks = []
+
+    # 1) Full-day holidays -> skip whole market hours (09:15-15:30) for those dates
     for h in full_holidays:
-        times = pd.date_range(h + pd.Timedelta(hours=9, minutes=15),
-                              h + pd.Timedelta(hours=15, minutes=30),
-                              freq="5min")
-        holiday_breaks.extend(times.to_pydatetime().tolist())
+        start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+        end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+        # Plotly expects tz-naive datetimes for bounds in our code path — convert to naive:
+        holiday_rangebreaks.append(dict(bounds=[start.tz_convert(None), end.tz_convert(None)]))
+
+    # 2) Partial days -> skip everything EXCEPT allowed windows.
+    #    Achieve by adding exclusion ranges *before* first allowed window and *after* last allowed window.
+    for date_str, allowed_windows in special_partial_days.items():
+        day = pd.Timestamp(date_str).tz_localize("Asia/Kolkata")
+        market_open = day.replace(hour=9, minute=15)
+        market_close = day.replace(hour=15, minute=30)
+
+        # sort allowed windows
+        allowed_windows_sorted = sorted(allowed_windows, key=lambda x: x[0])
+
+        # exclude from market_open up to first allowed window start
+        first_start = pd.Timestamp(f"{date_str} {allowed_windows_sorted[0][0]}").tz_localize("Asia/Kolkata")
+        if first_start > market_open:
+            holiday_rangebreaks.append(dict(bounds=[market_open.tz_convert(None), first_start.tz_convert(None)]))
+
+        # exclude in-between gaps between allowed windows
+        for (a_start, a_end), (b_start, b_end) in zip(allowed_windows_sorted, allowed_windows_sorted[1:]):
+            gap_start = pd.Timestamp(f"{date_str} {a_end}").tz_localize("Asia/Kolkata")
+            gap_end   = pd.Timestamp(f"{date_str} {b_start}").tz_localize("Asia/Kolkata")
+            if gap_end > gap_start:
+                holiday_rangebreaks.append(dict(bounds=[gap_start.tz_convert(None), gap_end.tz_convert(None)]))
+
+        # exclude from last allowed window end to market_close
+        last_end = pd.Timestamp(f"{date_str} {allowed_windows_sorted[-1][1]}").tz_localize("Asia/Kolkata")
+        if market_close > last_end:
+            holiday_rangebreaks.append(dict(bounds=[last_end.tz_convert(None), market_close.tz_convert(None)]))
+
+    # --- Now combine with regular rangebreaks (weekends + non-market hours) ---
+    rangebreaks = [
+        dict(bounds=["sat", "mon"]),                 # weekends
+        dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours daily
+        *holiday_rangebreaks
+    ]
+
+    # Use `rangebreaks` when updating xaxes later
+    st.session_state.live_fig.update_xaxes(
+        showgrid=True,
+        gridwidth=0.5,
+        gridcolor="gray",
+        type="date",
+        tickformat="%d-%m-%Y\n%H:%M",
+        tickangle=0,
+        rangeslider_visible=False,
+        rangebreaks=rangebreaks
+    )
+
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -736,6 +792,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
