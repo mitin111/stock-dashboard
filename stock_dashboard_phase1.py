@@ -260,7 +260,7 @@ with tab5:
             st.session_state[key] = default
 
     # --- Define Indian market holidays (with Muhurat session fix) ---
-    # --- Define Indian market holidays (with Muhurat session fix) ---
+    # --- Define Indian market holidays (with Muhurat Trading exception) ---
     full_holidays = pd.to_datetime([
         "2025-02-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
         "2025-04-18","2025-05-01","2025-08-15","2025-08-27",
@@ -269,26 +269,36 @@ with tab5:
 
     holiday_breaks = []
 
-    # 🪔 Special handling for Muhurat Trading (21-Oct-2025)
-    muhurat_day = pd.Timestamp("2025-10-21").tz_localize("Asia/Kolkata")
-    muhurat_start = muhurat_day.replace(hour=13, minute=45)
-    muhurat_end   = muhurat_day.replace(hour=14, minute=45)
-
-    # ✅ Merge 20-Oct overnight + morning gap together (20 Oct 15:30 → 21 Oct 13:45)
-    gap_start = (muhurat_day - pd.Timedelta(days=1)).replace(hour=15, minute=30)
-    gap_end   = muhurat_start
-    holiday_breaks.append(dict(bounds=[gap_start, gap_end]))
-
-    # ✅ Post-Muhurat close (21 Oct 14:45 → next day 09:15)
-    gap_start2 = muhurat_end
-    gap_end2   = muhurat_day + pd.Timedelta(days=1, hours=9, minutes=15)
-    holiday_breaks.append(dict(bounds=[gap_start2, gap_end2]))
-
-    # 🗓️ Add full-holiday breaks for other holidays
+    # --- Standard full-day holidays (skip entire trading hours) ---
     for h in full_holidays:
         start = h + pd.Timedelta(hours=9, minutes=15)
         end   = h + pd.Timedelta(hours=15, minutes=30)
         holiday_breaks.append(dict(bounds=[start, end]))
+
+    # --- Global non-trading hours (daily) ---
+    holiday_breaks.append(dict(bounds=["sat", "mon"]))  # weekend
+    holiday_breaks.append(dict(bounds=[15.5, 9.25], pattern="hour"))  # 15:30–09:15 off-hours
+
+    # --- Special case: Muhurat Day (21-Oct-2025) ---
+    # Normally market off, but allow 13:45–14:45 only
+    muhurat_day = pd.Timestamp("2025-10-21").tz_localize("Asia/Kolkata")
+
+    # Skip entire day except 13:45–14:45
+    # Before 13:45
+    holiday_breaks.append(dict(
+        bounds=[
+            muhurat_day.replace(hour=9, minute=15),
+            muhurat_day.replace(hour=13, minute=45)
+        ]
+    ))
+    # After 14:45
+    holiday_breaks.append(dict(
+        bounds=[
+            muhurat_day.replace(hour=14, minute=45),
+            muhurat_day.replace(hour=15, minute=30)
+        ]
+    ))
+
 
     # ✅ Guard clause
     if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
@@ -752,5 +762,6 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
