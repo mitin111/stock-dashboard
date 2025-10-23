@@ -26,26 +26,19 @@ import threading
 
 def check_trade_cycle_status(ps_api, symbol):
     """
-    ✅ Ensures only one complete BUY→SELL or SELL→BUY cycle per symbol per day.
-    Once a BUY→SELL completes, no new BUY is allowed.
-    Once a SELL→BUY completes, no new SELL is allowed.
+    ✅ Advanced Trade-Cycle Logic
+    - BUY→SELL cycle complete → block BUY (SELL open)
+    - SELL→BUY cycle complete → block SELL (BUY open)
+    - Both cycles complete → full trade lock for the day
     """
     try:
         resp = ps_api.order_book()
-
-        # Normalize order data
         if not resp:
-            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        if isinstance(resp, list):
-            all_orders = resp
-        elif isinstance(resp, dict):
-            all_orders = resp.get("data", [])
-        else:
-            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
-
+        all_orders = resp if isinstance(resp, list) else resp.get("data", [])
         if not all_orders:
-            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
         today = datetime.now().strftime("%d-%m-%Y")
 
@@ -57,38 +50,44 @@ def check_trade_cycle_status(ps_api, symbol):
             and (o.get("status") or "").upper() == "COMPLETE"
         ]
         if not orders:
-            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
         # Sort chronologically
         orders.sort(key=lambda x: x.get("norentm") or "")
-        sides = [o.get("trantype") for o in orders]
+        sides = [o.get("trantype") for o in orders if o.get("trantype") in ["B", "S"]]
+        if not sides:
+            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
         # Track transitions
-        buy_cycle_done = False
-        sell_cycle_done = False
-        last_side = sides[0]
+        buy_sell_cycle_done = False
+        sell_buy_cycle_done = False
 
-        for s in sides[1:]:
-            # Detect transitions
-            if last_side == "B" and s == "S":
-                buy_cycle_done = True  # Completed a BUY→SELL cycle
-            elif last_side == "S" and s == "B":
-                sell_cycle_done = True  # Completed a SELL→BUY cycle
-            last_side = s
+        for i in range(1, len(sides)):
+            prev, curr = sides[i-1], sides[i]
+            if prev == "B" and curr == "S":
+                buy_sell_cycle_done = True
+            elif prev == "S" and curr == "B":
+                sell_buy_cycle_done = True
 
-        last_status = "BUY_COMPLETED" if sides[-1] == "B" else "SELL_COMPLETED"
+        last_side = sides[-1]
 
-        print(f"📊 {symbol} | Orders={len(orders)} | LAST={last_status} | BUY→SELL Done={buy_cycle_done} | SELL→BUY Done={sell_cycle_done}")
+        # ✅ Decision logic
+        full_lock = buy_sell_cycle_done and sell_buy_cycle_done
+        buy_blocked = full_lock or buy_sell_cycle_done
+        sell_blocked = full_lock or sell_buy_cycle_done
+
+        print(f"📊 {symbol} | LAST={last_side} | BUY_blocked={buy_blocked} | SELL_blocked={sell_blocked} | FULL_LOCK={full_lock}")
 
         return {
-            "buy_cycle_done": buy_cycle_done,
-            "sell_cycle_done": sell_cycle_done,
-            "last_status": last_status
+            "buy_blocked": buy_blocked,
+            "sell_blocked": sell_blocked,
+            "full_lock": full_lock,
+            "last_side": last_side
         }
 
     except Exception as e:
         print(f"⚠️ Error in check_trade_cycle_status({symbol}): {e}")
-        return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+        return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
 # Helper: compute safe SL and TP
 def compute_safe_sl_tp(last_price, pac_val, side,
@@ -946,6 +945,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
