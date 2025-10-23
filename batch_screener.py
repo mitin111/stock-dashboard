@@ -271,24 +271,34 @@ def generate_signal_for_df(df, settings):
     # -------------------------------
     reasons, signal = [], None
 
-    # --- Priority: Breakout above YH / below YL ---
-    if y_high and last_price > y_high:
-        signal = "BUY"
-        reasons.append(f"Price {last_price:.2f} > Yesterday High {y_high:.2f}")
-    elif y_low and last_price < y_low:
-        signal = "SELL"
-        reasons.append(f"Price {last_price:.2f} < Yesterday Low {y_low:.2f}")
-    else:
-        # --- Secondary: Use TSI + MACD confluence ---
-        if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
-            signal = "BUY"
-            reasons.append("TSI=Buy & MACD>0 & Price>PAC mid")
-        elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
-            signal = "SELL"
-            reasons.append("TSI=Sell & MACD<0 & Price<PAC mid")
-        else:
+    # --- Step 1: Allow trade only if price still inside yesterday’s range ---
+    if y_high and y_low:
+        if not (y_low < last_price < y_high):
+            reasons.append(f"⚠️ Price {last_price:.2f} outside yesterday’s range ({y_low:.2f}-{y_high:.2f}), skip entry")
             signal = None
-            reasons.append("No breakout or confluence")
+        else:
+            # --- Step 2: Priority: Breakout above YH / below YL ---
+            if last_price > y_high:
+                signal = "BUY"
+                reasons.append(f"Price {last_price:.2f} > Yesterday High {y_high:.2f}")
+            elif last_price < y_low:
+                signal = "SELL"
+                reasons.append(f"Price {last_price:.2f} < Yesterday Low {y_low:.2f}")
+            else:
+                # --- Step 3: Secondary: Use TSI + MACD confluence only within range ---
+                if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+                    signal = "BUY"
+                    reasons.append("TSI=Buy & MACD>0 & Price>PAC mid")
+                elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+                    signal = "SELL"
+                    reasons.append("TSI=Sell & MACD<0 & Price<PAC mid")
+                else:
+                    signal = None
+                    reasons.append("No breakout or confluence")
+    else:
+        reasons.append("Missing yesterday high/low values")
+        signal = None
+
 
     # -------------------------------
     # ✅ Time-based volatility filter
@@ -936,6 +946,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
