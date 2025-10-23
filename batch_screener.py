@@ -223,7 +223,7 @@ def resp_to_status_and_list(resp):
         return None, []
 
 # -----------------------
-# Signal generation with debug (Buy above YH / Sell below YL + TSI/MACD confluence)
+# Signal generation with debug (Buy above YH / Sell below YL + TSI/MACD confluence + Prev Close filter)
 # -----------------------
 def generate_signal_for_df(df, settings):
     import datetime
@@ -241,13 +241,16 @@ def generate_signal_for_df(df, settings):
         print("🔹 Last few rows:\n", df.tail())
         return None
 
-    if df.empty:
-        print("⚠️ Dataframe empty after indicators")
+    if len(df) < 2:
+        print("⚠️ Not enough candles to compare with previous close")
         return None
 
-    # --- Extract last candle data ---
+    # --- Extract last and previous candle ---
     last = df.iloc[-1]
+    prev = df.iloc[-2]
+
     last_price = float(last.get("close", 0))
+    prev_close = float(prev.get("close", 0))
     last_dt = last.get("datetime")
 
     tsi_sig = last.get("trm_signal", "Neutral")
@@ -266,44 +269,55 @@ def generate_signal_for_df(df, settings):
     volatility = ((day_high - day_low) / day_low) * 100 if day_low > 0 else 0
 
     # -------------------------------
-    # ✅ Main logic: YH/YL breakout + confluence
+    # ✅ Main logic: YH/YL breakout + confluence + last close filter
     # -------------------------------
     reasons, signal = [], None
 
-    # --- Step 1: Allow trade only if price still inside yesterday’s range ---
     if y_high and y_low:
+        # --- Step 1: Allow trade only if price still inside yesterday’s range ---
         if not (y_low < last_price < y_high):
             reasons.append(f"⚠️ Price {last_price:.2f} outside yesterday’s range ({y_low:.2f}-{y_high:.2f}), skip entry")
             signal = None
         else:
-            # --- Step 2: Priority: Breakout above YH / below YL ---
+            # --- Step 2: Breakout above YH / below YL with prev close condition ---
             if last_price > y_high:
-                signal = "BUY"
-                reasons.append(f"Price {last_price:.2f} > Yesterday High {y_high:.2f}")
-            elif last_price < y_low:
-                signal = "SELL"
-                reasons.append(f"Price {last_price:.2f} < Yesterday Low {y_low:.2f}")
-            else:
-                # --- Step 3: Secondary: Use TSI + MACD confluence only within range ---
-                if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+                if last_price > prev_close:
                     signal = "BUY"
-                    reasons.append("TSI=Buy & MACD>0 & Price>PAC mid")
-                elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+                    reasons.append(f"Price {last_price:.2f} > YH {y_high:.2f} and > Prev Close {prev_close:.2f}")
+                else:
+                    reasons.append(f"Skip BUY: Price {last_price:.2f} ≤ Prev Close {prev_close:.2f}")
+            elif last_price < y_low:
+                if last_price < prev_close:
                     signal = "SELL"
-                    reasons.append("TSI=Sell & MACD<0 & Price<PAC mid")
+                    reasons.append(f"Price {last_price:.2f} < YL {y_low:.2f} and < Prev Close {prev_close:.2f}")
+                else:
+                    reasons.append(f"Skip SELL: Price {last_price:.2f} ≥ Prev Close {prev_close:.2f}")
+            else:
+                # --- Step 3: TSI + MACD confluence within range + prev close filter ---
+                if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+                    if last_price > prev_close:
+                        signal = "BUY"
+                        reasons.append("TSI=Buy & MACD>0 & Price>PAC mid & >PrevClose")
+                    else:
+                        reasons.append(f"Skip BUY: Price {last_price:.2f} ≤ Prev Close {prev_close:.2f}")
+                elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+                    if last_price < prev_close:
+                        signal = "SELL"
+                        reasons.append("TSI=Sell & MACD<0 & Price<PAC mid & <PrevClose")
+                    else:
+                        reasons.append(f"Skip SELL: Price {last_price:.2f} ≥ Prev Close {prev_close:.2f}")
                 else:
                     signal = None
-                    reasons.append("No breakout or confluence")
+                    reasons.append("No breakout or confluence match")
     else:
         reasons.append("Missing yesterday high/low values")
         signal = None
-
 
     # -------------------------------
     # ✅ Time-based volatility filter
     # -------------------------------
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
-    vol_threshold = 1.0  # default fallback
+    vol_threshold = 1.0
 
     if datetime.datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("09:20", "%H:%M").time():
         vol_threshold = 1.19
@@ -351,12 +365,12 @@ def generate_signal_for_df(df, settings):
     # -------------------------------
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
-    # Final safety cleanup
+    # Final cleanup
     if signal not in ["BUY", "SELL"]:
         signal = None
 
     # -------------------------------
-    # ✅ Return result
+    # ✅ Return final result
     # -------------------------------
     return {
         "signal": signal,
@@ -369,8 +383,9 @@ def generate_signal_for_df(df, settings):
         "pac_lower": pac_lower,
         "pac_upper": pac_upper,
         "y_high": y_high,
-        "y_low": y_low
+        "y_low": y_low,
     }
+
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
@@ -945,6 +960,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
