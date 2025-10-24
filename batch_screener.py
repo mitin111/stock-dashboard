@@ -23,16 +23,16 @@ import threading
 # -----------------------------
 # ✅ Trade-cycle tracker (1 BUY + 1 SELL per day)
 # -----------------------------
-
 import datetime
 import pytz
 
 def check_trade_cycle_status(ps_api, symbol):
     """
-    ✅ Trade Cycle Logic (Hindi Logic)
-    - BUY→SELL cycle complete → dubara BUY band, SELL allowed
-    - SELL→BUY cycle complete → full lock (us din ke liye)
-    - Reverse bhi same logic
+    ✅ Trade Cycle Logic (Hindi Explanation)
+    - Pehla BUY hua → SELL allowed, par dubara BUY band
+    - BUY→SELL cycle complete → BUY band, SELL open
+    - SELL→BUY cycle complete → full lock (poora din ke liye)
+    - Pehla SELL hua → BUY allowed, par dubara SELL band
     """
     try:
         resp = ps_api.trade_book()
@@ -69,22 +69,38 @@ def check_trade_cycle_status(ps_api, symbol):
 
         last_side = sides[-1]
 
-        # Apply final logic
+        # ---------------------------
+        # ✅ Apply final logic
+        # ---------------------------
         if sell_buy_done:
             # SELL→BUY completed → full lock
             buy_blocked = True
             sell_blocked = True
             full_lock = True
+
         elif buy_sell_done:
             # BUY→SELL completed → BUY blocked only
             buy_blocked = True
             sell_blocked = False
             full_lock = False
+
         else:
-            # First trade or incomplete cycle
-            buy_blocked = False
-            sell_blocked = False
-            full_lock = False
+            # No full cycle yet → prevent duplicate same-side orders
+            if last_side == "B":
+                # Pehla BUY hua → SELL allowed, BUY band
+                buy_blocked = True
+                sell_blocked = False
+                full_lock = False
+            elif last_side == "S":
+                # Pehla SELL hua → BUY allowed, SELL band
+                buy_blocked = False
+                sell_blocked = True
+                full_lock = False
+            else:
+                # No trades yet
+                buy_blocked = False
+                sell_blocked = False
+                full_lock = False
 
         print(f"📊 {symbol} | LAST={last_side} | BUY_blocked={buy_blocked} | SELL_blocked={sell_blocked} | FULL_LOCK={full_lock}")
 
@@ -927,6 +943,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
