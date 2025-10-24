@@ -24,18 +24,17 @@ import threading
 # ✅ Trade-cycle tracker (1 BUY + 1 SELL per day)
 # -----------------------------
 
-from datetime import datetime
+import datetime
+import pytz
 
 def check_trade_cycle_status(ps_api, symbol):
     """
-    ✅ Advanced Trade-Cycle Logic (using Trade Book)
-    - BUY→SELL cycle complete → block BUY (SELL open)
-    - SELL→BUY cycle complete → block SELL (BUY open)
-    - Both cycles complete → full trade lock for the day
-    Only executed trades are considered.
+    ✅ Trade Cycle Logic (Hindi Logic)
+    - BUY→SELL cycle complete → dubara BUY band, SELL allowed
+    - SELL→BUY cycle complete → full lock (us din ke liye)
+    - Reverse bhi same logic
     """
     try:
-        # 🔹 Step 1: Fetch trade book instead of order book
         resp = ps_api.trade_book()
         if not resp:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
@@ -44,41 +43,48 @@ def check_trade_cycle_status(ps_api, symbol):
         if not all_trades:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        today = datetime.now().strftime("%d-%m-%Y")
+        today = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%d-%m-%Y")
 
-        # 🔹 Step 2: Filter today's executed trades for this symbol
         trades = [
             t for t in all_trades
-            if t.get("tsym") == symbol
-            and today in (t.get("norentm") or "")
+            if t.get("tsym") == symbol and today in (t.get("norentm") or "")
         ]
         if not trades:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        # 🔹 Step 3: Sort trades chronologically
         trades.sort(key=lambda x: x.get("norentm") or "")
-
-        # 🔹 Step 4: Extract sides (B or S)
         sides = [t.get("trantype") for t in trades if t.get("trantype") in ["B", "S"]]
         if not sides:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        # 🔹 Step 5: Detect completed cycles
-        buy_sell_cycle_done = False
-        sell_buy_cycle_done = False
+        # Detect completed cycles
+        buy_sell_done = False
+        sell_buy_done = False
         for i in range(1, len(sides)):
-            prev, curr = sides[i-1], sides[i]
+            prev, curr = sides[i - 1], sides[i]
             if prev == "B" and curr == "S":
-                buy_sell_cycle_done = True
+                buy_sell_done = True
             elif prev == "S" and curr == "B":
-                sell_buy_cycle_done = True
+                sell_buy_done = True
 
         last_side = sides[-1]
 
-        # 🔹 Step 6: Apply decision rules
-        full_lock = buy_sell_cycle_done and sell_buy_cycle_done
-        buy_blocked = full_lock or buy_sell_cycle_done
-        sell_blocked = full_lock or sell_buy_cycle_done
+        # Apply final logic
+        if sell_buy_done:
+            # SELL→BUY completed → full lock
+            buy_blocked = True
+            sell_blocked = True
+            full_lock = True
+        elif buy_sell_done:
+            # BUY→SELL completed → BUY blocked only
+            buy_blocked = True
+            sell_blocked = False
+            full_lock = False
+        else:
+            # First trade or incomplete cycle
+            buy_blocked = False
+            sell_blocked = False
+            full_lock = False
 
         print(f"📊 {symbol} | LAST={last_side} | BUY_blocked={buy_blocked} | SELL_blocked={sell_blocked} | FULL_LOCK={full_lock}")
 
@@ -921,6 +927,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
