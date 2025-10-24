@@ -28,42 +28,44 @@ from datetime import datetime
 
 def check_trade_cycle_status(ps_api, symbol):
     """
-    ✅ Advanced Trade-Cycle Logic
+    ✅ Advanced Trade-Cycle Logic (using Trade Book)
     - BUY→SELL cycle complete → block BUY (SELL open)
     - SELL→BUY cycle complete → block SELL (BUY open)
     - Both cycles complete → full trade lock for the day
+    Only executed trades are considered.
     """
     try:
-        resp = ps_api.order_book()
+        # 🔹 Step 1: Fetch trade book instead of order book
+        resp = ps_api.trade_book()
         if not resp:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        all_orders = resp if isinstance(resp, list) else resp.get("data", [])
-        if not all_orders:
+        all_trades = resp if isinstance(resp, list) else resp.get("data", [])
+        if not all_trades:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
         today = datetime.now().strftime("%d-%m-%Y")
 
-        # Filter today's completed orders for this symbol
-        orders = [
-            o for o in all_orders
-            if o.get("tsym") == symbol
-            and today in (o.get("norentm") or "")
-            and (o.get("status") or "").upper() == "COMPLETE"
+        # 🔹 Step 2: Filter today's executed trades for this symbol
+        trades = [
+            t for t in all_trades
+            if t.get("tsym") == symbol
+            and today in (t.get("norentm") or "")
         ]
-        if not orders:
+        if not trades:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        # Sort chronologically
-        orders.sort(key=lambda x: x.get("norentm") or "")
-        sides = [o.get("trantype") for o in orders if o.get("trantype") in ["B", "S"]]
+        # 🔹 Step 3: Sort trades chronologically
+        trades.sort(key=lambda x: x.get("norentm") or "")
+
+        # 🔹 Step 4: Extract sides (B or S)
+        sides = [t.get("trantype") for t in trades if t.get("trantype") in ["B", "S"]]
         if not sides:
             return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        # Track transitions
+        # 🔹 Step 5: Detect completed cycles
         buy_sell_cycle_done = False
         sell_buy_cycle_done = False
-
         for i in range(1, len(sides)):
             prev, curr = sides[i-1], sides[i]
             if prev == "B" and curr == "S":
@@ -73,7 +75,7 @@ def check_trade_cycle_status(ps_api, symbol):
 
         last_side = sides[-1]
 
-        # ✅ Decision logic
+        # 🔹 Step 6: Apply decision rules
         full_lock = buy_sell_cycle_done and sell_buy_cycle_done
         buy_blocked = full_lock or buy_sell_cycle_done
         sell_blocked = full_lock or sell_buy_cycle_done
@@ -919,5 +921,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
