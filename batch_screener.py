@@ -406,8 +406,12 @@ def get_dynamic_target_trail(volatility: float):
             (2.81, 3.0, 1.0, 0.35), (3.01, 999, 1.0, 0.4)
         ]
 
+    # === 14:45 ke baad bhi same table continue rahe ===
     else:
-        return (None, None)
+        # market close hone ke baad bhi testing ke liye same values
+        table = [
+            (2.81, 3.0, 1.0, 0.35), (3.01, 999, 1.0, 0.4)
+        ]
 
     # --- Match volatility to range ---
     for lo, hi, tgt, trail in table:
@@ -913,3 +917,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
