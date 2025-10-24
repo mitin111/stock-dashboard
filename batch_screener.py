@@ -389,14 +389,15 @@ def generate_signal_for_df(df, settings):
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
-import datetime, pytz
+from datetime import datetime, time
+import pytz
 
 def get_dynamic_target_trail(volatility: float):
     """Return (target_pct, trail_pct) based on current time and volatility."""
 
     # --- Fixes applied ---
     volatility = round(float(volatility), 2)  # ✅ float precision fix
-    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()  # ✅ IST time fix
+    now = datetime.now(pytz.timezone("Asia/Kolkata")).time()
 
     def in_range(start, end):
         return start <= now <= end  # ✅ equality fix
@@ -960,6 +961,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
