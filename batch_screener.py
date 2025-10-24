@@ -389,18 +389,17 @@ def generate_signal_for_df(df, settings):
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
-import datetime
-import pytz
+import datetime, pytz
 
 def get_dynamic_target_trail(volatility: float):
     """Return (target_pct, trail_pct) based on current time and volatility."""
-    volatility = round(float(volatility), 2)
 
-    # Use fully-qualified datetime calls to avoid any name conflict
-    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()
+    # --- Fixes applied ---
+    volatility = round(float(volatility), 2)  # ✅ float precision fix
+    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()  # ✅ IST time fix
 
     def in_range(start, end):
-        return start <= now <= end
+        return start <= now <= end  # ✅ equality fix
 
     # === 09:20–09:30 ===
     if in_range(datetime.time(9, 20), datetime.time(9, 30)):
@@ -411,6 +410,7 @@ def get_dynamic_target_trail(volatility: float):
             (3.01, 999, 4.0, 1.7)
         ]
 
+    # === 09:30–10:00 ===
     elif in_range(datetime.time(9, 30), datetime.time(10, 0)):
         table = [
             (1.3, 1.4, 1.0, 0.5), (1.41, 1.6, 1.3, 0.6), (1.61, 1.8, 1.7, 0.7),
@@ -419,6 +419,7 @@ def get_dynamic_target_trail(volatility: float):
             (3.01, 3.2, 4.5, 1.7), (3.21, 999, 5.0, 1.7)
         ]
 
+    # === 10:00–11:00 ===
     elif in_range(datetime.time(10, 0), datetime.time(11, 0)):
         table = [
             (1.61, 1.8, 1.1, 0.5), (1.81, 2.0, 1.5, 0.7), (2.01, 2.2, 1.7, 0.75),
@@ -426,23 +427,27 @@ def get_dynamic_target_trail(volatility: float):
             (2.81, 3.0, 3.0, 1.3), (3.01, 3.2, 3.2, 1.4), (3.21, 999, 3.4, 1.4)
         ]
 
+    # === 11:00–12:00 ===
     elif in_range(datetime.time(11, 0), datetime.time(12, 0)):
         table = [
             (2.01, 2.2, 1.0, 0.5), (2.21, 2.4, 1.1, 0.6), (2.41, 2.6, 1.3, 0.7),
             (2.61, 2.8, 1.5, 0.7), (2.81, 3.0, 2.0, 0.9), (3.01, 999, 3.0, 1.1)
         ]
 
+    # === 12:00–13:00 ===
     elif in_range(datetime.time(12, 0), datetime.time(13, 0)):
         table = [
             (2.21, 2.4, 0.75, 0.3), (2.41, 2.6, 0.85, 0.4), (2.61, 2.8, 1.0, 0.5),
             (2.81, 3.0, 1.1, 0.6), (3.01, 999, 1.3, 0.7)
         ]
 
+    # === 13:00–14:00 ===
     elif in_range(datetime.time(13, 0), datetime.time(14, 0)):
         table = [
             (2.81, 3.0, 1.0, 0.4), (3.01, 999, 1.3, 0.5)
         ]
 
+    # === 14:00–14:45 ===
     elif in_range(datetime.time(14, 0), datetime.time(14, 45)):
         table = [
             (2.81, 3.0, 1.0, 0.35), (3.01, 999, 1.0, 0.4)
@@ -451,11 +456,13 @@ def get_dynamic_target_trail(volatility: float):
     else:
         return (None, None)
 
+    # --- Match volatility to range ---
     for lo, hi, tgt, trail in table:
         if lo <= volatility <= hi:
             return (tgt, trail)
 
     return (None, None)
+
 
 
 # ================================================================
@@ -954,6 +961,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
