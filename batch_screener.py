@@ -21,7 +21,7 @@ import tkp_trm_chart as trm
 import threading
 
 # -----------------------------
-# ✅ Trade-cycle tracker (1 BUY + 1 SELL per day)
+# ✅ Trade-cycle tracker (1 BUY + 1 SELL per day, non-consecutive)
 # -----------------------------
 import datetime
 import pytz
@@ -53,20 +53,36 @@ def check_trade_cycle_status(ps_api, symbol):
         if not sides:
             return {"buy_cycle_done": False, "sell_cycle_done": False, "full_lock": False, "last_side": "NONE"}
 
-        buy_sell_done = any(prev=="B" and curr=="S" for prev, curr in zip(sides, sides[1:]))
-        sell_buy_done = any(prev=="S" and curr=="B" for prev, curr in zip(sides, sides[1:]))
+        # -----------------------------
+        # ✅ Detect non-consecutive BUY→SELL and SELL→BUY
+        # -----------------------------
+        buy_seen = False
+        buy_sell_done = False
+        sell_seen = False
+        sell_buy_done = False
+
+        for side in sides:
+            if side == "B":
+                buy_seen = True
+                if sell_seen:
+                    sell_buy_done = True
+            elif side == "S":
+                sell_seen = True
+                if buy_seen:
+                    buy_sell_done = True
+
         last_side = sides[-1]
 
         # ✅ Final cycle flags
         buy_cycle_done = buy_sell_done
         sell_cycle_done = sell_buy_done
-        full_lock = sell_buy_done
+        full_lock = sell_buy_done  # SELL→BUY completion locks both
 
         # If no full cycle yet, prevent duplicate same-side
         if not buy_sell_done and not sell_buy_done:
-            if last_side=="B":
+            if last_side == "B":
                 buy_cycle_done = True  # block BUY until SELL happens
-            elif last_side=="S":
+            elif last_side == "S":
                 sell_cycle_done = True  # block SELL until BUY happens
 
         return {
@@ -908,6 +924,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
