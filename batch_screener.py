@@ -389,19 +389,21 @@ def generate_signal_for_df(df, settings):
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
-from datetime import datetime, time
+import datetime
 import pytz
 
 def get_dynamic_target_trail(volatility: float):
     """Return (target_pct, trail_pct) based on current time and volatility."""
     volatility = round(float(volatility), 2)
-    now = datetime.now(pytz.timezone("Asia/Kolkata")).time()
+
+    # Use fully-qualified datetime calls to avoid any name conflict
+    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()
 
     def in_range(start, end):
         return start <= now <= end
 
     # === 09:20–09:30 ===
-    if in_range(time(9, 20), time(9, 30)):
+    if in_range(datetime.time(9, 20), datetime.time(9, 30)):
         table = [
             (1.2, 1.4, 1.0, 0.5), (1.41, 1.6, 1.3, 0.6), (1.61, 1.8, 1.7, 0.7),
             (1.81, 2.0, 2.0, 0.9), (2.01, 2.2, 2.2, 1.0), (2.21, 2.4, 2.7, 1.1),
@@ -409,7 +411,7 @@ def get_dynamic_target_trail(volatility: float):
             (3.01, 999, 4.0, 1.7)
         ]
 
-    elif in_range(time(9, 30), time(10, 0)):
+    elif in_range(datetime.time(9, 30), datetime.time(10, 0)):
         table = [
             (1.3, 1.4, 1.0, 0.5), (1.41, 1.6, 1.3, 0.6), (1.61, 1.8, 1.7, 0.7),
             (1.81, 2.0, 2.0, 0.9), (2.01, 2.2, 2.2, 1.0), (2.21, 2.4, 2.7, 1.1),
@@ -417,31 +419,31 @@ def get_dynamic_target_trail(volatility: float):
             (3.01, 3.2, 4.5, 1.7), (3.21, 999, 5.0, 1.7)
         ]
 
-    elif in_range(time(10, 0), time(11, 0)):
+    elif in_range(datetime.time(10, 0), datetime.time(11, 0)):
         table = [
             (1.61, 1.8, 1.1, 0.5), (1.81, 2.0, 1.5, 0.7), (2.01, 2.2, 1.7, 0.75),
             (2.21, 2.4, 2.0, 0.85), (2.41, 2.6, 2.5, 1.0), (2.61, 2.8, 2.7, 1.2),
             (2.81, 3.0, 3.0, 1.3), (3.01, 3.2, 3.2, 1.4), (3.21, 999, 3.4, 1.4)
         ]
 
-    elif in_range(time(11, 0), time(12, 0)):
+    elif in_range(datetime.time(11, 0), datetime.time(12, 0)):
         table = [
             (2.01, 2.2, 1.0, 0.5), (2.21, 2.4, 1.1, 0.6), (2.41, 2.6, 1.3, 0.7),
             (2.61, 2.8, 1.5, 0.7), (2.81, 3.0, 2.0, 0.9), (3.01, 999, 3.0, 1.1)
         ]
 
-    elif in_range(time(12, 0), time(13, 0)):
+    elif in_range(datetime.time(12, 0), datetime.time(13, 0)):
         table = [
             (2.21, 2.4, 0.75, 0.3), (2.41, 2.6, 0.85, 0.4), (2.61, 2.8, 1.0, 0.5),
             (2.81, 3.0, 1.1, 0.6), (3.01, 999, 1.3, 0.7)
         ]
 
-    elif in_range(time(13, 0), time(14, 0)):
+    elif in_range(datetime.time(13, 0), datetime.time(14, 0)):
         table = [
             (2.81, 3.0, 1.0, 0.4), (3.01, 999, 1.3, 0.5)
         ]
 
-    elif in_range(time(14, 0), time(14, 45)):
+    elif in_range(datetime.time(14, 0), datetime.time(14, 45)):
         table = [
             (2.81, 3.0, 1.0, 0.35), (3.01, 999, 1.0, 0.4)
         ]
@@ -952,6 +954,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
