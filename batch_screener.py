@@ -26,19 +26,26 @@ import threading
 
 def check_trade_cycle_status(ps_api, symbol):
     """
-    ✅ Advanced Trade-Cycle Logic
-    - BUY→SELL cycle complete → block BUY (SELL open)
-    - SELL→BUY cycle complete → block SELL (BUY open)
-    - Both cycles complete → full trade lock for the day
+    ✅ Ensures only one complete BUY→SELL or SELL→BUY cycle per symbol per day.
+    Once a BUY→SELL completes, no new BUY is allowed.
+    Once a SELL→BUY completes, no new SELL is allowed.
     """
     try:
         resp = ps_api.order_book()
-        if not resp:
-            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
 
-        all_orders = resp if isinstance(resp, list) else resp.get("data", [])
+        # Normalize order data
+        if not resp:
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
+        if isinstance(resp, list):
+            all_orders = resp
+        elif isinstance(resp, dict):
+            all_orders = resp.get("data", [])
+        else:
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
+
         if not all_orders:
-            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
         today = datetime.now().strftime("%d-%m-%Y")
 
@@ -50,44 +57,38 @@ def check_trade_cycle_status(ps_api, symbol):
             and (o.get("status") or "").upper() == "COMPLETE"
         ]
         if not orders:
-            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
+            return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
         # Sort chronologically
         orders.sort(key=lambda x: x.get("norentm") or "")
-        sides = [o.get("trantype") for o in orders if o.get("trantype") in ["B", "S"]]
-        if not sides:
-            return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
+        sides = [o.get("trantype") for o in orders]
 
         # Track transitions
-        buy_sell_cycle_done = False
-        sell_buy_cycle_done = False
+        buy_cycle_done = False
+        sell_cycle_done = False
+        last_side = sides[0]
 
-        for i in range(1, len(sides)):
-            prev, curr = sides[i-1], sides[i]
-            if prev == "B" and curr == "S":
-                buy_sell_cycle_done = True
-            elif prev == "S" and curr == "B":
-                sell_buy_cycle_done = True
+        for s in sides[1:]:
+            # Detect transitions
+            if last_side == "B" and s == "S":
+                buy_cycle_done = True  # Completed a BUY→SELL cycle
+            elif last_side == "S" and s == "B":
+                sell_cycle_done = True  # Completed a SELL→BUY cycle
+            last_side = s
 
-        last_side = sides[-1]
+        last_status = "BUY_COMPLETED" if sides[-1] == "B" else "SELL_COMPLETED"
 
-        # ✅ Decision logic
-        full_lock = buy_sell_cycle_done and sell_buy_cycle_done
-        buy_blocked = full_lock or buy_sell_cycle_done
-        sell_blocked = full_lock or sell_buy_cycle_done
-
-        print(f"📊 {symbol} | LAST={last_side} | BUY_blocked={buy_blocked} | SELL_blocked={sell_blocked} | FULL_LOCK={full_lock}")
+        print(f"📊 {symbol} | Orders={len(orders)} | LAST={last_status} | BUY→SELL Done={buy_cycle_done} | SELL→BUY Done={sell_cycle_done}")
 
         return {
-            "buy_blocked": buy_blocked,
-            "sell_blocked": sell_blocked,
-            "full_lock": full_lock,
-            "last_side": last_side
+            "buy_cycle_done": buy_cycle_done,
+            "sell_cycle_done": sell_cycle_done,
+            "last_status": last_status
         }
 
     except Exception as e:
         print(f"⚠️ Error in check_trade_cycle_status({symbol}): {e}")
-        return {"buy_blocked": False, "sell_blocked": False, "full_lock": False, "last_side": "NONE"}
+        return {"buy_cycle_done": False, "sell_cycle_done": False, "last_status": "NONE"}
 
 # Helper: compute safe SL and TP
 def compute_safe_sl_tp(last_price, pac_val, side,
@@ -222,30 +223,26 @@ def resp_to_status_and_list(resp):
     else:
         return None, []
 
-# -----------------------
-# Signal generation with debug (Buy above YH / Sell below YL + TSI/MACD confluence)
+# ----------------------- 
+# Signal generation with debug
 # -----------------------
 def generate_signal_for_df(df, settings):
-    import datetime
-    import pandas as pd
-
     try:
         df = df.copy()
         df = trm.calc_tkp_trm(df, settings)
         df = trm.calc_macd(df, settings)
         df = trm.calc_pac(df, settings)
         df = trm.calc_atr_trails(df, settings)
-        df = trm.calc_yhl(df)  # ✅ ensures y_high, y_low, y_close columns
+        df = trm.calc_yhl(df)
     except Exception as e:
         print(f"❌ Error calculating indicators for {df.iloc[-1].name if not df.empty else 'unknown'}: {e}")
-        print("🔹 Last few rows:\n", df.tail())
+        print("🔹 Last few rows of dataframe causing error:\n", df.tail())
         return None
 
     if df.empty:
         print("⚠️ Dataframe empty after indicators")
         return None
 
-    # --- Extract last candle data ---
     last = df.iloc[-1]
     last_price = float(last.get("close", 0))
     last_dt = last.get("datetime")
@@ -255,55 +252,38 @@ def generate_signal_for_df(df, settings):
     pacC = last.get("pacC", None)
     pac_lower = last.get("pacL", None)
     pac_upper = last.get("pacU", None)
-    y_high = last.get("y_high", None)
-    y_low = last.get("y_low", None)
 
-    # --- Day-level stats ---
     latest_day = df["datetime"].iloc[-1].date()
     day_data = df[df["datetime"].dt.date == latest_day]
     day_high = day_data["high"].max() if not day_data.empty else last_price
     day_low = day_data["low"].min() if not day_data.empty else last_price
     volatility = ((day_high - day_low) / day_low) * 100 if day_low > 0 else 0
 
-    # -------------------------------
-    # ✅ Main logic: YH/YL breakout + confluence
-    # -------------------------------
     reasons, signal = [], None
 
-    # --- Step 1: Allow trade only if price still inside yesterday’s range ---
-    if y_high and y_low:
-        if not (y_low < last_price < y_high):
-            reasons.append(f"⚠️ Price {last_price:.2f} outside yesterday’s range ({y_low:.2f}-{y_high:.2f}), skip entry")
-            signal = None
-        else:
-            # --- Step 2: Priority: Breakout above YH / below YL ---
-            if last_price > y_high:
-                signal = "BUY"
-                reasons.append(f"Price {last_price:.2f} > Yesterday High {y_high:.2f}")
-            elif last_price < y_low:
-                signal = "SELL"
-                reasons.append(f"Price {last_price:.2f} < Yesterday Low {y_low:.2f}")
-            else:
-                # --- Step 3: Secondary: Use TSI + MACD confluence only within range ---
-                if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
-                    signal = "BUY"
-                    reasons.append("TSI=Buy & MACD>0 & Price>PAC mid")
-                elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
-                    signal = "SELL"
-                    reasons.append("TSI=Sell & MACD<0 & Price<PAC mid")
-                else:
-                    signal = None
-                    reasons.append("No breakout or confluence")
+    if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+        signal = "BUY"
+        reasons.append("TSI=Buy & MACD hist >0")
+        if pacC is not None:
+            reasons.append("Price > PAC mid")
+    elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+        signal = "SELL"
+        reasons.append("TSI=Sell & MACD hist <0")
+        if pacC is not None:
+            reasons.append("Price < PAC mid")
     else:
-        reasons.append("Missing yesterday high/low values")
-        signal = None
+        if tsi_sig == "Neutral" and macd_hist != 0:
+            reasons.append(f"Weak confluence: TSI Neutral, MACD {'pos' if macd_hist>0 else 'neg'}")
+        else:
+            reasons.append("No confluence")
 
-
-    # -------------------------------
-    # ✅ Time-based volatility filter
-    # -------------------------------
+    
+    # --- Time-based volatility threshold ---
+    # --- Time-based volatility threshold ---
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
-    vol_threshold = 1.0  # default fallback
+
+    # ✅ Default safeguard (agar koi range match na ho)
+    vol_threshold = 1.0  
 
     if datetime.datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("09:20", "%H:%M").time():
         vol_threshold = 1.19
@@ -320,24 +300,20 @@ def generate_signal_for_df(df, settings):
     elif datetime.datetime.strptime("14:00", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("14:45", "%H:%M").time():
         vol_threshold = 2.80
     elif datetime.datetime.strptime("14:45", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("15:25", "%H:%M").time():
-        vol_threshold = 2.60
+        vol_threshold = 2.60  # ✅ optional last session range (2.45–3.25)
 
+    # --- Compare volatility vs threshold ---
     if volatility < vol_threshold:
-        reasons.append(f"Vol {volatility:.2f}% < {vol_threshold}% → skip trade")
-        signal = None
+        signal = "NEUTRAL"
+        reasons.append(f"Volatility {volatility:.2f}% < {vol_threshold}, skipping trade")
 
-    # -------------------------------
-    # ✅ Skip if price too far from open
-    # -------------------------------
+
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
     if abs(price_move_pct) > 2:
-        reasons.append(f"Price moved {price_move_pct:.2f}% from open (>2%), skipping trade")
         signal = None
+        reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
-    # -------------------------------
-    # ✅ Stop Loss suggestion
-    # -------------------------------
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -346,18 +322,11 @@ def generate_signal_for_df(df, settings):
         stop_loss = pac_upper
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
-    # -------------------------------
-    # ✅ Suggested qty by price
-    # -------------------------------
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
-    # Final safety cleanup
     if signal not in ["BUY", "SELL"]:
         signal = None
 
-    # -------------------------------
-    # ✅ Return result
-    # -------------------------------
     return {
         "signal": signal,
         "reason": " & ".join(reasons),
@@ -367,10 +336,9 @@ def generate_signal_for_df(df, settings):
         "suggested_qty": suggested_qty,
         "volatility": round(volatility, 2),
         "pac_lower": pac_lower,
-        "pac_upper": pac_upper,
-        "y_high": y_high,
-        "y_low": y_low
+        "pac_upper": pac_upper
     }
+
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
