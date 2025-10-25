@@ -331,14 +331,14 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
     # --- ✅ Yesterday High/Low breakout confirmation (inside function) ---
-    # ================================
+    # --- ✅ Reliable Yesterday High/Low breakout confirmation ---
     try:
         # --- Ensure datetime is IST-aware ---
         df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize(
             'Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward'
         )
 
-        # --- Determine yesterday + today high/low without shift() ---
+        # --- Get unique sorted dates ---
         dates = sorted(df['datetime'].dt.date.unique())
 
         if len(dates) >= 2:
@@ -346,17 +346,24 @@ def generate_signal_for_df(df, settings):
             yesterday = dates[-2]
 
             yesterday_data = df[df['datetime'].dt.date == yesterday]
-            yesterday_high = yesterday_data['high'].max()
-            yesterday_low  = yesterday_data['low'].min()
+
+            # Safety: drop duplicates if any
+            yesterday_data = yesterday_data.drop_duplicates(subset=['datetime'])
+
+            yesterday_high = float(yesterday_data['high'].max())
+            yesterday_low  = float(yesterday_data['low'].min())
         else:
-            # अगर yesterday data missing हो तो fallback
-            yesterday_high = df['close'].iloc[0]
-            yesterday_low  = df['close'].iloc[0]
+            # Fallback if yesterday data missing
+            yesterday_high = float(df['close'].iloc[0])
+            yesterday_low  = float(df['close'].iloc[0])
 
-        # --- LTP calculation ---
-        ltp = sig.get("ltp", df['close'].iloc[-1])
+        # --- Fetch actual LTP for signal confirmation ---
+        # sig["ltp"] must exist and be numeric
+        ltp = sig.get("ltp", None)
+        if ltp is None:
+            ltp = float(df['close'].iloc[-1])
 
-        # --- Signal confirmation ---
+        # --- BUY/SELL confirmation ---
         if signal == "BUY":
             if ltp <= yesterday_high:
                 reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ Yesterday High {yesterday_high:.2f}")
@@ -373,6 +380,7 @@ def generate_signal_for_df(df, settings):
 
     except Exception as e:
         reasons.append(f"⚠️ YH/YL calculation failed: {e}")
+        signal = None
 
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
@@ -970,6 +978,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
