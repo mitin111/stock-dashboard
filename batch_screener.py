@@ -332,10 +332,25 @@ def generate_signal_for_df(df, settings):
 
     # --- ✅ Yesterday High/Low breakout confirmation (inside function) ---
     # ================================
-    # ✅ Use calc_yhl() from tkp_trm_chart.py
-    # ================================
     try:
-        df_yhl = calc_yhl(df.copy())
+        # --- Ensure datetime is IST-aware ---
+        df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize('Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward')
+
+        # --- Combine yesterday + today data if available ---
+        if 'df_yesterday' in globals() and isinstance(df_yesterday, pd.DataFrame):
+            df_combined = pd.concat([df_yesterday, df], ignore_index=True)
+            df_combined.sort_values("datetime", inplace=True)
+            df_combined.reset_index(drop=True, inplace=True)
+        else:
+            df_combined = df.copy()
+
+        # --- Calculate YH/YL ---
+        df_yhl = calc_yhl(df_combined)
+
+        # --- Safe fallback: fill NaN with previous close ---
+        df_yhl["high_yest"].fillna(df_yhl["close"].shift(1), inplace=True)
+        df_yhl["low_yest"].fillna(df_yhl["close"].shift(1), inplace=True)
+
         last_row = df_yhl.iloc[-1]
 
         yesterday_high = float(last_row.get("high_yest", np.nan))
@@ -343,7 +358,7 @@ def generate_signal_for_df(df, settings):
         ltp = float(last_row["close"])
 
         if np.isnan(yesterday_high) or np.isnan(yesterday_low):
-            reasons.append("⚠️ Missing YH/YL data in calc_yhl() — skipping YH/YL confirmation.")
+            reasons.append("⚠️ Missing YH/YL data even after fallback — skipping YH/YL confirmation.")
         else:
             if signal == "BUY":
                 if ltp <= yesterday_high:
@@ -358,10 +373,9 @@ def generate_signal_for_df(df, settings):
                     signal = None
                 else:
                     reasons.append(f"✅ SELL confirmed — LTP {ltp:.2f} < Yesterday Low {yesterday_low:.2f}")
+
     except Exception as e:
         reasons.append(f"⚠️ calc_yhl() failed: {e}")
-
-
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
@@ -958,6 +972,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
