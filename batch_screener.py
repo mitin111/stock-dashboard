@@ -189,49 +189,80 @@ from datetime import datetime, timedelta
 
 def get_yesterday_high_low(ps_api, exch, token, interval="5"):
     """
-    Dynamically fetch yesterday's high and low using TPSeries.
-    Automatically adjusts for weekends and holidays.
+    Safer fetch of yesterday's high/low from TPSeries.
+    - parse datetimes as UTC then convert to Asia/Kolkata
+    - robust checks for column names and empty data
     """
     try:
-        # 1️⃣ Fetch last 5 days of TPSeries
         df = ps_api.fetch_full_tpseries(exch, token, interval=interval, max_days=5)
-        if df is None or df.empty:
+        if df is None:
+            print("⚠️ TPSeries returned None")
             return None, None
 
-        # 2️⃣ Normalize datetime
-        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-        df["datetime"] = df["datetime"].dt.tz_localize("UTC").dt.tz_convert("Asia/Kolkata")
-        df = df.dropna(subset=["datetime"]).set_index("datetime")
-        for col in ["open", "high", "low", "close"]:
+        # if API returns a dict with 'data' key
+        if isinstance(df, dict) and "data" in df:
+            df = pd.DataFrame(df["data"])
+        elif isinstance(df, list):
+            df = pd.DataFrame(df)
+        elif not isinstance(df, pd.DataFrame):
+            # try to coerce
+            df = pd.DataFrame(df)
+
+        if df.empty:
+            print("⚠️ TPSeries dataframe empty")
+            return None, None
+
+        # ensure we have a datetime-like column (try common names)
+        dt_col = None
+        for candidate in ("datetime", "time", "timestamp", "dt"):
+            if candidate in df.columns:
+                dt_col = candidate
+                break
+        if dt_col is None:
+            # try first column as fallback
+            dt_col = df.columns[0]
+
+        # parse as UTC first, then convert to IST
+        df[dt_col] = pd.to_datetime(df[dt_col], errors="coerce", utc=True)
+        df = df.dropna(subset=[dt_col])
+        if df.empty:
+            print("⚠️ No parsable datetimes in TPSeries")
+            return None, None
+
+        df[dt_col] = df[dt_col].dt.tz_convert("Asia/Kolkata")
+        df = df.set_index(dt_col)
+
+        # ensure numeric columns exist
+        for col in ["high", "low", "open", "close"]:
             if col not in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+                df[col] = pd.to_numeric(df.get(col, None), errors="coerce")
 
-        # 3️⃣ Find yesterday (last complete trading day)
-        now = datetime.now(pytz.timezone("Asia/Kolkata"))
-        today = now.date()
-
-        # exclude today’s candles
-        df_yesterday = df[df.index.date < today]
-
-        if df_yesterday.empty:
+        # select only rows before today's date (IST)
+        now_ist = datetime.now(pytz.timezone("Asia/Kolkata"))
+        today = now_ist.date()
+        df_prev = df[df.index.date < today]
+        if df_prev.empty:
+            print("⚠️ No previous-day candles found in TPSeries (maybe only today's data returned)")
             return None, None
 
-        # Get last trading day available (even if weekend in between)
-        last_trading_day = df_yesterday.index.date[-1]
-        df_yesterday = df_yesterday[df_yesterday.index.date == last_trading_day]
+        # pick last available trading date (handles weekends/holidays)
+        last_trading_date = max(df_prev.index.date)
+        df_yest = df_prev[df_prev.index.date == last_trading_date]
 
-        if df_yesterday.empty:
+        if df_yest.empty:
+            print("⚠️ After filtering last trading day, dataframe empty")
             return None, None
 
-        yh = float(df_yesterday["high"].max())
-        yl = float(df_yesterday["low"].min())
+        yh = float(pd.to_numeric(df_yest["high"], errors="coerce").max())
+        yl = float(pd.to_numeric(df_yest["low"], errors="coerce").min())
 
-        print(f"✅ Yesterday range ({last_trading_day}): High={yh}, Low={yl}")
+        print(f"✅ YH/YL for {last_trading_date}: YH={yh} YL={yl} (rows={len(df_yest)})")
         return yh, yl
 
     except Exception as e:
-        print(f"⚠️ YH/YL fetch error: {e}")
+        print(f"⚠️ Exception in get_yesterday_high_low: {e}")
         return None, None
+
 
 # -----------------------
 # Helpers
@@ -378,19 +409,29 @@ def generate_signal_for_df(df, settings):
             exch = settings.get("exch", "NSE")
             token = settings.get("token")
             yh, yl = get_yesterday_high_low(ps_api, exch, token)
-            if yh and yl:
-                if signal == "BUY" and last_price <= yh:
-                    reasons.append(f"⛔ Skipped BUY — LTP {last_price:.2f} ≤ YH {yh:.2f}")
-                    signal = None
-                elif signal == "SELL" and last_price >= yl:
-                    reasons.append(f"⛔ Skipped SELL — LTP {last_price:.2f} ≥ YL {yl:.2f}")
-                    signal = None
-                else:
-                    reasons.append(f"✅ YH/YL breakout confirmed — {signal}")
+            print(f"🔍 Debug YH/YL -> yh={yh} yl={yl} for {settings.get('symbol')}")
+
+            # require both values to be non-None
+            if yh is None or yl is None:
+                reasons.append("⚠️ YH/YL data unavailable — skipping trade")
+                signal = None
             else:
-                reasons.append("⚠️ YH/YL data unavailable")
+                if signal == "BUY":
+                    # require price strictly > yesterday high to confirm breakout
+                    if last_price <= yh:
+                        reasons.append(f"⛔ Skipped BUY — LTP {last_price:.2f} ≤ YH {yh:.2f}")
+                        signal = None
+                    else:
+                        reasons.append(f"✅ YH breakout confirmed — BUY (LTP {last_price:.2f} > YH {yh:.2f})")
+                elif signal == "SELL":
+                    if last_price >= yl:
+                        reasons.append(f"⛔ Skipped SELL — LTP {last_price:.2f} ≥ YL {yl:.2f}")
+                        signal = None
+                    else:
+                        reasons.append(f"✅ YL breakout confirmed — SELL (LTP {last_price:.2f} < YL {yl:.2f})")
         except Exception as e:
             reasons.append(f"⚠️ YH/YL fetch failed: {e}")
+            signal = None
 
     # --- Stoploss Logic ---
     stop_loss = None
@@ -997,6 +1038,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
