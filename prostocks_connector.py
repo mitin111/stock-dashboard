@@ -834,9 +834,9 @@ class ProStocksAPI:
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
 
- 
+  
     # ---------------- Fetch Yesterday's Candles ----------------
-        def fetch_yesterday_candles(self, exch, token, interval="5"):
+    def fetch_yesterday_candles(self, exch, token, interval="5"):
         """
         ✅ Fetches yesterday's complete intraday candles (09:15–15:30 IST).
         Uses TPSeries API directly, normalized via self.normalize_response().
@@ -913,4 +913,5 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
