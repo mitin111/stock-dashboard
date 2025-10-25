@@ -330,22 +330,23 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
     # --- ✅ Yesterday High/Low breakout confirmation ---
+    # --- Safety: Convert to float and validate ---
     try:
-        yesterday_high = float(df['high'].iloc[-2])
-        yesterday_low = float(df['low'].iloc[-2])
-    except Exception as e:
-        yesterday_high = None
-        yesterday_low = None
-        reasons.append(f"⚠️ YH/YL fetch failed: {e}")
+        ltp = float(ltp)
+        yhigh = float(yhigh)
+        ylow = float(ylow)
+    except (TypeError, ValueError):
+        print(f"⚠️ {symbol}: Invalid YH/YL or LTP — skipping (ltp={ltp}, yhigh={yhigh}, ylow={ylow})")
+        continue
 
-    if signal == "BUY" and yesterday_high is not None and last_price <= yesterday_high:
-        reasons.append(f"⛔ Skipped BUY — Price {last_price:.2f} ≤ YH {yesterday_high:.2f}")
-        signal = None
+    # --- Entry validation ---
+    if signal == "BUY" and ltp <= yhigh:
+        print(f"⛔ {symbol}: BUY blocked — LTP {ltp:.2f} ≤ YHigh {yhigh:.2f}")
+        continue
 
-    if signal == "SELL" and yesterday_low is not None and last_price >= yesterday_low:
-        reasons.append(f"⛔ Skipped SELL — Price {last_price:.2f} ≥ YL {yesterday_low:.2f}")
-        signal = None
-
+    if signal == "SELL" and ltp >= ylow:
+        print(f"⛔ {symbol}: SELL blocked — LTP {ltp:.2f} ≥ YLow {ylow:.2f}")
+        continue
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
@@ -942,6 +943,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
