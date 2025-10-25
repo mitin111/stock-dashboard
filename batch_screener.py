@@ -334,59 +334,86 @@ def generate_signal_for_df(df, settings):
     def confirm_yhyl_signal(df, sig, signal, reasons=None, symbol=None, ps_api=None, exch="NSE", token=None):
         """
         Dynamically confirms BUY/SELL based on breakout of yesterday's high/low.
-        Auto-fetches full-day candles of yesterday from ProStocks if needed.
+        ✅ Auto-fetches full previous trading day's 5-min candles.
+        ✅ Fallback to local dataframe if API data missing.
+        ✅ Logs every step for transparency.
         """
         import pandas as pd, numpy as np, pytz, datetime
+
         if reasons is None:
             reasons = []
+        ist = pytz.timezone("Asia/Kolkata")
 
         try:
-            df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize('Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward')
+            # --- Normalize datetime ---
+            df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize(ist, ambiguous='NaT', nonexistent='shift_forward')
+
+            # --- Compute current and yesterday trading day ---
             today_date = df['datetime'].dt.date.max()
             yesterday_date = today_date - datetime.timedelta(days=1)
+            reasons.append(f"🕓 Today={today_date}, Trying Yesterday={yesterday_date}")
 
-            # --- Try to extract yesterday candles from df ---
+            # --- Try extract from local dataframe ---
             df_yesterday = df[df['datetime'].dt.date == yesterday_date]
 
-            # --- If missing, auto-fetch from API ---
+            # --- Auto fetch if empty ---
             if (df_yesterday is None or df_yesterday.empty) and ps_api and token:
-                reasons.append(f"📥 Fetching yesterday candles ({yesterday_date}) for {symbol}...")
-                df_yesterday = ps_api.fetch_ohlc(
-                    exch=exch,
-                    token=token,
-                    interval="5",
-                    from_date=yesterday_date.strftime("%Y-%m-%d 09:15"),
-                    to_date=yesterday_date.strftime("%Y-%m-%d 15:25")
-                )
-                if df_yesterday is not None and not df_yesterday.empty:
-                    df_yesterday['datetime'] = pd.to_datetime(df_yesterday['datetime']).dt.tz_localize('Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward')
-                else:
-                    reasons.append(f"⚠️ No data fetched for {symbol} on {yesterday_date}")
+                from_dt = datetime.datetime.combine(yesterday_date, datetime.time(9, 15)).astimezone(ist)
+                to_dt   = datetime.datetime.combine(yesterday_date, datetime.time(15, 25)).astimezone(ist)
 
-            # --- Compute yesterday high/low properly ---
-            if df_yesterday is not None and not df_yesterday.empty:
+                reasons.append(f"📥 Fetching yesterday candles from {from_dt.strftime('%H:%M')}–{to_dt.strftime('%H:%M')} for {symbol}")
+
+                try:
+                    df_yesterday = ps_api.fetch_ohlc(
+                        exch=exch,
+                        token=token,
+                        interval="5",
+                        from_date=from_dt.strftime("%Y-%m-%d %H:%M"),
+                        to_date=to_dt.strftime("%Y-%m-%d %H:%M")
+                    )
+                    if df_yesterday is not None and not df_yesterday.empty:
+                        df_yesterday['datetime'] = pd.to_datetime(df_yesterday['datetime']).dt.tz_localize(ist)
+                        reasons.append(f"✅ API data fetched: {len(df_yesterday)} candles for {symbol}")
+                    else:
+                        reasons.append(f"⚠️ API returned no data for {symbol} ({yesterday_date})")
+                except Exception as api_err:
+                    reasons.append(f"⚠️ API fetch error: {api_err}")
+
+            # --- Final fallback (previous subset in current df) ---
+            if df_yesterday is None or df_yesterday.empty:
+                prev_idx = df['datetime'].dt.date.unique()
+                if len(prev_idx) > 1:
+                    last_two = sorted(prev_idx)[-2]
+                    df_yesterday = df[df['datetime'].dt.date == last_two]
+                    reasons.append(f"🧩 Using fallback: found previous date {last_two} in local data")
+                else:
+                    reasons.append("❌ Could not locate any previous date data")
+                    df_yesterday = pd.DataFrame()
+
+            # --- Compute YH/YL ---
+            if not df_yesterday.empty:
                 yesterday_high = float(df_yesterday['high'].max())
                 yesterday_low  = float(df_yesterday['low'].min())
-                reasons.append(f"YH={yesterday_high:.2f}, YL={yesterday_low:.2f}")
+                reasons.append(f"📊 Yesterday: High={yesterday_high:.2f}, Low={yesterday_low:.2f}")
             else:
                 yesterday_high = float(df['high'].iloc[-1])
                 yesterday_low  = float(df['low'].iloc[-1])
-                reasons.append("⚠️ Fallback to current data (yesterday candles missing)")
+                reasons.append("⚠️ Fallback to current candles (yesterday missing)")
 
             # --- Current LTP ---
             ltp = float(sig.get("ltp", df['close'].iloc[-1]))
 
-            # --- Apply breakout confirmation ---
+            # --- Apply breakout filter ---
             if signal == "BUY":
                 if ltp <= yesterday_high:
-                    reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ YH {yesterday_high:.2f}")
+                    reasons.append(f"⛔ Skip BUY — LTP {ltp:.2f} ≤ YH {yesterday_high:.2f}")
                     signal = None
                 else:
                     reasons.append(f"✅ BUY confirmed — breakout above YH {yesterday_high:.2f}")
 
             elif signal == "SELL":
                 if ltp >= yesterday_low:
-                    reasons.append(f"⛔ Skipped SELL — LTP {ltp:.2f} ≥ YL {yesterday_low:.2f}")
+                    reasons.append(f"⛔ Skip SELL — LTP {ltp:.2f} ≥ YL {yesterday_low:.2f}")
                     signal = None
                 else:
                     reasons.append(f"✅ SELL confirmed — breakdown below YL {yesterday_low:.2f}")
@@ -396,6 +423,7 @@ def generate_signal_for_df(df, settings):
             signal = None
 
         return signal, reasons
+
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
@@ -992,6 +1020,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
