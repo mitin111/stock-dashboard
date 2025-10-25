@@ -367,11 +367,11 @@ def generate_signal_for_df(df, settings):
         print(f"⚠️ {symbol}: Unknown signal type — skipping")
         continue
 
-# =====================================================
-# ✅ Only reach here if order is allowed
-# =====================================================
-print(f"🚀 Proceeding to place order for {symbol} ({signal}) ...")
-# (keep your order placement code below this line)
+    # =====================================================
+    # ✅ Only reach here if order is allowed
+    # =====================================================
+    print(f"🚀 Proceeding to place order for {symbol} ({signal}) ...")
+    # (keep your order placement code below this line)
 
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
@@ -969,6 +969,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
