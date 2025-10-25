@@ -834,41 +834,64 @@ class ProStocksAPI:
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
 
+ 
+    
+    # ---------------- Fetch Yesterday's Candles ----------------
+    def fetch_yesterday_candles(self, exch, token, interval="5"):
+        """
+        ✅ Fetches complete 1-day (yesterday) 5-min TPSeries candles.
+        Uses UTC-safe start/end window for Indian market (09:15–15:30 IST).
+        """
 
+        import pytz
+        from datetime import datetime, timedelta, timezone
 
+        try:
+            # --- Timezone setup ---
+            ist = pytz.timezone("Asia/Kolkata")
+            today_ist = datetime.now(ist).date()
+            yesterday_ist = today_ist - timedelta(days=1)
 
+            # --- Yesterday start and end time in IST ---
+            start_ist = ist.localize(datetime.combine(yesterday_ist, datetime.min.time())) + timedelta(hours=9, minutes=15)
+            end_ist   = ist.localize(datetime.combine(yesterday_ist, datetime.min.time())) + timedelta(hours=15, minutes=30)
 
+            # --- Convert to UTC for ProStocks ---
+            st = int(start_ist.astimezone(timezone.utc).timestamp())
+            et = int(end_ist.astimezone(timezone.utc).timestamp())
 
+            print(f"📅 Fetching YESTERDAY candles for {yesterday_ist} ({start_ist.time()}–{end_ist.time()} IST)")
 
+            resp = self.get_tpseries(exch, token, interval, st, et)
 
+            # --- Normalize and convert ---
+            if isinstance(resp, dict):
+                print(f"⚠️ Error fetching yesterday candles: {resp.get('emsg')}")
+                return pd.DataFrame()
 
+            df = pd.DataFrame(resp)
+            if df.empty:
+                print("⚠️ Empty yesterday candle response.")
+                return pd.DataFrame()
 
+            # --- Rename and format columns ---
+            rename_map = {
+                "time": "datetime",
+                "into": "open",
+                "inth": "high",
+                "intl": "low",
+                "intc": "close",
+                "intv": "volume"
+            }
+            df.rename(columns=rename_map, inplace=True)
 
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
+            df = df.dropna(subset=["datetime"])
+            df.sort_values("datetime", inplace=True)
+            df.reset_index(drop=True, inplace=True)
 
+            return df
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        except Exception as e:
+            print(f"❌ fetch_yesterday_candles() failed: {e}")
+            return pd.DataFrame()
