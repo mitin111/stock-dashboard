@@ -835,46 +835,58 @@ class ProStocksAPI:
         t.start()
 
  
-    
     # ---------------- Fetch Yesterday's Candles ----------------
-    def fetch_yesterday_candles(self, exch, token, interval="5"):
+        def fetch_yesterday_candles(self, exch, token, interval="5"):
         """
-        ✅ Fetches complete 1-day (yesterday) 5-min TPSeries candles.
-        Uses UTC-safe start/end window for Indian market (09:15–15:30 IST).
+        ✅ Fetches yesterday's complete intraday candles (09:15–15:30 IST).
+        Uses TPSeries API directly, normalized via self.normalize_response().
+        Works even when called standalone or during batch screener.
         """
-
-        import pytz
+        import pytz, pandas as pd, time
         from datetime import datetime, timedelta, timezone
 
         try:
-            # --- Timezone setup ---
             ist = pytz.timezone("Asia/Kolkata")
             today_ist = datetime.now(ist).date()
             yesterday_ist = today_ist - timedelta(days=1)
 
-            # --- Yesterday start and end time in IST ---
+            # --- Start & end times in IST ---
             start_ist = ist.localize(datetime.combine(yesterday_ist, datetime.min.time())) + timedelta(hours=9, minutes=15)
             end_ist   = ist.localize(datetime.combine(yesterday_ist, datetime.min.time())) + timedelta(hours=15, minutes=30)
 
-            # --- Convert to UTC for ProStocks ---
+            # --- Convert to UTC for TPSeries ---
             st = int(start_ist.astimezone(timezone.utc).timestamp())
             et = int(end_ist.astimezone(timezone.utc).timestamp())
 
-            print(f"📅 Fetching YESTERDAY candles for {yesterday_ist} ({start_ist.time()}–{end_ist.time()} IST)")
+            print(f"\n📅 Fetching YESTERDAY candles for {yesterday_ist} ({start_ist.time()}–{end_ist.time()} IST)")
+            print(f"   → UTC Range: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} to {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))}")
 
-            resp = self.get_tpseries(exch, token, interval, st, et)
+            # --- Payload same as get_tpseries ---
+            payload = {
+                "uid": self.userid,
+                "exch": exch,
+                "token": str(token),
+                "st": str(st),
+                "et": str(et),
+                "intrv": str(interval)
+            }
 
-            # --- Normalize and convert ---
-            if isinstance(resp, dict):
-                print(f"⚠️ Error fetching yesterday candles: {resp.get('emsg')}")
+            url = f"{self.base_url}/TPSeries"
+            resp = self._post_json(url, payload)
+
+            # --- Normalize response (ensure list of dicts) ---
+            resp_list = self.normalize_response(resp)
+            if not resp_list:
+                print(f"⚠️ No data received for {yesterday_ist} — {symbol if 'symbol' in locals() else token}")
                 return pd.DataFrame()
 
-            df = pd.DataFrame(resp)
+            # --- Convert to DataFrame ---
+            df = pd.DataFrame(resp_list)
             if df.empty:
-                print("⚠️ Empty yesterday candle response.")
+                print("⚠️ Empty DataFrame after normalization.")
                 return pd.DataFrame()
 
-            # --- Rename and format columns ---
+            # --- Rename columns ---
             rename_map = {
                 "time": "datetime",
                 "into": "open",
@@ -885,13 +897,20 @@ class ProStocksAPI:
             }
             df.rename(columns=rename_map, inplace=True)
 
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
-            df = df.dropna(subset=["datetime"])
+            # --- Parse datetimes ---
+            if "datetime" in df.columns:
+                df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
+                df = df.dropna(subset=["datetime"])
+                df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", ambiguous="NaT", nonexistent="shift_forward")
+
+            # --- Sort & clean ---
             df.sort_values("datetime", inplace=True)
             df.reset_index(drop=True, inplace=True)
 
+            print(f"✅ Yesterday {len(df)} candles fetched successfully for {yesterday_ist}")
             return df
 
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
