@@ -330,23 +330,49 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
     # --- ✅ Yesterday High/Low breakout confirmation ---
-    # --- Safety: Convert to float and validate ---
+    # =====================================================
+    # ✅ Signal validation before placing order
+    # =====================================================
+    print(f"🔍 Checking {symbol}: signal={signal}, ltp={ltp}, yhigh={yhigh}, ylow={ylow}")
+
+    # --- Safety conversion ---
     try:
         ltp = float(ltp)
         yhigh = float(yhigh)
         ylow = float(ylow)
     except (TypeError, ValueError):
-        print(f"⚠️ {symbol}: Invalid YH/YL or LTP — skipping (ltp={ltp}, yhigh={yhigh}, ylow={ylow})")
+        print(f"⚠️ {symbol}: Invalid numeric data — skipping (ltp={ltp}, yhigh={yhigh}, ylow={ylow})")
+        continue
+
+    # --- Missing data check ---
+    if yhigh is None or ylow is None or ltp is None:
+        print(f"⚠️ {symbol}: Missing YH/YL/LTP — skipping order.")
         continue
 
     # --- Entry validation ---
-    if signal == "BUY" and ltp <= yhigh:
-        print(f"⛔ {symbol}: BUY blocked — LTP {ltp:.2f} ≤ YHigh {yhigh:.2f}")
+    if signal == "BUY":
+        if ltp <= yhigh:
+            print(f"⛔ {symbol}: BUY blocked — LTP {ltp:.2f} ≤ Yesterday High {yhigh:.2f}")
+            continue
+        else:
+            print(f"✅ {symbol}: BUY allowed — LTP {ltp:.2f} > Yesterday High {yhigh:.2f}")
+
+    elif signal == "SELL":
+        if ltp >= ylow:
+            print(f"⛔ {symbol}: SELL blocked — LTP {ltp:.2f} ≥ Yesterday Low {ylow:.2f}")
+            continue
+        else:
+            print(f"✅ {symbol}: SELL allowed — LTP {ltp:.2f} < Yesterday Low {ylow:.2f}")
+    else:
+        print(f"⚠️ {symbol}: Unknown signal type — skipping")
         continue
 
-    if signal == "SELL" and ltp >= ylow:
-        print(f"⛔ {symbol}: SELL blocked — LTP {ltp:.2f} ≥ YLow {ylow:.2f}")
-        continue
+# =====================================================
+# ✅ Only reach here if order is allowed
+# =====================================================
+print(f"🚀 Proceeding to place order for {symbol} ({signal}) ...")
+# (keep your order placement code below this line)
+
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
@@ -943,6 +969,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
