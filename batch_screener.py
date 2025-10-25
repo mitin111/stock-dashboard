@@ -332,6 +332,10 @@ def generate_signal_for_df(df, settings):
 
     # --- ✅ Yesterday High/Low breakout confirmation (inside function) ---
     def confirm_yhyl_signal(df, sig, signal, reasons=None, symbol=None, ps_api=None, exch="NSE", token=None):
+        """
+        Dynamically confirms BUY/SELL based on breakout of yesterday's high/low.
+        Auto-fetches full-day candles of yesterday from ProStocks if needed.
+        """
         import pandas as pd, numpy as np, pytz, datetime
         if reasons is None:
             reasons = []
@@ -341,26 +345,38 @@ def generate_signal_for_df(df, settings):
             today_date = df['datetime'].dt.date.max()
             yesterday_date = today_date - datetime.timedelta(days=1)
 
-            # --- Try extracting from df itself ---
+            # --- Try to extract yesterday candles from df ---
             df_yesterday = df[df['datetime'].dt.date == yesterday_date]
 
-            # --- If not found, fetch from ProStocks ---
+            # --- If missing, auto-fetch from API ---
             if (df_yesterday is None or df_yesterday.empty) and ps_api and token:
-                reasons.append(f"📥 Auto-fetching yesterday data for {symbol}...")
-                df_yesterday = ps_api.fetch_yesterday_candles(exch, token, interval="5")
+                reasons.append(f"📥 Fetching yesterday candles ({yesterday_date}) for {symbol}...")
+                df_yesterday = ps_api.fetch_ohlc(
+                    exch=exch,
+                    token=token,
+                    interval="5",
+                    from_date=yesterday_date.strftime("%Y-%m-%d 09:15"),
+                    to_date=yesterday_date.strftime("%Y-%m-%d 15:25")
+                )
+                if df_yesterday is not None and not df_yesterday.empty:
+                    df_yesterday['datetime'] = pd.to_datetime(df_yesterday['datetime']).dt.tz_localize('Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward')
+                else:
+                    reasons.append(f"⚠️ No data fetched for {symbol} on {yesterday_date}")
 
-            # --- Compute YH/YL ---
+            # --- Compute yesterday high/low properly ---
             if df_yesterday is not None and not df_yesterday.empty:
                 yesterday_high = float(df_yesterday['high'].max())
                 yesterday_low  = float(df_yesterday['low'].min())
+                reasons.append(f"YH={yesterday_high:.2f}, YL={yesterday_low:.2f}")
             else:
-                yesterday_high = float(df['close'].iloc[0])
-                yesterday_low  = float(df['close'].iloc[0])
-                reasons.append("⚠️ Fallback: Yesterday data missing.")
+                yesterday_high = float(df['high'].iloc[-1])
+                yesterday_low  = float(df['low'].iloc[-1])
+                reasons.append("⚠️ Fallback to current data (yesterday candles missing)")
 
             # --- Current LTP ---
-            ltp = sig.get("ltp", df['close'].iloc[-1])
+            ltp = float(sig.get("ltp", df['close'].iloc[-1]))
 
+            # --- Apply breakout confirmation ---
             if signal == "BUY":
                 if ltp <= yesterday_high:
                     reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ YH {yesterday_high:.2f}")
@@ -380,7 +396,6 @@ def generate_signal_for_df(df, settings):
             signal = None
 
         return signal, reasons
-
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
@@ -977,6 +992,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
