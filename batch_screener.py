@@ -334,48 +334,46 @@ def generate_signal_for_df(df, settings):
     # ================================
     try:
         # --- Ensure datetime is IST-aware ---
-        df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize('Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward')
+        df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize(
+            'Asia/Kolkata', ambiguous='NaT', nonexistent='shift_forward'
+        )
 
-        # --- Combine yesterday + today data if available ---
-        if 'df_yesterday' in globals() and isinstance(df_yesterday, pd.DataFrame):
-            df_combined = pd.concat([df_yesterday, df], ignore_index=True)
-            df_combined.sort_values("datetime", inplace=True)
-            df_combined.reset_index(drop=True, inplace=True)
+        # --- Determine yesterday + today high/low without shift() ---
+        dates = sorted(df['datetime'].dt.date.unique())
+
+        if len(dates) >= 2:
+            today = dates[-1]
+            yesterday = dates[-2]
+
+            yesterday_data = df[df['datetime'].dt.date == yesterday]
+            yesterday_high = yesterday_data['high'].max()
+            yesterday_low  = yesterday_data['low'].min()
         else:
-            df_combined = df.copy()
+            # अगर yesterday data missing हो तो fallback
+            yesterday_high = df['close'].iloc[0]
+            yesterday_low  = df['close'].iloc[0]
 
-        # --- Calculate YH/YL ---
-        df_yhl = calc_yhl(df_combined)
+        # --- LTP calculation ---
+        ltp = sig.get("ltp", df['close'].iloc[-1])
 
-        # --- Safe fallback: fill NaN with previous close ---
-        df_yhl["high_yest"].fillna(df_yhl["close"].shift(1), inplace=True)
-        df_yhl["low_yest"].fillna(df_yhl["close"].shift(1), inplace=True)
+        # --- Signal confirmation ---
+        if signal == "BUY":
+            if ltp <= yesterday_high:
+                reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ Yesterday High {yesterday_high:.2f}")
+                signal = None
+            else:
+                reasons.append(f"✅ BUY confirmed — LTP {ltp:.2f} > Yesterday High {yesterday_high:.2f}")
 
-        last_row = df_yhl.iloc[-1]
-
-        yesterday_high = float(last_row.get("high_yest", np.nan))
-        yesterday_low  = float(last_row.get("low_yest", np.nan))
-        ltp = float(last_row["close"])
-
-        if np.isnan(yesterday_high) or np.isnan(yesterday_low):
-            reasons.append("⚠️ Missing YH/YL data even after fallback — skipping YH/YL confirmation.")
-        else:
-            if signal == "BUY":
-                if ltp <= yesterday_high:
-                    reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ Yesterday High {yesterday_high:.2f}")
-                    signal = None
-                else:
-                    reasons.append(f"✅ BUY confirmed — LTP {ltp:.2f} > Yesterday High {yesterday_high:.2f}")
-
-            elif signal == "SELL":
-                if ltp >= yesterday_low:
-                    reasons.append(f"⛔ Skipped SELL — LTP {ltp:.2f} ≥ Yesterday Low {yesterday_low:.2f}")
-                    signal = None
-                else:
-                    reasons.append(f"✅ SELL confirmed — LTP {ltp:.2f} < Yesterday Low {yesterday_low:.2f}")
+        elif signal == "SELL":
+            if ltp >= yesterday_low:
+                reasons.append(f"⛔ Skipped SELL — LTP {ltp:.2f} ≥ Yesterday Low {yesterday_low:.2f}")
+                signal = None
+            else:
+                reasons.append(f"✅ SELL confirmed — LTP {ltp:.2f} < Yesterday Low {yesterday_low:.2f}")
 
     except Exception as e:
-        reasons.append(f"⚠️ calc_yhl() failed: {e}")
+        reasons.append(f"⚠️ YH/YL calculation failed: {e}")
+
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
 
@@ -972,6 +970,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
