@@ -183,6 +183,55 @@ def compute_safe_sl_tp(last_price, pac_val, side,
     stop = round(stop, 2)
     target = round(target, 2)
     return stop, target
+import pandas as pd
+import pytz
+from datetime import datetime, timedelta
+
+def get_yesterday_high_low(ps_api, exch, token, interval="5"):
+    """
+    Dynamically fetch yesterday's high and low using TPSeries.
+    Automatically adjusts for weekends and holidays.
+    """
+    try:
+        # 1️⃣ Fetch last 5 days of TPSeries
+        df = ps_api.fetch_full_tpseries(exch, token, interval=interval, max_days=5)
+        if df is None or df.empty:
+            return None, None
+
+        # 2️⃣ Normalize datetime
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+        df["datetime"] = df["datetime"].dt.tz_localize("UTC").dt.tz_convert("Asia/Kolkata")
+        df = df.dropna(subset=["datetime"]).set_index("datetime")
+        for col in ["open", "high", "low", "close"]:
+            if col not in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # 3️⃣ Find yesterday (last complete trading day)
+        now = datetime.now(pytz.timezone("Asia/Kolkata"))
+        today = now.date()
+
+        # exclude today’s candles
+        df_yesterday = df[df.index.date < today]
+
+        if df_yesterday.empty:
+            return None, None
+
+        # Get last trading day available (even if weekend in between)
+        last_trading_day = df_yesterday.index.date[-1]
+        df_yesterday = df_yesterday[df_yesterday.index.date == last_trading_day]
+
+        if df_yesterday.empty:
+            return None, None
+
+        yh = float(df_yesterday["high"].max())
+        yl = float(df_yesterday["low"].min())
+
+        print(f"✅ Yesterday range ({last_trading_day}): High={yh}, Low={yl}")
+        return yh, yl
+
+    except Exception as e:
+        print(f"⚠️ YH/YL fetch error: {e}")
+        return None, None
 
 # -----------------------
 # Helpers
@@ -322,6 +371,28 @@ def generate_signal_for_df(df, settings):
         signal = None
         reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
+    # --- ✅ Dynamic Yesterday High/Low confirmation ---
+    if signal in ["BUY", "SELL"]:
+        try:
+            ps_api = settings.get("ps_api")
+            exch = settings.get("exch", "NSE")
+            token = settings.get("token")
+            yh, yl = get_yesterday_high_low(ps_api, exch, token)
+            if yh and yl:
+                if signal == "BUY" and last_price <= yh:
+                    reasons.append(f"⛔ Skipped BUY — LTP {last_price:.2f} ≤ YH {yh:.2f}")
+                    signal = None
+                elif signal == "SELL" and last_price >= yl:
+                    reasons.append(f"⛔ Skipped SELL — LTP {last_price:.2f} ≥ YL {yl:.2f}")
+                    signal = None
+                else:
+                    reasons.append(f"✅ YH/YL breakout confirmed — {signal}")
+            else:
+                reasons.append("⚠️ YH/YL data unavailable")
+        except Exception as e:
+            reasons.append(f"⚠️ YH/YL fetch failed: {e}")
+
+    # --- Stoploss Logic ---
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -330,105 +401,11 @@ def generate_signal_for_df(df, settings):
         stop_loss = pac_upper
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
-    # --- ✅ Yesterday High/Low breakout confirmation (inside function) ---
-    def confirm_yhyl_signal(df, sig, signal, reasons=None, symbol=None, ps_api=None, exch="NSE", token=None):
-        """
-        Dynamically confirms BUY/SELL based on breakout of yesterday's high/low.
-        ✅ Auto-fetches full previous trading day's 5-min candles.
-        ✅ Fallback to local dataframe if API data missing.
-        ✅ Logs every step for transparency.
-        """
-        import pandas as pd, numpy as np, pytz, datetime
-
-        if reasons is None:
-            reasons = []
-        ist = pytz.timezone("Asia/Kolkata")
-
-        try:
-            # --- Normalize datetime ---
-            df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_localize(ist, ambiguous='NaT', nonexistent='shift_forward')
-
-            # --- Compute current and yesterday trading day ---
-            today_date = df['datetime'].dt.date.max()
-            yesterday_date = today_date - datetime.timedelta(days=1)
-            reasons.append(f"🕓 Today={today_date}, Trying Yesterday={yesterday_date}")
-
-            # --- Try extract from local dataframe ---
-            df_yesterday = df[df['datetime'].dt.date == yesterday_date]
-
-            # --- Auto fetch if empty ---
-            if (df_yesterday is None or df_yesterday.empty) and ps_api and token:
-                from_dt = datetime.datetime.combine(yesterday_date, datetime.time(9, 15)).astimezone(ist)
-                to_dt   = datetime.datetime.combine(yesterday_date, datetime.time(15, 25)).astimezone(ist)
-
-                reasons.append(f"📥 Fetching yesterday candles from {from_dt.strftime('%H:%M')}–{to_dt.strftime('%H:%M')} for {symbol}")
-
-                try:
-                    df_yesterday = ps_api.fetch_ohlc(
-                        exch=exch,
-                        token=token,
-                        interval="5",
-                        from_date=from_dt.strftime("%Y-%m-%d %H:%M"),
-                        to_date=to_dt.strftime("%Y-%m-%d %H:%M")
-                    )
-                    if df_yesterday is not None and not df_yesterday.empty:
-                        df_yesterday['datetime'] = pd.to_datetime(df_yesterday['datetime']).dt.tz_localize(ist)
-                        reasons.append(f"✅ API data fetched: {len(df_yesterday)} candles for {symbol}")
-                    else:
-                        reasons.append(f"⚠️ API returned no data for {symbol} ({yesterday_date})")
-                except Exception as api_err:
-                    reasons.append(f"⚠️ API fetch error: {api_err}")
-
-            # --- Final fallback (previous subset in current df) ---
-            if df_yesterday is None or df_yesterday.empty:
-                prev_idx = df['datetime'].dt.date.unique()
-                if len(prev_idx) > 1:
-                    last_two = sorted(prev_idx)[-2]
-                    df_yesterday = df[df['datetime'].dt.date == last_two]
-                    reasons.append(f"🧩 Using fallback: found previous date {last_two} in local data")
-                else:
-                    reasons.append("❌ Could not locate any previous date data")
-                    df_yesterday = pd.DataFrame()
-
-            # --- Compute YH/YL ---
-            if not df_yesterday.empty:
-                yesterday_high = float(df_yesterday['high'].max())
-                yesterday_low  = float(df_yesterday['low'].min())
-                reasons.append(f"📊 Yesterday: High={yesterday_high:.2f}, Low={yesterday_low:.2f}")
-            else:
-                yesterday_high = float(df['high'].iloc[-1])
-                yesterday_low  = float(df['low'].iloc[-1])
-                reasons.append("⚠️ Fallback to current candles (yesterday missing)")
-
-            # --- Current LTP ---
-            ltp = float(sig.get("ltp", df['close'].iloc[-1]))
-
-            # --- Apply breakout filter ---
-            if signal == "BUY":
-                if ltp <= yesterday_high:
-                    reasons.append(f"⛔ Skip BUY — LTP {ltp:.2f} ≤ YH {yesterday_high:.2f}")
-                    signal = None
-                else:
-                    reasons.append(f"✅ BUY confirmed — breakout above YH {yesterday_high:.2f}")
-
-            elif signal == "SELL":
-                if ltp >= yesterday_low:
-                    reasons.append(f"⛔ Skip SELL — LTP {ltp:.2f} ≥ YL {yesterday_low:.2f}")
-                    signal = None
-                else:
-                    reasons.append(f"✅ SELL confirmed — breakdown below YL {yesterday_low:.2f}")
-
-        except Exception as e:
-            reasons.append(f"⚠️ YH/YL confirm failed: {e}")
-            signal = None
-
-        return signal, reasons
-
-
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
-
     if signal not in ["BUY", "SELL"]:
         signal = None
+
+    print(f"🔎 {settings.get('symbol', '')}: {signal} | {reasons[-1] if reasons else ''}")
 
     return {
         "signal": signal,
@@ -440,7 +417,7 @@ def generate_signal_for_df(df, settings):
         "volatility": round(volatility, 2),
         "pac_lower": pac_lower,
         "pac_upper": pac_upper
-    }
+    }      
 
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
@@ -1020,6 +997,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
