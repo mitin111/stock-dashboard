@@ -331,47 +331,44 @@ def generate_signal_for_df(df, settings):
 
     # --- ✅ Yesterday High/Low breakout confirmation ---
     # =====================================================
-    # ✅ Signal validation before placing order
+    # 🧠 SIGNAL HANDLER (with full diagnostic)
     # =====================================================
-    print(f"🔍 Checking {symbol}: signal={signal}, ltp={ltp}, yhigh={yhigh}, ylow={ylow}")
+    print(f"🔍 {symbol} — Raw signal = {signal}, LTP={ltp}, YHigh={yhigh}, YLow={ylow}")
 
-    # --- Safety conversion ---
+    # --- If no signal, skip early ---
+    if not signal or str(signal).strip().upper() not in ["BUY", "SELL"]:
+        print(f"⚠️ {symbol}: No valid BUY/SELL signal — skipping.")
+        continue
+
+    # --- Safe numeric conversion ---
     try:
         ltp = float(ltp)
         yhigh = float(yhigh)
         ylow = float(ylow)
-    except (TypeError, ValueError):
-        print(f"⚠️ {symbol}: Invalid numeric data — skipping (ltp={ltp}, yhigh={yhigh}, ylow={ylow})")
+    except (Exception as e):
+        print(f"⚠️ {symbol}: Conversion error — {e} (ltp={ltp}, yhigh={yhigh}, ylow={ylow})")
         continue
 
-    # --- Missing data check ---
-    if yhigh is None or ylow is None or ltp is None:
+    # --- Check missing values ---
+    if any(v is None or np.isnan(v) for v in [ltp, yhigh, ylow]):
         print(f"⚠️ {symbol}: Missing YH/YL/LTP — skipping order.")
         continue
 
-    # --- Entry validation ---
+    # --- Entry condition checks ---
     if signal == "BUY":
         if ltp <= yhigh:
             print(f"⛔ {symbol}: BUY blocked — LTP {ltp:.2f} ≤ Yesterday High {yhigh:.2f}")
             continue
-        else:
-            print(f"✅ {symbol}: BUY allowed — LTP {ltp:.2f} > Yesterday High {yhigh:.2f}")
+        print(f"✅ {symbol}: BUY allowed — LTP {ltp:.2f} > Yesterday High {yhigh:.2f}")
 
     elif signal == "SELL":
         if ltp >= ylow:
             print(f"⛔ {symbol}: SELL blocked — LTP {ltp:.2f} ≥ Yesterday Low {ylow:.2f}")
             continue
-        else:
-            print(f"✅ {symbol}: SELL allowed — LTP {ltp:.2f} < Yesterday Low {ylow:.2f}")
-    else:
-        print(f"⚠️ {symbol}: Unknown signal type — skipping")
-        continue
+        print(f"✅ {symbol}: SELL allowed — LTP {ltp:.2f} < Yesterday Low {ylow:.2f}")
 
-    # =====================================================
-    # ✅ Only reach here if order is allowed
-    # =====================================================
-    print(f"🚀 Proceeding to place order for {symbol} ({signal}) ...")
-    # (keep your order placement code below this line)
+    # --- If reached here, order allowed ---
+    print(f"🚀 Proceeding to place order for {symbol} ({signal})")
 
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
@@ -969,6 +966,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
