@@ -19,6 +19,7 @@ from prostocks_connector import ProStocksAPI
 from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
 import threading
+from tkp_trm_chart import calc_yhl
 
 # -----------------------------
 # ✅ Trade-cycle tracker (1 BUY + 1 SELL per day, non-consecutive)
@@ -330,49 +331,36 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
     # --- ✅ Yesterday High/Low breakout confirmation (inside function) ---
+    # ================================
+    # ✅ Use calc_yhl() from tkp_trm_chart.py
+    # ================================
     try:
-        # yesterday = previous trading day rows; we expect df sorted ascending
-        yesterday_high = float(df['high'].iloc[-2])
-        yesterday_low = float(df['low'].iloc[-2])
+        df_yhl = calc_yhl(df.copy())
+        last_row = df_yhl.iloc[-1]
+
+        yesterday_high = float(last_row.get("high_yest", np.nan))
+        yesterday_low  = float(last_row.get("low_yest", np.nan))
+        ltp = float(last_row["close"])
+
+        if np.isnan(yesterday_high) or np.isnan(yesterday_low):
+            reasons.append("⚠️ Missing YH/YL data in calc_yhl() — skipping YH/YL confirmation.")
+        else:
+            if signal == "BUY":
+                if ltp <= yesterday_high:
+                    reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ Yesterday High {yesterday_high:.2f}")
+                    signal = None
+                else:
+                    reasons.append(f"✅ BUY confirmed — LTP {ltp:.2f} > Yesterday High {yesterday_high:.2f}")
+
+            elif signal == "SELL":
+                if ltp >= yesterday_low:
+                    reasons.append(f"⛔ Skipped SELL — LTP {ltp:.2f} ≥ Yesterday Low {yesterday_low:.2f}")
+                    signal = None
+                else:
+                    reasons.append(f"✅ SELL confirmed — LTP {ltp:.2f} < Yesterday Low {yesterday_low:.2f}")
     except Exception as e:
-        # if we can't fetch YH/YL, keep signal as-is but note the issue
-        yesterday_high = None
-        yesterday_low = None
-        reasons.append(f"⚠️ YH/YL fetch failed: {e}")
+        reasons.append(f"⚠️ calc_yhl() failed: {e}")
 
-    # Use last_price as LTP inside this function
-    ltp = last_price
-
-    # Validate numeric values
-    invalid_vals = False
-    for name, val in (("ltp", ltp), ("yesterday_high", yesterday_high), ("yesterday_low", yesterday_low)):
-        if val is None:
-            invalid_vals = True
-            break
-        try:
-            float(val)
-        except Exception:
-            invalid_vals = True
-            break
-
-    if invalid_vals:
-        # If any value invalid, avoid forcing skip here — caller's order-placement will re-check LTP.
-        reasons.append("⚠️ Invalid/missing numeric YH/YL/LTP; skipping YH/YL confirmation here.")
-    else:
-        # now perform confirmation checks (strict)
-        if signal == "BUY":
-            if float(ltp) <= float(yesterday_high):
-                reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ Yesterday High {yesterday_high:.2f}")
-                signal = None
-            else:
-                reasons.append(f"✅ BUY confirmed — LTP {ltp:.2f} > Yesterday High {yesterday_high:.2f}")
-
-        elif signal == "SELL":
-            if float(ltp) >= float(yesterday_low):
-                reasons.append(f"⛔ Skipped SELL — LTP {ltp:.2f} ≥ Yesterday Low {yesterday_low:.2f}")
-                signal = None
-            else:
-                reasons.append(f"✅ SELL confirmed — LTP {ltp:.2f} < Yesterday Low {yesterday_low:.2f}")
 
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
@@ -970,6 +958,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
