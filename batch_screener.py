@@ -329,46 +329,50 @@ def generate_signal_for_df(df, settings):
         stop_loss = pac_upper
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
-    # --- ✅ Yesterday High/Low breakout confirmation ---
-    # =====================================================
-    # 🧠 SIGNAL HANDLER (with full diagnostic)
-    # =====================================================
-    print(f"🔍 {symbol} — Raw signal = {signal}, LTP={ltp}, YHigh={yhigh}, YLow={ylow}")
-
-    # --- If no signal, skip early ---
-    if not signal or str(signal).strip().upper() not in ["BUY", "SELL"]:
-        print(f"⚠️ {symbol}: No valid BUY/SELL signal — skipping.")
-        continue
-
-    # --- Safe numeric conversion ---
+    # --- ✅ Yesterday High/Low breakout confirmation (inside function) ---
     try:
-        ltp = float(ltp)
-        yhigh = float(yhigh)
-        ylow = float(ylow)
-    except (Exception as e):
-        print(f"⚠️ {symbol}: Conversion error — {e} (ltp={ltp}, yhigh={yhigh}, ylow={ylow})")
-        continue
+        # yesterday = previous trading day rows; we expect df sorted ascending
+        yesterday_high = float(df['high'].iloc[-2])
+        yesterday_low = float(df['low'].iloc[-2])
+    except Exception as e:
+        # if we can't fetch YH/YL, keep signal as-is but note the issue
+        yesterday_high = None
+        yesterday_low = None
+        reasons.append(f"⚠️ YH/YL fetch failed: {e}")
 
-    # --- Check missing values ---
-    if any(v is None or np.isnan(v) for v in [ltp, yhigh, ylow]):
-        print(f"⚠️ {symbol}: Missing YH/YL/LTP — skipping order.")
-        continue
+    # Use last_price as LTP inside this function
+    ltp = last_price
 
-    # --- Entry condition checks ---
-    if signal == "BUY":
-        if ltp <= yhigh:
-            print(f"⛔ {symbol}: BUY blocked — LTP {ltp:.2f} ≤ Yesterday High {yhigh:.2f}")
-            continue
-        print(f"✅ {symbol}: BUY allowed — LTP {ltp:.2f} > Yesterday High {yhigh:.2f}")
+    # Validate numeric values
+    invalid_vals = False
+    for name, val in (("ltp", ltp), ("yesterday_high", yesterday_high), ("yesterday_low", yesterday_low)):
+        if val is None:
+            invalid_vals = True
+            break
+        try:
+            float(val)
+        except Exception:
+            invalid_vals = True
+            break
 
-    elif signal == "SELL":
-        if ltp >= ylow:
-            print(f"⛔ {symbol}: SELL blocked — LTP {ltp:.2f} ≥ Yesterday Low {ylow:.2f}")
-            continue
-        print(f"✅ {symbol}: SELL allowed — LTP {ltp:.2f} < Yesterday Low {ylow:.2f}")
+    if invalid_vals:
+        # If any value invalid, avoid forcing skip here — caller's order-placement will re-check LTP.
+        reasons.append("⚠️ Invalid/missing numeric YH/YL/LTP; skipping YH/YL confirmation here.")
+    else:
+        # now perform confirmation checks (strict)
+        if signal == "BUY":
+            if float(ltp) <= float(yesterday_high):
+                reasons.append(f"⛔ Skipped BUY — LTP {ltp:.2f} ≤ Yesterday High {yesterday_high:.2f}")
+                signal = None
+            else:
+                reasons.append(f"✅ BUY confirmed — LTP {ltp:.2f} > Yesterday High {yesterday_high:.2f}")
 
-    # --- If reached here, order allowed ---
-    print(f"🚀 Proceeding to place order for {symbol} ({signal})")
+        elif signal == "SELL":
+            if float(ltp) >= float(yesterday_low):
+                reasons.append(f"⛔ Skipped SELL — LTP {ltp:.2f} ≥ Yesterday Low {yesterday_low:.2f}")
+                signal = None
+            else:
+                reasons.append(f"✅ SELL confirmed — LTP {ltp:.2f} < Yesterday Low {yesterday_low:.2f}")
 
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
@@ -966,6 +970,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
