@@ -284,8 +284,21 @@ def generate_signal_for_df(df, settings):
         else:
             reasons.append("No confluence")
 
-    
-    # --- Time-based volatility threshold ---
+    # --- Apply Yesterday High / Low filter ---
+    y_high = last.get("high_yest")
+    y_low = last.get("low_yest")
+
+    if signal == "BUY" and y_high is not None:
+        if last_price <= y_high:
+            reasons.append(f"Price {last_price:.2f} <= Yesterday High {y_high:.2f}, skipping BUY")
+            signal = None  # Cancel BUY if not above yesterday high
+
+    if signal == "SELL" and y_low is not None:
+        if last_price >= y_low:
+            reasons.append(f"Price {last_price:.2f} >= Yesterday Low {y_low:.2f}, skipping SELL")
+            signal = None  # Cancel SELL if not below yesterday low
+
+   
     # --- Time-based volatility threshold ---
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
 
@@ -924,3 +937,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
