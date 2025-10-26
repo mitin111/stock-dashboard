@@ -715,12 +715,16 @@ def start_trailing_sl(ps_api, interval=5):
             time.sleep(interval)
 
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+import pandas as pd
+from datetime import datetime
+
 # -----------------------
-# Main runner
+# Optimized Parallel Main Runner
 # -----------------------
 def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
     if args is None:
-        # create a safe args-like object with sane defaults for interactive use
         class _A:
             delay_between_calls = 0.25
             max_calls_per_min = 15
@@ -731,7 +735,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             place_orders = False
         args = _A()
 
-    # --- Fix: ensure dashboard place_orders=True overrides default args ---
+    # Force place_orders flag when triggered from dashboard
     if place_orders:
         if args is None:
             class _A:
@@ -745,6 +749,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         else:
             setattr(args, "place_orders", True)
 
+    # Login check
     if ps_api is None:
         creds = load_credentials()
         ps_api = ProStocksAPI(**creds)
@@ -753,6 +758,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             return []
         print("✅ Logged in successfully via credentials")
 
+    # Load strategy settings
     if settings is None:
         try:
             import streamlit as st
@@ -770,6 +776,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
         print("🔹 Loaded TRM settings for Auto Trader:", settings)
 
+    # Build symbol list
     symbols_with_tokens = []
     if symbols:
         for s in symbols:
@@ -809,141 +816,72 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
     print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
-   
     results = []
     all_order_responses = []
 
-    # ---------------- Rate-limit setup ----------------
-    calls_made, window_start = 0, time.time()
-    MAX_CALLS_PER_MIN = 250  # 240+ stocks per minute
-    DELAY_BETWEEN_CALLS = 0.005  # minimal safe delay between API calls
+    start_time = time.time()
 
+    # ============================
+    # Parallel Batch Processing 🚀
+    # ============================
+    MAX_WORKERS = 20  # process 20 stocks at a time
+    BATCH_SIZE = 20
 
-    for idx, sym in enumerate(symbols_with_tokens, 1):
-        calls_made += 1
-        elapsed = time.time() - window_start
-
-        # Rate-limit check
-        if calls_made >= MAX_CALLS_PER_MIN:
-            elapsed = time.time() - window_start
-            to_wait = max(0, 60 - elapsed)
-            if to_wait > 0:
-                print(f"⏱ Rate limit reached. Sleeping {to_wait:.2f}s")
-                time.sleep(to_wait)
-            window_start, calls_made = time.time(), 0
-
-
-        print(f"\n🔹 [{idx}/{len(symbols_with_tokens)}] Processing {sym['tsym']} ...")
-
-        # Process symbol
+    def process_one(sym):
+        """Wrapper to process and optionally place order"""
         try:
             r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
-        except Exception as e:
-            r = {"symbol": sym.get("tsym"), "status": "exception", "emsg": str(e)}
-            print(f"❌ Exception for {sym.get('tsym')}: {e}")
+            if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
+                try:
+                    yclose = float(r.get("yclose", 0))
+                    oprice = float(r.get("open", 0))
+                    gap_pct = ((oprice - yclose) / yclose) * 100 if yclose > 0 else 0
 
-        results.append(r)
-        time.sleep(DELAY_BETWEEN_CALLS)
-
-
-        # ---------------- Order placement ----------------
-        if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
-            try:
-                yclose = float(r.get("yclose", 0))
-                oprice = float(r.get("open", 0))
-                if yclose > 0 and oprice > 0:
-                    gap_pct = ((oprice - yclose) / yclose) * 100
                     if abs(gap_pct) > 1.0:
-                        print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (yclose={yclose}, open={oprice})")
-                        all_order_responses.append({
-                            "symbol": r['symbol'],
-                            "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
-                        })
-                        time.sleep(getattr(args, 'delay_between_calls', 0.25))
-                        continue
+                        return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1%"}}
 
-                # --- Check if symbol already has an open order ---
-                ob_raw = ps_api.order_book()
-                ob_stat, ob_list = resp_to_status_and_list(ob_raw)
+                    ob_raw = ps_api.order_book()
+                    ob_stat, ob_list = resp_to_status_and_list(ob_raw)
 
-                open_orders = []
-                for order in ob_list:
-                    if not isinstance(order, dict):
-                        continue
-                    ts = (
-                        order.get("trading_symbol")
-                        or order.get("tsym")
-                        or order.get("symbol")
-                    )
-                    status = (
-                        order.get("status")
-                        or order.get("st_intrn")
-                        or order.get("stat")
-                    )
+                    open_orders = [o for o in ob_list if isinstance(o, dict)
+                                   and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
+                                   and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])]
 
-                    if ts == r["symbol"] and status in ["OPEN", "PENDING", "TRIGGER PENDING"]:
-                        open_orders.append(order)
+                    if open_orders:
+                        return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
-                if open_orders:
-                    print(f"⚠️ Skipping {r['symbol']}: already has {len(open_orders)} open order(s)")
-                    all_order_responses.append({
-                        "symbol": r["symbol"],
-                        "response": {"stat": "Skipped", "emsg": "Open order exists"}
-                    })
-                    time.sleep(getattr(args, 'delay_between_calls', 0.25))
-                    continue
+                    order_resp = place_order_from_signal(ps_api, r)
+                    return {"symbol": r["symbol"], "response": order_resp}
+                except Exception as e:
+                    return {"symbol": r["symbol"], "response": {"stat": "Exception", "emsg": str(e)}}
+            else:
+                return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "No signal or disabled"}}
+        except Exception as e:
+            return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
 
-                order_resp = place_order_from_signal(ps_api, r)
-                all_order_responses.append({"symbol": r["symbol"], "response": order_resp})
-                print(f"🚀 Order placed for {r['symbol']}: {order_resp}")
+    # Run batches
+    for i in range(0, len(symbols_with_tokens), BATCH_SIZE):
+        batch = symbols_with_tokens[i:i + BATCH_SIZE]
+        print(f"\n⚡ Processing batch {i//BATCH_SIZE + 1} ({len(batch)} symbols)...")
 
-                # mark if any OK
-                # order_resp can be list/dict
-                if isinstance(order_resp, dict) and order_resp.get('stat') == 'Ok':
-                    order_placed = True
-                elif isinstance(order_resp, list):
-                    for it in order_resp:
-                        if isinstance(it, dict) and it.get('stat') == 'Ok':
-                            order_placed = True
-                            break
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(process_one, sym) for sym in batch]
+            for future in as_completed(futures):
+                res = future.result()
+                results.append(res)
+                all_order_responses.append(res)
+        time.sleep(0.2)
 
-            except Exception as e:
-                all_order_responses.append({
-                    "symbol": r['symbol'],
-                    "response": {"stat": "Exception", "emsg": str(e)}
-                })
-                print(f"❌ Order placement failed for {r['symbol']}: {e}")
-
-            # rate limit delay between order calls
-            time.sleep(getattr(args, 'delay_between_calls', 0.25))
-
-        else:
-            print(f"⏸ Skipping {r['symbol']} due to invalid signal or place_orders disabled: {r.get('signal')}")
-            all_order_responses.append({
-                "symbol": r['symbol'],
-                "response": {"stat": "Skipped", "emsg": f"Invalid signal {r.get('signal') or 'None'} or place_orders disabled"}
-            })
-            time.sleep(getattr(args, 'delay_between_calls', 0.25))
+    total_time = round(time.time() - start_time, 2)
+    print(f"\n✅ Batch completed for {len(symbols_with_tokens)} symbols in {total_time} sec")
 
     # Save results
     out_df = pd.DataFrame(results)
     out_file = (args.output if args else None) or f"signals_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     out_df.to_csv(out_file, index=False)
-    print(f"✅ Saved results to {out_file}")
+    print(f"💾 Saved results to {out_file}")
 
-    if "signal" in out_df.columns:
-        print("\nSummary Signals:\n", out_df["signal"].value_counts(dropna=False))
-
-    # ---------------- Skip trailing SL thread for Bracket Orders ----------------
-    if getattr(args, 'place_orders', False) and order_placed:
-        # ✅ Since we are placing only Bracket Orders (product_type='B'),
-        # no need to run trailing SL loop — handled internally by RMS.
-        print("✅ Skipping trailing SL thread (Bracket Orders manage SL internally).")
-
-    return {
-        "results": results,
-        "orders": all_order_responses
-    }
+    return {"results": results, "orders": all_order_responses}
 
 
 if __name__ == "__main__":
@@ -958,6 +896,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
