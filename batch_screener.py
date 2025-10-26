@@ -19,7 +19,6 @@ from prostocks_connector import ProStocksAPI
 from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
 import threading
-from tkp_trm_chart import calc_yhl
 
 # -----------------------------
 # ✅ Trade-cycle tracker (1 BUY + 1 SELL per day, non-consecutive)
@@ -183,86 +182,6 @@ def compute_safe_sl_tp(last_price, pac_val, side,
     stop = round(stop, 2)
     target = round(target, 2)
     return stop, target
-import pandas as pd
-import pytz
-from datetime import datetime, timedelta
-
-def get_yesterday_high_low(ps_api, exch, token, interval="5"):
-    """
-    Safer fetch of yesterday's high/low from TPSeries.
-    - parse datetimes as UTC then convert to Asia/Kolkata
-    - robust checks for column names and empty data
-    """
-    try:
-        df = ps_api.fetch_full_tpseries(exch, token, interval=interval, max_days=5)
-        if df is None:
-            print("⚠️ TPSeries returned None")
-            return None, None
-
-        # if API returns a dict with 'data' key
-        if isinstance(df, dict) and "data" in df:
-            df = pd.DataFrame(df["data"])
-        elif isinstance(df, list):
-            df = pd.DataFrame(df)
-        elif not isinstance(df, pd.DataFrame):
-            # try to coerce
-            df = pd.DataFrame(df)
-
-        if df.empty:
-            print("⚠️ TPSeries dataframe empty")
-            return None, None
-
-        # ensure we have a datetime-like column (try common names)
-        dt_col = None
-        for candidate in ("datetime", "time", "timestamp", "dt"):
-            if candidate in df.columns:
-                dt_col = candidate
-                break
-        if dt_col is None:
-            # try first column as fallback
-            dt_col = df.columns[0]
-
-        # parse as UTC first, then convert to IST
-        df[dt_col] = pd.to_datetime(df[dt_col], errors="coerce", utc=True)
-        df = df.dropna(subset=[dt_col])
-        if df.empty:
-            print("⚠️ No parsable datetimes in TPSeries")
-            return None, None
-
-        df[dt_col] = df[dt_col].dt.tz_convert("Asia/Kolkata")
-        df = df.set_index(dt_col)
-
-        # ensure numeric columns exist
-        for col in ["high", "low", "open", "close"]:
-            if col not in df.columns:
-                df[col] = pd.to_numeric(df.get(col, None), errors="coerce")
-
-        # select only rows before today's date (IST)
-        now_ist = datetime.now(pytz.timezone("Asia/Kolkata"))
-        today = now_ist.date()
-        df_prev = df[df.index.date < today]
-        if df_prev.empty:
-            print("⚠️ No previous-day candles found in TPSeries (maybe only today's data returned)")
-            return None, None
-
-        # pick last available trading date (handles weekends/holidays)
-        last_trading_date = max(df_prev.index.date)
-        df_yest = df_prev[df_prev.index.date == last_trading_date]
-
-        if df_yest.empty:
-            print("⚠️ After filtering last trading day, dataframe empty")
-            return None, None
-
-        yh = float(pd.to_numeric(df_yest["high"], errors="coerce").max())
-        yl = float(pd.to_numeric(df_yest["low"], errors="coerce").min())
-
-        print(f"✅ YH/YL for {last_trading_date}: YH={yh} YL={yl} (rows={len(df_yest)})")
-        return yh, yl
-
-    except Exception as e:
-        print(f"⚠️ Exception in get_yesterday_high_low: {e}")
-        return None, None
-
 
 # -----------------------
 # Helpers
@@ -402,45 +321,6 @@ def generate_signal_for_df(df, settings):
         signal = None
         reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
-    # =====================================================
-    # ✅ Strict Yesterday High/Low breakout confirmation
-    # =====================================================
-    try:
-        ps_api = settings.get("ps_api")
-        exch = settings.get("exch", "NSE")
-        token = settings.get("token")
-        yh, yl = get_yesterday_high_low(ps_api, exch, token)
-        print(f"🔍 Debug YH/YL -> yh={yh} yl={yl} for {settings.get('symbol')}")
-
-        # Validate YH/YL values
-        if yh is None or yl is None:
-            reasons.append("⚠️ YH/YL data unavailable — skipping trade")
-            signal = None
-        else:
-            # ✅ Strict BUY/SELL logic
-            if last_price > yh:
-                if signal != "BUY":
-                    reasons.append(f"📈 Overriding → BUY (LTP {last_price:.2f} > YH {yh:.2f})")
-                    signal = "BUY"
-                else:
-                    reasons.append(f"✅ BUY confirmed — LTP {last_price:.2f} > YH {yh:.2f}")
-            elif last_price < yl:
-                if signal != "SELL":
-                    reasons.append(f"📉 Overriding → SELL (LTP {last_price:.2f} < YL {yl:.2f})")
-                    signal = "SELL"
-                else:
-                    reasons.append(f"✅ SELL confirmed — LTP {last_price:.2f} < YL {yl:.2f}")
-            else:
-                # neither breakout
-                reasons.append(f"⏸️ No breakout — LTP {last_price:.2f} inside [{yl:.2f}, {yh:.2f}]")
-                signal = None
-
-    except Exception as e:
-        reasons.append(f"⚠️ YH/YL fetch failed: {e}")
-        signal = None
-
-
-    # --- Stoploss Logic ---
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -450,10 +330,9 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"SL = PAC Upper {pac_upper:.2f}")
 
     suggested_qty = trm.suggested_qty_by_mapping(last_price)
+
     if signal not in ["BUY", "SELL"]:
         signal = None
-
-    print(f"🔎 {settings.get('symbol', '')}: {signal} | {reasons[-1] if reasons else ''}")
 
     return {
         "signal": signal,
@@ -465,7 +344,7 @@ def generate_signal_for_df(df, settings):
         "volatility": round(volatility, 2),
         "pac_lower": pac_lower,
         "pac_upper": pac_upper
-    }      
+    }
 
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
@@ -1045,26 +924,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
