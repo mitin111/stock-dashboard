@@ -72,22 +72,22 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     # ✅ Load qty_map from session_state (auto-loaded above)
     current_map = st.session_state.get("qty_map", {})
 
-    q1 = st.number_input("Q1 (1-100)", min_value=1, value=current_map.get("Q1", 1), key="q1_input")
-    q2 = st.number_input("Q2 (101-200)", min_value=1, value=current_map.get("Q2", 1), key="q2_input")
-    q3 = st.number_input("Q3 (201-300)", min_value=1, value=current_map.get("Q3", 1), key="q3_input")
-    q4 = st.number_input("Q4 (301-400)", min_value=1, value=current_map.get("Q4", 1), key="q4_input")
-    q5 = st.number_input("Q5 (401-500)", min_value=1, value=current_map.get("Q5", 1), key="q5_input")
-    q6 = st.number_input("Q6 (501-600)", min_value=1, value=current_map.get("Q6", 1), key="q6_input")
-    q7 = st.number_input("Q7 (601-700)", min_value=1, value=current_map.get("Q7", 1), key="q7_input")
-    q8 = st.number_input("Q8 (701-800)", min_value=1, value=current_map.get("Q8", 1), key="q8_input")
-    q9 = st.number_input("Q9 (801-900)", min_value=1, value=current_map.get("Q9", 1), key="q9_input")
-    q10 = st.number_input("Q10 (901-1000)", min_value=1, value=current_map.get("Q10", 1), key="q10_input")
-    q11 = st.number_input("Q11 (Above 1000)", min_value=1, value=current_map.get("Q11", 1), key="q11_input")
+    # Render number inputs dynamically
+    qty_inputs = {}
+    ranges = [
+        (1, 100), (101, 150), (151, 200), (201, 250), (251, 300), (301, 350),
+        (351, 400), (401, 450), (451, 500), (501, 550), (551, 600), (601, 650),
+        (651, 700), (701, 750), (751, 800), (801, 850), (851, 900), (901, 950),
+        (951, 1000), (1001, None)
+    ]
 
-    qty_map = {
-        "Q1": q1, "Q2": q2, "Q3": q3, "Q4": q4, "Q5": q5,
-        "Q6": q6, "Q7": q7, "Q8": q8, "Q9": q9, "Q10": q10, "Q11": q11
-    }
+    for idx, (low, high) in enumerate(ranges, start=1):
+        label = f"Q{idx} ({low}-{high if high else 'Above'})"
+        qty_inputs[f"Q{idx}"] = st.number_input(
+            label, min_value=1,
+            value=current_map.get(f"Q{idx}", 1),
+            key=f"q{idx}_input"
+        )
     # Save button
     if st.button("💾 Save Quantity Mapping"):
         try:
@@ -311,6 +311,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
