@@ -716,13 +716,15 @@ def start_trailing_sl(ps_api, interval=5):
 
 
 # -----------------------
-# Optimized Parallel Main Runner (~1 min for 230 symbols)
+# Optimized Async Parallel Main Runner (~1 min for 230 symbols)
 # -----------------------
-def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
-    import datetime
-    import time
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
+import datetime
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
+import time
 
+def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
     if args is None:
         class _A:
             delay_between_calls = 0.05
@@ -801,10 +803,9 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     all_order_responses = []
     start_time = time.time()
 
-    MAX_WORKERS = 50  # Increased concurrency
-    BATCH_SIZE = 50   # process 50 symbols per batch
+    MAX_WORKERS = 50  # High concurrency
 
-    # Fetch order book once per batch to minimize API calls
+    # Fetch order book once
     def get_open_orders_map():
         try:
             ob_raw = ps_api.order_book()
@@ -820,24 +821,28 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         except Exception:
             return {}
 
+    open_orders_map = get_open_orders_map()
+
+    # Async wrapper for synchronous process_one
+    async def process_one_async(sym):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, process_one, sym, open_orders_map)
+
+    # Original synchronous processing logic
     def process_one(sym, open_orders_map):
-        """Process a symbol and optionally place order"""
         try:
             r = process_symbol(ps_api, sym, args.interval, settings)
 
             if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and args.place_orders:
-                # Skip if open order exists
                 if open_orders_map.get(r["symbol"]):
                     return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
-                # Gap check
                 yclose = float(r.get("yclose", 0))
                 oprice = float(r.get("open", 0))
                 gap_pct = ((oprice - yclose) / yclose) * 100 if yclose > 0 else 0
                 if abs(gap_pct) > 1.0:
                     return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1%"}}
 
-                # Place order
                 order_resp = place_order_from_signal(ps_api, r)
                 return {"symbol": r["symbol"], "response": order_resp}
             else:
@@ -846,19 +851,20 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         except Exception as e:
             return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
 
-    # ------------------- Parallel batches -------------------
-    for i in range(0, len(symbols_with_tokens), BATCH_SIZE):
-        batch = symbols_with_tokens[i:i + BATCH_SIZE]
-        print(f"\n⚡ Processing batch {i//BATCH_SIZE + 1} ({len(batch)} symbols)...")
-        open_orders_map = get_open_orders_map()
+    # ------------------- Async batch execution -------------------
+    async def run_all():
+        sem = asyncio.Semaphore(MAX_WORKERS)
+        async def sem_task(sym):
+            async with sem:
+                return await process_one_async(sym)
 
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [executor.submit(process_one, sym, open_orders_map) for sym in batch]
-            for future in as_completed(futures):
-                res = future.result()
-                results.append(res)
-                all_order_responses.append(res)
-        time.sleep(0.05)
+        tasks = [sem_task(sym) for sym in symbols_with_tokens]
+        for f in asyncio.as_completed(tasks):
+            res = await f
+            results.append(res)
+            all_order_responses.append(res)
+
+    asyncio.run(run_all())
 
     total_time = round(time.time() - start_time, 2)
     print(f"\n✅ Batch completed for {len(symbols_with_tokens)} symbols in {total_time} sec")
@@ -873,6 +879,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
 
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
     parser.add_argument("--watchlists", type=str, default="1")
     parser.add_argument("--all-watchlists", action="store_true")
@@ -884,4 +891,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
