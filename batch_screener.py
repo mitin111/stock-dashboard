@@ -402,36 +402,43 @@ def generate_signal_for_df(df, settings):
         signal = None
         reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
-    # --- ✅ Dynamic Yesterday High/Low confirmation ---
-    if signal in ["BUY", "SELL"]:
-        try:
-            ps_api = settings.get("ps_api")
-            exch = settings.get("exch", "NSE")
-            token = settings.get("token")
-            yh, yl = get_yesterday_high_low(ps_api, exch, token)
-            print(f"🔍 Debug YH/YL -> yh={yh} yl={yl} for {settings.get('symbol')}")
+    # =====================================================
+    # ✅ Strict Yesterday High/Low breakout confirmation
+    # =====================================================
+    try:
+        ps_api = settings.get("ps_api")
+        exch = settings.get("exch", "NSE")
+        token = settings.get("token")
+        yh, yl = get_yesterday_high_low(ps_api, exch, token)
+        print(f"🔍 Debug YH/YL -> yh={yh} yl={yl} for {settings.get('symbol')}")
 
-            # require both values to be non-None
-            if yh is None or yl is None:
-                reasons.append("⚠️ YH/YL data unavailable — skipping trade")
-                signal = None
-            else:
-                if signal == "BUY":
-                    # require price strictly > yesterday high to confirm breakout
-                    if last_price <= yh:
-                        reasons.append(f"⛔ Skipped BUY — LTP {last_price:.2f} ≤ YH {yh:.2f}")
-                        signal = None
-                    else:
-                        reasons.append(f"✅ YH breakout confirmed — BUY (LTP {last_price:.2f} > YH {yh:.2f})")
-                elif signal == "SELL":
-                    if last_price >= yl:
-                        reasons.append(f"⛔ Skipped SELL — LTP {last_price:.2f} ≥ YL {yl:.2f}")
-                        signal = None
-                    else:
-                        reasons.append(f"✅ YL breakout confirmed — SELL (LTP {last_price:.2f} < YL {yl:.2f})")
-        except Exception as e:
-            reasons.append(f"⚠️ YH/YL fetch failed: {e}")
+        # Validate YH/YL values
+        if yh is None or yl is None:
+            reasons.append("⚠️ YH/YL data unavailable — skipping trade")
             signal = None
+        else:
+            # ✅ Strict BUY/SELL logic
+            if last_price > yh:
+                if signal != "BUY":
+                    reasons.append(f"📈 Overriding → BUY (LTP {last_price:.2f} > YH {yh:.2f})")
+                    signal = "BUY"
+                else:
+                    reasons.append(f"✅ BUY confirmed — LTP {last_price:.2f} > YH {yh:.2f}")
+            elif last_price < yl:
+                if signal != "SELL":
+                    reasons.append(f"📉 Overriding → SELL (LTP {last_price:.2f} < YL {yl:.2f})")
+                    signal = "SELL"
+                else:
+                    reasons.append(f"✅ SELL confirmed — LTP {last_price:.2f} < YL {yl:.2f}")
+            else:
+                # neither breakout
+                reasons.append(f"⏸️ No breakout — LTP {last_price:.2f} inside [{yl:.2f}, {yh:.2f}]")
+                signal = None
+
+    except Exception as e:
+        reasons.append(f"⚠️ YH/YL fetch failed: {e}")
+        signal = None
+
 
     # --- Stoploss Logic ---
     stop_loss = None
@@ -1038,6 +1045,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
