@@ -715,14 +715,15 @@ def start_trailing_sl(ps_api, interval=5):
             time.sleep(interval)
 
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
-import pandas as pd
-from datetime import datetime
-
 # -----------------------
 # Optimized Parallel Main Runner
 # -----------------------
+import datetime  # <-- changed import to use datetime.datetime
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import pandas as pd
+import argparse
+
 def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
     if args is None:
         class _A:
@@ -846,7 +847,6 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                     open_orders = [o for o in ob_list if isinstance(o, dict)
                                    and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
                                    and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])]
-
                     if open_orders:
                         return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
@@ -877,7 +877,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
     # Save results
     out_df = pd.DataFrame(results)
-    out_file = (args.output if args else None) or f"signals_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    out_file = (args.output if args else None) or f"signals_debug_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     out_df.to_csv(out_file, index=False)
     print(f"💾 Saved results to {out_file}")
 
@@ -896,8 +896,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
-
-
