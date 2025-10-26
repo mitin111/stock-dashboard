@@ -173,6 +173,11 @@ def calc_tkp_trm(df, settings):
 
     isBuy = (tsi > tsi_signal) & (rsi_vals > settings["rsiBuyLevel"])
     isSell = (tsi < tsi_signal) & (rsi_vals < settings["rsiSellLevel"])
+    
+    # ✅ Apply YH/YL condition filter
+    if "high_yest" in df.columns and "low_yest" in df.columns:
+        isBuy = isBuy & (df["close"] > df["high_yest"])
+        isSell = isSell & (df["close"] < df["low_yest"])
 
     df["trm_signal"] = np.where(isBuy, "Buy",
                                 np.where(isSell, "Sell", "Neutral"))
@@ -512,6 +517,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
