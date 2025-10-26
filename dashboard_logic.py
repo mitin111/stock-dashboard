@@ -37,7 +37,7 @@ def save_settings(settings):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f)
 
-# === Qty Map (Q1..Q6)
+# === Qty Map (Q1..Q20)
 def save_qty_map(qty_map: dict):
     with open(QTY_MAP_FILE, "w") as f:
         json.dump(qty_map, f)
@@ -50,7 +50,12 @@ def load_qty_map() -> dict:
         except Exception:
             pass
     # Default quantity mapping (Q1–Q20)
-    return {f"Q{i}": 1 for i in range(1, 21)}
+    return {
+        "Q1": 1,  "Q2": 1,  "Q3": 1,  "Q4": 1,  "Q5": 1,
+        "Q6": 1,  "Q7": 1,  "Q8": 1,  "Q9": 1,  "Q10": 1,
+        "Q11": 1, "Q12": 1, "Q13": 1, "Q14": 1, "Q15": 1,
+        "Q16": 1, "Q17": 1, "Q18": 1, "Q19": 1, "Q20": 1
+    }
 
 
 # === Load ProStocks credentials
@@ -178,6 +183,7 @@ def start_live_engine(ps_api, watchlist_id, interval, ui_queue):
             ui_queue.put(("ws_empty", "No symbols for websocket"))
     except Exception as e:
         ui_queue.put(("ws_error", str(e)))
+
 
 
 
