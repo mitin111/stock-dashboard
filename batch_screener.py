@@ -716,19 +716,17 @@ def start_trailing_sl(ps_api, interval=5):
 
 
 # -----------------------
-# Optimized Parallel Main Runner
+# Optimized Parallel Main Runner (~1 min for 230 symbols)
 # -----------------------
-import datetime  # <-- changed import to use datetime.datetime
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import pandas as pd
-import argparse
-
 def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
+    import datetime
+    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     if args is None:
         class _A:
-            delay_between_calls = 0.25
-            max_calls_per_min = 15
+            delay_between_calls = 0.05
+            max_calls_per_min = 250
             watchlists = "1"
             all_watchlists = False
             interval = "5"
@@ -736,19 +734,8 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             place_orders = False
         args = _A()
 
-    # Force place_orders flag when triggered from dashboard
     if place_orders:
-        if args is None:
-            class _A:
-                watchlists = []
-                place_orders = True
-                min_volatility = 0.5
-                min_price = 100
-                max_price = 2000
-                skip_no_data = True
-            args = _A()
-        else:
-            setattr(args, "place_orders", True)
+        setattr(args, "place_orders", True)
 
     # Login check
     if ps_api is None:
@@ -768,14 +755,7 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             settings = None
 
         if not settings:
-            raise ValueError("❌ TRM settings missing in session_state! Cannot proceed without explicit settings.")
-
-        required_keys = ["long", "short", "signal_length", "macd_fast", "macd_slow", "macd_signal"]
-        missing = [k for k in required_keys if k not in settings]
-        if missing:
-            raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
-
-        print("🔹 Loaded TRM settings for Auto Trader:", settings)
+            raise ValueError("❌ TRM settings missing in session_state!")
 
     # Build symbol list
     symbols_with_tokens = []
@@ -788,21 +768,21 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             })
     else:
         all_symbols = []
-        if args and getattr(args, 'all_watchlists', False):
+        watchlist_ids = []
+        if args.all_watchlists:
             wls = ps_api.get_watchlists()
             stat, values = resp_to_status_and_list(wls)
             if stat != "Ok":
-                print("❌ Failed to list watchlists:", wls)
+                print("❌ Failed to list watchlists")
                 return []
             watchlist_ids = sorted(values, key=int)
         else:
-            watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
+            watchlist_ids = [w.strip() for w in args.watchlists.split(",") if w.strip()]
 
         for wl in watchlist_ids:
             wl_data = ps_api.get_watchlist(wl)
             wl_stat, wl_list = resp_to_status_and_list(wl_data)
             if wl_stat != "Ok":
-                print(f"❌ Could not load watchlist {wl}: {wl_data}")
                 continue
             all_symbols.extend(wl_list)
 
@@ -819,65 +799,73 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
 
     results = []
     all_order_responses = []
-
     start_time = time.time()
 
-    # ============================
-    # Parallel Batch Processing 🚀
-    # ============================
-    MAX_WORKERS = 20  # process 20 stocks at a time
-    BATCH_SIZE = 20
+    MAX_WORKERS = 50  # Increased concurrency
+    BATCH_SIZE = 50   # process 50 symbols per batch
 
-    def process_one(sym):
-        """Wrapper to process and optionally place order"""
+    # Fetch order book once per batch to minimize API calls
+    def get_open_orders_map():
         try:
-            r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
-            if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
-                try:
-                    yclose = float(r.get("yclose", 0))
-                    oprice = float(r.get("open", 0))
-                    gap_pct = ((oprice - yclose) / yclose) * 100 if yclose > 0 else 0
+            ob_raw = ps_api.order_book()
+            ob_stat, ob_list = resp_to_status_and_list(ob_raw)
+            open_map = {}
+            for o in ob_list:
+                if isinstance(o, dict):
+                    ts = o.get("trading_symbol") or o.get("tsym")
+                    st = o.get("status") or o.get("stat")
+                    if ts and st in ["OPEN", "PENDING", "TRIGGER PENDING"]:
+                        open_map[ts] = o
+            return open_map
+        except Exception:
+            return {}
 
-                    if abs(gap_pct) > 1.0:
-                        return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1%"}}
+    def process_one(sym, open_orders_map):
+        """Process a symbol and optionally place order"""
+        try:
+            r = process_symbol(ps_api, sym, args.interval, settings)
 
-                    ob_raw = ps_api.order_book()
-                    ob_stat, ob_list = resp_to_status_and_list(ob_raw)
+            if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and args.place_orders:
+                # Skip if open order exists
+                if open_orders_map.get(r["symbol"]):
+                    return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
-                    open_orders = [o for o in ob_list if isinstance(o, dict)
-                                   and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
-                                   and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])]
-                    if open_orders:
-                        return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
+                # Gap check
+                yclose = float(r.get("yclose", 0))
+                oprice = float(r.get("open", 0))
+                gap_pct = ((oprice - yclose) / yclose) * 100 if yclose > 0 else 0
+                if abs(gap_pct) > 1.0:
+                    return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1%"}}
 
-                    order_resp = place_order_from_signal(ps_api, r)
-                    return {"symbol": r["symbol"], "response": order_resp}
-                except Exception as e:
-                    return {"symbol": r["symbol"], "response": {"stat": "Exception", "emsg": str(e)}}
+                # Place order
+                order_resp = place_order_from_signal(ps_api, r)
+                return {"symbol": r["symbol"], "response": order_resp}
             else:
                 return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "No signal or disabled"}}
+
         except Exception as e:
             return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
 
-    # Run batches
+    # ------------------- Parallel batches -------------------
     for i in range(0, len(symbols_with_tokens), BATCH_SIZE):
         batch = symbols_with_tokens[i:i + BATCH_SIZE]
         print(f"\n⚡ Processing batch {i//BATCH_SIZE + 1} ({len(batch)} symbols)...")
+        open_orders_map = get_open_orders_map()
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [executor.submit(process_one, sym) for sym in batch]
+            futures = [executor.submit(process_one, sym, open_orders_map) for sym in batch]
             for future in as_completed(futures):
                 res = future.result()
                 results.append(res)
                 all_order_responses.append(res)
-        time.sleep(0.2)
+        time.sleep(0.05)
 
     total_time = round(time.time() - start_time, 2)
     print(f"\n✅ Batch completed for {len(symbols_with_tokens)} symbols in {total_time} sec")
 
     # Save results
     out_df = pd.DataFrame(results)
-    out_file = (args.output if args else None) or f"signals_debug_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    out_file = args.output or f"signals_debug_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     out_df.to_csv(out_file, index=False)
     print(f"💾 Saved results to {out_file}")
 
@@ -896,3 +884,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
