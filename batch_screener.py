@@ -797,20 +797,25 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     results = []
     all_order_responses = []
 
+    # ---------------- Rate-limit setup ----------------
     calls_made, window_start = 0, time.time()
-    MAX_CALLS_PER_MIN = 150
-    DELAY_BETWEEN_CALLS = 0.01  # minimal delay
+    MAX_CALLS_PER_MIN = 250  # 240+ stocks per minute
+    DELAY_BETWEEN_CALLS = 0.005  # minimal safe delay between API calls
+
 
     for idx, sym in enumerate(symbols_with_tokens, 1):
         calls_made += 1
         elapsed = time.time() - window_start
 
         # Rate-limit check
-        if calls_made > MAX_CALLS_PER_MIN:
+        if calls_made >= MAX_CALLS_PER_MIN:
+            elapsed = time.time() - window_start
             to_wait = max(0, 60 - elapsed)
-            print(f"⏱ Rate limit reached. Sleeping {to_wait:.1f}s")
-            time.sleep(to_wait)
-            window_start, calls_made = time.time(), 1
+            if to_wait > 0:
+                print(f"⏱ Rate limit reached. Sleeping {to_wait:.2f}s")
+                time.sleep(to_wait)
+            window_start, calls_made = time.time(), 0
+
 
         print(f"\n🔹 [{idx}/{len(symbols_with_tokens)}] Processing {sym['tsym']} ...")
 
@@ -937,4 +942,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
