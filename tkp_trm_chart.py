@@ -342,28 +342,47 @@ def suggested_qty_by_mapping(price, qty_map=None):
     # --- Updated price ranges (1–100 ... 1000+)
     if 1 <= price <= 100:
         return qty_map.get("Q1")
-    elif 101 <= price <= 200:
+    elif 101 <= price <= 150:
         return qty_map.get("Q2")
-    elif 201 <= price <= 300:
+    elif 151 <= price <= 200:
         return qty_map.get("Q3")
-    elif 301 <= price <= 400:
+    elif 201 <= price <= 250:
         return qty_map.get("Q4")
-    elif 401 <= price <= 500:
+    elif 251 <= price <= 300:
         return qty_map.get("Q5")
-    elif 501 <= price <= 600:
+    elif 301 <= price <= 350:
         return qty_map.get("Q6")
-    elif 601 <= price <= 700:
+    elif 351 <= price <= 400:
         return qty_map.get("Q7")
-    elif 701 <= price <= 800:
+    elif 401 <= price <= 450:
         return qty_map.get("Q8")
-    elif 801 <= price <= 900:
+    elif 451 <= price <= 500:
         return qty_map.get("Q9")
-    elif 901 <= price <= 1000:
+    elif 501 <= price <= 550:
         return qty_map.get("Q10")
-    elif price > 1000:
+    elif 551 <= price <= 600:
         return qty_map.get("Q11")
+    elif 601 <= price <= 650:
+        return qty_map.get("Q12")
+    elif 651 <= price <= 700:
+        return qty_map.get("Q13")
+    elif 701 <= price <= 750:
+        return qty_map.get("Q14")
+    elif 751 <= price <= 800:
+        return qty_map.get("Q15")
+    elif 801 <= price <= 850:
+        return qty_map.get("Q16")
+    elif 851 <= price <= 900:
+        return qty_map.get("Q17")
+    elif 901 <= price <= 950:
+        return qty_map.get("Q18")
+    elif 951 <= price <= 1000:
+        return qty_map.get("Q19")
+    elif price > 1000:
+        return qty_map.get("Q20")
     else:
         return None   # ❌ invalid range → no qty
+
 
 # =========================
 # Wrapper for Streamlit / Plotly
@@ -512,6 +531,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
