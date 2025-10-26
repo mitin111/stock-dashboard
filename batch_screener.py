@@ -522,20 +522,23 @@ def place_order_from_signal(ps_api, sig):
     last_price = float(sig.get("last_price", ltp))
     pac_gap = abs(last_price - pac_price)
 
+    import datetime, pytz
     from datetime import time
 
-    # --- Time-based SL range (in % of last_price) ---
+    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()
+
     if time(9, 15) <= now < time(11, 0):
         min_sl_pct, max_sl_pct = 0.5, 1.1
     elif time(11, 0) <= now < time(12, 0):
         min_sl_pct, max_sl_pct = 0.5, 0.9
     elif time(12, 0) <= now < time(13, 0):
         min_sl_pct, max_sl_pct = 0.4, 0.7
-    else:  # 13:00 se market close tak
+    else:
         min_sl_pct, max_sl_pct = 0.5, 0.5
 
-min_sl_rs = last_price * min_sl_pct / 100
-max_sl_rs = last_price * max_sl_pct / 100
+    min_sl_rs = last_price * min_sl_pct / 100
+    max_sl_rs = last_price * max_sl_pct / 100
+
 
     sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
     tp_gap = max(last_price * target_pct / 100, min_sl_rs)
@@ -955,6 +958,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
