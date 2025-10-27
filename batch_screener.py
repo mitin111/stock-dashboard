@@ -836,10 +836,16 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                 try:
                     yclose = float(r.get("yclose", 0))
                     oprice = float(r.get("open", 0))
-                    gap_pct = ((oprice - yclose) / yclose) * 100 if yclose > 0 else 0
 
-                    if abs(gap_pct) > 1.0:
-                        return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1%"}}
+                    if yclose > 0 and oprice > 0:
+                        gap_pct = ((oprice - yclose) / yclose) * 100
+                        if abs(gap_pct) > 1.0:
+                            print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (yclose={yclose}, open={oprice})")
+                            all_order_responses.append({
+                                "symbol": r['symbol'],
+                                "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
+                            })
+                            return {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
 
                     ob_raw = ps_api.order_book()
                     ob_stat, ob_list = resp_to_status_and_list(ob_raw)
@@ -896,3 +902,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
