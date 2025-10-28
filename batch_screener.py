@@ -876,36 +876,39 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         """Wrapper to process and optionally place order"""
         try:
             r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
+
+            # --- Place order only if valid signal and allowed ---
             if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
-                try:
-                    yclose = float(r.get("yclose", 0))
-                    oprice = float(r.get("open", 0))
 
-                    if yclose > 0 and oprice > 0:
-                        gap_pct = ((oprice - yclose) / yclose) * 100
-                        if abs(gap_pct) > 1.0:
-                            print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (yclose={yclose}, open={oprice})")
-                            all_order_responses.append({
-                                "symbol": r['symbol'],
-                                "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
-                            })
-                            return {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
+                # ✅ Backend-based skip flag (gap / day move / volatility)
+                if r.get("skip_due_to_gap", False):
+                    gap_pct = float(r.get("gap_pct", 0))
+                    print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (>1.0%)")
+                    all_order_responses.append({
+                        "symbol": r['symbol'],
+                        "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
+                    })
+                    return {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
 
-                    ob_raw = ps_api.order_book()
-                    ob_stat, ob_list = resp_to_status_and_list(ob_raw)
+                # --- Skip if open order already exists ---
+                ob_raw = ps_api.order_book()
+                ob_stat, ob_list = resp_to_status_and_list(ob_raw)
 
-                    open_orders = [o for o in ob_list if isinstance(o, dict)
-                                   and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
-                                   and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])]
-                    if open_orders:
-                        return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
+                open_orders = [
+                    o for o in ob_list if isinstance(o, dict)
+                    and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
+                    and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])
+                ]
+                if open_orders:
+                    return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
-                    order_resp = place_order_from_signal(ps_api, r)
-                    return {"symbol": r["symbol"], "response": order_resp}
-                except Exception as e:
-                    return {"symbol": r["symbol"], "response": {"stat": "Exception", "emsg": str(e)}}
+                # --- Place the order now ---
+                order_resp = place_order_from_signal(ps_api, r)
+                return {"symbol": r["symbol"], "response": order_resp}
+
             else:
                 return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "No signal or disabled"}}
+
         except Exception as e:
             return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
 
@@ -946,6 +949,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
