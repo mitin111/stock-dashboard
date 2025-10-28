@@ -14,6 +14,7 @@ import argparse
 import json
 from datetime import datetime
 import pandas as pd
+import numpy as np
 
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import place_order_from_signal, load_credentials
@@ -949,6 +950,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
