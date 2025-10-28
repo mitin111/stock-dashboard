@@ -229,6 +229,33 @@ def calc_intraday_volatility_flag(df, threshold_single=1.3, threshold_two=2.0):
         df["skip_due_to_intraday_vol"] = False
         return df
 
+# =========================
+# Day Move Filter Indicator
+# =========================
+def calc_day_move_flag(df, threshold_pct=1.5):
+    """
+    Adds 'day_move_pct' and 'skip_due_to_day_move' columns.
+    Marks True if today's price move from open exceeds threshold_pct (%).
+    """
+    if df.empty:
+        df["day_move_pct"] = 0
+        df["skip_due_to_day_move"] = False
+        return df
+
+    try:
+        df = df.copy()
+        df["date"] = df["datetime"].dt.date
+        df["day_open"] = df.groupby("date")["open"].transform("first")
+        df["day_move_pct"] = ((df["close"] - df["day_open"]) / df["day_open"]) * 100
+        df["skip_due_to_day_move"] = df["day_move_pct"].abs() > threshold_pct
+        return df
+
+    except Exception as e:
+        print(f"⚠️ Day move calculation failed: {e}")
+        df["day_move_pct"] = 0
+        df["skip_due_to_day_move"] = False
+        return df
+
 
 # =========================
 # PAC Channel
@@ -506,6 +533,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     df = calc_atr_trails(df, settings)
     df = calc_macd(df, settings)   # ✅ MACD added
     df = calc_intraday_volatility_flag(df)   # ✅ add this
+    df = trm.calc_day_move_flag(df)
     # --- Create figure ---
     if show_macd_panel:
         fig = make_subplots(
@@ -567,6 +595,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
