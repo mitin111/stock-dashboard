@@ -256,6 +256,42 @@ def calc_day_move_flag(df, threshold_pct=1.5):
         df["skip_due_to_day_move"] = False
         return df
 
+# ============================================================
+# 🔹 Gap Move Filter (indicator)
+# ============================================================
+def calc_gap_move_flag(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Marks stocks that have >1.0% gap up/down between yesterday close and today's open.
+    Adds columns: 'gap_pct' and 'skip_due_to_gap'
+    """
+    try:
+        df = df.copy()
+        df["gap_pct"] = 0.0
+        df["skip_due_to_gap"] = False
+
+        if len(df) < 2:
+            return df
+
+        # Get yesterday close and today's open (based on date)
+        df["date"] = df["datetime"].dt.date
+        unique_dates = df["date"].unique()
+        if len(unique_dates) >= 2:
+            today_date = unique_dates[-1]
+            yesterday_date = unique_dates[-2]
+
+            yclose = df.loc[df["date"] == yesterday_date, "close"].iloc[-1]
+            oprice = df.loc[df["date"] == today_date, "open"].iloc[0]
+
+            if yclose > 0:
+                gap_pct = ((oprice - yclose) / yclose) * 100
+                df.loc[df["date"] == today_date, "gap_pct"] = gap_pct
+                if abs(gap_pct) > 1.0:
+                    df.loc[df["date"] == today_date, "skip_due_to_gap"] = True
+
+    except Exception as e:
+        print(f"⚠️ Gap move calculation failed: {e}")
+
+    return df
 
 # =========================
 # PAC Channel
@@ -534,6 +570,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     df = calc_macd(df, settings)   # ✅ MACD added
     df = calc_intraday_volatility_flag(df)   # ✅ add this
     df = trm.calc_day_move_flag(df)
+    df = trm.calc_gap_move_flag(df)  # ✅ ADD THIS
     # --- Create figure ---
     if show_macd_panel:
         fig = make_subplots(
@@ -595,6 +632,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
