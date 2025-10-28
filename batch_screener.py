@@ -243,6 +243,7 @@ def generate_signal_for_df(df, settings):
         df = trm.calc_yhl(df)
         df = trm.calc_intraday_volatility_flag(df)  # ✅ add this line if defined in tkp_trm_chart.py
         df = trm.calc_day_move_flag(df)  # ✅ new day move indicator (adds day_move_pct + flag)
+        df = trm.calc_gap_move_flag(df)
     except Exception as e:
         print(f"❌ Error calculating indicators for {df.iloc[-1].name if not df.empty else 'unknown'}: {e}")
         print("🔹 Last few rows of dataframe causing error:\n", df.tail())
@@ -365,6 +366,14 @@ def generate_signal_for_df(df, settings):
     if last.get("skip_due_to_day_move", False):
         signal = None
         reasons.append(f"⚠️ Price moved {day_move_pct:.2f}% from open (>1.5%), skipping trade")
+
+    # ============================================================
+    # 🔹 Gap Move Filter (from indicator)
+    # ============================================================
+    gap_pct = float(last.get("gap_pct", 0))
+    if last.get("skip_due_to_gap", False):
+        signal = None
+        reasons.append(f"⚠️ Gap {gap_pct:.2f}% from yesterday close (>1.0%), skipping trade")
     # ============================================================
     # 🔹 Stop-loss setup
     # ============================================================
@@ -937,6 +946,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
