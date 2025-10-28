@@ -244,7 +244,7 @@ def generate_signal_for_df(df, settings):
         df = trm.calc_yhl(df)
         df = trm.calc_intraday_volatility_flag(df)  # ✅ add this line if defined in tkp_trm_chart.py
         df = trm.calc_day_move_flag(df)  # ✅ new day move indicator (adds day_move_pct + flag)
-        df = trm.calc_gap_move_flag(df)
+        df = calc_day_move_flag(df)
     except Exception as e:
         print(f"❌ Error calculating indicators for {df.iloc[-1].name if not df.empty else 'unknown'}: {e}")
         print("🔹 Last few rows of dataframe causing error:\n", df.tail())
@@ -950,6 +950,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
