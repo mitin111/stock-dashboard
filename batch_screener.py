@@ -241,6 +241,7 @@ def generate_signal_for_df(df, settings):
         df = trm.calc_pac(df, settings)
         df = trm.calc_atr_trails(df, settings)
         df = trm.calc_yhl(df)
+        df = trm.calc_intraday_volatility_flag(df)  # ✅ add this line if defined in tkp_trm_chart.py
     except Exception as e:
         print(f"❌ Error calculating indicators for {df.iloc[-1].name if not df.empty else 'unknown'}: {e}")
         print("🔹 Last few rows of dataframe causing error:\n", df.tail())
@@ -268,66 +269,97 @@ def generate_signal_for_df(df, settings):
 
     reasons, signal = [], None
 
-    if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
-        signal = "BUY"
-        reasons.append("TSI=Buy & MACD hist >0")
-        if pacC is not None:
-            reasons.append("Price > PAC mid")
-    elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
-        signal = "SELL"
-        reasons.append("TSI=Sell & MACD hist <0")
-        if pacC is not None:
-            reasons.append("Price < PAC mid")
-    else:
-        if tsi_sig == "Neutral" and macd_hist != 0:
-            reasons.append(f"Weak confluence: TSI Neutral, MACD {'pos' if macd_hist>0 else 'neg'}")
-        else:
-            reasons.append("No confluence")
+    # ============================================================
+    # 🔎 Intraday volatility filter (same-day high-range candles)
+    # ============================================================
+    try:
+        skip_due_to_intraday_vol = False
+        intraday_df = day_data.copy()
+        intraday_df["range_pct"] = ((intraday_df["high"] - intraday_df["low"]) / intraday_df["low"]) * 100
 
-    # --- Apply Yesterday High / Low filter ---
+        # --- (1) Any single candle > 1.3% range ---
+        if (intraday_df["range_pct"] >= 1.3).any():
+            skip_due_to_intraday_vol = True
+            reasons.append("⚠️ Intraday candle >1.3% range — skipping trade")
+
+        # --- (2) Two consecutive candles combined > 2% move ---
+        if len(intraday_df) >= 2:
+            intraday_df["close_change_pct"] = intraday_df["close"].pct_change() * 100
+            intraday_df["two_candle_move"] = intraday_df["close_change_pct"].rolling(2).sum().abs()
+            if (intraday_df["two_candle_move"] >= 2).any():
+                skip_due_to_intraday_vol = True
+                reasons.append("⚠️ Two consecutive candles ≥2% combined move — skipping trade")
+
+        if skip_due_to_intraday_vol:
+            signal = None
+    except Exception as e:
+        reasons.append(f"⚠️ Intraday volatility check failed: {e}")
+
+    # ============================================================
+    # 🔹 Core signal logic (TSI + MACD + PAC)
+    # ============================================================
+    if signal is None:  # only compute if not skipped
+        if tsi_sig == "Buy" and macd_hist > 0 and (pacC is None or last_price > pacC):
+            signal = "BUY"
+            reasons.append("TSI=Buy & MACD hist >0")
+            if pacC is not None:
+                reasons.append("Price > PAC mid")
+        elif tsi_sig == "Sell" and macd_hist < 0 and (pacC is None or last_price < pacC):
+            signal = "SELL"
+            reasons.append("TSI=Sell & MACD hist <0")
+            if pacC is not None:
+                reasons.append("Price < PAC mid")
+        else:
+            if tsi_sig == "Neutral" and macd_hist != 0:
+                reasons.append(f"Weak confluence: TSI Neutral, MACD {'pos' if macd_hist>0 else 'neg'}")
+            else:
+                reasons.append("No confluence")
+
+    # ============================================================
+    # 🔹 Yesterday High/Low Filter
+    # ============================================================
     y_high = last.get("high_yest")
     y_low = last.get("low_yest")
 
-    if signal == "BUY" and y_high is not None:
-        if last_price <= y_high:
-            reasons.append(f"Price {last_price:.2f} <= Yesterday High {y_high:.2f}, skipping BUY")
-            signal = None  # Cancel BUY if not above yesterday high
+    if signal == "BUY" and y_high is not None and last_price <= y_high:
+        reasons.append(f"Price {last_price:.2f} ≤ Yesterday High {y_high:.2f}, skipping BUY")
+        signal = None
 
-    if signal == "SELL" and y_low is not None:
-        if last_price >= y_low:
-            reasons.append(f"Price {last_price:.2f} >= Yesterday Low {y_low:.2f}, skipping SELL")
-            signal = None  # Cancel SELL if not below yesterday low
+    if signal == "SELL" and y_low is not None and last_price >= y_low:
+        reasons.append(f"Price {last_price:.2f} ≥ Yesterday Low {y_low:.2f}, skipping SELL")
+        signal = None
 
-   
-    # --- Time-based volatility threshold ---
+    # ============================================================
+    # 🔹 Time-based volatility safeguard
+    # ============================================================
     last_candle_time = pd.to_datetime(df["datetime"].iloc[-1]).time()
+    vol_threshold = 1.0
+    t = datetime.datetime.strptime
 
-    # ✅ Default safeguard (agar koi range match na ho)
-    vol_threshold = 1.0  
-
-    if datetime.datetime.strptime("09:15", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("09:20", "%H:%M").time():
+    if t("09:15", "%H:%M").time() <= last_candle_time < t("09:20", "%H:%M").time():
         vol_threshold = 1.19
-    elif datetime.datetime.strptime("09:20", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("10:00", "%H:%M").time():
+    elif t("09:20", "%H:%M").time() <= last_candle_time < t("10:00", "%H:%M").time():
         vol_threshold = 1.29
-    elif datetime.datetime.strptime("10:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("11:00", "%H:%M").time():
+    elif t("10:00", "%H:%M").time() <= last_candle_time < t("11:00", "%H:%M").time():
         vol_threshold = 1.60
-    elif datetime.datetime.strptime("11:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("12:00", "%H:%M").time():
+    elif t("11:00", "%H:%M").time() <= last_candle_time < t("12:00", "%H:%M").time():
         vol_threshold = 2.00
-    elif datetime.datetime.strptime("12:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("13:00", "%H:%M").time():
+    elif t("12:00", "%H:%M").time() <= last_candle_time < t("13:00", "%H:%M").time():
         vol_threshold = 2.20
-    elif datetime.datetime.strptime("13:00", "%H:%M").time() <= last_candle_time < datetime.datetime.strptime("14:00", "%H:%M").time():
+    elif t("13:00", "%H:%M").time() <= last_candle_time < t("14:00", "%H:%M").time():
         vol_threshold = 2.80
-    elif datetime.datetime.strptime("14:00", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("14:45", "%H:%M").time():
+    elif t("14:00", "%H:%M").time() <= last_candle_time <= t("14:45", "%H:%M").time():
         vol_threshold = 2.80
-    elif datetime.datetime.strptime("14:45", "%H:%M").time() <= last_candle_time <= datetime.datetime.strptime("15:25", "%H:%M").time():
-        vol_threshold = 2.60  # ✅ optional last session range (2.45–3.25)
+    elif t("14:45", "%H:%M").time() <= last_candle_time <= t("15:25", "%H:%M").time():
+        vol_threshold = 2.60
 
-    # --- Compare volatility vs threshold ---
     if volatility < vol_threshold:
         signal = "NEUTRAL"
         reasons.append(f"Volatility {volatility:.2f}% < {vol_threshold}, skipping trade")
 
-
+    # ============================================================
+    # 🔹 Overall day move filter
+    # ============================================================
     today_open = day_data["open"].iloc[0] if not day_data.empty else last_price
     price_move_pct = ((last_price - today_open) / today_open) * 100
     if abs(price_move_pct) > 2:
@@ -335,37 +367,8 @@ def generate_signal_for_df(df, settings):
         reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
     # ============================================================
-    # 🔎 Same-day volatility filter (before entry)
+    # 🔹 Stop-loss setup
     # ============================================================
-    try:
-        # Get today’s candles up to current time
-        current_time = last_dt.time() if isinstance(last_dt, datetime.datetime) else None
-        intraday_df = day_data.copy()
-        if current_time:
-            intraday_df = intraday_df[intraday_df["datetime"].dt.time <= current_time]
-
-        skip_due_to_intraday_vol = False
-
-        # --- (1) Single candle with >1.3% move ---
-        intraday_df["range_pct"] = ((intraday_df["high"] - intraday_df["low"]) / intraday_df["low"]) * 100
-        if (intraday_df["range_pct"] >= 1.3).any():
-            skip_due_to_intraday_vol = True
-            reasons.append("⚠️ Intraday candle >1.3% range — skipping trade")
-
-        # --- (2) Two consecutive candles combined >2% move ---
-        if len(intraday_df) >= 2:
-            intraday_df["close_change_pct"] = intraday_df["close"].pct_change() * 100
-            intraday_df["two_candle_move"] = intraday_df["close_change_pct"].rolling(2).sum().abs()
-            if (intraday_df["two_candle_move"] >= 2).any():
-                skip_due_to_intraday_vol = True
-                reasons.append("⚠️ Two consecutive candles combined move ≥2% — skipping trade")
-
-        if skip_due_to_intraday_vol:
-            signal = None
-
-    except Exception as e:
-        reasons.append(f"⚠️ Intraday volatility check failed: {e}")
-
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -390,6 +393,7 @@ def generate_signal_for_df(df, settings):
         "pac_lower": pac_lower,
         "pac_upper": pac_upper
     }
+
 
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
@@ -934,5 +938,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
