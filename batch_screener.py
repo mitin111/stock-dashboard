@@ -334,6 +334,38 @@ def generate_signal_for_df(df, settings):
         signal = None
         reasons.append(f"Price moved {price_move_pct:.2f}% from today's open (>2%), skipping trade")
 
+    # ============================================================
+    # 🔎 Same-day volatility filter (before entry)
+    # ============================================================
+    try:
+        # Get today’s candles up to current time
+        current_time = last_dt.time() if isinstance(last_dt, datetime.datetime) else None
+        intraday_df = day_data.copy()
+        if current_time:
+            intraday_df = intraday_df[intraday_df["datetime"].dt.time <= current_time]
+
+        skip_due_to_intraday_vol = False
+
+        # --- (1) Single candle with >1.3% move ---
+        intraday_df["range_pct"] = ((intraday_df["high"] - intraday_df["low"]) / intraday_df["low"]) * 100
+        if (intraday_df["range_pct"] >= 1.3).any():
+            skip_due_to_intraday_vol = True
+            reasons.append("⚠️ Intraday candle >1.3% range — skipping trade")
+
+        # --- (2) Two consecutive candles combined >2% move ---
+        if len(intraday_df) >= 2:
+            intraday_df["close_change_pct"] = intraday_df["close"].pct_change() * 100
+            intraday_df["two_candle_move"] = intraday_df["close_change_pct"].rolling(2).sum().abs()
+            if (intraday_df["two_candle_move"] >= 2).any():
+                skip_due_to_intraday_vol = True
+                reasons.append("⚠️ Two consecutive candles combined move ≥2% — skipping trade")
+
+        if skip_due_to_intraday_vol:
+            signal = None
+
+    except Exception as e:
+        reasons.append(f"⚠️ Intraday volatility check failed: {e}")
+
     stop_loss = None
     if signal == "BUY" and pac_lower is not None:
         stop_loss = pac_lower
@@ -902,4 +934,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
