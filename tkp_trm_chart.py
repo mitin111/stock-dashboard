@@ -608,3 +608,4 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
 
 
 
+
