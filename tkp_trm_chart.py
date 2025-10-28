@@ -195,6 +195,42 @@ def calc_yhl(df):
     return df
 
 # =========================
+# Intraday Volatility Filter (Indicator)
+# =========================
+def calc_intraday_volatility_flag(df, threshold_single=1.3, threshold_two=2.0):
+    """
+    Returns a DataFrame column 'skip_due_to_intraday_vol' = True/False.
+    Marks True if:
+      (1) Any single candle > threshold_single % range
+      (2) Two consecutive candles combined move ≥ threshold_two %
+    """
+    if df.empty:
+        df["skip_due_to_intraday_vol"] = False
+        return df
+
+    try:
+        df = df.copy()
+        df["range_pct"] = ((df["high"] - df["low"]) / df["low"]) * 100
+
+        # --- Single candle > threshold ---
+        df["flag_single"] = df["range_pct"] >= threshold_single
+
+        # --- Two-candle combined change ---
+        df["close_change_pct"] = df["close"].pct_change() * 100
+        df["two_candle_move"] = df["close_change_pct"].rolling(2).sum().abs()
+        df["flag_two"] = df["two_candle_move"] >= threshold_two
+
+        # --- Final flag ---
+        df["skip_due_to_intraday_vol"] = df["flag_single"] | df["flag_two"]
+        return df
+
+    except Exception as e:
+        print(f"⚠️ Intraday volatility calculation failed: {e}")
+        df["skip_due_to_intraday_vol"] = False
+        return df
+
+
+# =========================
 # PAC Channel
 # =========================
 def calc_pac(df, settings):
@@ -531,6 +567,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
