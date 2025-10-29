@@ -242,6 +242,7 @@ def generate_signal_for_df(df, settings):
         df = trm.calc_pac(df, settings)
         df = trm.calc_atr_trails(df, settings)
         df = trm.calc_yhl(df)
+        df = trm.calc_gap_move_flag(df)
         df = trm.calc_intraday_volatility_flag(df)  # ✅ add this line if defined in tkp_trm_chart.py
         df = trm.calc_day_move_flag(df)  # ✅ new day move indicator (adds day_move_pct + flag)
     except Exception as e:
@@ -949,6 +950,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
