@@ -682,6 +682,7 @@ with tab5:
 
     from plotly.subplots import make_subplots
     from tkp_trm_chart import plot_trm_chart, get_trm_settings_safe
+    import tkp_trm_indicators as trm  # 👈 Add this line
      # --- Render TKP TRM + PAC + YHL chart ---
     if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
         df_live = pd.DataFrame({
@@ -762,6 +763,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
