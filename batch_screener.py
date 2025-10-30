@@ -340,15 +340,15 @@ def generate_signal_for_df(df, settings):
     t = datetime.datetime.strptime
 
     if t("09:15", "%H:%M").time() <= last_candle_time < t("09:20", "%H:%M").time():
-        vol_threshold = 1.19
-    elif t("09:20", "%H:%M").time() <= last_candle_time < t("10:00", "%H:%M").time():
-        vol_threshold = 1.29
-    elif t("10:00", "%H:%M").time() <= last_candle_time < t("11:00", "%H:%M").time():
         vol_threshold = 1.60
-    elif t("11:00", "%H:%M").time() <= last_candle_time < t("12:00", "%H:%M").time():
+    elif t("09:20", "%H:%M").time() <= last_candle_time < t("10:00", "%H:%M").time():
+        vol_threshold = 1.80
+    elif t("10:00", "%H:%M").time() <= last_candle_time < t("11:00", "%H:%M").time():
         vol_threshold = 2.00
-    elif t("12:00", "%H:%M").time() <= last_candle_time < t("13:00", "%H:%M").time():
+    elif t("11:00", "%H:%M").time() <= last_candle_time < t("12:00", "%H:%M").time():
         vol_threshold = 2.20
+    elif t("12:00", "%H:%M").time() <= last_candle_time < t("13:00", "%H:%M").time():
+        vol_threshold = 2.40
     elif t("13:00", "%H:%M").time() <= last_candle_time < t("14:00", "%H:%M").time():
         vol_threshold = 2.80
     elif t("14:00", "%H:%M").time() <= last_candle_time <= t("14:45", "%H:%M").time():
@@ -948,6 +948,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
