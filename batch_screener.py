@@ -407,86 +407,101 @@ def generate_signal_for_df(df, settings):
 # ================================================================
 # ✅ Dynamic Target/Trail + Auto Order Placement (ProStocks API)
 # ================================================================
+# ✅ Updated: dynamic target/trail + stop-loss min/max per bucket
 import datetime, pytz
+from typing import Tuple, Optional
 
-def get_dynamic_target_trail(volatility: float):
-    """Return (target_pct, trail_pct) based on current time and volatility."""
-
-    # --- Fixes applied ---
-    volatility = round(float(volatility), 2)  # ✅ float precision fix
-    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()  # ✅ IST time fix
+def get_dynamic_target_trail(volatility: float) -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    """
+    Return (target_pct, trail_pct, min_sl_pct, max_sl_pct) based on current time and volatility.
+    volatility: in percent (e.g. 2.45)
+    """
+    volatility = round(float(volatility), 2)
+    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()
 
     def in_range(start, end):
-        return start <= now <= end  # ✅ equality fix
+        return start <= now <= end
 
-    # === 09:20–09:30 ===
+    # Each row: (lo, hi, target_pct, trail_pct, min_sl_pct, max_sl_pct)
     if in_range(datetime.time(9, 20), datetime.time(9, 30)):
         table = [
-            (1.61, 1.8, 1.0, 0.3), (1.81, 2.0, 1.0, 0.4), (2.01, 2.2, 1.3, 0.7),
-            (2.21, 2.4, 2.0, 0.9), (2.41, 2.6, 2.3, 1.0), (2.61, 2.8, 2.5, 1.0),
-            (2.81, 3.0, 3.0, 1.0), (3.01, 999, 3.0, 1.0)
+            (1.61, 1.8, 1.0, 0.3, 0.3, 0.5),
+            (1.81, 2.0, 1.0, 0.4, 0.3, 0.5),
+            (2.01, 2.2, 1.3, 0.7, 0.3, 1.0),
+            (2.21, 2.4, 2.0, 0.9, 0.3, 1.1),
+            (2.41, 2.6, 2.3, 1.0, 0.3, 1.1),
+            (2.61, 2.8, 2.5, 1.0, 0.3, 1.1),
+            (2.81, 3.0, 3.0, 1.0, 0.3, 1.1),
+            (3.01, 999, 3.0, 1.0, 0.3, 1.1),
         ]
 
-    # === 09:30–10:00 ===
     elif in_range(datetime.time(9, 30), datetime.time(10, 0)):
         table = [
-            (1.81, 2.0, 1.3, 0.4), (2.01, 2.2, 1.5, 0.5), (2.21, 2.4, 1.7, 0.6),
-            (2.41, 2.6, 2.0, 0.7), (2.61, 2.8, 2.2, 0.8), (2.81, 3.0, 2.5, 0.9),
-            (3.01, 3.2, 3.0, 1.0), (3.21, 999, 3.5, 1.1)
+            (1.81, 2.0, 1.3, 0.4, 0.3, 0.7),
+            (2.01, 2.2, 1.5, 0.5, 0.3, 0.9),
+            (2.21, 2.4, 1.7, 0.6, 0.3, 1.0),
+            (2.41, 2.6, 2.0, 0.7, 0.3, 1.1),
+            (2.61, 2.8, 2.2, 0.8, 0.3, 1.1),
+            (2.81, 3.0, 2.5, 0.9, 0.3, 1.1),
+            (3.01, 3.2, 3.0, 1.0, 0.3, 1.1),
+            (3.21, 999, 3.5, 1.1, 0.3, 1.1),
         ]
 
-    # === 10:00–11:00 ===
     elif in_range(datetime.time(10, 0), datetime.time(11, 0)):
         table = [
-            (2.01, 2.2, 1.0, 0.3), (2.21, 2.4, 1.2, 0.4), (2.41, 2.6, 1.5, 0.5),
-            (2.61, 2.8, 1.7, 0.7), (2.81, 3.0, 2.0, 0.8), (3.01, 3.2, 2.2, 0.9), 
-            (3.21, 999, 2.5, 1.0)
+            (2.01, 2.2, 1.0, 0.3, 0.3, 0.7),
+            (2.21, 2.4, 1.2, 0.4, 0.3, 0.8),
+            (2.41, 2.6, 1.5, 0.5, 0.3, 0.9),
+            (2.61, 2.8, 1.7, 0.7, 0.3, 1.0),
+            (2.81, 3.0, 2.0, 0.8, 0.3, 1.1),
+            (3.01, 3.2, 2.2, 0.9, 0.3, 1.1),
+            (3.21, 999, 2.5, 1.0, 0.3, 1.1),
         ]
 
-    # === 11:00–12:00 ===
     elif in_range(datetime.time(11, 0), datetime.time(12, 0)):
         table = [
-            (2.21, 2.4, 0.75, 0.3),(2.41, 2.6, 1.0, 0.4), (2.61, 2.8, 1.2, 0.5),
-            (2.81, 3.0, 1.5, 0.6), (3.01, 999, 1.7, 0.7)
+            (2.21, 2.4, 0.75, 0.3, 0.3, 0.5),
+            (2.41, 2.6, 1.0, 0.4, 0.3, 0.6),
+            (2.61, 2.8, 1.2, 0.5, 0.3, 0.7),
+            (2.81, 3.0, 1.5, 0.6, 0.3, 0.7),
+            (3.01, 999, 1.7, 0.7, 0.3, 0.8),
         ]
 
-    # === 12:00–13:00 ===
     elif in_range(datetime.time(12, 0), datetime.time(13, 0)):
         table = [
-            (2.41, 2.6, 0.75, 0.3), (2.61, 2.8, 0.9, 0.3), (2.61, 2.8, 1.0, 0.3),
-            (3.01, 999, 1.3, 0.3)
+            (2.41, 2.6, 0.75, 0.3, 0.3, 0.5),
+            (2.61, 2.8, 0.9, 0.3, 0.3, 0.6),
+            (2.81, 3.0, 1.0, 0.3, 0.3, 0.7),
+            (3.01, 999, 1.3, 0.3, 0.3, 0.7),
         ]
 
-    # === 13:00–14:00 ===
     elif in_range(datetime.time(13, 0), datetime.time(14, 0)):
         table = [
-            (2.81, 3.0, 0.75, 0.3), (3.01, 999, 1.0, 0.3)
+            (2.81, 3.0, 0.75, 0.3, 0.1, 0.5),
+            (3.01, 999, 1.0, 0.3, 0.1, 0.5),
         ]
 
-    # === 14:00–14:45 ===
     elif in_range(datetime.time(14, 0), datetime.time(14, 45)):
         table = [
-            (2.81, 3.0, 0.75, 0.3), (3.01, 999, 0.75, 0.3)
+            (2.81, 3.0, 0.75, 0.3, 0.1, 0.5),
+            (3.01, 999, 0.75, 0.3, 0.1, 0.5),
         ]
 
-    # === 14:45 ke baad bhi same table continue rahe ===
     else:
-        # market close hone ke baad bhi testing ke liye same values
+        # after 14:45 / market close testing table
         table = [
-            (2.81, 3.0, 0.75, 0.3), (3.01, 999, 1.0, 0.3)
+            (2.81, 3.0, 0.75, 0.3, 0.1, 0.3),
+            (3.01, 999, 1.0, 0.3, 0.1, 0.3),
         ]
 
-    # --- Match volatility to range ---
-    for lo, hi, tgt, trail in table:
+    for lo, hi, tgt, trail, min_sl_pct, max_sl_pct in table:
         if lo <= volatility <= hi:
-            return (tgt, trail)
+            return (tgt, trail, min_sl_pct, max_sl_pct)
 
-    return (None, None)
+    return (None, None, None, None)
 
 
-# ================================================================
-# ✅ Auto Place Order Logic (Bracket Order + Dynamic SL/TP)
-# ================================================================
+# ✅ Updated place_order_from_signal to use returned min/max SL %
 def place_order_from_signal(ps_api, sig):
     symbol = sig.get("symbol")
     signal_type = (sig.get("signal") or "").upper()
@@ -495,11 +510,10 @@ def place_order_from_signal(ps_api, sig):
         print(f"⚠️ Skipping order for {symbol}: invalid/neutral signal")
         return [{"stat": "Skipped", "emsg": "No valid signal"}]
 
-    # Step 0: Check existing trade cycle
     cycle = check_trade_cycle_status(ps_api, symbol)
-    if signal_type == "BUY" and cycle["buy_cycle_done"]:
+    if signal_type == "BUY" and cycle.get("buy_cycle_done"):
         return [{"stat": "Skipped", "emsg": "BUY cycle completed"}]
-    if signal_type == "SELL" and cycle["sell_cycle_done"]:
+    if signal_type == "SELL" and cycle.get("sell_cycle_done"):
         return [{"stat": "Skipped", "emsg": "SELL cycle completed"}]
 
     lower_band = sig.get("pac_lower")
@@ -507,12 +521,9 @@ def place_order_from_signal(ps_api, sig):
     ltp = sig.get("ltp")
     exch = sig.get("exch", "NSE")
 
-    # Step 1: Fetch LTP if missing
-    # Step 1: Fetch LTP if missing
     from datetime import datetime, time
     now = datetime.now().time()
-    market_open = time(9, 15)
-    market_close = time(15, 30)
+    market_open, market_close = time(9, 15), time(15, 30)
 
     if ltp is None:
         try:
@@ -522,7 +533,6 @@ def place_order_from_signal(ps_api, sig):
                 sig["ltp"] = ltp
                 print(f"📈 {symbol}: Live LTP fetched → {ltp}")
             else:
-                # fallback to last known price
                 ltp = float(sig.get("last_price") or 0)
                 if ltp > 0:
                     print(f"🕒 {symbol}: Using fallback LTP → {ltp}")
@@ -530,9 +540,8 @@ def place_order_from_signal(ps_api, sig):
                     if not (market_open <= now <= market_close):
                         print(f"⏳ {symbol}: Market closed ({now.strftime('%H:%M:%S')}) — using no trade mode")
                         return [{"stat": "Skipped", "emsg": "Market closed"}]
-                    else:
-                        print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
-                        return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
+                    print(f"⚠️ {symbol}: LTP fetch failed — skipping order")
+                    return [{"stat": "Skipped", "emsg": "LTP fetch failed"}]
         except Exception as e:
             print(f"⚠️ {symbol}: Exception fetching LTP → {e}")
             ltp = float(sig.get("last_price") or 0)
@@ -541,57 +550,42 @@ def place_order_from_signal(ps_api, sig):
             else:
                 return [{"stat": "Skipped", "emsg": f"LTP fetch exception: {e}"}]
 
-    # Step 2: PAC validation
     if lower_band is None or upper_band is None:
         print(f"⚠️ {symbol}: Missing PAC band data — skipping order")
         return [{"stat": "Skipped", "emsg": "Missing PAC band"}]
 
-    # Step 3: 2% PAC filter
     if signal_type == "BUY" and ltp > lower_band * 1.02:
         return [{"stat": "Skipped", "emsg": "BUY >2% above lower band"}]
     if signal_type == "SELL" and ltp < upper_band * 0.98:
         return [{"stat": "Skipped", "emsg": "SELL >2% below upper band"}]
 
-    # Step 4: Dynamic SL/TP logic
     vol = float(sig.get("volatility", 0))
-    target_pct, trail_pct = get_dynamic_target_trail(vol)
+    target_pct, trail_pct, min_sl_pct_table, max_sl_pct_table = get_dynamic_target_trail(vol)
     if target_pct is None:
         print(f"🚫 Skipping {symbol}: no match for vol {vol:.2f}% & current time")
         return [{"stat": "Skipped", "emsg": "No dynamic match"}]
 
-    print(f"🕒 {symbol}: Vol={vol:.2f}% | Target={target_pct}% | Trail={trail_pct}%")
+    print(f"🕒 {symbol}: Vol={vol:.2f}% | Target={target_pct}% | Trail={trail_pct}% | SL% range=({min_sl_pct_table},{max_sl_pct_table})")
 
     pac_price = lower_band if signal_type == "BUY" else upper_band
     last_price = float(sig.get("last_price", ltp))
     pac_gap = abs(last_price - pac_price)
 
-    import datetime, pytz
-    from datetime import time
+    min_sl_rs = last_price * (min_sl_pct_table / 100.0)
+    max_sl_rs = last_price * (max_sl_pct_table / 100.0)
 
-    now = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).time()
+    # ensure sl_gap at least pac_gap but bounded between min_sl_rs and max_sl_rs
+    sl_gap = max(pac_gap, min_sl_rs)
+    sl_gap = min(sl_gap, max_sl_rs)
 
-    if time(9, 15) <= now < time(11, 0):
-        min_sl_pct, max_sl_pct = 0.5, 1.1
-    elif time(11, 0) <= now < time(12, 0):
-        min_sl_pct, max_sl_pct = 0.5, 0.9
-    elif time(12, 0) <= now < time(13, 0):
-        min_sl_pct, max_sl_pct = 0.4, 0.7
-    else:
-        min_sl_pct, max_sl_pct = 0.5, 0.5
-
-    min_sl_rs = last_price * min_sl_pct / 100
-    max_sl_rs = last_price * max_sl_pct / 100
-
-
-    sl_gap = min(max(pac_gap, min_sl_rs), max_sl_rs)
-    tp_gap = max(last_price * target_pct / 100, min_sl_rs)
+    # TP gap calculation based on target_pct (ensure at least min_sl_rs)
+    tp_gap = max(last_price * (target_pct / 100.0), min_sl_rs)
 
     tick = 0.01 if ltp < 200 else 0.05
     blprc = round(sl_gap / tick) * tick
     bpprc = round(tp_gap / tick) * tick
-    trail_rs = round(last_price * trail_pct / 100, 2)
+    trail_rs = round(last_price * (trail_pct / 100.0), 2)
 
-    # Step 5: Place Order
     try:
         raw_resp = ps_api.place_order(
             buy_or_sell="B" if signal_type == "BUY" else "S",
@@ -606,7 +600,7 @@ def place_order_from_signal(ps_api, sig):
             book_profit=bpprc,
             book_loss=blprc,
             trail_price=trail_rs,
-            remarks=f"Auto BO | Vol={vol:.2f}% | Tgt={target_pct}% | Trail={trail_pct}%"
+            remarks=f"Auto BO | Vol={vol:.2f}% | Tgt={target_pct}% | Trail={trail_pct}% | SLrange={min_sl_pct_table}-{max_sl_pct_table}"
         )
 
         if isinstance(raw_resp, dict):
@@ -948,6 +942,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
