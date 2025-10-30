@@ -569,8 +569,9 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     df = calc_atr_trails(df, settings)
     df = calc_macd(df, settings)   # ✅ MACD added
     df = calc_intraday_volatility_flag(df)   # ✅ add this
-    df = trm.calc_day_move_flag(df)
-    df = trm.calc_gap_move_flag(df)  # ✅ ADD THIS
+    df = calc_gap_move_flag(df)
+    df = calc_intraday_volatility_flag(df)
+
     # --- Create figure ---
     if show_macd_panel:
         fig = make_subplots(
@@ -632,6 +633,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
