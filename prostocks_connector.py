@@ -575,52 +575,8 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ ModifyOrder API failed: {e}")
             return [{"stat": "Exception", "emsg": str(e)}]   # ✅ wrapped in list
-
-    def exit_bracket_order(self, norenordno: str, product_type: str = "B"):
-        """
-        Exit a Cover or Bracket order via /ExitSNOOrder.
-    
-        Args:
-            norenordno: Noren order number to exit.
-            product_type: 'B' for Bracket, 'H' for Cover.
-        Returns:
-            list[dict]: Normalized API response.
-        """
-        if not self.is_logged_in():
-            return [{"stat": "Not_Ok", "emsg": "❌ Not logged in or session expired"}]
-
-        url = f"{self.base_url}/ExitSNOOrder"
-
-        jdata = {
-            "uid": self.userid,
-            "prd": product_type,
-            "norenordno": str(norenordno)
-        }
-
-        payload = f"jData={json.dumps(jdata)}&jKey={self.session_token}"
-
-        try:
-            resp = self.session.post(
-                url,
-                data=payload,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=5
-            )
-
-            print("📨 ExitSNOOrder Response:", resp.text[:400])
-
-            try:
-                data = resp.json()
-            except Exception:
-                return [{"stat": "Exception", "emsg": f"Invalid JSON: {resp.text[:200]}"}]
-
-            return self.normalize_response(data)
-
-        except requests.exceptions.RequestException as e:
-            print("❌ ExitSNOOrder failed:", e)
-            return [{"stat": "Exception", "emsg": str(e)}]
-
             
+
     # prostocks_connector.py ke andar ProStocksAPI class me add karein
     def is_logged_in(self):
         """Check if session key / jKey exists and is valid"""
@@ -957,6 +913,3 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
-
-
-
