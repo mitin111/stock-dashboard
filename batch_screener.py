@@ -923,6 +923,21 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             return []
         print("✅ Logged in successfully via credentials")
 
+    # ================================================================
+    # ✅ Start Hammer Reversal Monitor Thread
+    # ================================================================
+    try:
+        import threading
+        threading.Thread(
+            target=monitor_open_positions,
+            args=(ps_api, settings),
+            daemon=True
+        ).start()
+        print("🧠 Hammer Reversal Monitor Thread started ✅")
+    except Exception as e:
+        print(f"⚠️ Failed to start hammer reversal monitor: {e}")
+
+
     # Load strategy settings
     if settings is None:
         try:
@@ -1069,6 +1084,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
