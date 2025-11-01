@@ -699,7 +699,21 @@ def monitor_open_positions(ps_api, settings):
         try:
             order_book = ps_api.order_book()
             df = pd.DataFrame(order_book)
-            df = df[(df["tradingsymbol"] == symbol) & (df["status"] == "OPEN")]
+
+            # --- Normalize possible column names ---
+            if "tradingsymbol" not in df.columns:
+                if "tsym" in df.columns:
+                    df["tradingsymbol"] = df["tsym"]
+                elif "trading_symbol" in df.columns:
+                    df["tradingsymbol"] = df["trading_symbol"]
+
+            if "status" not in df.columns:
+                if "Status" in df.columns:
+                    df["status"] = df["Status"]
+
+# --- Filter only active/open or trigger-pending orders ---
+df = df[(df["tradingsymbol"] == symbol) & (df["status"].str.upper().isin(["OPEN", "TRIGGER_PENDING"]))]  
+
             if df.empty:
                 print(f"⚠️ No open BO found for {symbol}")
                 return
@@ -1084,6 +1098,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
