@@ -625,6 +625,133 @@ def place_order_from_signal(ps_api, sig):
         return [{"stat": "Exception", "emsg": str(e)}]
 
 
+# ================================================================
+# ✅ Periodic Order Monitor — Detect Hammer Reversal and Exit Trade
+# ================================================================
+import time
+import pandas as pd
+from datetime import datetime
+import pytz
+
+def monitor_open_positions(ps_api, settings):
+    """
+    Every 5 sec: check open orders, fetch chart, detect hammer reversal, exit trade if confirmed.
+    """
+
+    def fetch_chart_for_symbol(symbol, interval="5m", lookback=20):
+        try:
+            exch = "NSE"
+            token = ps_api.get_token(symbol)
+            df = ps_api.fetch_full_tpseries(exch, token, interval)
+            if isinstance(df, dict) or df is None or df.empty:
+                return pd.DataFrame()
+            df = df.tail(lookback)
+            for col in ["open", "high", "low", "close"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+            return df
+        except Exception as e:
+            print(f"⚠️ Error fetching chart for {symbol}: {e}")
+            return pd.DataFrame()
+
+    def detect_hammer_patterns(df):
+        """
+        Detect hammer & inverted hammer patterns in recent candles.
+        """
+        if df.empty or len(df) < 3:
+            return df
+        df = df.copy()
+        body = (df["close"] - df["open"]).abs()
+        upper = df["high"] - df[["close", "open"]].max(axis=1)
+        lower = df[["close", "open"]].min(axis=1) - df["low"]
+
+        # hammer pattern (small body, long lower wick)
+        df["is_hammer"] = (lower > 2 * body) & (upper < body)
+
+        # inverted hammer (small body, long upper wick)
+        df["is_inv_hammer"] = (upper > 2 * body) & (lower < body)
+        return df
+
+    def check_hammer_reversal(df, side):
+        """
+        Confirm reversal after hammer/inverted hammer.
+        """
+        if len(df) < 3:
+            return False
+        last3 = df.tail(3).reset_index(drop=True)
+
+        # --- Buy side reversal: hammer + next candle close below hammer low ---
+        if side == "B":  # BUY position → check bearish reversal
+            if last3.iloc[-3]["is_hammer"] and last3.iloc[-1]["close"] < last3.iloc[-3]["low"]:
+                return True
+
+        # --- Sell side reversal: inverted hammer + next candle close above it ---
+        if side == "S":  # SELL position → check bullish reversal
+            if last3.iloc[-3]["is_inv_hammer"] and last3.iloc[-1]["close"] > last3.iloc[-3]["high"]:
+                return True
+
+        return False
+
+    def exit_trade(ps_api, symbol, side):
+        """
+        Call ExitSNOOrder API for symbol's open bracket order.
+        """
+        try:
+            order_book = ps_api.order_book()
+            df = pd.DataFrame(order_book)
+            df = df[(df["tradingsymbol"] == symbol) & (df["status"] == "OPEN")]
+            if df.empty:
+                print(f"⚠️ No open BO found for {symbol}")
+                return
+
+            ord_no = df.iloc[0]["norenordno"]
+            payload = {
+                "jKey": ps_api.jKey,
+                "uid": ps_api.user_id,
+                "prd": "B",  # bracket order
+                "norenordno": ord_no
+            }
+            resp = ps_api.post("/NorenWClientTP/ExitSNOOrder", payload)
+            if resp.get("stat") == "Ok":
+                print(f"✅ Exited {symbol} | {side} | {resp.get('dmsg')}")
+            else:
+                print(f"❌ Exit failed for {symbol}: {resp.get('emsg')}")
+        except Exception as e:
+            print(f"❌ Exit trade exception for {symbol}: {e}")
+
+    # ------------- Main loop -------------
+    print("🚀 Starting order monitor loop (5-sec interval)...")
+    while True:
+        try:
+            open_orders = ps_api.order_book()
+            if not open_orders:
+                time.sleep(5)
+                continue
+
+            df_orders = pd.DataFrame(open_orders)
+            active_orders = df_orders[df_orders["status"].isin(["OPEN", "TRIGGER_PENDING"])]
+
+            for _, order in active_orders.iterrows():
+                symbol = order["tradingsymbol"]
+                side = order["buy_or_sell"]  # 'B' or 'S'
+                print(f"🔍 Checking {symbol} ({'BUY' if side == 'B' else 'SELL'}) for hammer reversal...")
+
+                df_chart = fetch_chart_for_symbol(symbol)
+                if df_chart.empty:
+                    continue
+
+                df_chart = detect_hammer_patterns(df_chart)
+
+                if check_hammer_reversal(df_chart, side):
+                    print(f"⚠️ Hammer reversal confirmed on {symbol}! Exiting position...")
+                    exit_trade(ps_api, symbol, side)
+                    time.sleep(2)
+
+        except Exception as e:
+            print(f"⚠️ monitor_open_positions error: {e}")
+
+        time.sleep(5)
+
 # -----------------------
 # Per-symbol processing
 # -----------------------
@@ -942,6 +1069,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
