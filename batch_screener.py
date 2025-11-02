@@ -693,7 +693,7 @@ def monitor_open_positions(ps_api, settings):
     def exit_trade(ps_api, symbol, side):
         try:
             order_book = ps_api.order_book()
-            df = pd.DataFrame(order_book)
+            df = pd.DataFrame(order_book if isinstance(order_book, list) else [order_book])
 
             # normalize
             if "tradingsymbol" not in df.columns:
@@ -1139,5 +1139,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
