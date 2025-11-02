@@ -757,21 +757,30 @@ def monitor_open_positions(ps_api, settings):
                 time.sleep(5)
                 continue
 
+            # --- Normalize possible column names ---
             if "tradingsymbol" not in df_orders.columns:
-                df_orders["tradingsymbol"] = df_orders.get("tsym") or df_orders.get("trading_symbol")
+                if "tsym" in df_orders.columns:
+                    df_orders["tradingsymbol"] = df_orders["tsym"]
+                elif "trading_symbol" in df_orders.columns:
+                    df_orders["tradingsymbol"] = df_orders["trading_symbol"]
+
             if "status" not in df_orders.columns:
-                df_orders["status"] = df_orders.get("Status")
+                if "Status" in df_orders.columns:
+                    df_orders["status"] = df_orders["Status"]
 
+            # --- Convert to uppercase and filter only active ones ---
             df_orders["status_up"] = df_orders["status"].astype(str).str.upper()
-            active_orders = df_orders[
-                df_orders["status_up"].isin(["OPEN", "TRIGGER_PENDING", "PENDING"])
-            ]
 
-            if active_orders.empty:
+            # ✅ Ignore rejected/cancelled orders
+            df_orders = df_orders[df_orders["status_up"].isin(["OPEN", "TRIGGER_PENDING", "EXECUTED"])]
+
+            if df_orders.empty:
+                print("ℹ️ No active/open orders to monitor yet.")
                 time.sleep(5)
                 continue
 
-            print(f"ℹ️ Active Orders: {len(active_orders)} being monitored...")
+            print(f"ℹ️ Active Orders: {len(df_orders)} being monitored...")
+
 
             for _, order in active_orders.iterrows():
                 symbol = order.get("tradingsymbol") or order.get("tsym")
@@ -1129,6 +1138,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
