@@ -225,7 +225,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                 log("❌ Auto Trader error:", e)
 
             # New: 1 min wait between batches
-            wait_seconds = 60
+            wait_seconds = 3
             end_time = time.time() + wait_seconds
             while running_flag["running"] and time.time() < end_time:
                 time.sleep(1)
@@ -324,6 +324,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
