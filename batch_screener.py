@@ -1058,10 +1058,10 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     # ============================
     # Parallel Batch Processing 🚀
     # ============================
-    MAX_WORKERS = 40  # process 20 stocks at a time
+    MAX_WORKERS = 40  # process 40 stocks at a time
     BATCH_SIZE = 40
 
-    def process_one(sym):
+    def process_one(sym, ob_list_cache):
         """Wrapper to process and optionally place order"""
         try:
             r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
@@ -1079,12 +1079,9 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
                     })
                     return {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
 
-                # --- Skip if open order already exists ---
-                ob_raw = ps_api.order_book()
-                ob_stat, ob_list = resp_to_status_and_list(ob_raw)
-
+                # --- Skip if open order already exists (use cached order book) ---
                 open_orders = [
-                    o for o in ob_list if isinstance(o, dict)
+                    o for o in ob_list_cache if isinstance(o, dict)
                     and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
                     and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])
                 ]
@@ -1101,18 +1098,25 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
         except Exception as e:
             return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
 
+
     # Run batches
     for i in range(0, len(symbols_with_tokens), BATCH_SIZE):
         batch = symbols_with_tokens[i:i + BATCH_SIZE]
         print(f"\n⚡ Processing batch {i//BATCH_SIZE + 1} ({len(batch)} symbols)...")
 
+        # ✅ Fetch order book once per batch (cache)
+        ob_raw = ps_api.order_book()
+        ob_stat, ob_list = resp_to_status_and_list(ob_raw)
+
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [executor.submit(process_one, sym) for sym in batch]
+            futures = [executor.submit(process_one, sym, ob_list) for sym in batch]
             for future in as_completed(futures):
                 res = future.result()
                 results.append(res)
                 all_order_responses.append(res)
-        time.sleep(0.2)
+
+        # small sleep to avoid API burst
+        time.sleep(0.05)
 
     total_time = round(time.time() - start_time, 2)
     print(f"\n✅ Batch completed for {len(symbols_with_tokens)} symbols in {total_time} sec")
@@ -1138,6 +1142,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
