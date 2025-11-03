@@ -363,18 +363,30 @@ def generate_signal_for_df(df, settings):
     # ============================================================
     # 🔹 Day Move Filter (from indicator)
     # ============================================================
-    day_move_pct = float(last.get("day_move_pct", 0))
-    if last.get("skip_due_to_day_move", False):
+    day_move_pct = float(last.get("day_move_pct", 0) or 0)
+
+    # ✅ NaN protection
+    if pd.isna(day_move_pct):
+        day_move_pct = 0.0
+
+    # ✅ Boolean cast to avoid "string True"/"NaN" issue
+    if bool(last.get("skip_due_to_day_move", False)):
         signal = None
         reasons.append(f"⚠️ Price moved {day_move_pct:.2f}% from open (>1.5%), skipping trade")
 
     # ============================================================
     # 🔹 Gap Move Filter (from indicator)
     # ============================================================
-    gap_pct = float(last.get("gap_pct", 0))
-    if last.get("skip_due_to_gap", False):
+    gap_pct = float(last.get("gap_pct", 0) or 0)
+
+    # ✅ NaN protection
+    if pd.isna(gap_pct):
+        gap_pct = 0.0
+
+    if bool(last.get("skip_due_to_gap", False)):
         signal = None
         reasons.append(f"⚠️ Gap {gap_pct:.2f}% from yesterday close (>1.0%), skipping trade")
+
     # ============================================================
     # 🔹 Stop-loss setup
     # ============================================================
@@ -1142,6 +1154,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
