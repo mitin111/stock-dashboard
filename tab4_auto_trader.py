@@ -190,49 +190,34 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     if "auto_trader_flag" not in st.session_state:
         st.session_state["auto_trader_flag"] = {"running": False}
 
+    import asyncio
+
     def start_auto_trader_thread(symbols, all_wls_copy, running_flag, strategy_settings, ps_api, ui_queue):
-        """Thread-safe Auto Trader runner."""
-        try:
-            from batch_screener import main as batch_main
-        except Exception as e:
-            log("❌ Could not import batch_screener:", e)
-            running_flag["running"] = False
-            return
+        """Thread-safe Auto Trader runner using asyncio.to_thread for blocking batch_main"""
+        async def auto_loop():
+            running_flag["running"] = True
+            while running_flag["running"]:
+                try:
+                    # run blocking batch_main in a thread pool
+                    res = await asyncio.to_thread(batch_main, ps_api, None, strategy_settings, symbols, True)
+                    # push responses to UI queue
+                    try:
+                        for r in res.get("orders", []) if isinstance(res, dict) else []:
+                            ui_queue.put(("order_resp", r))
+                    except Exception:
+                        pass
+                except Exception as e:
+                    print("❌ Auto Trader error:", e)
+                # wait between batches
+                await asyncio.sleep(3)
+            print("🛑 Auto Trader loop exited")
 
-        log("⚡ Auto Trader thread starting with settings:", strategy_settings)
-        log("⚡ Symbols to trade:", symbols)
-        running_flag["running"] = True
-        while running_flag["running"]:
-            try:
-                log("⚡ Running Auto Trader batch...")
-                order_responses = batch_main(
-                    ps_api=ps_api,
-                    settings=strategy_settings,
-                    symbols=symbols,
-                    place_orders=True
-                )
-                log("⚡ Batch order_responses:", order_responses)
-                if isinstance(order_responses, (list, tuple)):
-                    for resp in order_responses:
-                        log("📤 Auto Trader Order Response:", resp)
-                        try:
-                            ui_queue.put(("order_resp", resp))
-                        except Exception:
-                            pass
-                else:
-                    log("ℹ️ batch_main returned non-list order_responses:", order_responses)
-            except Exception as e:
-                log("❌ Auto Trader error:", e)
+        # Run the async loop in a separate daemon thread
+        def runner():
+            asyncio.run(auto_loop())
 
-            # New: 1 min wait between batches
-            wait_seconds = 3
-            end_time = time.time() + wait_seconds
-            while running_flag["running"] and time.time() < end_time:
-                time.sleep(1)
+        threading.Thread(target=runner, daemon=True).start()
 
-            if not running_flag["running"]:
-                log("🛑 Auto Trader stopped loop.")
-                return
 
     # Start button
     if st.button("🚀 Start Auto Trader"):
@@ -324,6 +309,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
