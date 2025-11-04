@@ -58,6 +58,7 @@ class ProStocksAPI:
         self.tick_file = "ticks.log"
 
         self.candles = {}
+        self.live_candles = {}   # <-- ADD THIS LINE HERE
 
     # ---------------- Utils ----------------
     def sha256(self, text: str) -> str:
@@ -1022,6 +1023,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
