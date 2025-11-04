@@ -15,8 +15,9 @@
       timeScale: { timeVisible: true, secondsVisible: false }
     });
     const candleSeries = chart.addCandlestickSeries();
-
-    let wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
+    
+    // let wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
+    let wsUrl = "wss://backend-stream-xxxx.onrender.com/ws/live";  // <-- आपका backend का सही URL डालें
     // If you are running backend on different host, set wsUrl manually:
     // wsUrl = "wss://your-backend.onrender.com/ws/live";
 
@@ -47,3 +48,4 @@
   </script>
 </body>
 </html>
+
