@@ -483,6 +483,23 @@ with tab5:
             name="History"
         ))
         st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
+    
+    # === 🔧 Helper: safe_update_chart ===
+    def safe_update_chart(fig, x, o, h, l, c):
+        """Update Plotly candlestick without resetting layout or causing rerun"""
+        if not fig.data:
+            fig.add_trace(go.Candlestick(
+                x=x, open=o, high=h, low=l, close=c,
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
+                name="Live"
+            ))
+        else:
+            fig.data[0].x = x
+            fig.data[0].open = o
+            fig.data[0].high = h
+            fig.data[0].low = l
+            fig.data[0].close = c
 
     # --- Update last candle from tick (blink-free) ---
     def update_last_candle_from_tick_local(tick, interval=1):
@@ -552,7 +569,15 @@ with tab5:
                     name="Live"
                 ))
 
-            # refresh the chart
+            # ✅ update existing figure without rerun
+            safe_update_chart(
+                st.session_state.live_fig,
+                st.session_state.ohlc_x,
+                st.session_state.ohlc_o,
+                st.session_state.ohlc_h,
+                st.session_state.ohlc_l,
+                st.session_state.ohlc_c
+            )
             placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         except Exception as e:
@@ -783,6 +808,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
