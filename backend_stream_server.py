@@ -1,5 +1,6 @@
 # backend_stream_server.py
-from fastapi import FastAPI, WebSocket
+# backend_stream_server.py
+from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio, json, logging
 from prostocks_connector import ProStocksAPI
@@ -27,10 +28,38 @@ async def broadcast(msg: str):
     for d in dead:
         clients.discard(d)
 
+# ✅ HTTP Subscribe Endpoint
+@app.post("/subscribe")
+async def subscribe(request: Request):
+    """
+    Subscribe symbols from Streamlit via HTTP POST API.
+    Example POST body:
+    {
+        "tokens": ["NSE|2885", "NSE|11872"]
+    }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return {"stat": "error", "emsg": "invalid JSON"}
+
+    tokens = body.get("tokens", [])
+    if not isinstance(tokens, list):
+        return {"stat": "error", "emsg": "tokens must be a list"}
+
+    try:
+        ps_api.subscribe_tokens(tokens)
+        logging.info(f"✅ Subscribed via /subscribe: {tokens}")
+        return {"stat": "Ok", "subscribed": tokens}
+    except Exception as e:
+        logging.warning(f"❌ Subscribe error: {e}")
+        return {"stat": "error", "emsg": str(e)}
+
+
 @app.on_event("startup")
 async def startup_event():
-    # optional: ensure login before connecting WS
     logging.info("Backend stream server starting...")
+
 
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket):
@@ -38,7 +67,6 @@ async def ws_live(websocket: WebSocket):
     clients.add(websocket)
     logging.info("Client connected. total=%d", len(clients))
 
-    # on_tick must be sync callback that schedules asyncio task
     def on_tick(tick):
         try:
             payload = json.dumps({"type": "tick", "tick": tick}, default=str)
@@ -46,25 +74,23 @@ async def ws_live(websocket: WebSocket):
         except Exception as e:
             logging.warning("on_tick broadcast error: %s", e)
 
-    # Start connection (non-blocking) — subscribe tokens after login
-    # Provide a sensible default or read from query params later
     try:
-        # Example: subscribe to an initial token list if desired
-        # tokens = ["NSE|11872"]  # or keep empty and let UI ask backend to subscribe
-        ps_api.connect_websocket([], on_tick=on_tick)  # keep WS open; subscriptions via REST later
+        ps_api.connect_websocket([], on_tick=on_tick)  # subscribe later via POST /subscribe
     except Exception as e:
         logging.warning("ps_api.connect_websocket failed: %s", e)
 
     try:
         while True:
-            # keep connection alive; client may send messages (e.g., subscribe/unsubscribe) later
             msg = await websocket.receive_text()
-            # optional: handle client messages like {"action":"subscribe","tokens":["NSE|11872"]}
             try:
                 j = json.loads(msg)
                 if j.get("action") == "subscribe" and isinstance(j.get("tokens"), list):
                     ps_api.subscribe_tokens(j["tokens"])
-                    await websocket.send_text(json.dumps({"type":"info","msg":"subscribed","tokens":j["tokens"]}))
+                    await websocket.send_text(json.dumps({
+                        "type": "info",
+                        "msg": "subscribed",
+                        "tokens": j["tokens"]
+                    }))
             except Exception:
                 pass
     except Exception:
@@ -72,3 +98,4 @@ async def ws_live(websocket: WebSocket):
     finally:
         clients.discard(websocket)
         logging.info("Client disconnected. total=%d", len(clients))
+
