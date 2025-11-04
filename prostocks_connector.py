@@ -778,7 +778,7 @@ class ProStocksAPI:
                     tick = self.tick_queue.get()  # blocking
                     ts = int(tick.get("ft") or tick.get("time") or 0)
                     if ts == 0:
-                    continue
+                        continue
                     price = float(tick.get("lp") or 0)
                     exch = tick.get("e") or tick.get("exch") or "NSE"
                     token = str(tick.get("tk") or tick.get("token") or "")
@@ -1022,6 +1022,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
