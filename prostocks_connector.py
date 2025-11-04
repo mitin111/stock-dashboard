@@ -759,6 +759,71 @@ class ProStocksAPI:
         except Exception as e:
             print("❌ stop_ticks error:", e)
 
+
+    # inside ProStocksAPI class
+
+    # store recent candles per symbol+interval in memory
+    self.live_candles = {}  # key -> list of last N candles
+
+    def start_candle_builder(self, intervals=[1,3,5,15,30,60], max_candles=500):
+        """
+        Start a background thread that consumes self.tick_queue and builds candles
+        stored in self.live_candles keyed by 'EXCH|TOKEN|interval'.
+        """
+        import threading, time
+        def builder():
+            buffers = {}  # key -> list of ticks for current bucket
+            while True:
+                try:
+                    tick = self.tick_queue.get()  # blocking
+                    ts = int(tick.get("ft") or tick.get("time") or 0)
+                    if ts == 0:
+                    continue
+                    price = float(tick.get("lp") or 0)
+                    exch = tick.get("e") or tick.get("exch") or "NSE"
+                    token = str(tick.get("tk") or tick.get("token") or "")
+                    if not token:
+                        continue
+
+                    for m in intervals:
+                        key = f"{exch}|{token}|{m}"
+                        bucket = ts - (ts % (m * 60))
+                        b = buffers.setdefault(key, {"bucket": bucket, "ticks": []})
+                        if bucket != b["bucket"]:
+                            # close previous bucket
+                            if b["ticks"]:
+                                o = float(b["ticks"][0]["lp"])
+                                c = float(b["ticks"][-1]["lp"])
+                                h = max(float(tk["lp"]) for tk in b["ticks"])
+                                l = min(float(tk["lp"]) for tk in b["ticks"])
+                                candle = {"time": b["bucket"], "open": o, "high": h, "low": l, "close": c, "volume": sum(int(tk.get("v") or 0) for tk in b["ticks"])}
+                                lst = self.live_candles.setdefault(key, [])
+                                lst.append(candle)
+                                if len(lst) > max_candles:
+                                    lst.pop(0)
+                                # call hook if exists
+                                if hasattr(self, "on_new_candle") and callable(self.on_new_candle):
+                                    try:
+                                        self.on_new_candle(f"{exch}|{token}", candle)
+                                    except Exception:
+                                        pass
+                            # reset
+                            buffers[key] = {"bucket": bucket, "ticks": []}
+                        # append tick
+                        buffers[key]["ticks"].append(tick)
+                except Exception as e:
+                    print("⚠️ candle_builder error:", e)
+                    time.sleep(0.1)
+
+        t = threading.Thread(target=builder, daemon=True)
+        t.start()
+        self._candle_builder_thread = t
+
+    def get_latest_candles(self, exch, token, interval=1, limit=200):
+        key = f"{exch}|{token}|{interval}"
+        return list(self.live_candles.get(key, []))[-limit:]
+    
+
     def build_live_candles_from_tick(self, tick, intervals=[1, 3, 5, 15, 30, 60]):
         """
         Build/update OHLCV candles from live ticks.
@@ -957,5 +1022,6 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
