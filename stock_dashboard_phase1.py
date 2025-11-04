@@ -482,9 +482,9 @@ with tab5:
         else:
             # ✅ User input for backend WebSocket URL
             backend_ws_origin = st.text_input(
-                "Backend WS URL (leave blank for auto-detect)",
-                value=""
-            )
+            "Backend WS URL (leave blank for auto-detect)",
+            value="wss://backend-stream-1ij9.onrender.com/ws/live"
+        )
 
             # Read & optionally patch chart HTML
             s = open(chart_file, "r", encoding="utf-8").read()
@@ -855,6 +855,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
