@@ -56,45 +56,45 @@ with st.sidebar:
         base_url = st.text_input("Base URL", value=creds["base_url"])
         apkversion = st.text_input("APK Version", value=creds["apkversion"])
 
-       submitted = st.form_submit_button("🔐 Login")
-       if submitted:
-           try:
-               ps_api = ProStocksAPI(
-                   userid=uid, password_plain=pwd, vc=vc,
-                   api_key=api_key, imei=imei,
-                   base_url=base_url, apkversion=apkversion
-               )
-               success, msg = ps_api.login(factor2)
-               if success:
-                   st.session_state["ps_api"] = ps_api
+        submitted = st.form_submit_button("🔐 Login")
+        if submitted:
+            try:
+                ps_api = ProStocksAPI(
+                    userid=uid, password_plain=pwd, vc=vc,
+                    api_key=api_key, imei=imei,
+                    base_url=base_url, apkversion=apkversion
+                )
+                success, msg = ps_api.login(factor2)
+                if success:
+                    st.session_state["ps_api"] = ps_api
 
-                   # ✅ Backend WebSocket connection check
-                   import websocket
-                   def check_backend_ws(url: str, timeout=5) -> bool:
-                       try:
-                           ws = websocket.create_connection(url, timeout=timeout)
-                           ws.close()
-                           return True
-                       except Exception as e:
-                           print(f"❌ WebSocket check failed: {e}")
-                           return False
+                    # ✅ Backend WebSocket connection check
+                    import websocket
+                    def check_backend_ws(url: str, timeout=5) -> bool:
+                        try:
+                            ws = websocket.create_connection(url, timeout=timeout)
+                            ws.close()
+                            return True
+                        except Exception as e:
+                            print(f"❌ WebSocket check failed: {e}")
+                            return False
 
-                   backend_ws_url = "wss://backend-stream-xxxxx.onrender.com/ws/live"  # 🔹 अपना backend URL डालें
+                    backend_ws_url = "wss://backend-stream-xxxxx.onrender.com/ws/live"  # 🔹 अपना backend URL डालें
 
-                   if check_backend_ws(backend_ws_url):
-                       st.session_state["ws_backend_ok"] = True
-                       st.success(f"✅ Login successful & WS connected → {backend_ws_url}")
-                   else:
-                       st.session_state["ws_backend_ok"] = False
-                       st.warning(f"⚠️ Login OK but cannot reach backend WS: {backend_ws_url}")
+                    if check_backend_ws(backend_ws_url):
+                        st.session_state["ws_backend_ok"] = True
+                        st.success(f"✅ Login successful & WS connected → {backend_ws_url}")
+                    else:
+                        st.session_state["ws_backend_ok"] = False
+                        st.warning(f"⚠️ Login OK but cannot reach backend WS: {backend_ws_url}")
 
-                   st.rerun()
+                    st.rerun()
 
-               else:
-                   st.error(f"❌ Login failed: {msg}")
+                else:
+                    st.error(f"❌ Login failed: {msg}")
 
-           except Exception as e:
-               st.error(f"❌ Exception: {e}")
+            except Exception as e:
+                st.error(f"❌ Exception: {e}")
 
 if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
@@ -855,6 +855,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
