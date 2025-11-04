@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: backend-stream
+    env: python
+    buildCommand: ""
+    startCommand: uvicorn backend_stream_server:app --host 0.0.0.0 --port 10000
+    plan: starter
+
+  - type: web
+    name: frontend-streamlit
+    env: python
+    buildCommand: ""
+    startCommand: streamlit run stock_dashboard_phase1.py --server.port 10001 --server.address 0.0.0.0
+    plan: starter
