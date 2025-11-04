@@ -14,6 +14,18 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pytz
 
+import websocket  # top पर ही रखें
+
+def check_backend_ws(url: str, timeout=5) -> bool:
+    """Check if backend WebSocket server is reachable"""
+    try:
+        ws = websocket.create_connection(url, timeout=timeout)
+        ws.close()
+        return True
+    except Exception as e:
+        print(f"❌ WebSocket check failed: {e}")
+        return False
+
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 st.title("📈 Automated Intraday Trading System")
@@ -44,23 +56,45 @@ with st.sidebar:
         base_url = st.text_input("Base URL", value=creds["base_url"])
         apkversion = st.text_input("APK Version", value=creds["apkversion"])
 
-        submitted = st.form_submit_button("🔐 Login")
-        if submitted:
-            try:
-                ps_api = ProStocksAPI(
-                    userid=uid, password_plain=pwd, vc=vc,
-                    api_key=api_key, imei=imei,
-                    base_url=base_url, apkversion=apkversion
-                )
-                success, msg = ps_api.login(factor2)
-                if success:
-                    st.session_state["ps_api"] = ps_api
-                    st.success("✅ Login successful!")
-                    st.rerun()
-                else:
-                    st.error(f"❌ Login failed: {msg}")
-            except Exception as e:
-                st.error(f"❌ Exception: {e}")
+       submitted = st.form_submit_button("🔐 Login")
+       if submitted:
+           try:
+               ps_api = ProStocksAPI(
+                   userid=uid, password_plain=pwd, vc=vc,
+                   api_key=api_key, imei=imei,
+                   base_url=base_url, apkversion=apkversion
+               )
+               success, msg = ps_api.login(factor2)
+               if success:
+                   st.session_state["ps_api"] = ps_api
+
+                   # ✅ Backend WebSocket connection check
+                   import websocket
+                   def check_backend_ws(url: str, timeout=5) -> bool:
+                       try:
+                           ws = websocket.create_connection(url, timeout=timeout)
+                           ws.close()
+                           return True
+                       except Exception as e:
+                           print(f"❌ WebSocket check failed: {e}")
+                           return False
+
+                   backend_ws_url = "wss://backend-stream-xxxxx.onrender.com/ws/live"  # 🔹 अपना backend URL डालें
+
+                   if check_backend_ws(backend_ws_url):
+                       st.session_state["ws_backend_ok"] = True
+                       st.success(f"✅ Login successful & WS connected → {backend_ws_url}")
+                   else:
+                       st.session_state["ws_backend_ok"] = False
+                       st.warning(f"⚠️ Login OK but cannot reach backend WS: {backend_ws_url}")
+
+                   st.rerun()
+
+               else:
+                   st.error(f"❌ Login failed: {msg}")
+
+           except Exception as e:
+               st.error(f"❌ Exception: {e}")
 
 if "ps_api" in st.session_state:
     if st.sidebar.button("🔓 Logout"):
@@ -240,6 +274,19 @@ with tab4:
 # === Tab 5: Strategy Engine ===
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
+
+    # --- WebSocket backend status ---
+    if "ws_backend_ok" in st.session_state:
+        if st.session_state["ws_backend_ok"]:
+            st.success("✅ Backend WS reachable")
+        else:
+            st.error("❌ Backend WS unreachable — check backend_stream_server or Render URL")
+    else:
+        st.info("ℹ️ Backend WS status not checked yet. Login to test connection.")
+
+    import plotly.graph_objects as go
+    import threading, queue, time
+    import pandas as pd, pytz
 
     import plotly.graph_objects as go
     import threading, queue, time
@@ -808,6 +855,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
