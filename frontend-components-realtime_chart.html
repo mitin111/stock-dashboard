@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Realtime Chart</title>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <style> body { margin:0; background:black; color:#ddd } #chart { height: 600px; }</style>
+</head>
+<body>
+  <div id="chart"></div>
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      layout: { background: { color: '#000' }, textColor: '#ddd' },
+      rightPriceScale: { autoScale: true },
+      timeScale: { timeVisible: true, secondsVisible: false }
+    });
+    const candleSeries = chart.addCandlestickSeries();
+
+    let wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
+    // If you are running backend on different host, set wsUrl manually:
+    // wsUrl = "wss://your-backend.onrender.com/ws/live";
+
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => console.log("WS connected to", wsUrl);
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === "tick") {
+          const t = msg.tick;
+          // t.ft is epoch seconds or milliseconds? ensure convert to seconds
+          let ts = parseInt(t.ft);
+          if (ts > 1e12) ts = Math.floor(ts/1000);
+          const time = Math.floor(ts);
+          const price = parseFloat(t.lp);
+          if (!price || price === 0) return;
+          // update single price bar (lightweight-charts expects {time, open, high, low, close})
+          candleSeries.update({ time: time, open: price, high: price, low: price, close: price });
+        } else if (msg.type === "candle") {
+          // optional: full candle push from backend
+          const c = msg.candle;
+          candleSeries.update({ time: Math.floor(c.time), open: c.open, high:c.high, low:c.low, close:c.close });
+        }
+      } catch (e) { console.warn("parse error", e); }
+    };
+    ws.onclose = () => console.log("WS closed");
+    ws.onerror = (e) => console.warn("WS error", e);
+  </script>
+</body>
+</html>
