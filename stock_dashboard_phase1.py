@@ -79,7 +79,7 @@ with st.sidebar:
                             print(f"❌ WebSocket check failed: {e}")
                             return False
 
-                    backend_ws_url = "wss://backend-stream-xxxxx.onrender.com/ws/live"  # 🔹 अपना backend URL डालें
+                    backend_ws_url = "wss://backend-stream-1ij9.onrender.com/ws/live"
 
                     if check_backend_ws(backend_ws_url):
                         st.session_state["ws_backend_ok"] = True
@@ -855,6 +855,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
