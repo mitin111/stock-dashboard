@@ -418,24 +418,44 @@ with tab5:
     chart_placeholder = st.session_state["chart_placeholder"]
 
     # --- Chart render ---
+    # === 🔄 Realtime Chart Render (TradingView-like) ===
+    from streamlit.components.v1 import html as st_html
+    import os
+
     if st.session_state.get("chart_open", False):
-        # Clear previous content to avoid duplicate messages
         chart_placeholder.empty()
-        try:
-            exch, token = selected_symbol_key.split("|")
-            df = ps_api.fetch_full_tpseries(exch, token, interval=selected_interval, max_days=5)
-            if df is not None and not df.empty:
-                if st.session_state.get("live_fig") is not None:
-                    chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
-                else:
-                    chart_placeholder.line_chart(df["close"])
-                chart_placeholder.success("✅ Live Chart Opened")
+
+        chart_file = os.path.join("frontend", "components", "realtime_chart.html")
+        if not os.path.exists(chart_file):
+            st.warning("⚠️ Realtime chart component missing. Falling back to Plotly.")
+            if st.session_state.get("live_fig") is not None:
+                chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
             else:
-                chart_placeholder.warning("⚠️ No TPSeries data available.")
-        except Exception as e:
-            chart_placeholder.warning(f"⚠️ Chart fetch error: {e}")
+                st.info("ℹ️ No live_fig available.")
+        else:
+            # ✅ User input for backend WebSocket URL
+            backend_ws_origin = st.text_input(
+                "Backend WS URL (leave blank for auto-detect)",
+                value=""
+            )
+
+            # Read & optionally patch chart HTML
+            s = open(chart_file, "r", encoding="utf-8").read()
+            if backend_ws_origin.strip():
+                s = s.replace(
+                    "wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + \"/ws/live\";",
+                    f'wsUrl = "{backend_ws_origin.strip()}";'
+                )
+
+            # Embed the chart HTML
+            st_html(s, height=650)
+
+            # Simple subscribe control (optional)
+            if st.button("🔔 Subscribe selected symbol to backend feed"):
+                selected = st.session_state.get("selected_symbol")
+                if selected:
+                    st.info(f"Subscribed {selected} — backend will relay ticks to chart.")
     else:
-        # Clear previous chart when closed
         chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
 
@@ -763,6 +783,7 @@ with tab5:
                 rangebreaks=rangebreaks
             )
             placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+
 
 
 
