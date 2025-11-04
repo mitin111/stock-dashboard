@@ -764,7 +764,6 @@ class ProStocksAPI:
     # inside ProStocksAPI class
 
     # store recent candles per symbol+interval in memory
-    self.live_candles = {}  # key -> list of last N candles
 
     def start_candle_builder(self, intervals=[1,3,5,15,30,60], max_candles=500):
         """
@@ -1023,6 +1022,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
