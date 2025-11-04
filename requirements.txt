@@ -1,21 +1,40 @@
+# ===== Core Web Frameworks =====
+fastapi==0.115.2
+uvicorn[standard]==0.30.1
+
+# ===== Streamlit Frontend =====
 streamlit==1.35.0
 streamlit-autorefresh==1.0.1
+watchdog==4.0.0
+ipywidgets>=7.0.0
+
+# ===== Environment & Scheduling =====
 python-dotenv==1.0.1
-requests==2.31.0
 schedule==1.2.1
-yfinance==0.2.40
-pandas==2.2.1          # Downgrade to avoid Python 3.13 issues
+
+# ===== Data Handling =====
+pandas==2.2.1          # Downgraded for Python 3.13 compatibility
 numpy==1.26.4
 cython==3.0.10
+yfinance==0.2.40
+
+# ===== Network / API =====
+requests==2.31.0
 websocket-client==1.8.0
 cryptography==42.0.7
 pyotp==2.9.0
 pyDes==2.0.1
+
+# ===== Technical Indicators =====
 ta==0.11.0
+
+# ===== Visualization =====
 plotly==5.22.0
-watchdog==4.0.0
+lightweight-charts==1.0.0   # placeholder, no PyPI version needed if pure JS
+
+# ===== Packaging =====
 setuptools==68.0.0
-ipywidgets>=7.0.0
+
 
 
 
