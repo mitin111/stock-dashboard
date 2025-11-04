@@ -136,6 +136,15 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             )
             st.session_state["ws"] = ws
             st.success(f"📡 WebSocket started with {len(symbols)} symbols")
+            # ✅ Start candle builder once WS starts successfully
+            try:
+                st.session_state["ps_api"].start_candle_builder(
+                    intervals=[int(st.session_state.get("saved_interval", "5"))]
+                )
+                st.info("🕒 Candle builder started successfully.")
+            except Exception as e:
+                st.warning(f"⚠️ Candle builder not started: {e}")
+
         except Exception as e:
             st.error(f"❌ WebSocket start failed: {e}")
 
@@ -309,6 +318,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
