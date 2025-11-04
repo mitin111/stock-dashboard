@@ -15,8 +15,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ps_api = ProStocksAPI()  # uses env or defaults from your .env
+import os
+
+# --- Safe defaults for Render/UAT ---
+base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
+
+try:
+    ps_api = ProStocksAPI(base_url=base_url)
+    ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+    logging.info(f"✅ ProStocksAPI initialized successfully with base_url={base_url}")
+except Exception as e:
+    ps_api = None
+    logging.error(f"❌ Failed to initialize ProStocksAPI: {e}")
+
 clients = set()
+
 
 async def broadcast(msg: str):
     dead = []
@@ -98,4 +111,5 @@ async def ws_live(websocket: WebSocket):
     finally:
         clients.discard(websocket)
         logging.info("Client disconnected. total=%d", len(clients))
+
 
