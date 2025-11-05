@@ -15,7 +15,11 @@
       timeScale: { timeVisible: true, secondsVisible: false }
     });
     const candleSeries = chart.addCandlestickSeries();
-    
+    // == Load initial history from Streamlit ==
+    let historyData = window.initialHistory || [];
+    if (historyData.length > 0) {
+      candleSeries.setData(historyData);
+    }
     // let wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
     let wsUrl = "wss://backend-stream-1ij9.onrender.com/ws/live";
     // If you are running backend on different host, set wsUrl manually:
@@ -48,6 +52,7 @@
   </script>
 </body>
 </html>
+
 
 
 
