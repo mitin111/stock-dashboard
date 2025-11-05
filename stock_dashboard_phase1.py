@@ -772,97 +772,80 @@ with tab5:
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
     )
 
-    from plotly.subplots import make_subplots
+    # ✅ Separate placeholder for Indicator Chart (only once create)
+    if "trm_placeholder" not in st.session_state:
+        st.session_state["trm_placeholder"] = st.empty()
+    trm_placeholder = st.session_state["trm_placeholder"]
+
     from tkp_trm_chart import plot_trm_chart, get_trm_settings_safe
+    from plotly.subplots import make_subplots
 
-     # --- Render TKP TRM + PAC + YHL chart ---
-    if "ohlc_x" in st.session_state and len(st.session_state.ohlc_x) > 20:
-        df_live = pd.DataFrame({
-            "datetime": pd.to_datetime(st.session_state.ohlc_x),
-            "open": st.session_state.ohlc_o,
-            "high": st.session_state.ohlc_h,
-            "low": st.session_state.ohlc_l,
-            "close": st.session_state.ohlc_c
-        })
-        if df_live["datetime"].dt.tz is None:
-            df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
-        else:
-            df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
-        df_live["datetime"] = df_live["datetime"].apply(lambda x: x.replace(tzinfo=None))    
-        
-        df_live = (
-            df_live.drop_duplicates(subset="datetime")
-                   .sort_values("datetime")
-                   .reset_index(drop=True)
-        )
-        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
-            holiday_values = [
-                pd.Timestamp(h).tz_localize("Asia/Kolkata").date().isoformat()
-                for h in full_holidays
+    st.markdown("---")
+    st.markdown("### 🟣 TRM + PAC + MACD Indicator Panel (Static, No Blink)")
+
+    if st.button("🟣 Show TRM + MACD Indicators"):
+
+        if len(st.session_state.ohlc_x) >= 50:
+            # 1) Convert session_state → DataFrame
+            df_live = pd.DataFrame({
+                "datetime": pd.to_datetime(st.session_state.ohlc_x),
+                "open": st.session_state.ohlc_o,
+                "high": st.session_state.ohlc_h,
+                "low": st.session_state.ohlc_l,
+                "close": st.session_state.ohlc_c
+            })
+
+            # ✅ Timezone normalize (IST) + make tz-naive
+            if df_live["datetime"].dt.tz is None:
+                df_live["datetime"] = df_live["datetime"].dt.tz_localize("Asia/Kolkata")
+            else:
+                df_live["datetime"] = df_live["datetime"].dt.tz_convert("Asia/Kolkata")
+            df_live["datetime"] = df_live["datetime"].apply(lambda x: x.replace(tzinfo=None))
+
+            # ✅ Clean and sort
+            df_live = (
+                df_live.drop_duplicates(subset="datetime")
+                       .sort_values("datetime")
+                       .reset_index(drop=True)
+            )
+
+            # ✅ Build/restore rangebreaks for holidays + weekends + off hours
+            if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
+                holiday_values = [
+                    pd.Timestamp(h).tz_localize("Asia/Kolkata").date().isoformat()
+                    for h in full_holidays
+                ]
+                holiday_breaks = []
+                for h in full_holidays:
+                    start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                    end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                    start_naive = start.tz_convert(None)
+                    end_naive   = end.tz_convert(None)
+                    holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
+
+                st.session_state.holiday_values = holiday_values
+                st.session_state.holiday_breaks = holiday_breaks
+            else:
+                holiday_breaks = st.session_state.holiday_breaks
+
+            rangebreaks = [
+                dict(bounds=["sat", "mon"]),                # weekends skip
+                dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market time skip
+                *holiday_breaks                              # holidays skip
             ]
-            holiday_breaks = []
-            for h in full_holidays:
-                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                # Convert to tz-naive for Plotly
-                start_naive = start.tz_convert(None)
-                end_naive   = end.tz_convert(None)
-                holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
+            st.session_state["rangebreaks_obj"] = rangebreaks
 
-            st.session_state.holiday_values = holiday_values
-            st.session_state.holiday_breaks = holiday_breaks
-            st.write("holiday_breaks final (session IST):", holiday_breaks[:3]) 
-        else:
-            holiday_values = st.session_state.holiday_values
-            holiday_breaks = st.session_state.holiday_breaks
-        rangebreaks = [
-            dict(bounds=["sat", "mon"]),                 # weekends
-            dict(bounds=[15.5, 9.25], pattern="hour"),  # non-market hours
-            *holiday_breaks                             # holidays
-        ]
-        st.session_state["rangebreaks_obj"] = rangebreaks
-
-        # 5️⃣ Format datetime for Plotly
-        df_live["datetime"] = df_live["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-        # 6️⃣ Get settings & plot chart
-        # 6️⃣ Get settings & plot chart
-        if "live_fig" not in st.session_state:
-            st.session_state["live_fig"] = make_subplots(rows=2, cols=1, shared_xaxes=True)
-
-        settings = get_trm_settings_safe()
-        if settings is None:
-            st.warning("⚠️ TRM/MACD settings not configured! Dashboard pe configure karo.")
-        else:
-            fig = plot_trm_chart(
+            # ✅ Load TRM settings & render indicator figure
+            settings = get_trm_settings_safe()
+            fig_trm = plot_trm_chart(
                 df_live,
                 settings,
-                rangebreaks=st.session_state["rangebreaks_obj"],
-                fig=st.session_state["live_fig"],
+                rangebreaks=rangebreaks,
+                fig=None,
                 show_macd_panel=True
             )
-            st.session_state["live_fig"] = fig
 
-            # 7️⃣ Render chart
-            st.session_state.live_fig.update_xaxes(
-                showgrid=True,
-                gridwidth=0.5,
-                gridcolor="gray",
-                type="date",
-                tickformat="%d-%m-%Y\n%H:%M",
-                tickangle=0,
-                rangeslider_visible=False,
-                rangebreaks=rangebreaks
-            )
-            placeholder_chart.plotly_chart(st.session_state["live_fig"], use_container_width=True)
+            trm_placeholder.plotly_chart(fig_trm, use_container_width=True)
 
-
-
-
-
-
-
-
-
-
-
+        else:
+            st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
