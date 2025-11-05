@@ -506,14 +506,30 @@ with tab5:
             # Embed the chart HTML
             st_html(s, height=650)
 
-            # Simple subscribe control (optional)
+            # ✅ Actual backend subscribe call
+            import requests
             if st.button("🔔 Subscribe selected symbol to backend feed"):
                 selected = st.session_state.get("selected_symbol")
                 if selected:
-                    st.info(f"Subscribed {selected} — backend will relay ticks to chart.")
+                    try:
+                        r = requests.post(
+                            "https://backend-stream-1ij9.onrender.com/subscribe",
+                            json={"tokens":[selected]},
+                            timeout=8
+                        ).json()
+
+                        if r.get("stat") == "Ok":
+                            st.success(f"✅ Subscribed {selected} to backend feed")
+                        else:
+                            st.error(f"❌ {r.get('emsg')}")
+                    except Exception as e:
+                        st.error(f"⚠️ Request failed: {e}")
+
     else:
         chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
+
+    
 
 
     # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
@@ -855,4 +871,5 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
