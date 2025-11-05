@@ -383,6 +383,12 @@ with tab5:
     placeholder_ticks = st.empty()
     placeholder_chart = st.empty()
 
+    # ✅ Separate placeholder for TRM Indicator Chart (only once create)
+    if "trm_placeholder" not in st.session_state:
+        st.session_state["trm_placeholder"] = st.empty()
+    trm_placeholder = st.session_state["trm_placeholder"]
+
+
     # --- Load scrips & prepare WS symbol list ---
     scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
     symbols_map = {f"{s['exch']}|{s['token']}": s["tsym"] for s in scrips if s.get("token")}
@@ -411,12 +417,15 @@ with tab5:
     try:
         exch, token = selected_symbol_key.split("|")
         tsym = symbols_map[selected_symbol_key]
-        tpseries_results = ps_api.fetch_full_tpseries(
-            exch, 
-            token, 
-            interval=selected_interval, 
-            max_days=5
-        )   
+        cache_key = f"tp_{selected_symbol_key}_{selected_interval}"
+
+        if cache_key not in st.session_state:
+            st.session_state[cache_key] = ps_api.fetch_full_tpseries(
+                exch, token, interval=selected_interval, max_days=5
+            )
+
+        tpseries_results = st.session_state[cache_key]
+
     except Exception as e:
         tpseries_results = []
         st.warning(f"TPSeries fetch error: {e}")
@@ -470,7 +479,7 @@ with tab5:
     import os
 
     if st.session_state.get("chart_open", False):
-        chart_placeholder.empty()
+        chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         chart_file = os.path.join("frontend", "components", "realtime_chart.html")
         if not os.path.exists(chart_file):
@@ -773,9 +782,6 @@ with tab5:
     )
 
     # ✅ Separate placeholder for Indicator Chart (only once create)
-    if "trm_placeholder" not in st.session_state:
-        st.session_state["trm_placeholder"] = st.empty()
-    trm_placeholder = st.session_state["trm_placeholder"]
 
     from tkp_trm_chart import plot_trm_chart, get_trm_settings_safe
     from plotly.subplots import make_subplots
@@ -849,3 +855,4 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
