@@ -495,13 +495,38 @@ with tab5:
             value="wss://backend-stream-1ij9.onrender.com/ws/live"
         )
 
-            # Read & optionally patch chart HTML
+            
+            # Prepare history for chart (convert to Lightweight Charts format)
+            history = [
+                {
+                    "time": int(x.timestamp()),
+                    "open": float(o),
+                    "high": float(h),
+                    "low": float(l),
+                    "close": float(c)
+                }
+                for x, o, h, l, c in zip(
+                    st.session_state.ohlc_x,
+                    st.session_state.ohlc_o,
+                    st.session_state.ohlc_h,
+                    st.session_state.ohlc_l,
+                    st.session_state.ohlc_c
+                )
+            ]
+
+            # Read & patch HTML
             s = open(chart_file, "r", encoding="utf-8").read()
+
+            # Inject history into HTML
+            s = f"<script>window.initialHistory = {history};</script>" + s
+
+            # Patch WS URL if user provided
             if backend_ws_origin.strip():
                 s = s.replace(
                     "wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + \"/ws/live\";",
                     f'wsUrl = "{backend_ws_origin.strip()}";'
                 )
+
 
             # Embed the chart HTML
             st_html(s, height=650)
@@ -871,5 +896,6 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
