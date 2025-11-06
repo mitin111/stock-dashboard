@@ -82,15 +82,29 @@ async def ws_live(websocket: WebSocket):
 
     def on_tick(tick):
         try:
-            payload = json.dumps({"type": "tick", "tick": tick}, default=str)
+            # Extract required fields safely
+            token = tick.get("tk") or tick.get("token")
+            last_price = tick.get("lp") or tick.get("ltp") or tick.get("price")
+            tstamp = tick.get("ft") or tick.get("time")
+
+            if not (token and last_price and tstamp):
+                return
+
+            payload = json.dumps({
+                "tk": token,        # exch|token e.g. NSE|21614
+                "ft": int(tstamp),  # epoch seconds
+                "lp": float(last_price)  # last traded price
+            })
+
             asyncio.create_task(broadcast(payload))
+
         except Exception as e:
             logging.warning("on_tick broadcast error: %s", e)
 
-    try:
-        ps_api.connect_websocket([], on_tick=on_tick)  # subscribe later via POST /subscribe
-    except Exception as e:
-        logging.warning("ps_api.connect_websocket failed: %s", e)
+        try:
+            ps_api.connect_websocket([], on_tick=on_tick)  # subscribe later via POST /subscribe
+        except Exception as e:
+            logging.warning("ps_api.connect_websocket failed: %s", e)
 
     try:
         while True:
@@ -111,5 +125,6 @@ async def ws_live(websocket: WebSocket):
     finally:
         clients.discard(websocket)
         logging.info("Client disconnected. total=%d", len(clients))
+
 
 
