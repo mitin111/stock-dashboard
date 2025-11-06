@@ -67,30 +67,18 @@ with st.sidebar:
                     base_url=base_url, apkversion=apkversion
                 )
                 success, msg = ps_api.login(factor2)
+
                 if success:
                     st.session_state["ps_api"] = ps_api
-
-                    # ✅ Backend WebSocket connection check
-                    import websocket
-                    def check_backend_ws(url: str, timeout=5) -> bool:
-                        try:
-                            ws = websocket.create_connection(url, timeout=timeout)
-                            ws.close()
-                            return True
-                        except Exception as e:
-                            print(f"❌ WebSocket check failed: {e}")
-                            return False
+                    st.session_state["logged_in"] = True   # ✅ mark login successful
 
                     backend_ws_url = "wss://backend-stream-1ij9.onrender.com/ws/live"
-
                     if check_backend_ws(backend_ws_url):
                         st.session_state["ws_backend_ok"] = True
-                        st.success(f"✅ Login successful & WS connected → {backend_ws_url}")
+                        st.success(f"✅ Login Successful & WS Connected → {backend_ws_url}")
                     else:
                         st.session_state["ws_backend_ok"] = False
-                        st.warning(f"⚠️ Login OK but cannot reach backend WS: {backend_ws_url}")
-
-                    st.rerun()
+                        st.warning(f"⚠️ Login OK but backend WS unreachable: {backend_ws_url}")
 
                 else:
                     st.error(f"❌ Login failed: {msg}")
@@ -98,11 +86,10 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-if "ps_api" in st.session_state:
-    if st.sidebar.button("🔓 Logout"):
-        del st.session_state["ps_api"]
-        st.success("✅ Logged out successfully")
-        st.rerun()
+if st.sidebar.button("🔓 Logout"):
+    st.session_state.pop("ps_api", None)
+    st.session_state["logged_in"] = False
+    st.success("✅ Logged out successfully")
 
 # === Tabs ===
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -894,6 +881,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
