@@ -677,95 +677,74 @@ with tab5:
 
     
     # --- Preload TPSeries history and auto-start WS ---
-    wl = st.session_state.selected_watchlist
-    interval = selected_interval
-    try:
-        tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
-    except Exception as e:
-        tpseries_results = []
-        st.warning(f"TPSeries fetch error: {e}")
+    # --- Load history ONLY when chart is open ---
+    if st.session_state.get("chart_open", False):
+        wl = st.session_state.selected_watchlist
+        interval = selected_interval
+        try:
+            tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
+        except Exception as e:
+            tpseries_results = []
+            st.warning(f"TPSeries fetch error: {e}")
 
-    if tpseries_results:
-        df = tpseries_results[0]["data"].copy()
+        if tpseries_results:
+            df = tpseries_results[0]["data"].copy()
 
-        if "datetime" in df.columns:
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
-            df = df.dropna(subset=["datetime"]).set_index("datetime")
+            if "datetime" in df.columns:
+                df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+                df["datetime"] = df["datetime"].dt.tz_localize(
+                    "Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT"
+                )
+                df = df.dropna(subset=["datetime"]).set_index("datetime")
 
-            # Fix OHLC column names if needed
-            if "into" in df.columns and "open" not in df.columns:
-                df = df.rename(columns={
-                    "into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"
-                })
+                if "into" in df.columns and "open" not in df.columns:
+                    df = df.rename(columns={
+                        "into": "open", "inth": "high", "intl": "low",
+                        "intc": "close", "intv": "volume"
+                    })
 
-            for col in ["open", "high", "low", "close", "volume"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                for col in ["open", "high", "low", "close", "volume"]:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                df = df.dropna(subset=["open", "high", "low", "close"])
 
-            df = df.dropna(subset=["open", "high", "low", "close"])
+                load_history_into_state(df)
+                st.write(f"📊 Loaded TPSeries candles: {len(df)}")
 
-            load_history_into_state(df)
-            st.write(f"📊 Loaded TPSeries candles: {len(df)}")
+                if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
+                    holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
+                    holiday_breaks = []
+                    for h in full_holidays:
+                        start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                        end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                        holiday_breaks.append(dict(
+                            bounds=[start.to_pydatetime().replace(tzinfo=None),
+                                    end.to_pydatetime().replace(tzinfo=None)]
+                        ))
+                    st.session_state.holiday_values = holiday_values
+                    st.session_state.holiday_breaks = holiday_breaks
+                else:
+                    holiday_values = st.session_state.holiday_values
+                    holiday_breaks = st.session_state.holiday_breaks
 
-            # ✅ Auto-open + render once
-            if not st.session_state.get("chart_open", False):
-                st.session_state["chart_open"] = True
-            
-
-            # ✅ Restore/Create holiday breaks first (before debug)
-            if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
-                holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
-                holiday_breaks = []
-                for h in full_holidays:
-                    start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                    end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                    start_naive = start.to_pydatetime().replace(tzinfo=None)
-                    end_naive   = end.to_pydatetime().replace(tzinfo=None)
-                    holiday_breaks.append(dict(bounds=[start_naive, end_naive]))
-
-                st.session_state.holiday_values = holiday_values
-                st.session_state.holiday_breaks = holiday_breaks
+                st.session_state.live_fig.update_xaxes(
+                    showgrid=True, gridwidth=0.5, gridcolor="gray",
+                    type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
+                    rangeslider_visible=False,
+                    rangebreaks=[dict(bounds=["sat","mon"]), dict(bounds=[15.5,9.25], pattern="hour"), *holiday_breaks]
+                )
             else:
-                holiday_values = st.session_state.holiday_values
-                holiday_breaks = st.session_state.holiday_breaks
-
-            # ✅ Debug block moved *after* holiday variables exist
-            if "tpseries_debug_done" not in st.session_state:
-                st.write("sample holiday:", holiday_values[0])
-                st.write("holiday tzinfo:", holiday_breaks[0])
-                st.session_state.tpseries_debug_done = True
-
-            # ✅ Update x-axis with working holiday breaks
-            st.session_state.live_fig.update_xaxes(
-                showgrid=True,
-                gridwidth=0.5,
-                gridcolor="gray",
-                type="date",
-                tickformat="%d-%m-%Y\n%H:%M",
-                tickangle=0,
-                rangeslider_visible=False,
-                rangebreaks=[
-                    dict(bounds=["sat", "mon"]),
-                    dict(bounds=[15.5, 9.25], pattern="hour"),
-                    *holiday_breaks
-                ]
-            )
-
+                st.error("⚠️ No datetime column in TPSeries data")
         else:
-            st.error("⚠️ No datetime column in TPSeries data")
-    else:
-        st.warning("⚠️ No TPSeries data fetched")
+            st.warning("⚠️ No TPSeries data fetched")
 
     # ✅ AUTO START LIVE FEED (No Start Button Needed)
     from tab4_auto_trader import start_ws
 
-    # Ensure stop event exists
-    if "_ws_stop_event" not in st.session_state:
-        st.session_state["_ws_stop_event"] = threading.Event()
-
-    # Auto-start WebSocket only once
-    if not st.session_state.get("ws_started", False):
+    # Start WS only when chart is open and not already started
+    if st.session_state.get("chart_open", False) and not st.session_state.get("ws_started", False):
+        if "_ws_stop_event" not in st.session_state:
+            st.session_state["_ws_stop_event"] = threading.Event()
         try:
             ws = start_ws(
                 st.session_state["symbols_for_ws"],
@@ -776,18 +755,19 @@ with tab5:
             st.session_state["ws"] = ws
             st.session_state.live_feed_flag["active"] = True
             st.session_state.ws_started = True
-            st.success(f"📡 Live Feed Started Automatically for {len(st.session_state['symbols_for_ws'])} symbol(s)")
+            st.success(f"📡 Live Feed Started for {len(st.session_state['symbols_for_ws'])} symbol(s)")
         except Exception as e:
-            st.error(f"❌ WebSocket auto-start failed: {e}")
+            st.error(f"❌ WebSocket start failed: {e}")
 
-    # Auto-stop when user closes chart or leaves tab
-    if not st.session_state.get("chart_open", False):
+    # Stop WS when chart is closed
+    if not st.session_state.get("chart_open", False) and st.session_state.get("ws_started", False):
         try:
             st.session_state["_ws_stop_event"].set()
         except:
             pass
         st.session_state.live_feed_flag["active"] = False
         st.session_state.ws_started = False
+
 
     # --- Drain queue and apply live ticks to last candle ---
     # This block runs each script run and consumes queued ticks (non-blocking)
@@ -914,6 +894,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
