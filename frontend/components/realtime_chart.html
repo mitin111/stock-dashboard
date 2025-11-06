@@ -1,58 +1,90 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Realtime Chart</title>
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-  <style> body { margin:0; background:black; color:#ddd } #chart { height: 600px; }</style>
-</head>
-<body>
-  <div id="chart"></div>
-  <script>
-    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
-      layout: { background: { color: '#000' }, textColor: '#ddd' },
-      rightPriceScale: { autoScale: true },
-      timeScale: { timeVisible: true, secondsVisible: false }
-    });
-    const candleSeries = chart.addCandlestickSeries();
-    // == Load initial history from Streamlit ==
-    let historyData = window.initialHistory || [];
-    if (historyData.length > 0) {
-      candleSeries.setData(historyData);
-    }
-    // let wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
-    let wsUrl = "wss://backend-stream-1ij9.onrender.com/ws/live";
-    // If you are running backend on different host, set wsUrl manually:
-    // wsUrl = "wss://your-backend.onrender.com/ws/live";
+<meta charset="utf-8" />
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-    const ws = new WebSocket(wsUrl);
-    ws.onopen = () => console.log("WS connected to", wsUrl);
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === "tick") {
-          const t = msg.tick;
-          // t.ft is epoch seconds or milliseconds? ensure convert to seconds
-          let ts = parseInt(t.ft);
-          if (ts > 1e12) ts = Math.floor(ts/1000);
-          const time = Math.floor(ts);
-          const price = parseFloat(t.lp);
-          if (!price || price === 0) return;
-          // update single price bar (lightweight-charts expects {time, open, high, low, close})
-          candleSeries.update({ time: time, open: price, high: price, low: price, close: price });
-        } else if (msg.type === "candle") {
-          // optional: full candle push from backend
-          const c = msg.candle;
-          candleSeries.update({ time: Math.floor(c.time), open: c.open, high:c.high, low:c.low, close:c.close });
-        }
-      } catch (e) { console.warn("parse error", e); }
-    };
-    ws.onclose = () => console.log("WS closed");
-    ws.onerror = (e) => console.warn("WS error", e);
-  </script>
+<style>
+body {
+  margin: 0;
+  background: #000;
+  overflow: hidden;
+}
+#chart-container {
+  width: 100%;
+  height: 100vh;
+}
+</style>
+</head>
+
+<body>
+<div id="chart-container"></div>
+
+<script>
+// ---- REQUIRED INPUT FROM PYTHON ----
+let history = window.initialHistory || [];  // injected by Streamlit
+let wsUrl;
+
+// auto detect fallback
+if (!window.wsUrl) {
+  wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
+} else {
+  wsUrl = window.wsUrl;
+}
+
+// ---- CREATE CHART ----
+const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+  layout: { background: { color: '#000' }, textColor: '#fff' },
+  grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+  timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 },
+  crosshair: { mode: 1 },
+});
+const candleSeries = chart.addCandlestickSeries({
+  upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+  wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+});
+
+// load initial candles
+candleSeries.setData(history);
+
+// ---- OPEN WEBSOCKET ----
+let ws = new WebSocket(wsUrl);
+
+ws.onopen = () => console.log("✅ Lightweight WS Connected:", wsUrl);
+
+ws.onmessage = (event) => {
+  try {
+    let msg = JSON.parse(event.data);
+    if (!msg || !msg.lp || !msg.tk) return;
+
+    const ts = Number(msg.ft || msg.time) * 1000;
+    const price = Number(msg.lp);
+
+    if (!ts || !price) return;
+
+    // candle minute grouping
+    const dt = new Date(ts);
+    dt.setSeconds(0, 0);
+    const t = Math.floor(dt.getTime() / 1000);
+
+    candleSeries.update({
+      time: t,
+      open: price,
+      high: price,
+      low: price,
+      close: price
+    });
+
+  } catch (e) {
+    console.log("⚠️ Tick parse error:", e);
+  }
+};
+
+ws.onclose = () => {
+  console.log("🔌 WS Closed — Reconnecting in 2s...");
+  setTimeout(() => location.reload(), 2000);
+};
+</script>
 </body>
 </html>
-
-
-
 
