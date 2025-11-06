@@ -475,36 +475,25 @@ with tab5:
 
     # --- Chart render ---
     # === 🔄 Realtime Chart Render (TradingView-like) ===
+    # --- Chart render (LIGHTWEIGHT MODE) ---
     from streamlit.components.v1 import html as st_html
     import os
 
     if st.session_state.get("chart_open", False):
-        chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         chart_file = os.path.join("frontend", "components", "realtime_chart.html")
-        if not os.path.exists(chart_file):
-            st.warning("⚠️ Realtime chart component missing. Falling back to Plotly.")
-            if st.session_state.get("live_fig") is not None:
-                chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
-            else:
-                st.info("ℹ️ No live_fig available.")
-        else:
-            # ✅ User input for backend WebSocket URL
-            backend_ws_origin = st.text_input(
-            "Backend WS URL (leave blank for auto-detect)",
-            value="wss://backend-stream-1ij9.onrender.com/ws/live"
-        )
 
-            
-            # Prepare history for chart (convert to Lightweight Charts format)
+        if os.path.exists(chart_file):
+
+            backend_ws_origin = st.text_input(
+                "Backend WS URL",
+                value="wss://backend-stream-1ij9.onrender.com/ws/live"
+            )
+
+            # ✅ Convert history → Lightweight data format
             history = [
-                {
-                    "time": int(x.timestamp()),
-                    "open": float(o),
-                    "high": float(h),
-                    "low": float(l),
-                    "close": float(c)
-                }
+                {"time": int(x.timestamp()), "open": float(o), "high": float(h),
+                 "low": float(l), "close": float(c)}
                 for x, o, h, l, c in zip(
                     st.session_state.ohlc_x,
                     st.session_state.ohlc_o,
@@ -514,47 +503,28 @@ with tab5:
                 )
             ]
 
-            # Read & patch HTML
-            s = open(chart_file, "r", encoding="utf-8").read()
+            # ✅ Load HTML file
+            html_data = open(chart_file, "r", encoding="utf-8").read()
 
-            # Inject history into HTML
-            s = f"<script>window.initialHistory = {history};</script>" + s
+            # ✅ Inject history + WS URL
+            html_data = (
+                f"<script>"
+                f"window.initialHistory = {history}; "
+                f"window.wsUrl = '{backend_ws_origin}';"
+                f"</script>"
+                + html_data
+            )
 
-            # Patch WS URL if user provided
-            if backend_ws_origin.strip():
-                s = s.replace(
-                    "wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + \"/ws/live\";",
-                    f'wsUrl = "{backend_ws_origin.strip()}";'
-                )
+            # ✅ Render chart smooth
+            st_html(html_data, height=650)
 
-
-            # Embed the chart HTML
-            st_html(s, height=650)
-
-            # ✅ Actual backend subscribe call
-            import requests
-            if st.button("🔔 Subscribe selected symbol to backend feed"):
-                selected = st.session_state.get("selected_symbol")
-                if selected:
-                    try:
-                        r = requests.post(
-                            "https://backend-stream-1ij9.onrender.com/subscribe",
-                            json={"tokens":[selected]},
-                            timeout=8
-                        ).json()
-
-                        if r.get("stat") == "Ok":
-                            st.success(f"✅ Subscribed {selected} to backend feed")
-                        else:
-                            st.error(f"❌ {r.get('emsg')}")
-                    except Exception as e:
-                        st.error(f"⚠️ Request failed: {e}")
+        else:
+            st.warning("⚠️ realtime_chart.html missing. Showing fallback Plotly chart.")
+            chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
     else:
         chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
-
-    
 
 
     # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
@@ -888,6 +858,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
