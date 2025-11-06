@@ -8,6 +8,10 @@ from tkp_trm_chart import load_trm_settings_from_file
 from dashboard_logic import save_qty_map, load_qty_map
 import json
 
+# ✅ STOP IF NOT LOGGED IN
+if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+    st.info("🔐 Login required to load Auto Trader settings.")
+    st.stop()
 
 # --- Ensure TRM settings loaded in session_state
 if "trm_settings" not in st.session_state or not st.session_state["trm_settings"]:
@@ -303,6 +307,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
