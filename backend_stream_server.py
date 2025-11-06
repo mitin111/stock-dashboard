@@ -10,6 +10,7 @@ app = FastAPI()
 
 # ✅ ADD THIS FIX
 @app.get("/")
+@app.head("/")
 def root():
     return {"status": "ok", "service": "backend-stream"}
     
@@ -122,6 +123,7 @@ async def ws_live(websocket: WebSocket):
     finally:
         clients.discard(websocket)
         logging.info("Client disconnected. total=%d", len(clients))
+
 
 
 
