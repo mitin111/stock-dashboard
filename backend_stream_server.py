@@ -7,6 +7,12 @@ from prostocks_connector import ProStocksAPI
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
+
+# ✅ ADD THIS FIX
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "backend-stream"}
+    
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -116,6 +122,7 @@ async def ws_live(websocket: WebSocket):
     finally:
         clients.discard(websocket)
         logging.info("Client disconnected. total=%d", len(clients))
+
 
 
 
