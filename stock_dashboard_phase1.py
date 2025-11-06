@@ -752,8 +752,6 @@ with tab5:
                 ]
             )
 
-            placeholder_chart.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
         else:
             st.error("⚠️ No datetime column in TPSeries data")
     else:
@@ -809,20 +807,6 @@ with tab5:
     # ✅ LOAD HISTORY HERE (outside loop)
     load_history_into_state(df)
     st.write(f"📊 Loaded TPSeries candles: {len(df)}")
-
-
-    st.session_state.live_fig.update_layout(
-        updatemenus=[dict(
-            type="buttons",
-            direction="left",
-            x=1, y=1.15,
-            buttons=[dict(
-                label="Go to Latest",
-                method="relayout",
-                args=[{"xaxis.range": [start_range, end_range]}]
-            )]
-        )]
-    )
 
     st.session_state.live_fig.update_yaxes(
         showgrid=True, gridwidth=0.5, gridcolor="gray", fixedrange=False
@@ -902,6 +886,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
