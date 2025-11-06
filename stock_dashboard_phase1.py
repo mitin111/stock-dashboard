@@ -477,7 +477,7 @@ with tab5:
     # === 🔄 Realtime Chart Render (TradingView-like) ===
     # --- Chart render (LIGHTWEIGHT MODE) ---
     from streamlit.components.v1 import html as st_html
-    import os
+    import os, requests
 
     if st.session_state.get("chart_open", False):
 
@@ -490,7 +490,7 @@ with tab5:
                 value="wss://backend-stream-1ij9.onrender.com/ws/live"
             )
 
-            # ✅ Convert history → Lightweight data format
+            # ✅ Convert history → Lightweight format
             history = [
                 {"time": int(x.timestamp()), "open": float(o), "high": float(h),
                  "low": float(l), "close": float(c)}
@@ -503,13 +503,13 @@ with tab5:
                 )
             ]
 
-            # ✅ Load HTML file
+            # ✅ Selected token
+            initial_token = st.session_state.get("selected_symbol")
+
+            # ✅ Read HTML
             html_data = open(chart_file, "r", encoding="utf-8").read()
 
-            # ✅ Inject history + WS URL + Token + Interval
-            initial_token = st.session_state.get("selected_symbol")  # e.g. "NSE|21614"
-
-            html_data = open(chart_file, "r", encoding="utf-8").read()
+            # ✅ Inject history + wsUrl + token + interval
             html_data = (
                 f"<script>"
                 f"window.initialHistory = {history}; "
@@ -520,11 +520,22 @@ with tab5:
                 + html_data
             )
 
+            # ✅ Render lightweight chart
             st_html(html_data, height=650)
+
+            # ✅ Fire-and-forget backend subscribe (no UI button needed)
+            try:
+                requests.post(
+                    "https://backend-stream-1ij9.onrender.com/subscribe",
+                    json={"tokens": [initial_token]},
+                    timeout=4
+                )
+            except Exception:
+                pass
 
         else:
             st.error("❌ realtime_chart.html missing — Lightweight chart not found.")
-            
+
     else:
         chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
@@ -860,6 +871,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
