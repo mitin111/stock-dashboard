@@ -42,31 +42,31 @@ if "trm_settings" not in st.session_state:
 def render_trm_settings_ui_body():
     current = st.session_state.get("trm_settings", {})
 
-    long = st.number_input("TSI Long Length", 1, 900, current.get("long", 25))
-    short = st.number_input("TSI Short Length", 1, 200, current.get("short", 5))
-    signal = st.number_input("TSI Signal Length", 1, 200, current.get("signal", 14))
+    long = st.number_input("TSI Long Length", 1, 900, current.get("long", 25), key="trm_long")
+    short = st.number_input("TSI Short Length", 1, 200, current.get("short", 5), key="trm_short")
+    signal = st.number_input("TSI Signal Length", 1, 200, current.get("signal", 14), key="trm_signal")
 
-    len_rsi = st.number_input("RSI Length", 1, 200, current.get("len_rsi", 5))
-    rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, current.get("rsiBuyLevel", 50))
-    rsiSellLevel = st.slider("RSI Sell Level", 0, 100, current.get("rsiSellLevel", 50))
+    len_rsi = st.number_input("RSI Length", 1, 200, current.get("len_rsi", 5), key="trm_rsi_len")
+    rsiBuyLevel = st.slider("RSI Buy Level", 0, 100, current.get("rsiBuyLevel", 50), key="trm_rsi_buy")
+    rsiSellLevel = st.slider("RSI Sell Level", 0, 100, current.get("rsiSellLevel", 50), key="trm_rsi_sell")
 
-    buyColor = st.color_picker("Buy Color", current.get("buyColor", "#00FFFF"))
-    sellColor = st.color_picker("Sell Color", current.get("sellColor", "#FF00FF"))
-    neutralColor = st.color_picker("Neutral Color", current.get("neutralColor", "#808080"))
+    buyColor = st.color_picker("Buy Color", current.get("buyColor", "#00FFFF"), key="trm_buy_color")
+    sellColor = st.color_picker("Sell Color", current.get("sellColor", "#FF00FF"), key="trm_sell_color")
+    neutralColor = st.color_picker("Neutral Color", current.get("neutralColor", "#808080"), key="trm_neutral_color")
 
-    pac_length = st.number_input("PAC Length", 1, 200, current.get("pac_length", 34))
-    use_heikin_ashi = st.checkbox("Use Heikin Ashi", current.get("use_heikin_ashi", True))
+    pac_length = st.number_input("PAC Length", 1, 200, current.get("pac_length", 34), key="trm_pac_len")
+    use_heikin_ashi = st.checkbox("Use Heikin Ashi", current.get("use_heikin_ashi", True), key="trm_heikin")
 
-    atr_fast_period = st.number_input("ATR Fast Period", 1, 200, current.get("atr_fast_period", 5))
-    atr_fast_mult = st.number_input("ATR Fast Multiplier", 0.1, 10.0, current.get("atr_fast_mult", 0.5), 0.1)
-    atr_slow_period = st.number_input("ATR Slow Period", 1, 200, current.get("atr_slow_period", 10))
-    atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, current.get("atr_slow_mult", 3.0), 0.1)
+    atr_fast_period = st.number_input("ATR Fast Period", 1, 200, current.get("atr_fast_period", 5), key="trm_atr_fast_p")
+    atr_fast_mult = st.number_input("ATR Fast Multiplier", 0.1, 10.0, current.get("atr_fast_mult", 0.5), 0.1, key="trm_atr_fast_m")
+    atr_slow_period = st.number_input("ATR Slow Period", 1, 200, current.get("atr_slow_period", 10), key="trm_atr_slow_p")
+    atr_slow_mult = st.number_input("ATR Slow Multiplier", 0.1, 10.0, current.get("atr_slow_mult", 3.0), 0.1, key="trm_atr_slow_m")
 
-    macd_fast = st.number_input("MACD Fast Length", 1, 1000, current.get("macd_fast", 12))
-    macd_slow = st.number_input("MACD Slow Length", 1, 1000, current.get("macd_slow", 26))
-    macd_signal = st.number_input("MACD Signal Length", 1, 200, current.get("macd_signal", 9))
+    macd_fast = st.number_input("MACD Fast Length", 1, 1000, current.get("macd_fast", 12), key="trm_macd_fast")
+    macd_slow = st.number_input("MACD Slow Length", 1, 1000, current.get("macd_slow", 26), key="trm_macd_slow")
+    macd_signal = st.number_input("MACD Signal Length", 1, 200, current.get("macd_signal", 9), key="trm_macd_signal")
 
-    show_info_panels = st.checkbox("Show Info Panels", current.get("show_info_panels", True))
+    show_info_panels = st.checkbox("Show Info Panels", current.get("show_info_panels", True), key="trm_show_panels")
 
     settings = {
         "long": long, "short": short, "signal": signal,
@@ -79,8 +79,7 @@ def render_trm_settings_ui_body():
         "show_info_panels": show_info_panels
     }
 
-    # --- Button always rendered; Streamlit handles reruns gracefully ---
-    if st.button("💾 Save TRM Settings"):
+    if st.button("💾 Save TRM Settings", key="trm_save_btn"):
         st.session_state["trm_settings"] = settings
         save_trm_settings(settings)
         st.success("✅ TRM Settings saved successfully!")
@@ -633,6 +632,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
