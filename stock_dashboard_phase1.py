@@ -73,12 +73,8 @@ with st.sidebar:
                     st.session_state["logged_in"] = True   # ✅ mark login successful
 
                     backend_ws_url = "wss://backend-stream-1ij9.onrender.com/ws/live"
-                    if check_backend_ws(backend_ws_url):
-                        st.session_state["ws_backend_ok"] = True
-                        st.success(f"✅ Login Successful & WS Connected → {backend_ws_url}")
-                    else:
-                        st.session_state["ws_backend_ok"] = False
-                        st.warning(f"⚠️ Login OK but backend WS unreachable: {backend_ws_url}")
+                    st.session_state["ws_backend_ok"] = True
+                    st.success("✅ Login Successful")
 
                 else:
                     st.error(f"❌ Login failed: {msg}")
@@ -891,6 +887,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
