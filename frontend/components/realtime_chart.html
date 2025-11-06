@@ -12,7 +12,7 @@
 <div id="chart-container"></div>
 
 <script>
-// ---- Inputs injected from Streamlit ----
+// ---- Inputs from Streamlit ----
 let history    = window.initialHistory || [];
 let wsUrl      = window.wsUrl || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/live');
 let initialTok = window.initialToken || null;
@@ -22,76 +22,80 @@ let barIntMin  = Number(window.barInterval || 1); // 1/3/5/…
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
   layout: { background: { color: '#000' }, textColor: '#fff' },
   grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-  timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 },
-  crosshair: { mode: 1 },
-  localization: {
-    // Force labels to IST (Asia/Kolkata)
-    timeFormatter: (time) => {
+  timeScale: {
+    timeVisible: true,
+    secondsVisible: false,
+    rightOffset: 3,
+    // ✅ Bottom axis IST labels
+    tickMarkFormatter: (time /* number|{timestamp} */) => {
       const ts = (typeof time === 'object' && time.timestamp) ? time.timestamp : time;
-      const d = new Date(ts * 1000);
-      return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
-    }
+      return new Date(ts * 1000).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit',
+        day: '2-digit', month: '2-digit'
+      });
+    },
+  },
+  crosshair: { mode: 1 },
+  // ✅ Crosshair time string also IST
+  localization: {
+    timeFormatter: (ts) =>
+      new Date((ts.timestamp ?? ts) * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false })
   }
 });
+
 const candleSeries = chart.addCandlestickSeries({
   upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350'
 });
 candleSeries.setData(history);
 
-// ---- Helpers ----
+// ---- Helper: bucket to interval in IST ----
 function bucketToInterval(tsSec) {
-  // bucket by barIntMin minutes in IST
-  const d = new Date(tsSec * 1000);
-  // convert to IST offset (ms)
-  const istOffsetMin = 330; // +05:30
-  const localMs = d.getTime() + (istOffsetMin * 60 * 1000) - (d.getTimezoneOffset() * 60 * 1000);
-  const m = new Date(localMs).getUTCMinutes();
-  const bucketMin = Math.floor(m / barIntMin) * barIntMin;
-
-  // set bucket minute in IST, then convert back to epoch seconds
-  const bucketDateIST = new Date(localMs);
-  bucketDateIST.setUTCSeconds(0, 0);
-  bucketDateIST.setUTCMinutes(bucketMin);
-
-  const backToUTCms = bucketDateIST.getTime() - (istOffsetMin * 60 * 1000) + (d.getTimezoneOffset() * 60 * 1000);
-  return Math.floor(backToUTCms / 1000);
+  // tsSec is UTC seconds
+  const dUTC = new Date(tsSec * 1000);
+  // shift to IST (+5:30 = 330 min)
+  const istMs = dUTC.getTime() + 330 * 60 * 1000;
+  const ist = new Date(istMs);
+  ist.setSeconds(0, 0);
+  const m = ist.getMinutes();
+  ist.setMinutes(Math.floor(m / barIntMin) * barIntMin);
+  // shift back to UTC seconds
+  const backUTCms = ist.getTime() - 330 * 60 * 1000;
+  return Math.floor(backUTCms / 1000);
 }
 
-// ---- WS ----
+// ---- WebSocket ----
 let ws = new WebSocket(wsUrl);
 
 ws.onopen = () => {
   console.log("✅ LW WS Connected:", wsUrl);
-  // Auto-subscribe current token
+  // ✅ auto-subscribe current token
   if (initialTok) {
     try {
       ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
-      console.log("🔔 Subscribed", initialTok);
+      console.log("🔔 Subscribed to", initialTok);
     } catch (e) { console.log(e); }
   }
 };
 
 ws.onmessage = (event) => {
   try {
-    const msg = JSON.parse(event.data);
-    // Expected: { tk, ft, lp }
-    if (!msg || !msg.lp || !msg.ft) return;
+    const payload = JSON.parse(event.data);
 
-    let ts = Number(msg.ft);
+    // Accept both flat and nested formats
+    const p = payload.tick ? payload.tick : payload;
+
+    const price = Number(p.lp || p.ltp || p.price);
+    let ts = Number(p.ft || p.time || p.lts);
+
+    if (!price || !ts) return;
     if (ts > 1e12) ts = Math.floor(ts / 1000); // ms -> s
-    const price = Number(msg.lp);
-    if (!ts || !price) return;
 
-    // Bucket to interval respecting IST
     const tBucket = bucketToInterval(ts);
 
     candleSeries.update({
       time: tBucket,
-      open: price,
-      high: price,
-      low: price,
-      close: price
+      open: price, high: price, low: price, close: price
     });
   } catch (e) {
     console.log("⚠️ Tick parse error:", e);
@@ -103,6 +107,3 @@ ws.onclose = () => {
   setTimeout(() => location.reload(), 2000);
 };
 </script>
-</body>
-</html>
-
