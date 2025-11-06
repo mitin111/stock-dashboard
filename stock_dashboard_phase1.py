@@ -264,6 +264,10 @@ with tab4:
 
     st.subheader("📀 Indicator & TRM Settings")
 
+    # ✅ Ensure expander flag initialized BEFORE calling UI builder
+    if "trm_settings_expander_rendered" not in st.session_state:
+        st.session_state["trm_settings_expander_rendered"] = False
+
     # AutoTrader settings panel
     render_tab4(require_session_settings=True, allow_file_fallback=False)
 
@@ -903,6 +907,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
