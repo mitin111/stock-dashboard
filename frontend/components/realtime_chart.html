@@ -3,78 +3,96 @@
 <head>
 <meta charset="utf-8" />
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-
 <style>
-body {
-  margin: 0;
-  background: #000;
-  overflow: hidden;
-}
-#chart-container {
-  width: 100%;
-  height: 100vh;
-}
+  body { margin:0; background:#000; overflow:hidden }
+  #chart-container { width:100%; height:100vh; }
 </style>
 </head>
-
 <body>
 <div id="chart-container"></div>
 
 <script>
-// ---- REQUIRED INPUT FROM PYTHON ----
-let history = window.initialHistory || [];  // injected by Streamlit
-let wsUrl;
+// ---- Inputs injected from Streamlit ----
+let history    = window.initialHistory || [];
+let wsUrl      = window.wsUrl || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/live');
+let initialTok = window.initialToken || null;
+let barIntMin  = Number(window.barInterval || 1); // 1/3/5/…
 
-// auto detect fallback
-if (!window.wsUrl) {
-  wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws/live";
-} else {
-  wsUrl = window.wsUrl;
-}
-
-// ---- CREATE CHART ----
+// ---- Chart ----
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
   layout: { background: { color: '#000' }, textColor: '#fff' },
   grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
   timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 },
   crosshair: { mode: 1 },
+  localization: {
+    // Force labels to IST (Asia/Kolkata)
+    timeFormatter: (time) => {
+      const ts = (typeof time === 'object' && time.timestamp) ? time.timestamp : time;
+      const d = new Date(ts * 1000);
+      return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
+    }
+  }
 });
 const candleSeries = chart.addCandlestickSeries({
-  upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350',
-  wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+  upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+  wickUpColor:'#26a69a', wickDownColor:'#ef5350'
 });
-
-// load initial candles
 candleSeries.setData(history);
 
-// ---- OPEN WEBSOCKET ----
+// ---- Helpers ----
+function bucketToInterval(tsSec) {
+  // bucket by barIntMin minutes in IST
+  const d = new Date(tsSec * 1000);
+  // convert to IST offset (ms)
+  const istOffsetMin = 330; // +05:30
+  const localMs = d.getTime() + (istOffsetMin * 60 * 1000) - (d.getTimezoneOffset() * 60 * 1000);
+  const m = new Date(localMs).getUTCMinutes();
+  const bucketMin = Math.floor(m / barIntMin) * barIntMin;
+
+  // set bucket minute in IST, then convert back to epoch seconds
+  const bucketDateIST = new Date(localMs);
+  bucketDateIST.setUTCSeconds(0, 0);
+  bucketDateIST.setUTCMinutes(bucketMin);
+
+  const backToUTCms = bucketDateIST.getTime() - (istOffsetMin * 60 * 1000) + (d.getTimezoneOffset() * 60 * 1000);
+  return Math.floor(backToUTCms / 1000);
+}
+
+// ---- WS ----
 let ws = new WebSocket(wsUrl);
 
-ws.onopen = () => console.log("✅ Lightweight WS Connected:", wsUrl);
+ws.onopen = () => {
+  console.log("✅ LW WS Connected:", wsUrl);
+  // Auto-subscribe current token
+  if (initialTok) {
+    try {
+      ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
+      console.log("🔔 Subscribed", initialTok);
+    } catch (e) { console.log(e); }
+  }
+};
 
 ws.onmessage = (event) => {
   try {
-    let msg = JSON.parse(event.data);
-    if (!msg || !msg.lp || !msg.tk) return;
+    const msg = JSON.parse(event.data);
+    // Expected: { tk, ft, lp }
+    if (!msg || !msg.lp || !msg.ft) return;
 
-    const ts = Number(msg.ft || msg.time) * 1000;
+    let ts = Number(msg.ft);
+    if (ts > 1e12) ts = Math.floor(ts / 1000); // ms -> s
     const price = Number(msg.lp);
-
     if (!ts || !price) return;
 
-    // candle minute grouping
-    const dt = new Date(ts);
-    dt.setSeconds(0, 0);
-    const t = Math.floor(dt.getTime() / 1000);
+    // Bucket to interval respecting IST
+    const tBucket = bucketToInterval(ts);
 
     candleSeries.update({
-      time: t,
+      time: tBucket,
       open: price,
       high: price,
       low: price,
       close: price
     });
-
   } catch (e) {
     console.log("⚠️ Tick parse error:", e);
   }
