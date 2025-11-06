@@ -10,5 +10,6 @@ services:
     name: frontend-streamlit
     env: python
     buildCommand: ""
-    startCommand: streamlit run stock_dashboard_phase1.py --server.port 10001 --server.address 0.0.0.0
+    startCommand: streamlit run stock_dashboard_phase1.py --server.port=$PORT --server.address=0.0.0.0
     plan: starter
+
