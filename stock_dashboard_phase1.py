@@ -136,6 +136,11 @@ with tab2:
 
     if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
         st.warning("⚠️ Please login first to view Dashboard.")
+        st.stop()   # ✅ <-- This is the missing line
+
+
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+        st.warning("⚠️ Please login first to view Dashboard.")
     else:
         ps_api = st.session_state.ps_api
         col1, col2 = st.columns(2)
@@ -206,6 +211,11 @@ with tab2:
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
+
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+        st.info("ℹ️ Please login to view live watchlist data.")
+        st.stop()   # ✅ <-- Required to prevent flicker
+
 
     if "ps_api" in st.session_state:
         ps_api = st.session_state["ps_api"]
@@ -881,6 +891,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
