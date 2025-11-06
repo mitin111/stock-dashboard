@@ -519,9 +519,8 @@ with tab5:
             st_html(html_data, height=650)
 
         else:
-            st.warning("⚠️ realtime_chart.html missing. Showing fallback Plotly chart.")
-            chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
-
+            st.error("❌ realtime_chart.html missing — Lightweight chart not found.")
+            
     else:
         chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
@@ -645,7 +644,6 @@ with tab5:
                 st.session_state.ohlc_l,
                 st.session_state.ohlc_c
             )
-            chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
 
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
@@ -686,7 +684,7 @@ with tab5:
             # ✅ Auto-open + render once
             if not st.session_state.get("chart_open", False):
                 st.session_state["chart_open"] = True
-            chart_placeholder.plotly_chart(st.session_state.live_fig, use_container_width=True)
+            
 
             # ✅ Restore/Create holiday breaks first (before debug)
             if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
@@ -858,6 +856,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
