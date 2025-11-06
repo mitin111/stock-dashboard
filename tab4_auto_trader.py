@@ -121,33 +121,8 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     if "_ws_stop_event" not in st.session_state:
         st.session_state["_ws_stop_event"] = threading.Event()
 
-    # start websocket only once
-    if "ws" not in st.session_state or st.session_state["ws"] is None:
-        try:
-            if not st.session_state.get("symbols"):
-                st.error("⚠️ No symbols found. Please load a watchlist in Tab 3/5 before starting WebSocket.")
-                st.stop()
-                
-            ws = start_ws(
-                st.session_state["symbols_for_ws"],   # ✅ only string list
-                st.session_state["ps_api"],
-                st.session_state["ui_queue"],
-                st.session_state["_ws_stop_event"]
-            )
-            st.session_state["ws"] = ws
-            st.success(f"📡 WebSocket started with {len(symbols)} symbols")
-
-            try:
-                st.session_state["ps_api"].start_candle_builder(
-                    intervals=[int(st.session_state.get("saved_interval", "5"))]
-                )
-                st.info("🕒 Candle builder started successfully.")
-            except Exception as e:
-                st.warning(f"⚠️ Candle builder not started: {e}")
-
-        except Exception as e:
-            st.error(f"❌ WebSocket start failed: {e}")
-
+    # ✅ WebSocket will now start only when Auto Trader starts, not before
+    st.warning("⚠️ WebSocket will start only when Auto Trader is started.")
 
     show_ticks = st.checkbox("Show raw ticks (debug)", value=False)
 
@@ -231,6 +206,15 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
     # Start button
     if st.button("🚀 Start Auto Trader"):
+        # ✅ Start WebSocket now only when Auto Trader starts
+        ws = start_ws(
+            st.session_state["symbols_for_ws"],
+            st.session_state["ps_api"],
+            st.session_state["ui_queue"],
+            st.session_state["_ws_stop_event"]
+        )
+        st.session_state["ws"] = ws
+        st.success(f"📡 WebSocket Started for {len(st.session_state['symbols_for_ws'])} symbol(s)")
         if "ps_api" in st.session_state and "all_watchlists" in st.session_state:
             ps_api = st.session_state["ps_api"]
             all_wls_copy = st.session_state["all_watchlists"].copy()
@@ -319,6 +303,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
