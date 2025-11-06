@@ -506,16 +506,20 @@ with tab5:
             # ✅ Load HTML file
             html_data = open(chart_file, "r", encoding="utf-8").read()
 
-            # ✅ Inject history + WS URL
+            # ✅ Inject history + WS URL + Token + Interval
+            initial_token = st.session_state.get("selected_symbol")  # e.g. "NSE|21614"
+
+            html_data = open(chart_file, "r", encoding="utf-8").read()
             html_data = (
                 f"<script>"
                 f"window.initialHistory = {history}; "
-                f"window.wsUrl = '{backend_ws_origin}';"
+                f"window.wsUrl = '{backend_ws_origin}'; "
+                f"window.initialToken = '{initial_token}'; "
+                f"window.barInterval = {int(selected_interval)};"
                 f"</script>"
                 + html_data
             )
 
-            # ✅ Render chart smooth
             st_html(html_data, height=650)
 
         else:
@@ -856,6 +860,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
