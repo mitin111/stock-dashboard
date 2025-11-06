@@ -82,26 +82,17 @@ async def ws_live(websocket: WebSocket):
 
     def on_tick(tick):
         try:
-            # token
-            token = tick.get("tk") or tick.get("token") or tick.get("symbol") or tick.get("tsym")
-            # price
+            token = tick.get("tk") or tick.get("token") or tick.get("tsym") or tick.get("symbol")
             last_price = tick.get("lp") or tick.get("ltp") or tick.get("price")
-            # timestamp (epoch)
             raw_ts = tick.get("ft") or tick.get("time") or tick.get("lts") or tick.get("ltt")
-
             if not (token and last_price and raw_ts):
                 return
 
             ts = int(float(raw_ts))
-            # ms -> s
             if ts > 1_000_000_000_000:
                 ts //= 1000
 
-            payload = json.dumps({
-                "tk": str(token),        # e.g. "NSE|21614"
-                "ft": ts,                # epoch seconds (UTC)
-                "lp": float(last_price)  # price
-            })
+            payload = json.dumps({"tk": str(token), "ft": ts, "lp": float(last_price)})
             asyncio.create_task(broadcast(payload))
         except Exception as e:
             logging.warning("on_tick broadcast error: %s", e)
@@ -125,6 +116,7 @@ async def ws_live(websocket: WebSocket):
     finally:
         clients.discard(websocket)
         logging.info("Client disconnected. total=%d", len(clients))
+
 
 
 
