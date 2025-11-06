@@ -745,6 +745,37 @@ with tab5:
     else:
         st.warning("⚠️ No TPSeries data fetched")
 
+    # ✅ AUTO START LIVE FEED (No Start Button Needed)
+    from tab4_auto_trader import start_ws
+
+    # Ensure stop event exists
+    if "_ws_stop_event" not in st.session_state:
+        st.session_state["_ws_stop_event"] = threading.Event()
+
+    # Auto-start WebSocket only once
+    if not st.session_state.get("ws_started", False):
+        try:
+            ws = start_ws(
+                st.session_state["symbols_for_ws"],
+                st.session_state["ps_api"],
+                st.session_state["ui_queue"],
+                st.session_state["_ws_stop_event"]
+            )
+            st.session_state["ws"] = ws
+            st.session_state.live_feed_flag["active"] = True
+            st.session_state.ws_started = True
+            st.success(f"📡 Live Feed Started Automatically for {len(st.session_state['symbols_for_ws'])} symbol(s)")
+        except Exception as e:
+            st.error(f"❌ WebSocket auto-start failed: {e}")
+
+    # Auto-stop when user closes chart or leaves tab
+    if not st.session_state.get("chart_open", False):
+        try:
+            st.session_state["_ws_stop_event"].set()
+        except:
+            pass
+        st.session_state.live_feed_flag["active"] = False
+        st.session_state.ws_started = False
 
     # --- Drain queue and apply live ticks to last candle ---
     # This block runs each script run and consumes queued ticks (non-blocking)
@@ -871,6 +902,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
