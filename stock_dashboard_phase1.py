@@ -260,16 +260,17 @@ with tab3:
 # === Tab 4: Indicator Settings ===
 with tab4:
     from tab4_auto_trader import render_tab4
-    from tkp_trm_chart import trm_settings_ui
+    from tkp_trm_chart import render_trm_settings_once
 
     st.subheader("📀 Indicator & TRM Settings")
 
     # AutoTrader settings panel
     render_tab4(require_session_settings=True, allow_file_fallback=False)
 
-    # TRM/MACD settings panel
+    # TRM/MACD settings panel (safe, no duplication)
     st.markdown("---")
-    trm_settings_ui()
+    render_trm_settings_once()
+
 
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -902,6 +903,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
