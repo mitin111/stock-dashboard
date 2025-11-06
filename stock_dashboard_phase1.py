@@ -282,9 +282,9 @@ with tab4:
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
-    # 🚧 STOP everything if login not done
-    if "ps_api" not in st.session_state:
-        st.warning("⚠️ Please login to start live data & charts.")
+    # ✅ HARD STOP if not logged in (so no WebSocket / history loads trigger)
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+        st.info("🔐 Please login first to enable Strategy Engine.")
         st.stop()
 
     # --- WebSocket backend status ---
@@ -914,6 +914,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
