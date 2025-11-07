@@ -255,6 +255,10 @@ with tab5:
         st.info("🔐 Please login first to enable Strategy Engine.")
         st.stop()
 
+    # ✅ Register strategy callback only after login
+    from tab4_auto_trader import on_new_candle
+    st.session_state.ps_api.on_new_candle = on_new_candle
+
     # --- WebSocket backend status ---
     if "ws_backend_ok" in st.session_state:
         if st.session_state["ws_backend_ok"]:
@@ -361,8 +365,7 @@ with tab5:
         st.success(f"Interval saved: {selected_interval} min")
 
     # --- Shared UI Queue ---
-    if "ui_queue" not in st.session_state:
-        st.session_state.ui_queue = queue.Queue()
+    ui_queue = st.session_state.setdefault("ui_queue", queue.Queue())
     ui_queue = st.session_state.ui_queue
 
     # --- Placeholders ---
@@ -879,6 +882,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
