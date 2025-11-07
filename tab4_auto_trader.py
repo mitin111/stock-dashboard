@@ -4,12 +4,12 @@ import pandas as pd
 import threading
 import time
 import queue
+from datetime import datetime
 from tkp_trm_chart import load_trm_settings_from_file
 from dashboard_logic import save_qty_map, load_qty_map
 import json
 from datetime import datetime
 
-    
 # 🔹 Global queue for thread -> UI communication
 ui_queue = queue.Queue()
 AUTO_TRADE_FLAG = False
@@ -307,6 +307,7 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
