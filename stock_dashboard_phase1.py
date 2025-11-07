@@ -130,46 +130,31 @@ import json
 with tab2:
     st.subheader("📊 Dashboard")
 
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
-        st.warning("⚠️ Please login first to view Dashboard.")
-        st.stop()   # ✅ <-- This is the missing line
-
-
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
-        st.warning("⚠️ Please login first to view Dashboard.")
+    logged_in = ("ps_api" in st.session_state) and st.session_state.ps_api.is_logged_in()
+    if not logged_in:
+        st.info("🔐 Please login first to view Dashboard.")
     else:
         ps_api = st.session_state.ps_api
         col1, col2 = st.columns(2)
 
-        # --- Manual Refresh Button ---
         if st.button("🔄 Refresh Order/Trade Book"):
             ps_api._order_book = ps_api.order_book()
             ps_api._trade_book = ps_api.trade_book()
 
-        # --- Placeholders for blink-free display ---
         ob_placeholder = st.empty()
         tb_placeholder = st.empty()
 
-        # ------------------- ORDER BOOK -------------------
         with col1:
             st.markdown("### 📑 Order Book")
             try:
-                # Use cached/order update if exists
                 ob_list = ps_api._order_book if hasattr(ps_api, "_order_book") else ps_api.order_book()
-
-                # Normalize to list
                 if isinstance(ob_list, dict):
                     ob_list = [ob_list]
                 elif not isinstance(ob_list, list):
                     ob_list = []
-
                 df_ob = pd.DataFrame(ob_list)
                 if not df_ob.empty:
-                    show_cols = [
-                        "norenordno","exch","tsym","trantype","qty",
-                        "prc","prctyp","status","rejreason",
-                        "avgprc","ordenttm","norentm"
-                    ]
+                    show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc","ordenttm","norentm"]
                     df_ob = df_ob.reindex(columns=show_cols, fill_value=np.nan)
                     ob_placeholder.dataframe(df_ob, use_container_width=True, height=400)
                 else:
@@ -177,25 +162,17 @@ with tab2:
             except Exception as e:
                 ob_placeholder.error(f"❌ Error fetching Order Book: {e}")
 
-        # ------------------- TRADE BOOK -------------------
         with col2:
             st.markdown("### 📑 Trade Book")
             try:
-                # Use cached/trade update if exists
                 tb_list = ps_api._trade_book if hasattr(ps_api, "_trade_book") else ps_api.trade_book()
-
-                # Normalize to list
                 if isinstance(tb_list, dict):
                     tb_list = [tb_list]
                 elif not isinstance(tb_list, list):
                     tb_list = []
-
                 df_tb = pd.DataFrame(tb_list)
                 if not df_tb.empty:
-                    show_cols = [
-                        "norenordno","exch","tsym","trantype",
-                        "fillshares","avgprc","status","norentm"
-                    ]
+                    show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status","norentm"]
                     df_tb = df_tb.reindex(columns=show_cols, fill_value=np.nan)
                     tb_placeholder.dataframe(df_tb, use_container_width=True, height=400)
                 else:
@@ -208,14 +185,17 @@ with tab2:
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
 
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
-        st.info("ℹ️ Please login to view live watchlist data.")
-        st.stop()   # ✅ <-- Required to prevent flicker
-
-
-    if "ps_api" in st.session_state:
+    logged_in = ("ps_api" in st.session_state) and st.session_state.ps_api.is_logged_in()
+    if not logged_in:
+        st.info("🔐 Please login to view live watchlist data.")
+    else:
         ps_api = st.session_state["ps_api"]
-        wl_resp = ps_api.get_watchlists()
+        try:
+            wl_resp = ps_api.get_watchlists()
+        except Exception as e:
+            st.warning(f"⚠️ Could not fetch watchlists: {e}")
+            wl_resp = {}
+
         if wl_resp.get("stat") == "Ok":
             raw_watchlists = wl_resp["values"]
             watchlists = sorted(raw_watchlists, key=int)
@@ -232,25 +212,17 @@ with tab3:
                 st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
                 st.dataframe(df if not df.empty else pd.DataFrame())
 
-                # ✅ WebSocket + AutoTrader ke liye symbols prepare karo
                 symbols_with_tokens = []
                 for s in wl_data["values"]:
                     token = s.get("token", "")
                     if token:
-                        symbols_with_tokens.append({
-                            "tsym": s["tsym"],
-                            "exch": s["exch"],
-                            "token": token
-                        })
+                        symbols_with_tokens.append({"tsym": s["tsym"], "exch": s["exch"], "token": token})
                 st.session_state["symbols"] = symbols_with_tokens
                 st.success(f"✅ {len(symbols_with_tokens)} symbols ready for WebSocket/AutoTrader")
-
             else:
                 st.warning(wl_data.get("emsg", "Failed to load watchlist."))
         else:
             st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
-    else:
-        st.info("ℹ️ Please login to view live watchlist data.")
 
 # === Tab 4: Indicator Settings ===
 with tab4:
@@ -298,6 +270,13 @@ with tab5:
     import pandas as pd, pytz
     pd.set_option('future.no_silent_downcasting', True)
     from datetime import datetime, timedelta
+
+    # --- Load scrips & prepare WS symbol list ---
+    try:
+        scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
+    except Exception as e:
+        st.warning("⚠️ Waiting for login & watchlist selection…")
+        st.stop()
 
     # --- Initialize session state defaults ---
     for key, default in {
@@ -887,6 +866,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
