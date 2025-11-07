@@ -1,7 +1,19 @@
 # stock_dashboard_phase1.py
 
-import os    # ✅ ADD THIS
+import os
 import streamlit as st
+
+# ✅ Render Health Check (must be first UI action — BEFORE set_page_config)
+if "RENDER" in os.environ:
+    health = st.experimental_get_query_params().get("health", ["0"])[0]
+    if health == "1":
+        st.write("ok")
+        st.stop()
+
+# === Page Layout ===
+st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
+st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
+
 import pandas as pd
 from prostocks_connector import ProStocksAPI
 from dashboard_logic import load_settings, save_settings, load_credentials
@@ -888,6 +900,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
