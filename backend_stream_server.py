@@ -128,20 +128,32 @@ async def ws_live(websocket: WebSocket):
 
 import asyncio
 
-@app.on_event("startup")
-async def start_backend():
-    logging.info("Backend stream server starting...")
+@app.post("/subscribe")
+async def subscribe(request: Request):
+    body = await request.json()
+    tokens = body.get("tokens", [])
 
-    async def run_ws():
-        while True:
-            try:
-                ps_api.connect_websocket()
-            except Exception as e:
-                logging.warning(f"WS crashed, retrying in 5s: {e}")
-                await asyncio.sleep(5)
+    if not tokens or not isinstance(tokens, list):
+        return {"stat": "error", "emsg": "tokens must be a non-empty list"}
+
+    try:
+        # ✅ If WebSocket not connected → start it with tokens
+        if not ps_api.is_ws_connected:
+            ps_api.connect_websocket(tokens)
+            ps_api.is_ws_connected = True
+            logging.info(f"✅ WebSocket started with tokens: {tokens}")
+        else:
+            # ✅ If WebSocket already running → subscribe more tokens
+            ps_api.subscribe_tokens(tokens)
+            logging.info(f"➕ Added subscription: {tokens}")
+
+        return {"stat": "Ok", "subscribed": tokens}
+
+    except Exception as e:
+        logging.error(f"❌ Subscribe error: {e}")
+        return {"stat": "error", "emsg": str(e)}
 
 
-    asyncio.create_task(run_ws())
 
 
 
