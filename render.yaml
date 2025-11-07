@@ -1,7 +1,7 @@
 services:
   # ✅ BACKEND SHOULD BE WORKER (NO PUBLIC PORT BINDING)
   - type: worker
-    name: backend-stream
+    name: stock-dashboard-1
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend_stream_server:app --host 0.0.0.0 --port 8000
@@ -14,6 +14,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: streamlit run stock_dashboard_phase1.py --server.address=0.0.0.0 --server.port=$PORT --server.headless=true
     plan: standard
+
 
 
 
