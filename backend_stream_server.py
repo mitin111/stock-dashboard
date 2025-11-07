@@ -135,11 +135,13 @@ async def start_backend():
     async def run_ws():
         while True:
             try:
-                ps_api.start_websocket()  # Connect to tick stream permanently
+                ps_api.connect_websocket()
             except Exception as e:
                 logging.warning(f"WS crashed, retrying in 5s: {e}")
                 await asyncio.sleep(5)
 
+
     asyncio.create_task(run_ws())
+
 
 
