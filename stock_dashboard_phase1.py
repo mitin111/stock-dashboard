@@ -1,4 +1,6 @@
 # stock_dashboard_phase1.py
+
+import os    # ✅ ADD THIS
 import streamlit as st
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -18,7 +20,11 @@ try:
     import websocket
 except:
     websocket = None
-    
+
+# ✅ Render Health Check (MUST be above set_page_config)
+if os.environ.get("RENDER") == "true":
+    st.markdown("<!-- health-check -->")
+
 def check_backend_ws(url: str, timeout=5) -> bool:
     """Check if backend WebSocket server is reachable"""
     try:
@@ -882,6 +888,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
