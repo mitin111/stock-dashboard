@@ -21,10 +21,6 @@ try:
 except:
     websocket = None
 
-# ✅ Render Health Check (MUST be above set_page_config)
-if os.environ.get("RENDER") == "true":
-    st.markdown("<!-- health-check -->")
-
 def check_backend_ws(url: str, timeout=5) -> bool:
     """Check if backend WebSocket server is reachable"""
     try:
@@ -37,6 +33,10 @@ def check_backend_ws(url: str, timeout=5) -> bool:
 
 # === Page Layout ===
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
+
+if os.environ.get("RENDER") == "true":
+    st.markdown("<!-- health-check -->")   # ✅ prevents Render from killing app
+    
 # ✅ Add this line just after set_page_config
 st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
 st.title("📈 Automated Intraday Trading System")
@@ -888,6 +888,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
