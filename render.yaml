@@ -3,17 +3,18 @@ services:
   - type: worker
     name: backend-stream
     env: python
-    buildCommand: ""
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend_stream_server:app --host 0.0.0.0 --port 8000
     plan: standard
 
-  # ✅ FRONTEND IS THE ONLY WEB SERVICE
+  # ✅ FRONTEND IS THE WEB SERVICE
   - type: web
-    name: frontend-streamlit
+    name: stock-dashboard     # <-- FIXED NAME HERE
     env: python
-    buildCommand: ""
+    buildCommand: pip install -r requirements.txt
     startCommand: streamlit run stock_dashboard_phase1.py --server.address=0.0.0.0 --server.port=$PORT --server.headless=true
     plan: standard
+
 
 
 
