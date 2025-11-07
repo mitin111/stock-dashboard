@@ -7,6 +7,7 @@ import queue
 from tkp_trm_chart import load_trm_settings_from_file
 from dashboard_logic import save_qty_map, load_qty_map
 import json
+from datetime import datetime
 
     
 # 🔹 Global queue for thread -> UI communication
@@ -49,6 +50,11 @@ def start_ws(symbols, ps_api, ui_queue, stop_event):
         ui_queue.put(("ws_error", str(e)), block=False)
         return None
 
+def render_tab4(require_session_settings=False, allow_file_fallback=True):
+    """
+    Render the Indicator Settings / Auto Trader control UI (Tab 4).
+    """
+
     # ✅ SAFE LOGIN CHECK (Runs only when Tab 4 UI is displayed)
     if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
         st.info("🔐 Please login first to use Auto Trader settings.")
@@ -62,10 +68,6 @@ def start_ws(symbols, ps_api, ui_queue, stop_event):
     if "qty_map" not in st.session_state or not st.session_state["qty_map"]:
         st.session_state["qty_map"] = load_qty_map()
 
-def render_tab4(require_session_settings=False, allow_file_fallback=True):
-    """
-    Render the Indicator Settings / Auto Trader control UI (Tab 4).
-    """
     # ✅ Show subheader only once per session
     if "trm_qty_subheader_shown" not in st.session_state:
         st.subheader("📦 Position Quantity Mapping")
@@ -305,27 +307,6 @@ if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
         st.session_state["ps_api"].on_new_candle = on_new_candle
     except Exception as e:
         st.warning(f"⚠️ Could not set on_new_candle: {e}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
