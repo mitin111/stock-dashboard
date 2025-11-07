@@ -31,9 +31,9 @@ def save_trm_settings(settings):
 # =========================
 # Initialize session_state safely
 # =========================
-if "trm_settings" not in st.session_state:
-    st.session_state["trm_settings"] = load_trm_settings_from_file()
-
+def ensure_trm_settings_loaded():
+    if "trm_settings" not in st.session_state or not st.session_state["trm_settings"]:
+        st.session_state["trm_settings"] = load_trm_settings_from_file()
 
 # =========================
 # Streamlit Settings Panel (UI only)
@@ -93,17 +93,17 @@ if "trm_settings_expander_rendered" not in st.session_state:
 
 def render_trm_settings_once():
     """Render TRM Settings UI once per rerun"""
+    ensure_trm_settings_loaded()   # ✅ FIX: load settings only when UI is drawn
+
     if not st.session_state["trm_settings_expander_rendered"]:
         with st.expander("⚙️ TRM Settings (Manual Adjust)", expanded=False):
             render_trm_settings_ui_body()
         st.session_state["trm_settings_expander_rendered"] = True
     else:
-        # show expander header only, without body duplication
         st.markdown("### ⚙️ TRM Settings (Manual Adjust) *(Already loaded)*")
 
-# ✅ call this safely
-render_trm_settings_once()
-
+# ❌ REMOVE THIS LINE (was causing infinite rerun)
+# render_trm_settings_once()
 
 # =====================================================
 # 🔹 Legacy Wrapper for Backward Compatibility
@@ -632,6 +632,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
