@@ -45,13 +45,6 @@ def check_backend_ws(url: str, timeout=5) -> bool:
         return False
 
 # === Page Layout ===
-st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
-
-if os.environ.get("RENDER") == "true":
-    st.markdown("<!-- health-check -->")   # ✅ prevents Render from killing app
-    
-# ✅ Add this line just after set_page_config
-st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
 st.title("📈 Automated Intraday Trading System")
 
 # === Load Settings (once) ===
@@ -901,6 +894,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
