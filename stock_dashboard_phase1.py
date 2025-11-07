@@ -88,7 +88,7 @@ with st.sidebar:
                     st.session_state["ps_api"] = ps_api
                     st.session_state["logged_in"] = True   # ✅ mark login successful
 
-                    backend_ws_url = "ws://backend-stream:8000/ws/live"
+                    backend_ws_url = "wss://backend-stream-nmlf.onrender.com/ws/live"
                     st.session_state["ws_backend_ok"] = True
                     st.success("✅ Login Successful")
 
@@ -490,7 +490,7 @@ with tab5:
 
             backend_ws_origin = st.text_input(
                 "Backend WS URL",
-                value="ws://backend-stream:8000/ws/live"
+                value="wss://backend-stream-nmlf.onrender.com/ws/live"
             )
 
             # ✅ Convert history → Lightweight format
@@ -529,7 +529,7 @@ with tab5:
             # ✅ Fire-and-forget backend subscribe (no UI button needed)
             try:
                 requests.post(
-                    "http://backend-stream:8000/subscribe",
+                    "https://backend-stream-nmlf.onrender.com/subscribe",
                     json={"tokens": [initial_token]},
                     timeout=4
                 )
@@ -895,6 +895,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
