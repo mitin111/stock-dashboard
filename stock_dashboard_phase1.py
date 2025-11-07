@@ -14,8 +14,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pytz
 
-import websocket  # top पर ही रखें
-
+try:
+    import websocket
+except:
+    websocket = None
+    
 def check_backend_ws(url: str, timeout=5) -> bool:
     """Check if backend WebSocket server is reachable"""
     try:
@@ -876,6 +879,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
