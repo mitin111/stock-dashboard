@@ -10,9 +10,9 @@ from dashboard_logic import save_qty_map, load_qty_map
 import json
 
 # 🔹 Global queue for thread -> UI communication
-ui_queue = queue.Queue()
-AUTO_TRADE_FLAG = False
-strategy_settings_copy = None
+# ui_queue = queue.Queue()
+# AUTO_TRADE_FLAG = False
+# strategy_settings_copy = None
 
 
 # Helper: safe print (so it shows in server logs)
@@ -301,11 +301,12 @@ def on_new_candle(symbol, df):
 
 
 # Register the hook with ps_api
-if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
-    try:
-        st.session_state["ps_api"].on_new_candle = on_new_candle
-    except Exception as e:
-        st.warning(f"⚠️ Could not set on_new_candle: {e}")
+# if "ps_api" in st.session_state and st.session_state["ps_api"] is not None:
+#     try:
+#        st.session_state["ps_api"].on_new_candle = on_new_candle
+#    except Exception as e:
+#        st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
