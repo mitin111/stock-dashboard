@@ -2,7 +2,8 @@
 headless = true
 enableCORS = false
 enableXsrfProtection = false
-port = $PORT
+port = "${PORT}"
+address = "0.0.0.0"
 
 [browser]
 serverAddress = "0.0.0.0"
