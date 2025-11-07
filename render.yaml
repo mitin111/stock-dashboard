@@ -1,16 +1,20 @@
 services:
-  - type: web
+  # ✅ BACKEND SHOULD BE WORKER (NO PUBLIC PORT BINDING)
+  - type: worker
     name: backend-stream
     env: python
     buildCommand: ""
-    startCommand: uvicorn backend_stream_server:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn backend_stream_server:app --host 0.0.0.0 --port 8000
     plan: standard
 
+  # ✅ FRONTEND IS THE ONLY WEB SERVICE
   - type: web
     name: frontend-streamlit
     env: python
     buildCommand: ""
-    startCommand: streamlit run stock_dashboard_phase1.py
+    startCommand: streamlit run stock_dashboard_phase1.py --server.address=0.0.0.0 --server.port=$PORT --server.headless=true
     plan: standard
+
+
 
 
