@@ -48,33 +48,6 @@ async def broadcast(msg: str):
     for d in dead:
         clients.discard(d)
 
-# ✅ HTTP Subscribe Endpoint
-@app.post("/subscribe")
-async def subscribe(request: Request):
-    """
-    Subscribe symbols from Streamlit via HTTP POST API.
-    Example POST body:
-    {
-        "tokens": ["NSE|2885", "NSE|11872"]
-    }
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        return {"stat": "error", "emsg": "invalid JSON"}
-
-    tokens = body.get("tokens", [])
-    if not isinstance(tokens, list):
-        return {"stat": "error", "emsg": "tokens must be a list"}
-
-    try:
-        ps_api.subscribe_tokens(tokens)
-        logging.info(f"✅ Subscribed via /subscribe: {tokens}")
-        return {"stat": "Ok", "subscribed": tokens}
-    except Exception as e:
-        logging.warning(f"❌ Subscribe error: {e}")
-        return {"stat": "error", "emsg": str(e)}
-
 
 @app.on_event("startup")
 async def startup_event():
@@ -152,6 +125,7 @@ async def subscribe(request: Request):
     except Exception as e:
         logging.error(f"❌ Subscribe error: {e}")
         return {"stat": "error", "emsg": str(e)}
+
 
 
 
