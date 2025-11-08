@@ -3,10 +3,7 @@
 import os
 import streamlit as st
 
-import os
-import streamlit as st
-
-# ✅ STREAMLIT PORT BINDING FOR RENDER (MUST BE FIRST)
+# ✅ Force correct port on Render
 if "PORT" in os.environ:
     os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
@@ -14,20 +11,18 @@ if "PORT" in os.environ:
 # ✅ First UI command
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
-# ✅ Health Check
-qp = st.query_params
+# ✅ HEALTH CHECK (only for Render calls)
+# Detect if request came from Render health bot
+headers = st.context.headers if hasattr(st.context, "headers") else {}
 
-# 🚨 If request is from Render health-check → return ok
-if ("RENDER" in os.environ) and (("healthz" in qp) or ("health" in qp) or (qp == {})):
+# If User-Agent contains Render OR path includes health → return ok
+ua = headers.get("User-Agent", "")
+path = st.query_params
+
+if "Render" in ua or path.get("healthz") == "1" or path.get("health") == "1":
     st.text("ok")
     st.stop()
 
-# ✅ Now UI can render normally only when `?app=1`
-if "app" not in qp:
-    st.markdown("### ✅ App is running")
-    st.markdown("Click below to open dashboard:")
-    st.markdown("👉 **https://stock-dashboard-o2r9.onrender.com/?app=1**", unsafe_allow_html=True)
-    st.stop()
 
 
 # ✅ Safe metadata (optional)
@@ -922,6 +917,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
