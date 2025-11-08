@@ -27,11 +27,12 @@ base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenW
 try:
     ps_api = ProStocksAPI(base_url=base_url)
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-    ps_api.is_ws_connected = False     # ✅ IMPORTANT
+    ps_api.is_ws_connected = False
     logging.info(f"✅ ProStocksAPI initialized with base_url={base_url}")
 except Exception as e:
     ps_api = None
     logging.error(f"❌ API Init failed: {e}")
+
 
 clients = set()
 
@@ -107,6 +108,7 @@ async def subscribe(request: Request):
     except Exception as e:
         logging.error(f"❌ Subscribe failed: {e}")
         return {"stat": "error", "emsg": str(e)}
+
 
 
 
