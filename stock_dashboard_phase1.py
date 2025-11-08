@@ -89,6 +89,8 @@ with st.sidebar:
                     st.session_state["ps_api"] = ps_api
                     st.session_state["logged_in"] = True
 
+                    st.session_state.jKey = ps_api.session_token
+
                     # 🧹 make sure nothing auto-starts before you open chart
                     st.session_state["ws_started"] = False
                     st.session_state["live_feed_flag"] = {"active": False}
@@ -907,6 +909,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
