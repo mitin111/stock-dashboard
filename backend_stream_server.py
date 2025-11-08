@@ -38,9 +38,20 @@ async def init_api(request: Request):
     base_url = body.get("base_url", "https://starapi.prostocks.com/NorenWClientTP")
 
     from prostocks_connector import ProStocksAPI
+
     ps_api = ProStocksAPI(userid=userid, password_plain=pwd, vc=vc,
                           api_key=api_key, imei=imei, base_url=base_url)
-    return {"stat": "Ok", "msg": "✅ Backend session ready"}
+
+    success, msg = ps_api.login(body.get("factor2", ""))   # ✅ BACKEND LOGIN DONE HERE
+
+    if not success:
+        return {"stat": "error", "emsg": f"Login failed: {msg}"}
+
+    ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+    ps_api.is_ws_connected = False  # ✅ Reset WS state
+
+    logging.info("✅ Backend login success — session synced")
+    return {"stat": "Ok", "msg": "✅ Backend logged in & ready"}
 
 
 clients = set()
@@ -117,6 +128,7 @@ async def subscribe(request: Request):
     except Exception as e:
         logging.error(f"❌ Subscribe failed: {e}")
         return {"stat": "error", "emsg": str(e)}
+
 
 
 
