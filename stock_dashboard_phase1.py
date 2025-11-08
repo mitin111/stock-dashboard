@@ -3,17 +3,19 @@
 import os
 import streamlit as st
 
-# ✅ Correct port binding on Render
+# correct port binding
 if "PORT" in os.environ:
     os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
 
-# ✅ First UI command (no health check below!)
+# first UI command
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
+# health check (simple and safe)
+if st.query_params.get("healthz") == "1":
+    st.text("ok")
+    st.stop()
 
-# ✅ Safe metadata (optional)
-st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
 
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -904,6 +906,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
