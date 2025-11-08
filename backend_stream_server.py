@@ -22,16 +22,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Init API ---
-base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
-try:
-    ps_api = ProStocksAPI(base_url=base_url)
-    ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-    ps_api.is_ws_connected = False
-    logging.info(f"✅ ProStocksAPI initialized with base_url={base_url}")
-except Exception as e:
-    ps_api = None
-    logging.error(f"❌ API Init failed: {e}")
+# --- DO NOT LOGIN OR INIT WITHOUT USER SESSION ---
+ps_api = None
+
+@app.post("/init")
+async def init_api(request: Request):
+    global ps_api
+    body = await request.json()
+
+    userid = body.get("userid")
+    pwd = body.get("password")
+    vc = body.get("vc")
+    api_key = body.get("api_key")
+    imei = body.get("imei")
+    base_url = body.get("base_url", "https://starapi.prostocks.com/NorenWClientTP")
+
+    from prostocks_connector import ProStocksAPI
+    ps_api = ProStocksAPI(userid=userid, password_plain=pwd, vc=vc,
+                          api_key=api_key, imei=imei, base_url=base_url)
+    return {"stat": "Ok", "msg": "✅ Backend session ready"}
 
 
 clients = set()
@@ -108,6 +117,7 @@ async def subscribe(request: Request):
     except Exception as e:
         logging.error(f"❌ Subscribe failed: {e}")
         return {"stat": "error", "emsg": str(e)}
+
 
 
 
