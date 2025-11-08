@@ -112,11 +112,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📀 Indicator Settings",
     "📉 Strategy Engine"
 ])
-# ✅ Global guard: Prevent Tab 5 from executing before login
-if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
-    with tab5:
-        st.warning("🔐 Please login first to view Strategy Engine & Real-time Chart.")
-    st.stop()
 
 # === Tab 1: Trade Controls ===
 with tab1:
@@ -906,6 +901,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
