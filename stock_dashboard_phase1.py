@@ -292,15 +292,6 @@ with tab5:
     from tab4_auto_trader import on_new_candle
     st.session_state.ps_api.on_new_candle = on_new_candle
 
-    # --- WebSocket backend status ---
-    if "ws_backend_ok" in st.session_state:
-        if st.session_state["ws_backend_ok"]:
-            st.success("✅ Backend WS reachable")
-        else:
-            st.error("❌ Backend WS unreachable — check backend_stream_server or Render URL")
-    else:
-        st.info("ℹ️ Backend WS status not checked yet. Login to test connection.")
-
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd, pytz
@@ -917,6 +908,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
