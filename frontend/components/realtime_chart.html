@@ -65,47 +65,48 @@ function bucketToInterval(tsSec) {
 }
 
 // ---- WebSocket ----
-let ws = new WebSocket(wsUrl);
+let ws = null;
+if (initialTok && initialTok !== "null" && initialTok !== "") {
+  ws = new WebSocket(wsUrl);
+}
 
-ws.onopen = () => {
-  console.log("✅ LW WS Connected:", wsUrl);
-  // ✅ auto-subscribe current token
-  if (initialTok) {
+if (ws) {
+  ws.onopen = () => {
+    console.log("✅ LW WS Connected:", wsUrl);
+
+    if (initialTok) {
+      try {
+        ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
+        console.log("🔔 Subscribed to", initialTok);
+      } catch (e) { console.log(e); }
+    }
+  };
+
+  ws.onmessage = (event) => {
     try {
-      ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
-      console.log("🔔 Subscribed to", initialTok);
-    } catch (e) { console.log(e); }
-  }
-};
+      const payload = JSON.parse(event.data);
 
-ws.onmessage = (event) => {
-  try {
-    const payload = JSON.parse(event.data);
+      const p = payload.tick ? payload.tick : payload;
+      const price = Number(p.lp || p.ltp || p.price);
+      let ts = Number(p.ft || p.time || p.lts);
+      if (!price || !ts) return;
+      if (ts > 1e12) ts = Math.floor(ts / 1000);
 
-    // Accept both flat and nested formats
-    const p = payload.tick ? payload.tick : payload;
+      const tBucket = bucketToInterval(ts);
 
-    const price = Number(p.lp || p.ltp || p.price);
-    let ts = Number(p.ft || p.time || p.lts);
+      candleSeries.update({
+        time: tBucket,
+        open: price, high: price, low: price, close: price
+      });
+    } catch (e) {
+      console.log("⚠️ Tick parse error:", e);
+    }
+  };
 
-    if (!price || !ts) return;
-    if (ts > 1e12) ts = Math.floor(ts / 1000); // ms -> s
-
-    const tBucket = bucketToInterval(ts);
-
-    candleSeries.update({
-      time: tBucket,
-      open: price, high: price, low: price, close: price
-    });
-  } catch (e) {
-    console.log("⚠️ Tick parse error:", e);
-  }
-};
-
-ws.onclose = () => {
-  console.log("🔌 WS Closed — Reconnecting WebSocket only…");
-  setTimeout(() => {
-    ws = new WebSocket(wsUrl);
-  }, 2000);
-};
-
+  ws.onclose = () => {
+    console.log("🔌 WS Closed — Reconnecting…");
+    setTimeout(() => {
+      ws = new WebSocket(wsUrl);
+    }, 2000);
+  };
+}
