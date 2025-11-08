@@ -1,18 +1,29 @@
 # stock_dashboard_phase1.py
 
 import os
+
+# ✅ STREAMLIT PORT BINDING FOR RENDER
+if "PORT" in os.environ:
+    os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
+    os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
+
+# ✅ Health Check (NO st.write here!)
+from urllib.parse import parse_qs
+import os
 import streamlit as st
 
-# ✅ Render Health Check (front-end Streamlit must return 200 OK)
-# Works on ALL Streamlit versions + Render health probes
-qp = st.experimental_get_query_params()
-if qp.get("health", ["0"])[0] == "1" or qp.get("healthz", ["0"])[0] == "1":
-    st.write("ok")
+qp = st.query_params  # ✅ modern API replacement
+if qp.get("health") == "1" or qp.get("healthz") == "1":
+    # ✅ MUST NOT USE st.write before set_page_config in real render run
+    print("ok")        # Safe for health checks
     st.stop()
 
-# ✅ Must be FIRST UI command
+# ✅ FIRST Streamlit UI command (MUST be here)
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
+
+# ✅ Optional, safe after set_page_config
 st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
+
 
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -903,6 +914,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
