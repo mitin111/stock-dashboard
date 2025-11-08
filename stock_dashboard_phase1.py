@@ -71,7 +71,7 @@ with st.sidebar:
         vc = st.text_input("Vendor Code", value=creds["vc"] or uid)
         api_key = st.text_input("API Key", type="password", value=creds["api_key"])
         imei = st.text_input("MAC Address", value=creds["imei"])
-        base_url = st.text_input("Base URL", value=creds["base_url"])
+        base_url = st.text_input("Base URL", value=os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP"))
         apkversion = st.text_input("APK Version", value=creds["apkversion"])
 
         submitted = st.form_submit_button("🔐 Login")
@@ -895,6 +895,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
