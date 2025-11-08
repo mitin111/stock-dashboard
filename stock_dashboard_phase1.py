@@ -36,16 +36,6 @@ try:
 except:
     websocket = None
 
-def check_backend_ws(url: str, timeout=5) -> bool:
-    """Check if backend WebSocket server is reachable"""
-    try:
-        ws = websocket.create_connection(url, timeout=timeout)
-        ws.close()
-        return True
-    except Exception as e:
-        print(f"❌ WebSocket check failed: {e}")
-        return False
-
 # === Page Layout ===
 st.title("📈 Automated Intraday Trading System")
 
@@ -927,6 +917,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
