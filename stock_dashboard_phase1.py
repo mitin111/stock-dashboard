@@ -3,7 +3,7 @@
 import os
 import streamlit as st
 
-# ✅ Force correct port on Render
+# ✅ Correct port binding on Render
 if "PORT" in os.environ:
     os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
@@ -11,18 +11,11 @@ if "PORT" in os.environ:
 # ✅ First UI command
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
-# ✅ HEALTH CHECK (only for Render calls)
-# Detect if request came from Render health bot
-headers = st.context.headers if hasattr(st.context, "headers") else {}
-
-# If User-Agent contains Render OR path includes health → return ok
-ua = headers.get("User-Agent", "")
-path = st.query_params
-
-if "Render" in ua or path.get("healthz") == "1" or path.get("health") == "1":
+# ✅ Health Check — ONLY respond if explicitly requested
+qp = st.query_params
+if qp.get("healthz") == "1" or qp.get("health") == "1":
     st.text("ok")
     st.stop()
-
 
 
 # ✅ Safe metadata (optional)
@@ -917,6 +910,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
