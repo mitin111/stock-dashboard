@@ -263,6 +263,11 @@ with tab4:
 with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
+    # ✅ ABSOLUTE FIRST GUARD (prevents login page blink)
+    if "jKey" not in st.session_state or not st.session_state.jKey:
+        st.warning("⚠️ Please login first to view real-time chart.")
+        st.stop()
+
     # ✅ HARD STOP if not logged in (so no WebSocket / history loads trigger)
     if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
         st.info("🔐 Please login first to enable Strategy Engine.")
@@ -895,6 +900,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
