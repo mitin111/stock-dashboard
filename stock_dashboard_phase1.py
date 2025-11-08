@@ -11,15 +11,16 @@ if "PORT" in os.environ:
 # ✅ FIRST (and only) Streamlit UI bootstrap line
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
-# ✅ Health Check (AFTER set_page_config, before any UI)
+# ✅ Render Health Check — works for BOTH:
+#    /               → default Render check
+#    /?healthz=1     → your manual test
 qp = st.query_params
-if qp.get("healthz") == "1" or qp.get("health") == "1":
+if qp == {} or qp.get("health") == "1" or qp.get("healthz") == "1":
     st.text("ok")
     st.stop()
 
 # ✅ Safe metadata (optional)
 st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
-
 
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -910,6 +911,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
