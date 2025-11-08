@@ -97,6 +97,7 @@ with st.sidebar:
                                 "api_key": api_key,
                                 "imei": imei,
                                 "base_url": base_url
+                                "factor2": factor2    # ✅ IMPORTANT
                             },
                             timeout=5
                         )
@@ -908,6 +909,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
