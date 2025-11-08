@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 # --- Init API ---
-base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapiuat.prostocks.com/NorenWClientTP")
+base_url = os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
 try:
     ps_api = ProStocksAPI(base_url=base_url)
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
@@ -107,6 +107,7 @@ async def subscribe(request: Request):
     except Exception as e:
         logging.error(f"❌ Subscribe failed: {e}")
         return {"stat": "error", "emsg": str(e)}
+
 
 
 
