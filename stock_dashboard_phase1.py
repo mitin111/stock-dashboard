@@ -3,21 +3,32 @@
 import os
 import streamlit as st
 
+import os
+import streamlit as st
+
 # ✅ STREAMLIT PORT BINDING FOR RENDER (MUST BE FIRST)
 if "PORT" in os.environ:
     os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
 
-# ✅ FIRST (and only) Streamlit UI bootstrap line
+# ✅ First UI command
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
-# ✅ Render Health Check — works for BOTH:
-#    /               → default Render check
-#    /?healthz=1     → your manual test
+# ✅ Health Check
 qp = st.query_params
-if qp == {} or qp.get("health") == "1" or qp.get("healthz") == "1":
+
+# 🚨 If request is from Render health-check → return ok
+if ("RENDER" in os.environ) and (("healthz" in qp) or ("health" in qp) or (qp == {})):
     st.text("ok")
     st.stop()
+
+# ✅ Now UI can render normally only when `?app=1`
+if "app" not in qp:
+    st.markdown("### ✅ App is running")
+    st.markdown("Click below to open dashboard:")
+    st.markdown("👉 **https://stock-dashboard-o2r9.onrender.com/?app=1**", unsafe_allow_html=True)
+    st.stop()
+
 
 # ✅ Safe metadata (optional)
 st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
@@ -911,6 +922,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
