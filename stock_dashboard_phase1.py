@@ -8,14 +8,8 @@ if "PORT" in os.environ:
     os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
 
-# ✅ First UI command
+# ✅ First UI command (no health check below!)
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
-
-# ✅ Health Check — ONLY respond if explicitly requested
-qp = st.query_params
-if qp.get("healthz") == "1" or qp.get("health") == "1":
-    st.text("ok")
-    st.stop()
 
 
 # ✅ Safe metadata (optional)
@@ -910,6 +904,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
