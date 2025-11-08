@@ -87,11 +87,15 @@ with st.sidebar:
 
                 if success:
                     st.session_state["ps_api"] = ps_api
-                    st.session_state["logged_in"] = True   # ✅ mark login successful
+                    st.session_state["logged_in"] = True
 
-                    backend_ws_url = "wss://backend-stream-nmlf.onrender.com/ws/live"
-                    st.session_state["ws_backend_ok"] = True
-                    st.success("✅ Login Successful")
+                    # 🧹 make sure nothing auto-starts before you open chart
+                    st.session_state["ws_started"] = False
+                    st.session_state["live_feed_flag"] = {"active": False}
+                    st.session_state["_ws_stop_event"] = None
+
+                    st.success("✅ Login Successful — Open Tab 5 → 'Open Chart' to start live feed.")
+
 
                 else:
                     st.error(f"❌ Login failed: {msg}")
@@ -298,11 +302,6 @@ with tab5:
     from datetime import datetime, timedelta
 
     # --- Load scrips & prepare WS symbol list ---
-    try:
-        scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
-    except Exception as e:
-        st.warning("⚠️ Waiting for login & watchlist selection…")
-        st.stop()
 
     # --- Initialize session state defaults ---
     for key, default in {
@@ -373,6 +372,13 @@ with tab5:
                                   index=wl_labels.index(f"Watchlist {current_wl}") if current_wl in watchlists else 0)
     selected_watchlist = dict(zip(wl_labels, watchlists))[selected_label]
     st.session_state.selected_watchlist = selected_watchlist
+
+    # --- Load scrips & prepare WS symbol list (correct location) ---
+    try:
+        scrips = ps_api.get_watchlist(selected_watchlist).get("values", [])
+    except Exception as e:
+        st.warning("⚠️ Could not load watchlist yet.")
+        st.stop()
 
     interval_options = ["1","3","5","10","15","30","60","120","240"]
     default_interval = st.session_state.get("saved_interval", "5")
@@ -901,6 +907,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
