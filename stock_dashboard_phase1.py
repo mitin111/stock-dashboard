@@ -284,11 +284,6 @@ with tab5:
         st.warning("⚠️ Please login first to view real-time chart.")
         st.stop()
 
-    # ✅ HARD STOP if not logged in (so no WebSocket / history loads trigger)
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
-        st.info("🔐 Please login first to enable Strategy Engine.")
-        st.stop()
-
     # ✅ Register strategy callback only after login
     from tab4_auto_trader import on_new_candle
     st.session_state.ps_api.on_new_candle = on_new_candle
@@ -909,6 +904,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
