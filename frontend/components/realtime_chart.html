@@ -103,7 +103,9 @@ ws.onmessage = (event) => {
 };
 
 ws.onclose = () => {
-  console.log("🔌 WS Closed — Reconnecting in 2s...");
-  setTimeout(() => location.reload(), 2000);
+  console.log("🔌 WS Closed — Reconnecting WebSocket only…");
+  setTimeout(() => {
+    ws = new WebSocket(wsUrl);
+  }, 2000);
 };
-</script>
+
