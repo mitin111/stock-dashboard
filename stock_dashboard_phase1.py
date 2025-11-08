@@ -1,27 +1,23 @@
 # stock_dashboard_phase1.py
 
 import os
+import streamlit as st
 
-# ✅ STREAMLIT PORT BINDING FOR RENDER
+# ✅ STREAMLIT PORT BINDING FOR RENDER (MUST BE FIRST)
 if "PORT" in os.environ:
     os.environ["STREAMLIT_SERVER_PORT"] = os.environ["PORT"]
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
 
-# ✅ Health Check (NO st.write here!)
-from urllib.parse import parse_qs
-import os
-import streamlit as st
-
-qp = st.query_params  # ✅ modern API replacement
-if qp.get("health") == "1" or qp.get("healthz") == "1":
-    # ✅ MUST NOT USE st.write before set_page_config in real render run
-    print("ok")        # Safe for health checks
-    st.stop()
-
-# ✅ FIRST Streamlit UI command (MUST be here)
+# ✅ FIRST (and only) Streamlit UI bootstrap line
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
-# ✅ Optional, safe after set_page_config
+# ✅ Health Check (AFTER set_page_config, before any UI)
+qp = st.query_params
+if qp.get("healthz") == "1" or qp.get("health") == "1":
+    st.text("ok")
+    st.stop()
+
+# ✅ Safe metadata (optional)
 st.markdown('<meta name="render-health-check" content="ok">', unsafe_allow_html=True)
 
 
@@ -914,6 +910,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
