@@ -174,7 +174,7 @@ with tab2:
     st.subheader("📊 Dashboard")
 
     # ✅ HARD STOP — prevents Connecting-Blink
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+    if not st.session_state.get("logged_in", False):
         st.info("🔐 Please login first to view Dashboard.")
         st.stop()
 
@@ -220,7 +220,7 @@ with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
 
     # ✅ HARD STOP: Market Data must NOT run before login (blink fix)
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+    if not st.session_state.get("logged_in", False):
         st.info("🔐 Please login to view live watchlist data.")
         st.stop()   # <--- THIS FIXES THE BLINK COMPLETELY
 
@@ -271,7 +271,7 @@ with tab4:
     st.subheader("📀 Indicator & TRM Settings")
 
     # ✅ If not logged in → do NOT load tab4 UI
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+    if not st.session_state.get("logged_in", False):
         st.info("🔐 Please login first to configure Auto Trader settings.")
         st.stop()
 
@@ -291,7 +291,7 @@ with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
     # ✅ ABSOLUTE FIRST GUARD (prevents login page blink)
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+    if not st.session_state.get("logged_in", False):
         st.warning("⚠️ Please login first to view real-time chart.")
         st.stop()
 
@@ -876,70 +876,4 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
