@@ -30,29 +30,26 @@ async def init_api(request: Request):
     global ps_api
     body = await request.json()
 
+    jKey = body.get("jKey")
     userid = body.get("userid")
-    pwd = body.get("password")
     vc = body.get("vc")
     api_key = body.get("api_key")
     imei = body.get("imei")
     base_url = body.get("base_url", "https://starapi.prostocks.com/NorenWClientTP")
 
-    from prostocks_connector import ProStocksAPI
-
-    ps_api = ProStocksAPI(userid=userid, password_plain=pwd, vc=vc,
+    # ✅ Create API object WITHOUT logging in
+    ps_api = ProStocksAPI(userid=userid, password_plain="", vc=vc,
                           api_key=api_key, imei=imei, base_url=base_url)
 
-    success, msg = ps_api.login(body.get("factor2", ""))   # ✅ BACKEND LOGIN DONE HERE
-
-    if not success:
-        return {"stat": "error", "emsg": f"Login failed: {msg}"}
+    # ✅ Inject existing session key (NO NEW LOGIN)
+    ps_api.session_token = jKey
+    ps_api.jKey = jKey
 
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
-    ps_api.is_ws_connected = False  # ✅ Reset WS state
+    ps_api.is_ws_connected = False
 
-    logging.info("✅ Backend login success — session synced")
-    return {"stat": "Ok", "msg": "✅ Backend logged in & ready"}
-
+    logging.info("✅ Backend synced with existing frontend login session")
+    return {"stat": "Ok", "msg": "Backend attached to session"}
 
 clients = set()
 
@@ -136,3 +133,4 @@ if __name__ == "__main__":
     print("✅ Backend Stream Worker Running (no webserver)...")
     while True:
         time.sleep(9999)
+
