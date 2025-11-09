@@ -50,14 +50,20 @@ if "settings_loaded" not in st.session_state:
 creds = load_credentials()
 
 # === Sidebar Login ===
-if st.button("📩 Send OTP"):
-    temp_api = ProStocksAPI(**creds)
-    resp = temp_api.login("")  # returns dict
-    if resp.get("stat") == "Ok":
-        st.success("✅ OTP Sent — Check SMS/Email")
-    else:
-        st.warning(f"⚠️ {resp.get('emsg', 'Unable to send OTP')}")
+# === Sidebar Login ===
+with st.sidebar:
+    st.header("🔐 ProStocks OTP Login")
 
+    # --- OTP Button ---
+    if st.button("📩 Send OTP"):
+        temp_api = ProStocksAPI(**creds)
+        resp = temp_api.login("")  # returns dict
+        if resp.get("stat") == "Ok":
+            st.success("✅ OTP Sent — Check SMS/Email")
+        else:
+            st.warning(f"⚠️ {resp.get('emsg', 'Unable to send OTP')}")
+
+    # --- Login Form ---
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
         pwd = st.text_input("Password", type="password", value=creds["pwd"])
@@ -65,7 +71,10 @@ if st.button("📩 Send OTP"):
         vc = st.text_input("Vendor Code", value=creds["vc"] or uid)
         api_key = st.text_input("API Key", type="password", value=creds["api_key"])
         imei = st.text_input("MAC Address", value=creds["imei"])
-        base_url = st.text_input("Base URL", value=os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP"))
+        base_url = st.text_input(
+            "Base URL",
+            value=os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
+        )
         apkversion = st.text_input("APK Version", value=creds["apkversion"])
 
         submitted = st.form_submit_button("🔐 Login")
@@ -77,22 +86,18 @@ if st.button("📩 Send OTP"):
                     base_url=base_url, apkversion=apkversion
                 )
 
-                # ✅ Correct: get dict response
                 login_resp = ps_api.login(factor2)
 
-                # ✅ Check login success
                 if login_resp.get("stat") == "Ok":
                     st.session_state["ps_api"] = ps_api
                     st.session_state["logged_in"] = True
                     st.session_state.jKey = ps_api.session_token
 
-                    # 🧹 Reset WS states
                     st.session_state["ws_started"] = False
                     st.session_state["live_feed_flag"] = {"active": False}
                     st.session_state["_ws_stop_event"] = None
 
-                    # ✅ Link backend session
-                    import requests
+                    # Backend init (optional)
                     try:
                         requests.post(
                             "https://backend-stream-nmlf.onrender.com/init",
@@ -112,17 +117,18 @@ if st.button("📩 Send OTP"):
                         st.warning(f"⚠️ Backend WS init failed: {e}")
 
                     st.success("✅ Login Successful — Open Tab 5 → 'Open Chart' to start live feed.")
-
                 else:
                     st.error(f"❌ Login failed: {login_resp.get('emsg', 'Unknown error')}")
 
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
 
-if st.sidebar.button("🔓 Logout"):
-    st.session_state.pop("ps_api", None)
-    st.session_state["logged_in"] = False
-    st.success("✅ Logged out successfully")
+    # --- Logout ---
+    if st.button("🔓 Logout"):
+        st.session_state.pop("ps_api", None)
+        st.session_state["logged_in"] = False
+        st.success("✅ Logged out successfully")
+
 
 # === Tabs ===
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -870,6 +876,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
