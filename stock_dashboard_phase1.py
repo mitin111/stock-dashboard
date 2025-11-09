@@ -12,10 +12,10 @@ if "PORT" in os.environ:
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
 # health check (simple and safe)
-if st.query_params.get("healthz") == "1":
+qp = st.experimental_get_query_params()
+if qp.get("healthz") == ["1"]:
     st.text("ok")
     st.stop()
-
 
 import pandas as pd
 from prostocks_connector import ProStocksAPI
@@ -868,6 +868,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
