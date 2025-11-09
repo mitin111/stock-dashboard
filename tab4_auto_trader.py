@@ -55,7 +55,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     """
 
     # ✅ SAFE LOGIN CHECK (Runs only when Tab 4 UI is displayed)
-    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+    if not st.session_state.get("logged_in", False):
         st.info("🔐 Please login first to use Auto Trader settings.")
         return
 
@@ -306,6 +306,7 @@ def on_new_candle(symbol, df):
 #        st.session_state["ps_api"].on_new_candle = on_new_candle
 #    except Exception as e:
 #        st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
