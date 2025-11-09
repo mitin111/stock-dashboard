@@ -1,13 +1,12 @@
 services:
-  - type: worker
+  - type: worker        # <-- Worker = No public port
     name: backend-stream
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python backend_stream_server.py   # ✅ No uvicorn, no port
+    startCommand: python backend_stream_server.py   # ✅ No uvicorn
+    plan: standard
 
-
-  # ✅ FRONTEND IS THE WEB SERVICE
-  - type: web
+  - type: web           # <-- This is the UI
     name: stock-dashboard
     env: python
     buildCommand: pip install -r requirements.txt
