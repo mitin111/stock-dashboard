@@ -774,18 +774,19 @@ with tab5:
             placeholder_ticks.info("⏳ Waiting for first ticks...")
 
     # --- "Go to latest" control uses ohlc_x as source of truth ---
-    # Fix OHLC column names if needed
-    if "into" in df.columns and "open" not in df.columns:
-        df = df.rename(columns={
-            "into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"
-        })
-
-    # Convert numeric
-    for col in ["open", "high", "low", "close", "volume"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    df = df.dropna(subset=["open", "high", "low", "close"])
+    # Run this only if we actually have a TPSeries dataframe
+    if isinstance(df, pd.DataFrame) and not df.empty:
+        # Fix OHLC column names if needed
+        if "into" in df.columns and "open" not in df.columns:
+            df = df.rename(columns={
+                "into": "open", "inth": "high", "intl": "low",
+                "intc": "close", "intv": "volume"
+            })
+        # Convert numeric
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.dropna(subset=["open", "high", "low", "close"])
 
     # ✅ LOAD HISTORY HERE (outside loop)
     st.session_state.live_fig.update_yaxes(
@@ -866,6 +867,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
