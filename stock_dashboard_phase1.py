@@ -724,16 +724,29 @@ with tab5:
                 )
                 df = df.dropna(subset=["datetime"]).set_index("datetime")
 
-                if "into" in df.columns and "open" not in df.columns:
-                    df = df.rename(columns={
-                        "into": "open", "inth": "high", "intl": "low",
-                        "intc": "close", "intv": "volume"
-                    })
+                # ✅ Normalize TPSeries column names (no matter what format comes)
+                rename_map = {
+                     "into": "open",
+                     "inth": "high",
+                     "intl": "low",
+                     "intc": "close",
+                     "intv": "volume",
+                     "Open": "open",
+                     "High": "high",
+                     "Low": "low",
+                     "Close": "close",
+                     "Volume": "volume"
+                }
+                df = df.rename(columns=rename_map)
 
+                # ✅ Ensure numeric types
                 for col in ["open", "high", "low", "close", "volume"]:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                # ✅ NOW drop rows missing prices
                 df = df.dropna(subset=["open", "high", "low", "close"])
+
 
                 load_history_into_state(df)
                 st.write(f"📊 Loaded TPSeries candles: {len(df)}")
@@ -892,6 +905,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
