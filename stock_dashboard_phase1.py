@@ -75,19 +75,22 @@ with st.sidebar:
                     api_key=api_key, imei=imei,
                     base_url=base_url, apkversion=apkversion
                 )
-                success, msg = ps_api.login(factor2)
 
-                if success:
+                # ✅ Correct: get dict response
+                login_resp = ps_api.login(factor2)
+
+                # ✅ Check login success
+                if login_resp.get("stat") == "Ok":
                     st.session_state["ps_api"] = ps_api
                     st.session_state["logged_in"] = True
-
                     st.session_state.jKey = ps_api.session_token
 
-                    # 🧹 make sure nothing auto-starts before you open chart
+                    # 🧹 Reset WS states
                     st.session_state["ws_started"] = False
                     st.session_state["live_feed_flag"] = {"active": False}
                     st.session_state["_ws_stop_event"] = None
-                    # ✅ NEW: Link backend relay server with same session
+
+                    # ✅ Link backend session
                     import requests
                     try:
                         requests.post(
@@ -99,7 +102,7 @@ with st.sidebar:
                                 "api_key": api_key,
                                 "imei": imei,
                                 "base_url": base_url,
-                                "factor2": factor2    # ✅ IMPORTANT
+                                "factor2": factor2
                             },
                             timeout=5
                         )
@@ -108,10 +111,9 @@ with st.sidebar:
                         st.warning(f"⚠️ Backend WS init failed: {e}")
 
                     st.success("✅ Login Successful — Open Tab 5 → 'Open Chart' to start live feed.")
-            
 
                 else:
-                    st.error(f"❌ Login failed: {msg}")
+                    st.error(f"❌ Login failed: {login_resp.get('emsg', 'Unknown error')}")
 
             except Exception as e:
                 st.error(f"❌ Exception: {e}")
@@ -867,6 +869,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
