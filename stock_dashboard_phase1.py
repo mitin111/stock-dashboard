@@ -101,20 +101,20 @@ with st.sidebar:
                     #try:
                     #    requests.post(
                     #        "https://backend-stream-nmlf.onrender.com/init",
-                     #       json={
+                    #        json={
                     #            "userid": uid,
                     #            "password": pwd,
-                     #           "vc": vc,
+                    #            "vc": vc,
                     #            "api_key": api_key,
                     #            "imei": imei,
-                      #          "base_url": base_url,
-                                "factor2": factor2
-                     #       },
-                      #      timeout=5
-                      #  )
-                      #  st.info("🔗 Backend session linked")
-                 #   except Exception as e:
-                  #      st.warning(f"⚠️ Backend WS init failed: {e}")
+                    #            "base_url": base_url,
+                                 "factor2": factor2
+                    #        },
+                    #        timeout=5
+                    #    )
+                    #    st.info("🔗 Backend session linked")
+                    #except Exception as e:
+                    #    st.warning(f"⚠️ Backend WS init failed: {e}")
 
                     st.success("✅ Login Successful — Open Tab 5 → 'Open Chart' to start live feed.")
                 else:
@@ -876,6 +876,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
