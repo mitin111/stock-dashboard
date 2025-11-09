@@ -12,8 +12,10 @@ if "PORT" in os.environ:
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
 
 # health check (simple and safe)
-qp = st.experimental_get_query_params()
-if qp.get("healthz") == ["1"]:
+# ✅ HEALTH CHECK (no crash, no blink)
+params = st.query_params  # <-- new Streamlit API
+
+if params.get("healthz") == ["1"]:
     st.text("ok")
     st.stop()
 
@@ -868,6 +870,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
