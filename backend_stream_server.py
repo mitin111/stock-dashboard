@@ -81,6 +81,15 @@ async def ws_live(websocket: WebSocket):
     clients.add(websocket)
     logging.info(f"Client connected (total={len(clients)})")
 
+    # ✅ SAFETY CHECK → If frontend opened chart before backend /init
+    global ps_api
+    if ps_api is None:
+        await websocket.send_text(json.dumps({"warn": "ps_api not initialized — call /init first"}))
+        logging.warning("⚠️ WebSocket opened before /init — no session attached")
+        await websocket.close()
+        clients.discard(websocket)
+        return
+
     # ✅ Attach tick handler (this runs every tick)
     def on_tick(tick):
         try:
@@ -100,7 +109,6 @@ async def ws_live(websocket: WebSocket):
     try:
         while True:
             msg = await websocket.receive_text()
-            # (optional: you can support frontend → backend direct subscribe here)
     except:
         pass
     finally:
@@ -139,6 +147,7 @@ if __name__ == "__main__":
     print("✅ Backend Stream Worker Running (no webserver)...")
     while True:
         time.sleep(9999)
+
 
 
 
