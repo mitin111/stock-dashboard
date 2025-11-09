@@ -263,14 +263,18 @@ with tab4:
 
     st.subheader("📀 Indicator & TRM Settings")
 
+    # ✅ If not logged in → do NOT load tab4 UI
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
+        st.info("🔐 Please login first to configure Auto Trader settings.")
+        st.stop()
+
     # ✅ Ensure expander flag initialized BEFORE calling UI builder
     if "trm_settings_expander_rendered" not in st.session_state:
         st.session_state["trm_settings_expander_rendered"] = False
 
-    # AutoTrader settings panel
+    # ✅ Now safe to load tab4
     render_tab4(require_session_settings=True, allow_file_fallback=False)
 
-    # TRM/MACD settings panel (safe, no duplication)
     st.markdown("---")
     render_trm_settings_once()
 
@@ -864,6 +868,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
