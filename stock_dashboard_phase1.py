@@ -164,58 +164,48 @@ import json
 with tab2:
     st.subheader("📊 Dashboard")
 
-    logged_in = ("ps_api" in st.session_state) and st.session_state.ps_api.is_logged_in()
-    if not logged_in:
+    # ✅ HARD STOP — prevents Connecting-Blink
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
         st.info("🔐 Please login first to view Dashboard.")
-    else:
-        ps_api = st.session_state.ps_api
-        col1, col2 = st.columns(2)
+        st.stop()
 
-        if st.button("🔄 Refresh Order/Trade Book"):
-            ps_api._order_book = ps_api.order_book()
-            ps_api._trade_book = ps_api.trade_book()
+    ps_api = st.session_state.ps_api
 
-        ob_placeholder = st.empty()
-        tb_placeholder = st.empty()
+    # --- Refresh button safely updates cache ---
+    if st.button("🔄 Refresh Order/Trade Book"):
+        try:
+            st.session_state._order_book = ps_api.order_book()
+            st.session_state._trade_book = ps_api.trade_book()
+        except Exception as e:
+            st.warning(f"⚠️ Could not refresh books: {e}")
 
-        with col1:
-            st.markdown("### 📑 Order Book")
-            try:
-                ob_list = ps_api._order_book if hasattr(ps_api, "_order_book") else ps_api.order_book()
-                if isinstance(ob_list, dict):
-                    ob_list = [ob_list]
-                elif not isinstance(ob_list, list):
-                    ob_list = []
-                df_ob = pd.DataFrame(ob_list)
-                if not df_ob.empty:
-                    show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc","ordenttm","norentm"]
-                    df_ob = df_ob.reindex(columns=show_cols, fill_value=np.nan)
-                    ob_placeholder.dataframe(df_ob, use_container_width=True, height=400)
-                else:
-                    ob_placeholder.info("📭 No orders found.")
-            except Exception as e:
-                ob_placeholder.error(f"❌ Error fetching Order Book: {e}")
+    # --- Get cached books (never call API automatically) ---
+    ob_list = st.session_state.get("_order_book", [])
+    tb_list = st.session_state.get("_trade_book", [])
 
-        with col2:
-            st.markdown("### 📑 Trade Book")
-            try:
-                tb_list = ps_api._trade_book if hasattr(ps_api, "_trade_book") else ps_api.trade_book()
-                if isinstance(tb_list, dict):
-                    tb_list = [tb_list]
-                elif not isinstance(tb_list, list):
-                    tb_list = []
-                df_tb = pd.DataFrame(tb_list)
-                if not df_tb.empty:
-                    show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status","norentm"]
-                    df_tb = df_tb.reindex(columns=show_cols, fill_value=np.nan)
-                    tb_placeholder.dataframe(df_tb, use_container_width=True, height=400)
-                else:
-                    tb_placeholder.info("📭 No trades found.")
-            except Exception as e:
-                tb_placeholder.error(f"❌ Error fetching Trade Book: {e}")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 📑 Order Book")
+        if ob_list:
+            df_ob = pd.DataFrame(ob_list)
+            show_cols = ["norenordno","exch","tsym","trantype","qty","prc","prctyp","status","rejreason","avgprc","ordenttm","norentm"]
+            df_ob = df_ob.reindex(columns=show_cols, fill_value="")
+            st.dataframe(df_ob, use_container_width=True, height=400)
+        else:
+            st.info("📭 No orders yet.")
+
+    with col2:
+        st.markdown("### 📑 Trade Book")
+        if tb_list:
+            df_tb = pd.DataFrame(tb_list)
+            show_cols = ["norenordno","exch","tsym","trantype","fillshares","avgprc","status","norentm"]
+            df_tb = df_tb.reindex(columns=show_cols, fill_value="")
+            st.dataframe(df_tb, use_container_width=True, height=400)
+        else:
+            st.info("📭 No trades yet.")
 
 
-# === Tab 3: Market Data ===
 # === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
@@ -876,6 +866,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
