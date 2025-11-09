@@ -71,7 +71,7 @@ with st.sidebar:
     # --- OTP Button ---
     if st.button("📩 Send OTP"):
         temp_api = ProStocksAPI(**creds)
-        resp = temp_api.login("")  # returns dict
+        resp = resp_to_dict(temp_api.login(""))
         if resp.get("stat") == "Ok":
             st.success("✅ OTP Sent — Check SMS/Email")
         else:
@@ -100,7 +100,7 @@ with st.sidebar:
                     base_url=base_url, apkversion=apkversion
                 )
 
-                login_resp = ps_api.login(factor2)
+                login_resp = resp_to_dict(ps_api.login(factor2))
 
                 if login_resp.get("stat") == "Ok":
                     st.session_state["ps_api"] = ps_api
@@ -892,6 +892,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
