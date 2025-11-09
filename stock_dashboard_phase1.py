@@ -112,6 +112,7 @@ with st.sidebar:
                                 },
                                 timeout=5
                             )
+                            st.session_state["backend_inited"] = True   # ⭐ REQUIRED ⭐
                             st.info("🔗 Backend linked with your trading session")
                         except Exception as e:
                             st.warning(f"⚠️ Backend WS init failed: {e}")
@@ -877,6 +878,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
