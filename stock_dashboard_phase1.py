@@ -365,7 +365,7 @@ with tab5:
 
 
     # ✅ Guard clause
-    if "ps_api" not in st.session_state or "selected_watchlist" not in st.session_state:
+    if not st.session_state.get("logged_in", False):
         st.warning("⚠️ Please login and select a watchlist in Tab 1 before starting live feed.")
         st.stop()
 
@@ -876,4 +876,5 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
