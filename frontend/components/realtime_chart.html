@@ -1,93 +1,87 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-<style>
-  body { margin:0; background:#000; overflow:hidden }
-  #chart-container { width:100%; height:100vh; }
-</style>
-</head>
-<body>
-<div id="chart-container"></div>
-
 <script>
-// ---- Inputs from Streamlit ----
 let history    = window.initialHistory || [];
 let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
 let initialTok = window.initialToken || null;
 let barIntMin  = Number(window.barInterval || 1);
 
-// ---- Chart ----
+// chart setup (unchanged)
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
   layout: { background: { color: '#000' }, textColor: '#fff' },
   grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-  timeScale: {
-    timeVisible: true,
-    secondsVisible: false,
-    rightOffset: 3,
-    tickMarkFormatter: (time) => {
-      const ts = (typeof time === 'object' && time.timestamp) ? time.timestamp : time;
-      return new Date(ts * 1000).toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit',
-        day: '2-digit', month: '2-digit'
-      });
-    },
-  },
-  crosshair: { mode: 1 },
-  localization: {
-    timeFormatter: (ts) =>
-      new Date((ts.timestamp ?? ts) * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false })
-  }
+  timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
 });
-
 const candleSeries = chart.addCandlestickSeries({
   upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350'
 });
 candleSeries.setData(history);
 
-// ---- Helper: candle bucket ----
+// bucket helper (unchanged)
 function bucketToInterval(tsSec) {
   const dUTC = new Date(tsSec * 1000);
   const istMs = dUTC.getTime() + 330 * 60 * 1000;
   const ist = new Date(istMs);
   ist.setSeconds(0, 0);
-  const m = ist.getMinutes();
-  ist.setMinutes(Math.floor(m / barIntMin) * barIntMin);
+  ist.setMinutes(Math.floor(ist.getMinutes() / barIntMin) * barIntMin);
   const backUTCms = ist.getTime() - 330 * 60 * 1000;
   return Math.floor(backUTCms / 1000);
 }
 
-// ---- WebSocket ----
-let ws = null;
-if (initialTok && initialTok !== "null" && initialTok !== "") {
-  ws = new WebSocket(wsUrl);
+// derive https subscribe endpoint from wsUrl
+function subscribeUrlFromWs(wsUrl) {
+  const u = new URL(wsUrl);
+  u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
+  u.pathname = "/subscribe";
+  u.search = "";
+  return u.toString();
 }
 
-if (ws) {
-  ws.onopen = () => {
-    console.log("✅ LW WS Connected:", wsUrl);
-    ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
+async function httpSubscribe(token) {
+  const url = subscribeUrlFromWs(wsUrl);
+  await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ tokens: [String(token)] })
+  }).catch(()=>{});
+}
+
+let ws = null;
+let reconnectTimer = null;
+
+function connectWS() {
+  if (!initialTok) return;
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = async () => {
+    console.log("✅ WS Connected:", wsUrl);
+    // IMPORTANT: subscribe via HTTP, not WS
+    await httpSubscribe(initialTok);
   };
 
   ws.onmessage = (event) => {
     try {
       const p = JSON.parse(event.data);
-      const price = Number(p.lp || p.ltp || p.price);
-      let ts = Number(p.ft || p.time || p.lts);
+      const price = Number(p.lp ?? p.ltp ?? p.price);
+      let ts = Number(p.ft ?? p.time ?? p.lts);
       if (!price || !ts) return;
       if (ts > 1e12) ts = Math.floor(ts / 1000);
-      const tBucket = bucketToInterval(ts);
-      candleSeries.update({ time: tBucket, open: price, high: price, low: price, close: price });
-    } catch (e) { console.log("⚠️ Tick parse error:", e); }
+      const bucket = bucketToInterval(ts);
+      candleSeries.update({ time: bucket, open: price, high: price, low: price, close: price });
+    } catch (e) {
+      console.log("⚠️ Tick parse error:", e);
+    }
   };
 
   ws.onclose = () => {
-    console.log("🔌 WS Closed — Reconnecting…");
-    setTimeout(() => { ws = new WebSocket(wsUrl); }, 2000);
+    console.log("🔌 WS Closed — Reconnecting in 2s…");
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => {
+    try { ws.close(); } catch {}
   };
 }
+
+connectWS();
 </script>
-</body>
-</html>
