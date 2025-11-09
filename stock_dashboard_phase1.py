@@ -216,47 +216,53 @@ with tab2:
 
 
 # === Tab 3: Market Data ===
+# === Tab 3: Market Data ===
 with tab3:
     st.subheader("📈 Live Market Table – Watchlist Viewer")
 
-    logged_in = ("ps_api" in st.session_state) and st.session_state.ps_api.is_logged_in()
-    if not logged_in:
+    # ✅ HARD STOP: Market Data must NOT run before login (blink fix)
+    if "ps_api" not in st.session_state or not st.session_state.ps_api.is_logged_in():
         st.info("🔐 Please login to view live watchlist data.")
+        st.stop()   # <--- THIS FIXES THE BLINK COMPLETELY
+
+    ps_api = st.session_state["ps_api"]
+
+    try:
+        wl_resp = ps_api.get_watchlists()
+    except Exception as e:
+        st.warning(f"⚠️ Could not fetch watchlists: {e}")
+        st.stop()
+
+    if wl_resp.get("stat") != "Ok":
+        st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
+        st.stop()
+
+    raw_watchlists = wl_resp["values"]
+    watchlists = sorted(raw_watchlists, key=int)
+    wl_labels = [f"Watchlist {wl}" for wl in watchlists]
+
+    selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
+    selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
+
+    st.session_state.all_watchlists = watchlists
+    st.session_state.selected_watchlist = selected_wl
+
+    wl_data = ps_api.get_watchlist(selected_wl)
+    if wl_data.get("stat") == "Ok":
+        df = pd.DataFrame(wl_data["values"])
+        st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
+        st.dataframe(df if not df.empty else pd.DataFrame())
+
+        symbols_with_tokens = []
+        for s in wl_data["values"]:
+            token = s.get("token", "")
+            if token:
+                symbols_with_tokens.append({"tsym": s["tsym"], "exch": s["exch"], "token": token})
+        st.session_state["symbols"] = symbols_with_tokens
+        st.success(f"✅ {len(symbols_with_tokens)} symbols ready for WebSocket/AutoTrader")
     else:
-        ps_api = st.session_state["ps_api"]
-        try:
-            wl_resp = ps_api.get_watchlists()
-        except Exception as e:
-            st.warning(f"⚠️ Could not fetch watchlists: {e}")
-            wl_resp = {}
+        st.warning(wl_data.get("emsg", "Failed to load watchlist."))
 
-        if wl_resp.get("stat") == "Ok":
-            raw_watchlists = wl_resp["values"]
-            watchlists = sorted(raw_watchlists, key=int)
-            wl_labels = [f"Watchlist {wl}" for wl in watchlists]
-            selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
-            selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
-
-            st.session_state.all_watchlists = watchlists
-            st.session_state.selected_watchlist = selected_wl
-
-            wl_data = ps_api.get_watchlist(selected_wl)
-            if wl_data.get("stat") == "Ok":
-                df = pd.DataFrame(wl_data["values"])
-                st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
-                st.dataframe(df if not df.empty else pd.DataFrame())
-
-                symbols_with_tokens = []
-                for s in wl_data["values"]:
-                    token = s.get("token", "")
-                    if token:
-                        symbols_with_tokens.append({"tsym": s["tsym"], "exch": s["exch"], "token": token})
-                st.session_state["symbols"] = symbols_with_tokens
-                st.success(f"✅ {len(symbols_with_tokens)} symbols ready for WebSocket/AutoTrader")
-            else:
-                st.warning(wl_data.get("emsg", "Failed to load watchlist."))
-        else:
-            st.warning(wl_resp.get("emsg", "Could not fetch watchlists."))
 
 # === Tab 4: Indicator Settings ===
 with tab4:
@@ -870,6 +876,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
