@@ -50,12 +50,13 @@ if "settings_loaded" not in st.session_state:
 creds = load_credentials()
 
 # === Sidebar Login ===
-with st.sidebar:
-    st.header("🔐 ProStocks OTP Login")
-    if st.button("📩 Send OTP"):
-        temp_api = ProStocksAPI(**creds)
-        success, msg = temp_api.login("")
-        st.success("✅ OTP Sent") if success else st.info(f"ℹ️ {msg}")
+if st.button("📩 Send OTP"):
+    temp_api = ProStocksAPI(**creds)
+    resp = temp_api.login("")  # returns dict
+    if resp.get("stat") == "Ok":
+        st.success("✅ OTP Sent — Check SMS/Email")
+    else:
+        st.warning(f"⚠️ {resp.get('emsg', 'Unable to send OTP')}")
 
     with st.form("LoginForm"):
         uid = st.text_input("User ID", value=creds["uid"])
@@ -869,6 +870,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
