@@ -130,9 +130,9 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": str(e)}
 
 
-
-
-
-
-
-
+# ✅ ADD THIS AT THE VERY END OF FILE (LAST LINES)
+if __name__ == "__main__":
+    import time
+    print("✅ Backend Stream Worker Running (no webserver)...")
+    while True:
+        time.sleep(9999)
