@@ -38,6 +38,20 @@ try:
 except:
     websocket = None
 
+# ✅ Normalize ProStocks login responses
+def resp_to_dict(resp):
+    """Normalize login response: support both dict and tuple formats."""
+    if isinstance(resp, dict):
+        return resp
+    if isinstance(resp, (tuple, list)) and len(resp) == 2:
+        success, msg = resp
+        return {
+            "stat": "Ok" if success else "Not_Ok",
+            "emsg": None if success else msg
+        }
+    return {"stat": "Not_Ok", "emsg": "Unexpected response format"}
+
+
 # === Page Layout ===
 st.title("📈 Automated Intraday Trading System")
 
@@ -878,6 +892,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
