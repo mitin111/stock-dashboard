@@ -97,26 +97,26 @@ with st.sidebar:
                     st.session_state["live_feed_flag"] = {"active": False}
                     st.session_state["_ws_stop_event"] = None
 
-                    # Backend init (optional)
-                    #try:
-                    #    requests.post(
-                    #        "https://backend-stream-nmlf.onrender.com/init",
-                    #        json={
-                    #            "userid": uid,
-                    #            "password": pwd,
-                    #            "vc": vc,
-                    #            "api_key": api_key,
-                    #            "imei": imei,
-                    #            "base_url": base_url,
-                                 "factor2": factor2
-                    #        },
-                    #        timeout=5
-                    #    )
-                    #    st.info("🔗 Backend session linked")
-                    #except Exception as e:
-                    #    st.warning(f"⚠️ Backend WS init failed: {e}")
+                    # ✅ Backend init should be called *after* login, not before.
+                    try:
+                        requests.post(
+                            "https://backend-stream-nmlf.onrender.com/init",
+                            json={
+                                "jKey": ps_api.session_token,   # ✅ Most important
+                                "userid": uid,
+                                "vc": vc,
+                                "api_key": api_key,
+                                "imei": imei,
+                                "base_url": base_url,
+                            },
+                            timeout=5
+                        )
+                        st.info("🔗 Backend linked with your trading session")
+                    except Exception as e:
+                        st.warning(f"⚠️ Backend WS init failed: {e}")
 
-                    st.success("✅ Login Successful — Open Tab 5 → 'Open Chart' to start live feed.")
+                    st.success("✅ Login Successful — Now open Tab 5 and Click 'Open Chart'")
+
                 else:
                     st.error(f"❌ Login failed: {login_resp.get('emsg', 'Unknown error')}")
 
@@ -876,6 +876,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
