@@ -98,22 +98,23 @@ with st.sidebar:
                     st.session_state["_ws_stop_event"] = None
 
                     # ✅ Backend init should be called *after* login, not before.
-                    try:
-                        requests.post(
-                            "https://backend-stream-nmlf.onrender.com/init",
-                            json={
-                                "jKey": ps_api.session_token,   # ✅ Most important
-                                "userid": uid,
-                                "vc": vc,
-                                "api_key": api_key,
-                                "imei": imei,
-                                "base_url": base_url,
-                            },
-                            timeout=5
-                        )
-                        st.info("🔗 Backend linked with your trading session")
-                    except Exception as e:
-                        st.warning(f"⚠️ Backend WS init failed: {e}")
+                    if not st.session_state.get("backend_inited", False):
+                        try:
+                            requests.post(
+                                "https://backend-stream-nmlf.onrender.com/init",
+                                json={
+                                    "jKey": ps_api.session_token,   # ✅ Most important
+                                    "userid": uid,
+                                    "vc": vc,
+                                    "api_key": api_key,
+                                    "imei": imei,
+                                    "base_url": base_url,
+                                },
+                                timeout=5
+                            )
+                            st.info("🔗 Backend linked with your trading session")
+                        except Exception as e:
+                            st.warning(f"⚠️ Backend WS init failed: {e}")
 
                     st.success("✅ Login Successful — Now open Tab 5 and Click 'Open Chart'")
 
@@ -876,6 +877,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
