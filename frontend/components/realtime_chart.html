@@ -13,12 +13,10 @@
 
 <script>
 // ---- Inputs from Streamlit ----
-<script>
 let history    = window.initialHistory || [];
 let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
 let initialTok = window.initialToken || null;
 let barIntMin  = Number(window.barInterval || 1);
-
 
 // ---- Chart ----
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
@@ -28,8 +26,7 @@ const chart = LightweightCharts.createChart(document.getElementById('chart-conta
     timeVisible: true,
     secondsVisible: false,
     rightOffset: 3,
-    // ✅ Bottom axis IST labels
-    tickMarkFormatter: (time /* number|{timestamp} */) => {
+    tickMarkFormatter: (time) => {
       const ts = (typeof time === 'object' && time.timestamp) ? time.timestamp : time;
       return new Date(ts * 1000).toLocaleString('en-IN', {
         timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit',
@@ -38,7 +35,6 @@ const chart = LightweightCharts.createChart(document.getElementById('chart-conta
     },
   },
   crosshair: { mode: 1 },
-  // ✅ Crosshair time string also IST
   localization: {
     timeFormatter: (ts) =>
       new Date((ts.timestamp ?? ts) * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false })
@@ -51,17 +47,14 @@ const candleSeries = chart.addCandlestickSeries({
 });
 candleSeries.setData(history);
 
-// ---- Helper: bucket to interval in IST ----
+// ---- Helper: candle bucket ----
 function bucketToInterval(tsSec) {
-  // tsSec is UTC seconds
   const dUTC = new Date(tsSec * 1000);
-  // shift to IST (+5:30 = 330 min)
   const istMs = dUTC.getTime() + 330 * 60 * 1000;
   const ist = new Date(istMs);
   ist.setSeconds(0, 0);
   const m = ist.getMinutes();
   ist.setMinutes(Math.floor(m / barIntMin) * barIntMin);
-  // shift back to UTC seconds
   const backUTCms = ist.getTime() - 330 * 60 * 1000;
   return Math.floor(backUTCms / 1000);
 }
@@ -75,41 +68,26 @@ if (initialTok && initialTok !== "null" && initialTok !== "") {
 if (ws) {
   ws.onopen = () => {
     console.log("✅ LW WS Connected:", wsUrl);
-
-    if (initialTok) {
-      try {
-        ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
-        console.log("🔔 Subscribed to", initialTok);
-      } catch (e) { console.log(e); }
-    }
+    ws.send(JSON.stringify({ action: "subscribe", tokens: [initialTok] }));
   };
 
   ws.onmessage = (event) => {
     try {
-      const payload = JSON.parse(event.data);
-
-      const p = payload.tick ? payload.tick : payload;
+      const p = JSON.parse(event.data);
       const price = Number(p.lp || p.ltp || p.price);
       let ts = Number(p.ft || p.time || p.lts);
       if (!price || !ts) return;
       if (ts > 1e12) ts = Math.floor(ts / 1000);
-
       const tBucket = bucketToInterval(ts);
-
-      candleSeries.update({
-        time: tBucket,
-        open: price, high: price, low: price, close: price
-      });
-    } catch (e) {
-      console.log("⚠️ Tick parse error:", e);
-    }
+      candleSeries.update({ time: tBucket, open: price, high: price, low: price, close: price });
+    } catch (e) { console.log("⚠️ Tick parse error:", e); }
   };
 
   ws.onclose = () => {
     console.log("🔌 WS Closed — Reconnecting…");
-    setTimeout(() => {
-      ws = new WebSocket(wsUrl);
-    }, 2000);
+    setTimeout(() => { ws = new WebSocket(wsUrl); }, 2000);
   };
 }
-
+</script>
+</body>
+</html>
