@@ -106,6 +106,7 @@ with st.sidebar:
                     st.session_state["ps_api"] = ps_api
                     st.session_state["logged_in"] = True
                     st.session_state.jKey = ps_api.session_token
+                    st.session_state["chart_open"] = False   # ✅ Prevent auto-open
 
                     # ✅ Backend init must run only once
                     if "backend_inited" not in st.session_state:
@@ -892,6 +893,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
