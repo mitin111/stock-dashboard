@@ -281,13 +281,12 @@ with tab4:
 # === Tab 5: Strategy Engine ===
 with tab5:
 
-    # HARD STOP FIRST - prevents Render auto connecting
-    if "logged_in" not in st.session_state or not st.session_state.logged_in:
-        st.info(" Please login first.")
-        st.stop()
+    # HARD STOP FIRST - prevents Render auto connecting
+    if "logged_in" not in st.session_state or not st.session_state.logged_in:
+        st.info("🔐 Please login first.")
+        st.stop()
 
-    st.subheader(" TPSeries + Live Tick Data (auto-start, blink-free)")
-
+    st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
     # Register strategy callback only after login
     from tab4_auto_trader import on_new_candle
@@ -890,6 +889,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
