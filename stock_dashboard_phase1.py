@@ -785,8 +785,8 @@ with tab5:
              )
         else:
             st.error("⚠️ No datetime column in TPSeries data")
-     else:
-         st.warning("⚠️ No TPSeries data fetched")
+    else:
+        st.warning("⚠️ No TPSeries data fetched")
 
                 
     # --- Drain queue and apply live ticks to last candle ---
@@ -915,6 +915,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
