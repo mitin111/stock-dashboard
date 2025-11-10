@@ -107,29 +107,19 @@ with st.sidebar:
                     st.session_state["logged_in"] = True
                     st.session_state.jKey = ps_api.session_token
 
-                    st.session_state["ws_started"] = False
-                    st.session_state["live_feed_flag"] = {"active": False}
-                    st.session_state["_ws_stop_event"] = None
-
-                    # ✅ Backend init should be called *after* login, not before.
-                    if not st.session_state.get("backend_inited", False):
+                    # ✅ Backend init must run only once
+                    if "backend_inited" not in st.session_state:
                         try:
                             requests.post(
                                 "https://backend-stream-nmlf.onrender.com/init",
-                                json={
-                                    "jKey": ps_api.session_token,   # ✅ Most important
-                                    "userid": uid,
-                                    "vc": vc,
-                                    "api_key": api_key,
-                                    "imei": imei,
-                                    "base_url": base_url,
-                                },
-                                timeout=5
+                                json={"jKey": ps_api.session_token},
+                                timeout=3   # ✅ This does NOT cause refresh
                             )
-                            st.session_state["backend_inited"] = True   # ⭐ REQUIRED ⭐
-                            st.info("🔗 Backend linked with your trading session")
-                        except Exception as e:
-                            st.warning(f"⚠️ Backend WS init failed: {e}")
+                            st.session_state["backend_inited"] = True
+                            st.info("🔗 Backend linked to your session")
+                        except:
+                            st.warning("⚠️ Backend init skipped (server busy)")
+
 
                     st.success("✅ Login Successful — Now open Tab 5 and Click 'Open Chart'")
 
@@ -304,12 +294,14 @@ with tab4:
 
 # === Tab 5: Strategy Engine ===
 with tab5:
-    st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
-    # ✅ ABSOLUTE FIRST GUARD (prevents login page blink)
+    # ✅ THIS MUST BE THE VERY FIRST LINE
     if not st.session_state.get("logged_in", False):
         st.warning("⚠️ Please login first to view real-time chart.")
         st.stop()
+
+    st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
+
 
     # ✅ Register strategy callback only after login
     from tab4_auto_trader import on_new_candle
@@ -900,6 +892,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
