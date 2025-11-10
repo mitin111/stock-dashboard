@@ -77,20 +77,20 @@ async def startup_event():
 # ✅ MAIN LIVE WS FEED PIPE (FrontEnd → Backend)
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket):
+
+    # ❌ Do NOT allow WS before /init sets session
+    global ps_api
+    if ps_api is None or ps_api.session_token is None:
+        await websocket.accept()
+        await websocket.send_text(json.dumps({"error": "Session not initialized — login first"}))
+        await websocket.close()
+        return
+
     await websocket.accept()
     clients.add(websocket)
     logging.info(f"Client connected (total={len(clients)})")
 
-    # ✅ SAFETY CHECK → If frontend opened chart before backend /init
-    global ps_api
-    if ps_api is None:
-        await websocket.send_text(json.dumps({"warn": "ps_api not initialized — call /init first"}))
-        logging.warning("⚠️ WebSocket opened before /init — no session attached")
-        await websocket.close()
-        clients.discard(websocket)
-        return
-
-    # ✅ Attach tick handler (this runs every tick)
+    # ✅ Attach tick handler
     def on_tick(tick):
         try:
             token = tick.get("tk") or tick.get("token")
@@ -98,17 +98,17 @@ async def ws_live(websocket: WebSocket):
             ts = tick.get("ft") or tick.get("time")
             if not (token and price and ts):
                 return
+
             payload = json.dumps({"tk": str(token), "lp": float(price), "ft": int(float(ts))})
             asyncio.create_task(broadcast(payload))
         except Exception as e:
             logging.warning(f"on_tick error: {e}")
 
-    # ✅ Register callback
     ps_api.on_tick = on_tick
 
     try:
         while True:
-            msg = await websocket.receive_text()
+            await websocket.receive_text()
     except:
         pass
     finally:
@@ -119,6 +119,12 @@ async def ws_live(websocket: WebSocket):
 # ✅ HTTP Subscribe (frontend will call this)
 @app.post("/subscribe")
 async def subscribe(request: Request):
+    global ps_api
+
+    # 🚫 HARD STOP: Backend is NOT ready (no /init done yet)
+    if ps_api is None or getattr(ps_api, "session_token", None) is None:
+        return {"stat": "error", "emsg": "Session not initialized — call /init first"}
+
     body = await request.json()
     tokens = body.get("tokens", [])
 
@@ -126,10 +132,13 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": "tokens must be a non-empty list"}
 
     try:
-        if not ps_api.is_ws_connected:
-            ps_api.connect_websocket(tokens)       # ✅ Correct call
+        # ✅ Start WS only once (first subscription)
+        if not getattr(ps_api, "is_ws_connected", False):
+            ps_api.connect_websocket(tokens)
             ps_api.is_ws_connected = True
-            logging.info(f"✅ WS Started with tokens: {tokens}")
+            logging.info(f"✅ WebSocket Started with tokens: {tokens}")
+
+        # ✅ If WS already running → just subscribe new tokens
         else:
             ps_api.subscribe_tokens(tokens)
             logging.info(f"➕ Subscribed more tokens: {tokens}")
@@ -141,12 +150,14 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": str(e)}
 
 
+
 # ✅ ADD THIS AT THE VERY END OF FILE (LAST LINES)
 if __name__ == "__main__":
     import time
     print("✅ Backend Stream Worker Running (no webserver)...")
     while True:
         time.sleep(9999)
+
 
 
 
