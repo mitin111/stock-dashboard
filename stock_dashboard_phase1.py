@@ -587,8 +587,13 @@ with tab5:
     from streamlit.components.v1 import html as st_html
     import os, requests
 
-    if st.session_state.get("chart_open", False):
-
+    # ✅ Only load TPSeries when ALL conditions are true
+    if (
+        st.session_state.get("logged_in", False)
+        and st.session_state.get("chart_open", False)
+        and st.session_state.get("selected_symbol")
+        and st.session_state.live_fig is not None
+    ):
         chart_file = os.path.join("frontend", "components", "realtime_chart.html")
 
         if os.path.exists(chart_file):
@@ -886,6 +891,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
