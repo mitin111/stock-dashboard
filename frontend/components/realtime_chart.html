@@ -79,9 +79,20 @@ function connectWS() {
   };
 
   ws.onerror = () => {
-    try { ws.close(); } catch {}
+    try { ws.close(); } catch {};
   };
 }
 
-connectWS();
+// ✅ NEW: Start WebSocket only when token becomes available (login done + chart opened)
+function safeStartWS() {
+  if (!initialTok || initialTok === "None" || initialTok === "" || initialTok === null) {
+    console.log("⏳ Waiting for login/session before starting live WebSocket…");
+    setTimeout(safeStartWS, 1000);
+    return;
+  }
+  console.log("🚀 Starting WebSocket feed now for token:", initialTok);
+  connectWS();
+}
+
+safeStartWS();
 </script>
