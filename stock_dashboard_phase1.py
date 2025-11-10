@@ -514,7 +514,7 @@ with tab5:
     # Map back to exch|token
     selected_symbol_key = [k for k, v in symbols_map.items() if v == selected_label][0]
     st.session_state["selected_symbol"] = selected_symbol_key
-
+    st.session_state["current_token"] = selected_symbol_key   # <--- ADD THIS
     # Save mapping (needed later for ticks)
     st.session_state["symbols_map"] = symbols_map
     st.session_state["symbols_for_ws"] = [selected_symbol_key]
@@ -615,7 +615,7 @@ with tab5:
             ]
 
             # Selected token
-            initial_token = st.session_state.get("selected_symbol")
+            initial_token = st.session_state.get("current_token")
 
             # Read HTML
             html_data = open(chart_file, "r", encoding="utf-8").read()
@@ -889,6 +889,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
