@@ -108,20 +108,6 @@ with st.sidebar:
                     st.session_state.jKey = ps_api.session_token
                     st.session_state["chart_open"] = False   # ✅ Prevent auto-open
 
-                    # ✅ Backend init must run only once
-                    if "backend_inited" not in st.session_state:
-                        try:
-                            requests.post(
-                                "https://backend-stream-nmlf.onrender.com/init",
-                                json={"jKey": ps_api.session_token},
-                                timeout=3   # ✅ This does NOT cause refresh
-                            )
-                            st.session_state["backend_inited"] = True
-                            st.info("🔗 Backend linked to your session")
-                        except:
-                            st.warning("⚠️ Backend init skipped (server busy)")
-
-
                     st.success("✅ Login Successful — Now open Tab 5 and Click 'Open Chart'")
 
                 else:
@@ -565,14 +551,30 @@ with tab5:
             transition_duration=0,
         )
     
+
     # --- Open / Close Chart buttons ---
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📊 Open Chart"):
             st.session_state["chart_open"] = True
+
+            # ✅ Backend init is triggered ONLY NOW
+            if "backend_inited" not in st.session_state:
+                try:
+                    requests.post(
+                        "https://backend-stream-nmlf.onrender.com/init",
+                        json={"jKey": st.session_state.ps_api.session_token},
+                        timeout=3
+                    )
+                    st.session_state["backend_inited"] = True
+                    st.success("🔗 Backend session attached")
+                except Exception as e:
+                    st.warning(f"⚠️ Backend init failed: {e}")
+
     with col2:
         if st.button("❌ Close Chart"):
             st.session_state["chart_open"] = False
+
 
     # --- Chart placeholder (create once) ---
     if "chart_placeholder" not in st.session_state:
@@ -629,16 +631,7 @@ with tab5:
             # ✅ Render lightweight chart
             st_html(html_data, height=650)
 
-            # ✅ Fire-and-forget backend subscribe (no UI button needed)
-            try:
-                requests.post(
-                    "https://backend-stream-nmlf.onrender.com/subscribe",
-                    json={"tokens": [initial_token]},
-                    timeout=4
-                )
-            except Exception:
-                pass
-
+        
         else:
             st.error("❌ realtime_chart.html missing — Lightweight chart not found.")
 
@@ -893,6 +886,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
