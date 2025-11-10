@@ -543,10 +543,6 @@ with tab5:
     st.session_state["symbols_for_ws"] = [selected_symbol_key]
 
 
-    except Exception as e:
-        tpseries_results = []
-        st.warning(f"TPSeries fetch error: {e}")
-
     # --- Figure init (only once) ---
     if st.session_state.live_fig is None:
         st.session_state.live_fig = go.Figure()
@@ -904,6 +900,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
