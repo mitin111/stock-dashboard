@@ -937,7 +937,7 @@ class ProStocksAPI:
     # ---------------- Fetch Yesterday's Candles ----------------
     def fetch_yesterday_candles(self, exch, token, interval="5"):
         """
-        ✅ Fetches yesterday's complete intraday candles (09:15–15:30 IST).
+        ✅ Fetch yesterday's complete intraday candles (09:15–15:30 IST).
         Uses TPSeries API directly, normalized via self.normalize_response().
         Works even when called standalone or during batch screener.
         """
@@ -957,10 +957,6 @@ class ProStocksAPI:
             st = int(start_ist.astimezone(timezone.utc).timestamp())
             et = int(end_ist.astimezone(timezone.utc).timestamp())
 
-            print(f"\n📅 Fetching YESTERDAY candles for {yesterday_ist} ({start_ist.time()}–{end_ist.time()} IST)")
-            print(f"   → UTC Range: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(st))} to {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(et))}")
-
-            # --- Payload same as get_tpseries ---
             payload = {
                 "uid": self.userid,
                 "exch": exch,
@@ -973,45 +969,27 @@ class ProStocksAPI:
             url = f"{self.base_url}/TPSeries"
             resp = self._post_json(url, payload)
 
-            # --- Normalize response (ensure list of dicts) ---
             resp_list = self.normalize_response(resp)
             if not resp_list:
-                print(f"⚠️ No data received for {yesterday_ist} — {symbol if 'symbol' in locals() else token}")
                 return pd.DataFrame()
 
-            # --- Convert to DataFrame ---
             df = pd.DataFrame(resp_list)
-            if df.empty:
-                print("⚠️ Empty DataFrame after normalization.")
-                return pd.DataFrame()
-
-            # --- Rename columns ---
-            rename_map = {
-                "time": "datetime",
-                "into": "open",
-                "inth": "high",
-                "intl": "low",
-                "intc": "close",
-                "intv": "volume"
-            }
+            rename_map = {"time": "datetime", "into": "open", "inth": "high", "intl": "low", "intc": "close", "intv": "volume"}
             df.rename(columns=rename_map, inplace=True)
 
-            # --- Parse datetimes ---
-            if "datetime" in df.columns:
-                df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", dayfirst=True)
-                df = df.dropna(subset=["datetime"])
-                df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", ambiguous="NaT", nonexistent="shift_forward")
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+            df = df.dropna(subset=["datetime"])
+            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata", ambiguous="NaT", nonexistent="shift_forward")
 
-            # --- Sort & clean ---
             df.sort_values("datetime", inplace=True)
             df.reset_index(drop=True, inplace=True)
-
-            print(f"✅ Yesterday {len(df)} candles fetched successfully for {yesterday_ist}")
             return df
 
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
+
 
 
 
