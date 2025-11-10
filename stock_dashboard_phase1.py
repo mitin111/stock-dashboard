@@ -615,7 +615,7 @@ with tab5:
             ]
 
             # Selected token
-            initial_token = st.session_state.get("current_token")
+            initial_token = st.session_state.get("selected_symbol")
 
             # Read HTML
             html_data = open(chart_file, "r", encoding="utf-8").read()
@@ -889,6 +889,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
