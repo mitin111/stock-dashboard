@@ -22,6 +22,10 @@ def log(*args, **kwargs):
 
 # 🔹 WebSocket starter (define here, no import needed)
 def start_ws(symbols, ps_api, ui_queue, stop_event):
+    # ❌ Do NOT connect WebSocket here
+    # We just store parameters and wait for user to start Auto Trader.
+    ui_queue.put(("info", "WS Ready (but not started)"), block=False)
+    return None    
     def on_tick_callback(tick):
         try:
             ui_queue.put(("tick", tick), block=False)
@@ -208,16 +212,28 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
 
     # Start button
+    # Start button
     if st.button("🚀 Start Auto Trader"):
-        # ✅ Start WebSocket now only when Auto Trader starts
-        ws = start_ws(
-            st.session_state["symbols_for_ws"],
-            st.session_state["ps_api"],
-            st.session_state["ui_queue"],
-            st.session_state["_ws_stop_event"]
-        )
-        st.session_state["ws"] = ws
-        st.success(f"📡 WebSocket Started for {len(st.session_state['symbols_for_ws'])} symbol(s)")
+
+        try:
+            # ✅ Start WebSocket ONLY NOW (no auto connect on reruns)
+            from prostocks_connector import ProStocksAPI
+
+            ws = st.session_state["ps_api"].connect_websocket(
+                st.session_state["symbols_for_ws"],   # list of tokens
+                on_tick=None                          # tick callback disable until strategy loop
+            )
+
+            st.session_state["ws"] = ws
+            st.session_state["ps_api"].is_ws_connected = True  # ✅ Prevent re-connect attempts
+
+            st.success(f"📡 WebSocket Started for {len(st.session_state['symbols_for_ws'])} symbol(s)")
+
+        except Exception as e:
+            st.error(f"❌ WS Start Error: {e}")
+            st.stop()
+
+        # --- Continue Auto Trader logic below (unchanged) ---
         if "ps_api" in st.session_state and "all_watchlists" in st.session_state:
             ps_api = st.session_state["ps_api"]
             all_wls_copy = st.session_state["all_watchlists"].copy()
@@ -229,6 +245,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             if not strategy_settings:
                 st.error("❌ Strategy settings not found! Configure TRM settings before starting Auto Trader.")
                 st.stop()
+
 
             st.session_state["strategy_settings"] = strategy_settings
             symbols_with_tokens = []
@@ -306,6 +323,7 @@ def on_new_candle(symbol, df):
 #        st.session_state["ps_api"].on_new_candle = on_new_candle
 #    except Exception as e:
 #        st.warning(f"⚠️ Could not set on_new_candle: {e}")
+
 
 
 
