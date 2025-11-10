@@ -1,1 +1,99 @@
+<script>
+let history    = window.initialHistory || [];
+let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
+let initialTok = window.initialToken || null;
+let barIntMin  = Number(window.barInterval || 1);
+
+// chart setup (unchanged)
+const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+  layout: { background: { color: '#000' }, textColor: '#fff' },
+  grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+  timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
+});
+const candleSeries = chart.addCandlestickSeries({
+  upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+  wickUpColor:'#26a69a', wickDownColor:'#ef5350'
+});
+candleSeries.setData(history);
+
+// bucket helper (unchanged)
+function bucketToInterval(tsSec) {
+  const dUTC = new Date(tsSec * 1000);
+  const istMs = dUTC.getTime() + 330 * 60 * 1000;
+  const ist = new Date(istMs);
+  ist.setSeconds(0, 0);
+  ist.setMinutes(Math.floor(ist.getMinutes() / barIntMin) * barIntMin);
+  const backUTCms = ist.getTime() - 330 * 60 * 1000;
+  return Math.floor(backUTCms / 1000);
+}
+
+// derive https subscribe endpoint from wsUrl
+function subscribeUrlFromWs(wsUrl) {
+  const u = new URL(wsUrl);
+  u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
+  u.pathname = "/subscribe";
+  u.search = "";
+  return u.toString();
+}
+
+async function httpSubscribe(token) {
+  const url = subscribeUrlFromWs(wsUrl);
+  await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ tokens: [String(token)] })
+  }).catch(()=>{});
+}
+
+let ws = null;
+let reconnectTimer = null;
+
+function connectWS() {
+  if (!initialTok) return;
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = async () => {
+    console.log(" WS Connected:", wsUrl);
+    // IMPORTANT: subscribe via HTTP, not WS
+    await httpSubscribe(initialTok);
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const p = JSON.parse(event.data);
+      const price = Number(p.lp ?? p.ltp ?? p.price);
+      let ts = Number(p.ft ?? p.time ?? p.lts);
+      if (!price || !ts) return;
+      if (ts > 1e12) ts = Math.floor(ts / 1000);
+      const bucket = bucketToInterval(ts);
+      candleSeries.update({ time: bucket, open: price, high: price, low: price, close: price });
+    } catch (e) {
+      console.log(" Tick parse error:", e);
+    }
+  };
+
+  ws.onclose = () => {
+    console.log(" WS Closed — Reconnecting in 2s…");
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => {
+    try { ws.close(); } catch {};
+  };
+}
+
+// NEW: Start WebSocket only when token becomes available (login done + chart opened)
+function safeStartWS() {
+  if (!initialTok || initialTok === "None" || initialTok === "" || initialTok === null) {
+    console.log(" Waiting for login/session before starting live WebSocket…");
+    setTimeout(safeStartWS, 1000);
+    return;
+  }
+  console.log(" Starting WebSocket feed now for token:", initialTok);
+  connectWS();
+}
+
+safeStartWS();
+</script>
 
