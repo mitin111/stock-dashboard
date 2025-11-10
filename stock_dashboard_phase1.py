@@ -386,6 +386,55 @@ with tab5:
         st.stop()
 
     ps_api = st.session_state.ps_api
+    # ===== Normalize TPSeries DataFrame (universal safe) =====
+    def normalize_tpseries(df_raw):
+        import pandas as pd
+        if df_raw is None or not isinstance(df_raw, pd.DataFrame) or df_raw.empty:
+            return None, "Empty or invalid TPSeries dataframe"
+
+        df = df_raw.copy()
+
+        # ✅ must have datetime column
+        if "datetime" not in df.columns:
+            return None, "No datetime column found"
+
+        # ✅ convert to datetime + convert to IST
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+        df = df.dropna(subset=["datetime"])
+        df["datetime"] = df["datetime"].dt.tz_localize(
+            "Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT"
+        )
+        df = df.dropna(subset=["datetime"]).set_index("datetime")
+
+        # ✅ Normalize naming
+        rename_map = {
+            "into": "open",
+            "inth": "high",
+            "intl": "low",
+            "intc": "close",
+            "intv": "volume",
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume"
+        }
+        df = df.rename(columns=rename_map)
+
+        # ✅ Must have OHLC
+        required = {"open", "high", "low", "close"}
+        if not required.issubset(df.columns):
+            return None, f"Missing OHLC columns: {list(df.columns)}"
+
+        # ✅ Make numeric
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # ✅ Drop bad rows
+        df = df.dropna(subset=["open", "high", "low", "close"])
+        return df, None
+        
 
     # UI controls
     watchlists = st.session_state.get("all_watchlists", [])
@@ -712,56 +761,6 @@ with tab5:
         except Exception as e:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
-    
-    # ===== Normalize TPSeries DataFrame (universal safe) =====
-    def normalize_tpseries(df_raw):
-        import pandas as pd
-        if df_raw is None or not isinstance(df_raw, pd.DataFrame) or df_raw.empty:
-            return None, "Empty or invalid TPSeries dataframe"
-
-        df = df_raw.copy()
-
-        # ✅ must have datetime column
-        if "datetime" not in df.columns:
-            return None, "No datetime column found"
-
-        # ✅ convert to datetime + convert to IST
-        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-        df = df.dropna(subset=["datetime"])
-        df["datetime"] = df["datetime"].dt.tz_localize(
-            "Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT"
-        )
-        df = df.dropna(subset=["datetime"]).set_index("datetime")
-
-        # ✅ Normalize naming
-        rename_map = {
-            "into": "open",
-            "inth": "high",
-            "intl": "low",
-            "intc": "close",
-            "intv": "volume",
-            "Open": "open",
-            "High": "high",
-            "Low": "low",
-            "Close": "close",
-            "Volume": "volume"
-        }
-        df = df.rename(columns=rename_map)
-
-        # ✅ Must have OHLC
-        required = {"open", "high", "low", "close"}
-        if not required.issubset(df.columns):
-            return None, f"Missing OHLC columns: {list(df.columns)}"
-
-        # ✅ Make numeric
-        for col in ["open", "high", "low", "close", "volume"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        # ✅ Drop bad rows
-        df = df.dropna(subset=["open", "high", "low", "close"])
-
-        return df, None
 
     # --- Preload TPSeries history and auto-start WS ---
     # --- Load history ONLY when chart is open ---
@@ -927,6 +926,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
