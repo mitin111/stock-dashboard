@@ -888,30 +888,20 @@ class ProStocksAPI:
         except Exception as e:
             print(f"⚠️ build_live_candles_from_tick error: {e}, tick={tick}")
 
+   
     def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
-        """
-        Connect to WebSocket and subscribe to given symbols.
-        - symbols: list of tokens like ['NSE|22', 'NSE|2885']
-        - on_tick: callback function to handle ticks
-        - tick_file: optional log file for raw ticks
-        """
-        try:
-            self._on_tick = on_tick
-            self.start_ticks(symbols, tick_file=tick_file)
-
-            # Wait until WS connected (max 5 sec)
-            for _ in range(50):
-                if getattr(self, "is_ws_connected", False):
-                    print("✅ WebSocket connected")
-                    return True
-                time.sleep(0.1)
-
-            print("❌ WebSocket connect timeout")
-            return False
-
-        except Exception as e:
-            print("❌ connect_websocket error:", e)
-            return False
+    """
+    SAFE MODE:
+    Only store tokens and callback.
+    Do NOT auto-start WebSocket here.
+    WebSocket will be started *manually* by Streamlit when user clicks "Start" or "Open Chart".
+    """
+    self._on_tick = on_tick
+    self._sub_tokens = symbols
+    self.tick_file = tick_file
+    print("✅ WS setup stored, but NOT started yet. Call start_ticks() manually.")
+    return True
+    
 
     def start_ticks(self, symbols, tick_file="ticks.log"):
         """
@@ -940,8 +930,8 @@ class ProStocksAPI:
                 print("❌ start_ticks websocket error:", e)
 
         # Run WebSocket in background
-        t = threading.Thread(target=run_ws, daemon=True)
-        t.start()
+        print("🟢 Ready to start WebSocket → call start_ticks() manually from UI")
+        return
 
   
     # ---------------- Fetch Yesterday's Candles ----------------
@@ -1022,6 +1012,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
