@@ -458,12 +458,22 @@ with tab5:
         tsym = symbols_map[selected_symbol_key]
         cache_key = f"tp_{selected_symbol_key}_{selected_interval}"
 
-        if cache_key not in st.session_state:
-            st.session_state[cache_key] = ps_api.fetch_full_tpseries(
-                exch, token, interval=selected_interval, max_days=5
-            )
+        df_raw = ps_api.fetch_full_tpseries(
+            exch,
+            token,
+            interval=selected_interval,
+            max_days=5
+        )
 
-        tpseries_results = st.session_state[cache_key]
+        df, err = normalize_tpseries(df_raw)
+        if df is None:
+            st.warning(f"⚠️ TPSeries error: {err}")
+            st.stop()
+
+        # ✅ Now df is always standardized OHLC
+        load_history_into_state(df)
+        st.success(f"📊 Loaded TPSeries candles: {len(df)}")
+
 
     except Exception as e:
         tpseries_results = []
@@ -931,6 +941,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
