@@ -703,90 +703,106 @@ with tab5:
             placeholder_ticks.warning(f"⚠️ Candle update error: {e}")
 
     
+    # ===== Normalize TPSeries DataFrame (universal safe) =====
+    def normalize_tpseries(df_raw):
+        import pandas as pd
+        if df_raw is None or not isinstance(df_raw, pd.DataFrame) or df_raw.empty:
+            return None, "Empty or invalid TPSeries dataframe"
+
+        df = df_raw.copy()
+
+        # ✅ must have datetime column
+        if "datetime" not in df.columns:
+            return None, "No datetime column found"
+
+        # ✅ convert to datetime + convert to IST
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+        df = df.dropna(subset=["datetime"])
+        df["datetime"] = df["datetime"].dt.tz_localize(
+            "Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT"
+        )
+        df = df.dropna(subset=["datetime"]).set_index("datetime")
+
+        # ✅ Normalize naming
+        rename_map = {
+            "into": "open",
+            "inth": "high",
+            "intl": "low",
+            "intc": "close",
+            "intv": "volume",
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume"
+        }
+        df = df.rename(columns=rename_map)
+
+        # ✅ Must have OHLC
+        required = {"open", "high", "low", "close"}
+        if not required.issubset(df.columns):
+            return None, f"Missing OHLC columns: {list(df.columns)}"
+
+        # ✅ Make numeric
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # ✅ Drop bad rows
+        df = df.dropna(subset=["open", "high", "low", "close"])
+
+        return df, None
+
     # --- Preload TPSeries history and auto-start WS ---
     # --- Load history ONLY when chart is open ---
     if st.session_state.get("chart_open", False):
-        wl = st.session_state.selected_watchlist
-        interval = selected_interval
-        try:
-            tpseries_results = ps_api.fetch_tpseries_for_watchlist(wl, interval)
-        except Exception as e:
-            tpseries_results = []
-            st.warning(f"TPSeries fetch error: {e}")
 
-        if tpseries_results:
-            df = tpseries_results[0]["data"].copy()
+        exch, token = selected_symbol_key.split("|")
 
-            # ✅ Always convert datetime first
-            if "datetime" not in df.columns:
-                st.error("⚠️ TPSeries missing datetime column")
-                st.stop()
+        df_raw = ps_api.fetch_full_tpseries(
+            exch,
+            token,
+            interval=selected_interval,
+            max_days=5
+        )
 
-            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-            df["datetime"] = df["datetime"].dt.tz_localize(
-                "Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT"
-            )
-            df = df.dropna(subset=["datetime"]).set_index("datetime")
+        df, err = normalize_tpseries(df_raw)
 
-            # ✅ Always rename OHLC columns regardless of input format
-            rename_map = {
-                "into": "open",
-                "inth": "high",
-                "intl": "low",
-                "intc": "close",
-                "intv": "volume",
-                "Open": "open",
-                "High": "high",
-                "Low": "low",
-                "Close": "close",
-                "Volume": "volume"
-            }
-            df = df.rename(columns=rename_map)
+        if df is None:
+            st.error(f"⚠️ TPSeries error: {err}")
+            st.stop()
 
-            # ✅ Verify OHLC actually present — if not, stop gracefully
-            required_cols = {"open", "high", "low", "close"}
-            if not required_cols.issubset(df.columns):
-                st.error(f"⚠️ TPSeries columns mismatch! Columns received: {list(df.columns)}")
-                st.stop()
+        # ✅ Load into chart
+        load_history_into_state(df)
+        st.success(f"📊 Loaded TPSeries candles: {len(df)}")
 
-            # ✅ Convert numeric safely (no crash)
-            for col in ["open", "high", "low", "close", "volume"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-            # ✅ Drop invalid rows ONLY now
-            df = df.dropna(subset=["open", "high", "low", "close"])
-
-            # ✅ Finally load into session (blink-free)
-            load_history_into_state(df)
-            st.write(f"📊 Loaded TPSeries candles: {len(df)}")
-
-            if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
-                holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
-                holiday_breaks = []
-                for h in full_holidays:
-                    start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                    end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                    holiday_breaks.append(dict(
-                        bounds=[start.to_pydatetime().replace(tzinfo=None),
-                                end.to_pydatetime().replace(tzinfo=None)]
-                    ))
-                st.session_state.holiday_values = holiday_values
-                st.session_state.holiday_breaks = holiday_breaks
-            else:
-                holiday_values = st.session_state.holiday_values
-                holiday_breaks = st.session_state.holiday_breaks
-
-            st.session_state.live_fig.update_xaxes(
-                showgrid=True, gridwidth=0.5, gridcolor="gray",
-                type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
-                rangeslider_visible=False,
-                rangebreaks=[dict(bounds=["sat","mon"]), dict(bounds=[15.5,9.25], pattern="hour"), *holiday_breaks]
-             )
+        # ✅ Manage holidays + rangebreaks
+        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
+            holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
+            holiday_breaks = []
+            for h in full_holidays:
+                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                holiday_breaks.append(dict(
+                    bounds=[start.to_pydatetime().replace(tzinfo=None),
+                            end.to_pydatetime().replace(tzinfo=None)]
+                ))
+            st.session_state.holiday_values = holiday_values
+            st.session_state.holiday_breaks = holiday_breaks
         else:
-            st.error("⚠️ No datetime column in TPSeries data")
+            holiday_values = st.session_state.holiday_values
+            holiday_breaks = st.session_state.holiday_breaks
+
+        # ✅ Apply styling to X-axis
+        st.session_state.live_fig.update_xaxes(
+            showgrid=True, gridwidth=0.5, gridcolor="gray",
+            type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
+            rangeslider_visible=False,
+            rangebreaks=[dict(bounds=["sat","mon"]), dict(bounds=[15.5,9.25], pattern="hour"), *holiday_breaks]
+        )
+
     else:
-        st.warning("⚠️ No TPSeries data fetched")
+        st.warning("⚠️ No TPSeries data fetched (Open Chart first)")
 
                 
     # --- Drain queue and apply live ticks to last candle ---
@@ -915,6 +931,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
