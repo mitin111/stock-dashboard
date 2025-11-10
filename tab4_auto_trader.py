@@ -17,41 +17,47 @@ import json
 
 # Helper: safe print (so it shows in server logs)
 def log(*args, **kwargs):
-    print(*args, **kwargs)
+    print(*args, **kwargs)
 
 
 # WebSocket starter (define here, no import needed)
 def start_ws(symbols, ps_api, ui_queue, stop_event):
-    # Do NOT connect WebSocket here
-    # We just store parameters and wait for user to start Auto Trader.
-    ui_queue.put(("info", "WS Ready (but not started)"), block=False)
-    return None    
-    def on_tick_callback(tick):
-        try:
-            ui_queue.put(("tick", tick), block=False)
-        except Exception:
-            pass
+    """
+    This version does NOT auto-start WebSocket.
+    It only stores params and waits for Auto Trader button.
+    """
+    ui_queue.put(("info", "WS Ready (but not started)"), block=False)
+    return None
 
-    try:
-        ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
 
-        # Heartbeat thread
-        def heartbeat(ws, stop_event):
-            while not stop_event.is_set():
-                try:
-                    ws.send("ping")
-                    hb = datetime.now().strftime("%H:%M:%S")
-                    ui_queue.put(("heartbeat", hb), block=False)
-                except Exception:
-                    break
-                time.sleep(20)
+def on_tick_callback(tick):
+    try:
+        ui_queue.put(("tick", tick), block=False)
+    except Exception:
+        pass
 
-        threading.Thread(target=heartbeat, args=(ws, stop_event), daemon=True).start()
-        return ws
 
-    except Exception as e:
-        ui_queue.put(("ws_error", str(e)), block=False)
-        return None
+def start_ws(symbols, ps_api, ui_queue, stop_event):
+    try:
+        ws = ps_api.connect_websocket(symbols, on_tick=on_tick_callback, tick_file="ticks_tab5.log")
+
+        # Heartbeat thread
+        def heartbeat(ws, stop_event):
+            while not stop_event.is_set():
+                try:
+                    ws.send("ping")
+                    hb = datetime.now().strftime("%H:%M:%S")
+                    ui_queue.put(("heartbeat", hb), block=False)
+                except Exception:
+                    break
+                time.sleep(20)
+
+        threading.Thread(target=heartbeat, args=(ws, stop_event), daemon=True).start()
+        return ws
+
+    except Exception as e:
+        ui_queue.put(("ws_error", str(e)), block=False)
+        return None
 
 def render_tab4(require_session_settings=False, allow_file_fallback=True):
     """
@@ -323,3 +329,4 @@ def on_new_candle(symbol, df):
 #        st.session_state["ps_api"].on_new_candle = on_new_candle
 #    except Exception as e:
 #        st.warning(f" Could not set on_new_candle: {e}")
+
