@@ -436,6 +436,47 @@ with tab5:
         return df, None
         
 
+    # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
+    def load_history_into_state(df_history):
+        # df_history: indexed by tz-aware Asia/Kolkata datetime, cols open/high/low/close, numeric
+        df_history = df_history.sort_index()
+        st.session_state.ohlc_x = list(df_history.index)
+        st.session_state.ohlc_o = list(df_history["open"].astype(float))
+        st.session_state.ohlc_h = list(df_history["high"].astype(float))
+        st.session_state.ohlc_l = list(df_history["low"].astype(float))
+        st.session_state.ohlc_c = list(df_history["close"].astype(float))
+
+        # Replace existing trace 0 with full history (blink-free)
+        st.session_state.live_fig.data = []
+        st.session_state.live_fig.add_trace(go.Candlestick(
+            x=st.session_state.ohlc_x,
+            open=st.session_state.ohlc_o,
+            high=st.session_state.ohlc_h,
+            low=st.session_state.ohlc_l,
+            close=st.session_state.ohlc_c,
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+            name="History"
+        ))
+        st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
+    
+    # === 🔧 Helper: safe_update_chart ===
+    def safe_update_chart(fig, x, o, h, l, c):
+        """Update Plotly candlestick without resetting layout or causing rerun"""
+        if not fig.data:
+            fig.add_trace(go.Candlestick(
+                x=x, open=o, high=h, low=l, close=c,
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
+                name="Live"
+            ))
+        else:
+            fig.data[0].x = x
+            fig.data[0].open = o
+            fig.data[0].high = h
+            fig.data[0].low = l
+            fig.data[0].close = c
+            
     # UI controls
     watchlists = st.session_state.get("all_watchlists", [])
     wl_labels = [f"Watchlist {wl}" for wl in watchlists]
@@ -638,47 +679,6 @@ with tab5:
         chart_placeholder.empty()
         st.info("ℹ️ Chart is closed. Press 'Open Chart' to view.")
 
-
-    # --- Helper: write ohlc arrays into session_state and figure (without clearing history unless intended) ---
-    def load_history_into_state(df_history):
-        # df_history: indexed by tz-aware Asia/Kolkata datetime, cols open/high/low/close, numeric
-        df_history = df_history.sort_index()
-        st.session_state.ohlc_x = list(df_history.index)
-        st.session_state.ohlc_o = list(df_history["open"].astype(float))
-        st.session_state.ohlc_h = list(df_history["high"].astype(float))
-        st.session_state.ohlc_l = list(df_history["low"].astype(float))
-        st.session_state.ohlc_c = list(df_history["close"].astype(float))
-
-        # Replace existing trace 0 with full history (blink-free)
-        st.session_state.live_fig.data = []
-        st.session_state.live_fig.add_trace(go.Candlestick(
-            x=st.session_state.ohlc_x,
-            open=st.session_state.ohlc_o,
-            high=st.session_state.ohlc_h,
-            low=st.session_state.ohlc_l,
-            close=st.session_state.ohlc_c,
-            increasing_line_color="#26a69a",
-            decreasing_line_color="#ef5350",
-            name="History"
-        ))
-        st.session_state.last_tp_dt = st.session_state.ohlc_x[-1] if st.session_state.ohlc_x else None
-    
-    # === 🔧 Helper: safe_update_chart ===
-    def safe_update_chart(fig, x, o, h, l, c):
-        """Update Plotly candlestick without resetting layout or causing rerun"""
-        if not fig.data:
-            fig.add_trace(go.Candlestick(
-                x=x, open=o, high=h, low=l, close=c,
-                increasing_line_color="#26a69a",
-                decreasing_line_color="#ef5350",
-                name="Live"
-            ))
-        else:
-            fig.data[0].x = x
-            fig.data[0].open = o
-            fig.data[0].high = h
-            fig.data[0].low = l
-            fig.data[0].close = c
 
     # --- Update last candle from tick (blink-free) ---
     def update_last_candle_from_tick_local(tick, interval=1):
@@ -926,6 +926,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
