@@ -889,19 +889,20 @@ class ProStocksAPI:
             print(f"⚠️ build_live_candles_from_tick error: {e}, tick={tick}")
 
    
-    def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
-    """
-    SAFE MODE:
-    Only store tokens and callback.
-    Do NOT auto-start WebSocket here.
-    WebSocket will be started *manually* by Streamlit when user clicks "Start" or "Open Chart".
-    """
-    self._on_tick = on_tick
-    self._sub_tokens = symbols
-    self.tick_file = tick_file
-    print("✅ WS setup stored, but NOT started yet. Call start_ticks() manually.")
-    return True
     
+    def connect_websocket(self, symbols, on_tick=None, tick_file="ticks.log"):
+        """
+        SAFE MODE:
+        Only store tokens and callback.
+        Do NOT auto-start WebSocket here.
+        WebSocket will be started *manually* by Streamlit when user clicks "Start" or "Open Chart".
+        """
+        self._on_tick = on_tick
+        self._sub_tokens = symbols
+        self.tick_file = tick_file
+        print("✅ WS setup stored, but NOT started yet. Call start_ticks() manually.")
+        return True
+
 
     def start_ticks(self, symbols, tick_file="ticks.log"):
         """
@@ -909,10 +910,11 @@ class ProStocksAPI:
         """
         import websocket
         import threading
+        import queue
 
         self.tick_file = tick_file
         self.tick_queue = queue.Queue()
-        self._sub_tokens = symbols  # store tokens for re-subscribe after login
+        self._sub_tokens = symbols
         self.is_ws_connected = False
 
         def run_ws():
@@ -929,9 +931,12 @@ class ProStocksAPI:
             except Exception as e:
                 print("❌ start_ticks websocket error:", e)
 
-        # Run WebSocket in background
-        print("🟢 Ready to start WebSocket → call start_ticks() manually from UI")
-        return
+        t = threading.Thread(target=run_ws, daemon=True)
+        t.start()
+
+        print(f"🟢 WebSocket starting... subscribing → {symbols}")
+        return True
+
 
   
     # ---------------- Fetch Yesterday's Candles ----------------
@@ -988,6 +993,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
