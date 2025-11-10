@@ -783,8 +783,8 @@ with tab5:
                 rangeslider_visible=False,
                 rangebreaks=[dict(bounds=["sat","mon"]), dict(bounds=[15.5,9.25], pattern="hour"), *holiday_breaks]
              )
-         else:
-             st.error("⚠️ No datetime column in TPSeries data")
+        else:
+            st.error("⚠️ No datetime column in TPSeries data")
      else:
          st.warning("⚠️ No TPSeries data fetched")
 
@@ -915,6 +915,7 @@ with tab5:
 
         else:
             st.warning("⚠️ Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
