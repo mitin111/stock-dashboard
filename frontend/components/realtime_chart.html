@@ -44,15 +44,15 @@ const candleSeries = chart.addCandlestickSeries({
 candleSeries.setData(history);
 
 function bucketToInterval(tsSec) {
-  // Convert tick timestamp → actual JS Date in IST
-  const ist = new Date((tsSec + 19800) * 1000); // 19800 seconds = +5:30
+  // tsSec is already correct exchange epoch seconds
+  const d = new Date(tsSec * 1000);
 
-  // Floor to interval
-  ist.setSeconds(0, 0);
-  ist.setMinutes(Math.floor(ist.getMinutes() / barIntMin) * barIntMin);
+  // Floor to interval properly (browser local — IST automatically)
+  d.setSeconds(0, 0);
+  d.setMinutes(Math.floor(d.getMinutes() / barIntMin) * barIntMin);
 
-  // Return back as **UTC epoch seconds** so tradingview aligns correctly
-  return Math.floor((ist.getTime() - 19800 * 1000) / 1000);
+  // Return back as UTC epoch seconds (chart expects this)
+  return Math.floor(d.getTime() / 1000);
 }
 
 let lastBar = history.length ? { ...history[history.length - 1] } : null;
@@ -115,5 +115,6 @@ safeStartWS();
 
 </body>
 </html>
+
 
 
