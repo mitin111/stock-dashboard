@@ -1,23 +1,7 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Realtime Chart</title>
-  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-
-  <style>
-    html, body { margin: 0; padding: 0; background:#000; overflow:hidden; }
-    #chart-container { width:100vw; height:650px; }
-  </style>
-</head>
-
-<body>
-<div id="chart-container"></div>
-
 <script>
 let history    = window.initialHistory || [];
 let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
-let initialTok = window.initialToken || null;   // <-- Example NSE|21614
+let initialTok = window.initialToken || null;   // Example token: NSE|21614
 let barIntMin  = Number(window.barInterval || 1);
 
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
@@ -26,7 +10,7 @@ const chart = LightweightCharts.createChart(document.getElementById('chart-conta
   timeScale: { timeVisible:true, secondsVisible:false, rightOffset:3 }
 });
 
-// ✅ Force India Time
+// ✅ Force India Timezone
 chart.applyOptions({
   timezone: 'Asia/Kolkata',
   localization: {
@@ -50,36 +34,54 @@ const candleSeries = chart.addCandlestickSeries({
 
 candleSeries.setData(history);
 
+// Time bucket
 function bucket(ts){
-  const d=new Date(ts*1000);
+  const d = new Date(ts * 1000);
   d.setSeconds(0,0);
   d.setMinutes(Math.floor(d.getMinutes()/barIntMin)*barIntMin);
   return Math.floor(d.getTime()/1000);
 }
 
-let last = history.length ? {...history[history.length-1]} : null;
+// Candle state
+let last = history.length ? { ...history[history.length - 1] } : null;
+
+// ✅ WebSocket global
+let ws;
 
 async function httpSubscribe(){
   await fetch(wsUrl.replace("/ws/live","/subscribe"), {
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ tokens:[initialTok] })   // ✅ Correct
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ tokens:[initialTok] })
   }).catch(()=>{});
 }
 
 function connect(){
-  const ws = new WebSocket(wsUrl);
+  ws = new WebSocket(wsUrl);
 
-  ws.onopen = httpSubscribe;
+  ws.onopen = async () => {
+    console.log("✅ WS Connected:", wsUrl);
+    await httpSubscribe();
+  };
 
-  ws.onmessage = (ev)=>{
+  ws.onerror = (err) => {
+    console.log("❌ WS Error:", err);
+  };
+
+  ws.onclose = () => {
+    console.log("⚠️ WS Closed — reconnecting...");
+    setTimeout(connect, 1500);
+  };
+
+  ws.onmessage = (ev) => {
     try {
       const p = JSON.parse(ev.data);
 
-      // ✅ Consistent Price Parsing
       const price = Number(p.lp ?? p.ltp ?? p.price ?? p.close);
       let ts = Number(p.ft ?? p.time ?? p.lts ?? p.timestamp);
       if(!price || !ts) return;
-      if(ts > 1e12) ts = Math.floor(ts/1000);
+
+      if(ts > 1e12) ts = Math.floor(ts / 1000);
 
       const b = bucket(ts);
 
@@ -87,22 +89,20 @@ function connect(){
         last = { time:b, open:price, high:price, low:price, close:price };
       } else {
         last.high = Math.max(last.high, price);
-        last.low = Math.min(last.low, price);
+        last.low  = Math.min(last.low, price);
         last.close = price;
       }
 
       candleSeries.update(last);
     } catch(e){}
   };
-
-  ws.onclose = ()=> setTimeout(connect, 1500);
 }
 
-function start(){ if(initialTok) connect(); else setTimeout(start, 800); }
+function start(){
+  if(initialTok) connect();
+  else setTimeout(start, 800);
+}
+
 start();
 </script>
-
-</body>
-</html>
-
 
