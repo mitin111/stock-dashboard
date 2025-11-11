@@ -3,128 +3,121 @@
 <head>
   <meta charset="utf-8"/>
   <title>Realtime Chart</title>
+
+  <!-- ✅ Correct Lightweight Charts Library (Required) -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+    }
+    #chart-container {
+      width: 100%;
+      height: 650px;
+    }
+  </style>
 </head>
 
-<body style="margin:0; padding:0; background:#000;">
-  <!-- ✅ Chart container (Required) -->
-  <div id="chart-container" style="width:100%; height:650px;"></div>
+<body>
+  <!-- ✅ Chart container -->
+  <div id="chart-container"></div>
 
-<script>
-let history    = window.initialHistory || [];
-let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
-let initialTok = window.initialToken || null;
-let barIntMin  = Number(window.barInterval || 1);
+  <script>
+  let history    = window.initialHistory || [];
+  let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
+  let initialTok = window.initialToken || null;
+  let barIntMin  = Number(window.barInterval || 1);
 
-// chart setup
-const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
-  layout: { background: { color: '#000' }, textColor: '#fff' },
-  grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-  timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
-});
-const candleSeries = chart.addCandlestickSeries({
-  upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
-  wickUpColor:'#26a69a', wickDownColor:'#ef5350'
-});
-candleSeries.setData(history);
+  // ✅ Chart Setup
+  const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+    layout: { background: { color: '#000' }, textColor: '#fff' },
+    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
+  });
 
-// bucket helper
-function bucketToInterval(tsSec) {
-  const dUTC = new Date(tsSec * 1000);
-  const istMs = dUTC.getTime() + 330 * 60 * 1000;
-  const ist = new Date(istMs);
-  ist.setSeconds(0,0);
-  ist.setMinutes(Math.floor(ist.getMinutes()/barIntMin)*barIntMin);
-  const backUTCms = ist.getTime() - 330 * 60 * 1000;
-  return Math.floor(backUTCms / 1000);
-}
+  const candleSeries = chart.addCandlestickSeries({
+    upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+    wickUpColor:'#26a69a', wickDownColor:'#ef5350'
+  });
 
-// derive https subscribe endpoint from wsUrl
-function subscribeUrlFromWs(wsUrl) {
-  const u = new URL(wsUrl);
-  u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
-  u.pathname = "/subscribe";
-  u.search = "";
-  return u.toString();
-}
+  // ✅ Load TPSeries History
+  candleSeries.setData(history);
 
-async function httpSubscribe(token) {
-  const url = subscribeUrlFromWs(wsUrl);
-  await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ tokens: [String(token)] })
-  }).catch(()=>{});
-}
-
-let ws = null;
-let reconnectTimer = null;
-
-// ✅ NEW: Maintain last bar state
-let lastBar = history.length ? { ...history[history.length - 1] } : null;
-
-function connectWS() {
-  if (!initialTok) return;
-  ws = new WebSocket(wsUrl);
-
-  ws.onopen = async () => {
-    console.log(" WS Connected:", wsUrl);
-    await httpSubscribe(initialTok);
-  };
-
-  // ✅ Proper OHLC real-time candle update
-  ws.onmessage = (event) => {
-    try {
-      const p = JSON.parse(event.data);
-
-      const price = Number(p.lp ?? p.ltp ?? p.price);
-      let ts = Number(p.ft ?? p.time ?? p.lts);
-      if (!price || !ts) return;
-
-      if (ts > 1e12) ts = Math.floor(ts / 1000);
-      const bucket = bucketToInterval(ts);
-
-      // New candle?
-      if (!lastBar || bucket > lastBar.time) {
-        lastBar = { time: bucket, open: price, high: price, low: price, close: price };
-        candleSeries.update(lastBar);
-      }
-      // Update same candle (NO FLICKER)
-      else if (bucket === lastBar.time) {
-        lastBar.high = Math.max(lastBar.high, price);
-        lastBar.low  = Math.min(lastBar.low, price);
-        lastBar.close = price;
-        candleSeries.update(lastBar);
-      }
-
-    } catch (e) {
-      console.log(" Tick parse error:", e);
-    }
-  };
-
-  ws.onclose = () => {
-    console.log(" WS Closed — Reconnecting in 2s…");
-    clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connectWS, 2000);
-  };
-
-  ws.onerror = () => {
-    try { ws.close(); } catch {};
-  };
-}
-
-function safeStartWS() {
-  if (!initialTok || initialTok === "None" || initialTok === "" || initialTok === null) {
-    console.log(" Waiting for login/session before starting live WebSocket…");
-    setTimeout(safeStartWS, 1000);
-    return;
+  // ✅ Time Bucketing Helper
+  function bucketToInterval(tsSec) {
+    const dUTC = new Date(tsSec * 1000);
+    const istMs = dUTC.getTime() + 330 * 60 * 1000;
+    const ist = new Date(istMs);
+    ist.setSeconds(0,0);
+    ist.setMinutes(Math.floor(ist.getMinutes()/barIntMin)*barIntMin);
+    const backUTCms = ist.getTime() - 330 * 60 * 1000;
+    return Math.floor(backUTCms / 1000);
   }
-  console.log(" Starting WebSocket feed now for token:", initialTok);
-  connectWS();
-}
 
-safeStartWS();
-</script>
+  // ✅ Maintain last plotted candle
+  let lastBar = history.length ? { ...history[history.length - 1] } : null;
 
+  function subscribeUrlFromWs(wsUrl) {
+    const u = new URL(wsUrl);
+    u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
+    u.pathname = "/subscribe";
+    u.search = "";
+    return u.toString();
+  }
+
+  async function httpSubscribe(token) {
+    const url = subscribeUrlFromWs(wsUrl);
+    await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ tokens: [String(token)] })
+    }).catch(()=>{});
+  }
+
+  function connectWS() {
+    if (!initialTok) return;
+    let ws = new WebSocket(wsUrl);
+
+    ws.onopen = async () => {
+      console.log("WS Connected:", wsUrl);
+      await httpSubscribe(initialTok);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const p = JSON.parse(event.data);
+        const price = Number(p.lp ?? p.ltp ?? p.price);
+        let ts = Number(p.ft ?? p.time ?? p.lts);
+        if (!price || !ts) return;
+        if (ts > 1e12) ts = Math.floor(ts / 1000);
+
+        const bucket = bucketToInterval(ts);
+
+        if (!lastBar || bucket > lastBar.time) {
+          lastBar = { time: bucket, open: price, high: price, low: price, close: price };
+        } else {
+          lastBar.high = Math.max(lastBar.high, price);
+          lastBar.low  = Math.min(lastBar.low, price);
+          lastBar.close = price;
+        }
+        candleSeries.update(lastBar);
+
+      } catch (e) {
+        console.log("Tick parse error:", e);
+      }
+    };
+
+    ws.onclose = () => setTimeout(connectWS, 2000);
+  }
+
+  function safeStartWS() {
+    if (!initialTok) return setTimeout(safeStartWS, 1000);
+    connectWS();
+  }
+
+  safeStartWS();
+  </script>
 </body>
 </html>
