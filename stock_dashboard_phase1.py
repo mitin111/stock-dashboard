@@ -259,7 +259,7 @@ with tab3:
 # === Tab 4: Indicator Settings === 
 with tab4:
     from tab4_auto_trader import render_tab4
-    from tkp_trm_chart import render_trm_settings_once
+    from tkp_trm_chart import ensure_trm_settings_loaded, render_trm_settings_ui_body
 
     st.subheader("📀 Indicator & TRM Settings")
 
@@ -268,16 +268,15 @@ with tab4:
         st.info("🔐 Please login first to configure Auto Trader settings.")
         st.stop()
 
-    # ✅ Ensure TRM UI expander only appears once
-    if "trm_settings_expander_rendered" not in st.session_state:
-        st.session_state["trm_settings_expander_rendered"] = False
+    # ✅ ALWAYS SHOW TRM SETTINGS IN SIDEBAR (never disappears now)
+    with st.sidebar:
+        st.markdown("### 🎛️ TRM Strategy Settings")
+        ensure_trm_settings_loaded()        # load from trm_settings.json → session_state
+        render_trm_settings_ui_body()       # show input controls always
 
-    # ✅ FIRST show TRM Settings panel (UI from tkp_trm_chart.py)
-    render_trm_settings_once()
+    st.markdown("---")   # divider
 
-    st.markdown("---")   # visual separator
-
-    # ✅ THEN show quantity mapping & auto trader controls
+    # ✅ Now show Quantity Mapping + Auto Trader Controls
     render_tab4(require_session_settings=True, allow_file_fallback=False)
 
 
@@ -919,6 +918,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
