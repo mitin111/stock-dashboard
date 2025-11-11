@@ -3,136 +3,106 @@
 <head>
   <meta charset="utf-8"/>
   <title>Realtime Chart</title>
-
-  <!-- ✅ Correct version & standalone bundle -->
-  <script type="text/javascript" src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      overflow: hidden;
-    }
-    #chart-container {
-      width: 100vw;
-      height: 650px;
-    }
+    html, body { margin: 0; padding: 0; background:#000; overflow:hidden; }
+    #chart-container { width:100vw; height:650px; }
   </style>
 </head>
 
 <body>
-  <div id="chart-container"></div>
+<div id="chart-container"></div>
 
 <script>
 let history    = window.initialHistory || [];
 let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
-let initialTok = window.initialToken || null;
+let initialTok = window.initialToken || null;   // <-- Example NSE|21614
 let barIntMin  = Number(window.barInterval || 1);
 
-// ✅ Create chart
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
-  layout: { background: { color: '#000' }, textColor: '#fff' },
-  grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-  timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
+  layout: { background:{color:"#000"}, textColor:"#fff" },
+  grid: { vertLines:{color:"#222"}, horzLines:{color:"#222"} },
+  timeScale: { timeVisible:true, secondsVisible:false, rightOffset:3 }
 });
 
-// ✅ Force chart to display time in IST correctly
+// ✅ Force India Time
 chart.applyOptions({
   timezone: 'Asia/Kolkata',
   localization: {
     locale: 'en-IN',
-    timeFormatter: (t) =>
-      new Date(t * 1000).toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        hour12: false,
-      }),
+    timeFormatter: t => new Date(t*1000).toLocaleString('en-IN', {
+      timeZone:'Asia/Kolkata', hour12:false
+    })
   },
   timeScale: {
-    tickMarkFormatter: (t) =>
-      new Date(t * 1000).toLocaleTimeString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit'
-      }),
+    tickMarkFormatter: (time) => new Date(time*1000).toLocaleTimeString('en-IN', {
+      timeZone:'Asia/Kolkata', hour12:false, hour:'2-digit', minute:'2-digit'
+    })
   }
 });
 
-// ✅ Candle series
 const candleSeries = chart.addCandlestickSeries({
-  upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
-  wickUpColor:'#26a69a', wickDownColor:'#ef5350'
+  upColor:"#26a69a", downColor:"#ef5350",
+  borderUpColor:"#26a69a", borderDownColor:"#ef5350",
+  wickUpColor:"#26a69a", wickDownColor:"#ef5350"
 });
 
 candleSeries.setData(history);
 
-// ✅ Correct bucket interval calc (no +19800 shift)
-function bucketToInterval(tsSec) {
-  const d = new Date(tsSec * 1000);
-  d.setSeconds(0, 0);
-  d.setMinutes(Math.floor(d.getMinutes() / barIntMin) * barIntMin);
-  return Math.floor(d.getTime() / 1000);
+function bucket(ts){
+  const d=new Date(ts*1000);
+  d.setSeconds(0,0);
+  d.setMinutes(Math.floor(d.getMinutes()/barIntMin)*barIntMin);
+  return Math.floor(d.getTime()/1000);
 }
 
-let lastBar = history.length ? { ...history[history.length - 1] } : null;
+let last = history.length ? {...history[history.length-1]} : null;
 
-function subscribeUrlFromWs(wsUrl) {
-  const u = new URL(wsUrl);
-  u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
-  u.pathname = "/subscribe";
-  u.search = "";
-  return u.toString();
-}
-
-async function httpSubscribe(token) {
-  await fetch(subscribeUrlFromWs(wsUrl), {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ tokens: [String(token)] })
+async function httpSubscribe(){
+  await fetch(wsUrl.replace("/ws/live","/subscribe"), {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ tokens:[initialTok] })   // ✅ Correct
   }).catch(()=>{});
 }
 
-function connectWS() {
-  if (!initialTok) return;
-  let ws = new WebSocket(wsUrl);
+function connect(){
+  const ws = new WebSocket(wsUrl);
 
-  ws.onopen = async () => {
-    await httpSubscribe(initialTok);
-  };
+  ws.onopen = httpSubscribe;
 
-  ws.onmessage = (event) => {
+  ws.onmessage = (ev)=>{
     try {
-      const p = JSON.parse(event.data);
-      const price = Number(p.lp ?? p.ltp ?? p.price);
-      let ts = Number(p.ft ?? p.time ?? p.lts);
-      if (!price || !ts) return;
-      if (ts > 1e12) ts = Math.floor(ts / 1000);
+      const p = JSON.parse(ev.data);
 
-      const bucket = bucketToInterval(ts);
+      // ✅ Consistent Price Parsing
+      const price = Number(p.lp ?? p.ltp ?? p.price ?? p.close);
+      let ts = Number(p.ft ?? p.time ?? p.lts ?? p.timestamp);
+      if(!price || !ts) return;
+      if(ts > 1e12) ts = Math.floor(ts/1000);
 
-      if (!lastBar || bucket > lastBar.time) {
-        lastBar = { time: bucket, open: price, high: price, low: price, close: price };
+      const b = bucket(ts);
+
+      if(!last || b > last.time){
+        last = { time:b, open:price, high:price, low:price, close:price };
       } else {
-        lastBar.high = Math.max(lastBar.high, price);
-        lastBar.low  = Math.min(lastBar.low, price);
-        lastBar.close = price;
+        last.high = Math.max(last.high, price);
+        last.low = Math.min(last.low, price);
+        last.close = price;
       }
 
-      candleSeries.update(lastBar);
-
-    } catch (e) {}
+      candleSeries.update(last);
+    } catch(e){}
   };
 
-  ws.onclose = () => setTimeout(connectWS, 2000);
+  ws.onclose = ()=> setTimeout(connect, 1500);
 }
 
-function safeStartWS() {
-  if (!initialTok) return setTimeout(safeStartWS, 1000);
-  connectWS();
-}
-safeStartWS();
+function start(){ if(initialTok) connect(); else setTimeout(start, 800); }
+start();
 </script>
 
 </body>
 </html>
+
+
