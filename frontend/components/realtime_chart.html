@@ -55,7 +55,6 @@ function bucketToInterval(tsSec) {
   return Math.floor((ist.getTime() - 19800 * 1000) / 1000);
 }
 
-
 let lastBar = history.length ? { ...history[history.length - 1] } : null;
 
 function subscribeUrlFromWs(wsUrl) {
@@ -116,4 +115,5 @@ safeStartWS();
 
 </body>
 </html>
+
 
