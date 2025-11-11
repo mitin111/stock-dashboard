@@ -256,7 +256,7 @@ with tab3:
         st.warning(wl_data.get("emsg", "Failed to load watchlist."))
 
 
-# === Tab 4: Indicator Settings ===
+# === Tab 4: Indicator Settings === 
 with tab4:
     from tab4_auto_trader import render_tab4
     from tkp_trm_chart import render_trm_settings_once
@@ -268,15 +268,18 @@ with tab4:
         st.info("🔐 Please login first to configure Auto Trader settings.")
         st.stop()
 
-    # ✅ Ensure expander flag initialized BEFORE calling UI builder
+    # ✅ Ensure TRM UI expander only appears once
     if "trm_settings_expander_rendered" not in st.session_state:
         st.session_state["trm_settings_expander_rendered"] = False
 
-    # ✅ Now safe to load tab4
+    # ✅ FIRST show TRM Settings panel (UI from tkp_trm_chart.py)
+    render_trm_settings_once()
+
+    st.markdown("---")   # visual separator
+
+    # ✅ THEN show quantity mapping & auto trader controls
     render_tab4(require_session_settings=True, allow_file_fallback=False)
 
-    st.markdown("---")
-    render_trm_settings_once()
 
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -916,6 +919,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
