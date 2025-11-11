@@ -559,11 +559,19 @@ with tab5:
             # Backend init is triggered ONLY NOW
             if "backend_inited" not in st.session_state:
                 try:
+                    ps = st.session_state.ps_api
                     requests.post(
                         "https://backend-stream-nmlf.onrender.com/init",
-                        json={"jKey": st.session_state.ps_api.session_token},
+                        json={
+                            "jKey": ps.session_token,
+                            "userid": ps.userid,
+                            "vc": ps.vc,
+                            "api_key": ps.api_key,
+                            "imei": ps.imei
+                        },
                         timeout=3
                     )
+
                     st.session_state["backend_inited"] = True
                     st.success(" Backend session attached")
                 except Exception as e:
@@ -908,6 +916,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
