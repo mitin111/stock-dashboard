@@ -1,3 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Realtime Chart</title>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+
+<body style="margin:0; padding:0; background:#000;">
+  <!-- ✅ Chart container (Required) -->
+  <div id="chart-container" style="width:100%; height:650px;"></div>
+
 <script>
 let history    = window.initialHistory || [];
 let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
@@ -60,7 +72,7 @@ function connectWS() {
     await httpSubscribe(initialTok);
   };
 
-  // ✅ REPLACED BLOCK (Proper OHLC candle building)
+  // ✅ Proper OHLC real-time candle update
   ws.onmessage = (event) => {
     try {
       const p = JSON.parse(event.data);
@@ -77,14 +89,13 @@ function connectWS() {
         lastBar = { time: bucket, open: price, high: price, low: price, close: price };
         candleSeries.update(lastBar);
       }
-      // Same candle → update OHLC properly
+      // Update same candle (NO FLICKER)
       else if (bucket === lastBar.time) {
         lastBar.high = Math.max(lastBar.high, price);
         lastBar.low  = Math.min(lastBar.low, price);
         lastBar.close = price;
         candleSeries.update(lastBar);
       }
-      // else old tick → ignore
 
     } catch (e) {
       console.log(" Tick parse error:", e);
@@ -114,3 +125,6 @@ function safeStartWS() {
 
 safeStartWS();
 </script>
+
+</body>
+</html>
