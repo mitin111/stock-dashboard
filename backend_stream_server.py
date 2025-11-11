@@ -121,7 +121,7 @@ async def ws_live(websocket: WebSocket):
 async def subscribe(request: Request):
     global ps_api
 
-    # 🚫 HARD STOP: Backend is NOT ready (no /init done yet)
+    # 🚫 HARD STOP: Backend not initialized
     if ps_api is None or getattr(ps_api, "session_token", None) is None:
         return {"stat": "error", "emsg": "Session not initialized — call /init first"}
 
@@ -132,17 +132,13 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": "tokens must be a non-empty list"}
 
     try:
-        # ✅ Start WS only once (first subscription)
+        # ✅ Start WebSocket only once
         if not getattr(ps_api, "is_ws_connected", False):
-            ps_api.start_ticks(tokens)   # ✅ Real WS connect + login + subscribe
+            ps_api.start_ticks(tokens)   # ✅ WS Connect + Login + Subscribe
             ps_api.is_ws_connected = True
             logging.info(f"✅ WebSocket Started with tokens: {tokens}")
-        else:
-            ps_api.subscribe_tokens(tokens)
-            logging.info(f"➕ Subscribed more tokens: {tokens}")
 
-
-        # ✅ If WS already running → just subscribe new tokens
+        # ✅ If already running → just subscribe more
         else:
             ps_api.subscribe_tokens(tokens)
             logging.info(f"➕ Subscribed more tokens: {tokens}")
@@ -154,13 +150,13 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": str(e)}
 
 
-
 # ✅ ADD THIS AT THE VERY END OF FILE (LAST LINES)
 if __name__ == "__main__":
     import time
     print("✅ Backend Stream Worker Running (no webserver)...")
     while True:
         time.sleep(9999)
+
 
 
 
