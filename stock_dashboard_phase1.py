@@ -579,6 +579,78 @@ with tab5:
         st.session_state["chart_placeholder"] = st.empty()
     chart_placeholder = st.session_state["chart_placeholder"]
 
+
+    # --- Preload TPSeries history and auto-start WS ---
+    # --- Load history ONLY when chart is open ---
+    if st.session_state.get("chart_open", False):
+
+        exch, token = selected_symbol_key.split("|")
+
+        df_raw = ps_api.fetch_full_tpseries(
+            exch,
+            token,
+            interval=selected_interval,
+            max_days=5
+        )
+
+        df, err = normalize_tpseries(df_raw)
+
+        if df is None:
+            st.error(f" TPSeries error: {err}")
+            st.stop()
+
+        # Load into chart
+        load_history_into_state(df)
+        st.success(f" Loaded TPSeries candles: {len(df)}")
+
+        # Manage holidays + rangebreaks
+        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
+            holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
+            holiday_breaks = []
+            for h in full_holidays:
+                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
+                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
+                holiday_breaks.append(dict(
+                    bounds=[start.to_pydatetime().replace(tzinfo=None),
+                            end.to_pydatetime().replace(tzinfo=None)]
+                ))
+            st.session_state.holiday_values = holiday_values
+            st.session_state.holiday_breaks = holiday_breaks
+        else:
+            holiday_values = st.session_state.holiday_values
+            holiday_breaks = st.session_state.holiday_breaks
+
+        # Apply styling to X-axis
+        st.session_state.live_fig.update_xaxes(
+            showgrid=True, gridwidth=0.5, gridcolor="gray",
+            type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
+            rangeslider_visible=False,
+            rangebreaks=[dict(bounds=["sat","mon"]), dict(bounds=[15.5,9.25], pattern="hour"), *holiday_breaks]
+        )
+
+    else:
+        st.warning(" No TPSeries data fetched (Open Chart first)")
+
+    # --------------------------------------------
+    # SAFETY CHECK → If TPSeries didn't load yet
+    # --------------------------------------------
+    history = [
+        {"time": int(x.timestamp()), "open": float(o), "high": float(h),
+         "low": float(l), "close": float(c)}
+        for x, o, h, l, c in zip(
+            st.session_state.ohlc_x,
+            st.session_state.ohlc_o,
+            st.session_state.ohlc_h,
+            st.session_state.ohlc_l,
+            st.session_state.ohlc_c
+        )
+    ]
+
+    if not history:
+        st.warning("⚠️ History empty at render-time — click **Open Chart** again.")
+        # Do NOT try to render chart when history empty
+        st.stop()
+
     # --- Chart render ---
     # === Realtime Chart Render (TradingView-like) ===
     # --- Chart render (LIGHTWEIGHT MODE) ---
@@ -723,59 +795,6 @@ with tab5:
 
         except Exception as e:
             placeholder_ticks.warning(f" Candle update error: {e}")
-
-
-    # --- Preload TPSeries history and auto-start WS ---
-    # --- Load history ONLY when chart is open ---
-    if st.session_state.get("chart_open", False):
-
-        exch, token = selected_symbol_key.split("|")
-
-        df_raw = ps_api.fetch_full_tpseries(
-            exch,
-            token,
-            interval=selected_interval,
-            max_days=5
-        )
-
-        df, err = normalize_tpseries(df_raw)
-
-        if df is None:
-            st.error(f" TPSeries error: {err}")
-            st.stop()
-
-        # Load into chart
-        load_history_into_state(df)
-        st.success(f" Loaded TPSeries candles: {len(df)}")
-
-        # Manage holidays + rangebreaks
-        if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
-            holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
-            holiday_breaks = []
-            for h in full_holidays:
-                start = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=9, minute=15)
-                end   = pd.Timestamp(h).tz_localize("Asia/Kolkata").replace(hour=15, minute=30)
-                holiday_breaks.append(dict(
-                    bounds=[start.to_pydatetime().replace(tzinfo=None),
-                            end.to_pydatetime().replace(tzinfo=None)]
-                ))
-            st.session_state.holiday_values = holiday_values
-            st.session_state.holiday_breaks = holiday_breaks
-        else:
-            holiday_values = st.session_state.holiday_values
-            holiday_breaks = st.session_state.holiday_breaks
-
-        # Apply styling to X-axis
-        st.session_state.live_fig.update_xaxes(
-            showgrid=True, gridwidth=0.5, gridcolor="gray",
-            type="date", tickformat="%d-%m-%Y\n%H:%M", tickangle=0,
-            rangeslider_visible=False,
-            rangebreaks=[dict(bounds=["sat","mon"]), dict(bounds=[15.5,9.25], pattern="hour"), *holiday_breaks]
-        )
-
-    else:
-        st.warning(" No TPSeries data fetched (Open Chart first)")
-
                 
     # --- Drain queue and apply live ticks to last candle ---
     # This block runs each script run and consumes queued ticks (non-blocking)
@@ -889,6 +908,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
