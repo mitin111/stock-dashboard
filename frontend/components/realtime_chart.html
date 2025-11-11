@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <title>Realtime Chart</title>
 
-  <!-- ✅ Correct version & correct standalone bundle -->
+  <!-- ✅ Correct version & standalone bundle -->
   <script type="text/javascript" src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
   <style>
@@ -30,12 +30,36 @@ let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live
 let initialTok = window.initialToken || null;
 let barIntMin  = Number(window.barInterval || 1);
 
+// ✅ Create chart
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
   layout: { background: { color: '#000' }, textColor: '#fff' },
   grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
   timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
 });
 
+// ✅ Force chart to display time in IST correctly
+chart.applyOptions({
+  timezone: 'Asia/Kolkata',
+  localization: {
+    locale: 'en-IN',
+    timeFormatter: (t) =>
+      new Date(t * 1000).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+      }),
+  },
+  timeScale: {
+    tickMarkFormatter: (t) =>
+      new Date(t * 1000).toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+  }
+});
+
+// ✅ Candle series
 const candleSeries = chart.addCandlestickSeries({
   upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350'
@@ -43,15 +67,11 @@ const candleSeries = chart.addCandlestickSeries({
 
 candleSeries.setData(history);
 
+// ✅ Correct bucket interval calc (no +19800 shift)
 function bucketToInterval(tsSec) {
-  // tsSec is already correct exchange epoch seconds
   const d = new Date(tsSec * 1000);
-
-  // Floor to interval properly (browser local — IST automatically)
   d.setSeconds(0, 0);
   d.setMinutes(Math.floor(d.getMinutes() / barIntMin) * barIntMin);
-
-  // Return back as UTC epoch seconds (chart expects this)
   return Math.floor(d.getTime() / 1000);
 }
 
@@ -98,6 +118,7 @@ function connectWS() {
         lastBar.low  = Math.min(lastBar.low, price);
         lastBar.close = price;
       }
+
       candleSeries.update(lastBar);
 
     } catch (e) {}
@@ -115,6 +136,3 @@ safeStartWS();
 
 </body>
 </html>
-
-
-
