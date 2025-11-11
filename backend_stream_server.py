@@ -75,10 +75,12 @@ async def startup_event():
 
 
 # ✅ MAIN LIVE WS FEED PIPE (FrontEnd → Backend)
+# Store server event loop
+event_loop = asyncio.get_event_loop()
+
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket):
 
-    # ❌ Do NOT allow WS before /init sets session
     global ps_api
     if ps_api is None or ps_api.session_token is None:
         await websocket.accept()
@@ -90,21 +92,28 @@ async def ws_live(websocket: WebSocket):
     clients.add(websocket)
     logging.info(f"Client connected (total={len(clients)})")
 
-    # ✅ Attach tick handler
     def on_tick(tick):
         try:
             token = tick.get("tk") or tick.get("token")
             price = tick.get("lp") or tick.get("ltp")
             ts = tick.get("ft") or tick.get("time")
+
             if not (token and price and ts):
                 return
 
-            payload = json.dumps({"tk": str(token), "lp": float(price), "ft": int(float(ts))})
-            asyncio.create_task(broadcast(payload))
+            payload = json.dumps({
+                "tk": str(token),
+                "lp": float(price),
+                "ft": int(float(ts))
+            })
+
+            # ✅ Broadcast from WS thread safely
+            asyncio.run_coroutine_threadsafe(broadcast(payload), event_loop)
+
         except Exception as e:
             logging.warning(f"on_tick error: {e}")
 
-    ps_api._on_tick = on_tick  # ✅ _ws_on_message इसी को call करता है
+    ps_api._on_tick = on_tick  # ✅ Correct callback binding
 
     try:
         while True:
@@ -156,6 +165,7 @@ if __name__ == "__main__":
     print("✅ Backend Stream Worker Running (no webserver)...")
     while True:
         time.sleep(9999)
+
 
 
 
