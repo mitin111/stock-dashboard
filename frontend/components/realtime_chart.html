@@ -11,27 +11,33 @@ const chart = LightweightCharts.createChart(document.getElementById('chart-conta
   timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
 });
 
-// ✅ Force IST
+// ✅ Show time in Indian Market Time
 chart.applyOptions({
   timezone: 'Asia/Kolkata',
   localization: {
     locale: 'en-IN',
-    timeFormatter: t => new Date(t*1000).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',hour12:false})
+    timeFormatter: t => new Date(t*1000).toLocaleString('en-IN', { timeZone:'Asia/Kolkata', hour12:false })
   },
   timeScale: {
-    tickMarkFormatter: t => new Date(t*1000).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour12:false,hour:'2-digit',minute:'2-digit'})
+    tickMarkFormatter: t => new Date(t*1000).toLocaleTimeString('en-IN', {
+      timeZone:'Asia/Kolkata', hour12:false, hour:'2-digit', minute:'2-digit'
+    })
   }
 });
 
 // ✅ Candle series
 const candleSeries = chart.addCandlestickSeries({
-  upColor:'#26a69a', downColor:'#ef5350',
-  borderUpColor:'#26a69a', borderDownColor:'#ef5350',
-  wickUpColor:'#26a69a', wickDownColor:'#ef5350'
+  upColor:'#26a69a',
+  downColor:'#ef5350',
+  borderUpColor:'#26a69a',
+  borderDownColor:'#ef5350',
+  wickUpColor:'#26a69a',
+  wickDownColor:'#ef5350'
 });
+
 candleSeries.setData(history);
 
-// ✅ Bucket calc
+// ✅ Bucket function (no timezone shift)
 function bucketToInterval(tsSec) {
   const d = new Date(tsSec * 1000);
   d.setSeconds(0,0);
@@ -39,60 +45,64 @@ function bucketToInterval(tsSec) {
   return Math.floor(d.getTime()/1000);
 }
 
-let lastBar = history.length ? { ...history[history.length - 1] } : null;
+let lastBar = history.length ? {...history[history.length-1]} : null;
 
-// ✅ GLOBAL WebSocket (fixes your problem)
-let ws;
+function subscribeUrlFromWs(wsUrl){
+  const u = new URL(wsUrl);
+  u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+  u.pathname = "/subscribe";
+  u.search = "";
+  return u.toString();
+}
 
-async function httpSubscribe(){
-  const url = wsUrl.replace("/ws/live","/subscribe");
-  console.log("🔗 Subscribing token:", initialTok);
-  await fetch(url,{
+async function httpSubscribe(token){
+  await fetch(subscribeUrlFromWs(wsUrl), {
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({tokens:[String(initialTok)]})
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ tokens:[String(token)] })
   }).catch(()=>{});
 }
 
-function connectWS() {
+let ws; // ✅ GLOBAL
+
+function connectWS(){
+  if(!initialTok) return;
   ws = new WebSocket(wsUrl);
 
   ws.onopen = async () => {
-    console.log("✅ WS Connected");
-    await httpSubscribe();
+    console.log("✅ WS Connected:", wsUrl);
+    await httpSubscribe(initialTok);
   };
 
-  ws.onmessage = (event) => {
-    const p = JSON.parse(event.data);
-    const price = Number(p.lp ?? p.ltp ?? p.price);
-    let ts = Number(p.ft ?? p.time ?? p.lts);
-    if (!price || !ts) return;
-    if (ts > 1e12) ts = Math.floor(ts/1000);
+  ws.onmessage = ev => {
+    try {
+      const p = JSON.parse(ev.data);
+      const price = Number(p.lp ?? p.ltp ?? p.price);
+      let ts = Number(p.ft ?? p.time ?? p.lts);
+      if(!price || !ts) return;
+      if(ts > 1e12) ts = Math.floor(ts/1000);
 
-    const bucket = bucketToInterval(ts);
+      const bucket = bucketToInterval(ts);
 
-    if (!lastBar || bucket > lastBar.time) {
-      lastBar = { time:bucket, open:price, high:price, low:price, close:price };
-    } else {
-      lastBar.high = Math.max(lastBar.high, price);
-      lastBar.low  = Math.min(lastBar.low, price);
-      lastBar.close = price;
-    }
-    candleSeries.update(lastBar);
+      if(!lastBar || bucket > lastBar.time){
+        lastBar = { time:bucket, open:price, high:price, low:price, close:price };
+      } else {
+        lastBar.high = Math.max(lastBar.high, price);
+        lastBar.low  = Math.min(lastBar.low, price);
+        lastBar.close = price;
+      }
+
+      candleSeries.update(lastBar);
+
+    } catch(e){}
   };
 
   ws.onclose = () => {
     console.log("⚠️ WS Closed — reconnecting...");
     setTimeout(connectWS, 2000);
   };
-
-  ws.onerror = (err) => console.log("❌ WS Error:", err);
 }
 
-function safeStartWS() {
-  if (!initialTok) return setTimeout(safeStartWS, 1000);
-  console.log("🚀 Starting WebSocket with:", initialTok);
-  connectWS();
-}
-safeStartWS();
+function startWS(){ if(!initialTok) setTimeout(startWS, 1000); else connectWS(); }
+startWS();
 </script>
