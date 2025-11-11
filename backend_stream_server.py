@@ -104,7 +104,7 @@ async def ws_live(websocket: WebSocket):
         except Exception as e:
             logging.warning(f"on_tick error: {e}")
 
-    ps_api.on_tick = on_tick
+    ps_api._on_tick = on_tick  # ✅ _ws_on_message इसी को call करता है
 
     try:
         while True:
@@ -134,9 +134,13 @@ async def subscribe(request: Request):
     try:
         # ✅ Start WS only once (first subscription)
         if not getattr(ps_api, "is_ws_connected", False):
-            ps_api.connect_websocket(tokens)
+            ps_api.start_ticks(tokens)   # ✅ Real WS connect + login + subscribe
             ps_api.is_ws_connected = True
             logging.info(f"✅ WebSocket Started with tokens: {tokens}")
+        else:
+            ps_api.subscribe_tokens(tokens)
+            logging.info(f"➕ Subscribed more tokens: {tokens}")
+
 
         # ✅ If WS already running → just subscribe new tokens
         else:
@@ -157,6 +161,7 @@ if __name__ == "__main__":
     print("✅ Backend Stream Worker Running (no webserver)...")
     while True:
         time.sleep(9999)
+
 
 
 
