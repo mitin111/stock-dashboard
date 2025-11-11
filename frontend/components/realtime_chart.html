@@ -11,7 +11,7 @@ const chart = LightweightCharts.createChart(document.getElementById('chart-conta
   timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 }
 });
 
-// ✅ Force chart to use IST
+// ✅ Force IST
 chart.applyOptions({
   timezone: 'Asia/Kolkata',
   localization: {
@@ -23,16 +23,15 @@ chart.applyOptions({
   }
 });
 
-// ✅ Candle series
+// ✅ Candle series (unchanged)
 const candleSeries = chart.addCandlestickSeries({
-  upColor:'#26a69a', downColor:'#ef5350',
-  borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+  upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350'
 });
 candleSeries.setData(history);
 
 // ✅ Bucket
-function bucketToInterval(tsSec){
+function bucketToInterval(tsSec) {
   const d = new Date(tsSec * 1000);
   d.setSeconds(0,0);
   d.setMinutes(Math.floor(d.getMinutes() / barIntMin) * barIntMin);
@@ -41,14 +40,17 @@ function bucketToInterval(tsSec){
 
 let lastBar = history.length ? { ...history[history.length-1] } : null;
 
-// ✅ GLOBAL WebSocket (IMPORTANT)
+// ✅ GLOBAL WebSocket (this fixes console + update issues)
 let ws;
 
+// ✅ Subscribe via backend
 async function httpSubscribe(){
-  await fetch(wsUrl.replace("/ws/live","/subscribe"), {
+  const url = wsUrl.replace("/ws/live","/subscribe");
+  console.log("🔗 Subscribing token via:", url, "token:", initialTok);
+  await fetch(url, {
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ tokens:[initialTok] })
+    body:JSON.stringify({ tokens:[String(initialTok)] })
   }).catch(()=>{});
 }
 
@@ -65,17 +67,17 @@ function connectWS(){
   };
 
   ws.onclose = () => {
-    console.log("⚠️ WS Closed — reconnecting...");
+    console.log("⚠️ WS Closed — reconnecting in 2s...");
     setTimeout(connectWS, 2000);
   };
 
   ws.onmessage = (event) => {
-    try{
+    try {
       const p = JSON.parse(event.data);
       const price = Number(p.lp ?? p.ltp ?? p.price);
       let ts = Number(p.ft ?? p.time ?? p.lts);
       if(!price || !ts) return;
-      if(ts > 1e12) ts = Math.floor(ts / 1000);
+      if(ts > 1e12) ts = Math.floor(ts/1000);
 
       const bucket = bucketToInterval(ts);
 
@@ -83,17 +85,25 @@ function connectWS(){
         lastBar = { time:bucket, open:price, high:price, low:price, close:price };
       } else {
         lastBar.high = Math.max(lastBar.high, price);
-        lastBar.low  = Math.min(lastBar.low, price);
+        lastBar.low  = Math.min(lastBar.low,  price);
         lastBar.close = price;
       }
 
       candleSeries.update(lastBar);
-    } catch(e){}
+
+    } catch(e){
+      console.log("⚠️ Tick Parse Error:", e);
+    }
   };
 }
 
 function safeStartWS(){
-  if(!initialTok) return setTimeout(safeStartWS, 1000);
+  if(!initialTok){
+    console.log("⏳ Waiting for token...");
+    setTimeout(safeStartWS, 1000);
+    return;
+  }
+  console.log("🚀 Starting WS with token:", initialTok);
   connectWS();
 }
 safeStartWS();
