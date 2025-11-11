@@ -934,7 +934,8 @@ class ProStocksAPI:
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
 
-        print(f"🟢 WebSocket starting... subscribing → {symbols}")
+        print(f"🟢 WebSocket starting... will subscribe after login ACK → {self._sub_tokens}")
+
         return True
 
 
@@ -993,6 +994,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
