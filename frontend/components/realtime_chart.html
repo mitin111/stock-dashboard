@@ -59,35 +59,36 @@ const candleSeries = chart.addCandlestickSeries({
   borderDownColor: '#ef5350',
   wickUpColor: '#26a69a',
   wickDownColor: '#ef5350',
-  priceScaleId: 'main',
+  priceScaleId: 'right', // ✅ FIXED
   scaleMargins: { top: 0.05, bottom: 0.25 } // space for MACD
 });
 
 // === PAC / Trails ===
-const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
-const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
-const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'main' });
-const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'main' });
-const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'main' });
+// === PAC / Trails (attach to right scale with candles) ===
+const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'right' });
+const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'right' });
+const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'right' });
+const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'right' });
+const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'right' });
 
 // === MACD (Separate Price Scale) ===
 const macdHist = chart.addHistogramSeries({
-  priceScaleId: 'macd',
+  priceScaleId: 'left', // ✅ FIXED
   color: '#808080',
   base: 0,
-  scaleMargins: { top: 0.80, bottom: 0.02 } // bottom 20% of chart
+  scaleMargins: { top: 0.80, bottom: 0.02 }
 });
 const macdLine = chart.addLineSeries({
   color: '#00FFFF',
   lineWidth: 1.5,
-  priceScaleId: 'macd',
+  priceScaleId: 'left', // ✅ FIXED
   scaleMargins: { top: 0.80, bottom: 0.02 }
 });
 const macdSignal = chart.addLineSeries({
   color: '#FF00FF',
   lineWidth: 1.5,
   lineStyle: 2,
-  priceScaleId: 'macd',
+  priceScaleId: 'left', // ✅ FIXED
   scaleMargins: { top: 0.80, bottom: 0.02 }
 });
 
@@ -111,6 +112,16 @@ chart.applyOptions({
     rightOffset: 8
   }
 });
+
+// === Optional: Fine-tune price scale behavior ===
+chart.priceScale('right').applyOptions({
+  borderVisible: true,
+  scaleMargins: { top: 0.05, bottom: 0.25 }
+});
+chart.priceScale('left').applyOptions({
+  scaleMargins: { top: 0.80, bottom: 0.02 }
+});
+  
 
 // === Apply Historical Data ===
 if (history.length > 0) {
@@ -223,6 +234,7 @@ waitForDataAndStart();
 
 </body>
 </html>
+
 
 
 
