@@ -68,18 +68,18 @@ function bucketToInterval(tsSec) {
   return bucket;
 }
 
-// ✅ Reset lastBar always when history reloads (new symbol/interval)
+// ✅ Reset logic for symbol or timeframe change
 let lastBar = null;
-let lastSymbol = window.initialToken;
+let lastToken = initialTok;
 let lastInterval = barIntMin;
 
-// When a new symbol or timeframe is loaded, reset candle base
-function resetLastBarIfChanged(currentToken, currentInterval) {
-  if (currentToken !== lastSymbol || currentInterval !== lastInterval) {
-    console.log("🔁 Resetting lastBar due to symbol/interval change");
+function resetLastBarIfChanged() {
+  if (lastToken !== initialTok || lastInterval !== barIntMin) {
+    console.log("🔁 Reset lastBar due to symbol/timeframe change");
     lastBar = null;
-    lastSymbol = currentToken;
-    lastInterval = currentInterval;
+    lastToken = initialTok;
+    lastInterval = barIntMin;
+    candleSeries.setData(history || []);  // clear old candles, reload history
   }
 }
 
@@ -109,6 +109,9 @@ function connectWS() {
 
   ws.onmessage = (event) => {
     try {
+      resetLastBarIfChanged();
+      if (!history.length && !lastBar) return;
+
       const p = JSON.parse(event.data);
       const price = Number(p.lp ?? p.ltp ?? p.price);
       let ts = Number(p.ft ?? p.time ?? p.lts);
@@ -143,4 +146,5 @@ function safeStartWS() {
 }
 safeStartWS();
 </script>
+
 
