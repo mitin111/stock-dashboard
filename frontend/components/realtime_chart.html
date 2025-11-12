@@ -53,26 +53,29 @@ function startChart() {
 
 // === Candle Series (Main Price Scale) ===
 const candleSeries = chart.addCandlestickSeries({
-  upColor:'#26a69a', downColor:'#ef5350',
-  borderUpColor:'#26a69a', borderDownColor:'#ef5350',
-  wickUpColor:'#26a69a', wickDownColor:'#ef5350',
+  upColor: '#26a69a',
+  downColor: '#ef5350',
+  borderUpColor: '#26a69a',
+  borderDownColor: '#ef5350',
+  wickUpColor: '#26a69a',
+  wickDownColor: '#ef5350',
   priceScaleId: 'main',
-  scaleMargins: { top: 0.05, bottom: 0.25 }  // ✅ Leave space for MACD below
+  scaleMargins: { top: 0.05, bottom: 0.25 } // space for MACD
 });
 
-// === PAC / Trail (Overlay on Candle Scale) ===
+// === PAC / Trails ===
 const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
 const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
 const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'main' });
 const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'main' });
 const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'main' });
 
-// === MACD Panel (Bottom Area, Separate Scale) ===
+// === MACD (Separate Price Scale) ===
 const macdHist = chart.addHistogramSeries({
-  base: 0,
   priceScaleId: 'macd',
   color: '#808080',
-  scaleMargins: { top: 0.80, bottom: 0.02 }  // ✅ Bigger bottom area for MACD
+  base: 0,
+  scaleMargins: { top: 0.80, bottom: 0.02 } // bottom 20% of chart
 });
 const macdLine = chart.addLineSeries({
   color: '#00FFFF',
@@ -88,28 +91,26 @@ const macdSignal = chart.addLineSeries({
   scaleMargins: { top: 0.80, bottom: 0.02 }
 });
 
-
-// === Chart Layout Fix ===
+// === Chart Layout Fix (Define both price scales explicitly) ===
 chart.applyOptions({
   layout: {
     background: { color: '#000' },
-    textColor: '#fff',
+    textColor: '#fff'
   },
   rightPriceScale: {
-    visible: true,            // ✅ Show main price axis
-    entireTextOnly: false,
-    scaleMargins: { top: 0.05, bottom: 0.25 },
-    borderVisible: true
+    visible: true,
+    borderVisible: true,
+    scaleMargins: { top: 0.05, bottom: 0.25 } // candle + overlay space
   },
   leftPriceScale: {
-    visible: false            // ✅ Disable left axis
+    visible: true,  // ✅ enable left scale for MACD
+    scaleMargins: { top: 0.80, bottom: 0.02 } // MACD area
   },
   timeScale: {
     borderVisible: false,
-    rightOffset: 6
+    rightOffset: 8
   }
 });
-
 
 // === Apply Historical Data ===
 if (history.length > 0) {
@@ -222,6 +223,7 @@ waitForDataAndStart();
 
 </body>
 </html>
+
 
 
 
