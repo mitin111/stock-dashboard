@@ -684,17 +684,47 @@ with tab5:
             )
 
             # Convert history → Lightweight format
-            history = [
-                {"time": int(x.timestamp()), "open": float(o), "high": float(h),
-                 "low": float(l), "close": float(c)}
-                for x, o, h, l, c in zip(
-                    st.session_state.ohlc_x,
-                    st.session_state.ohlc_o,
-                    st.session_state.ohlc_h,
-                    st.session_state.ohlc_l,
-                    st.session_state.ohlc_c
-                )
-            ]
+            # === Build Indicator DataFrame ===
+            from tkp_trm_chart import (
+                calc_tkp_trm, calc_pac, calc_macd, calc_atr_trails,
+                get_trm_settings_safe
+            )
+
+            df_live = pd.DataFrame({
+                "datetime": pd.to_datetime(st.session_state.ohlc_x),
+                "open": st.session_state.ohlc_o,
+                "high": st.session_state.ohlc_h,
+                "low": st.session_state.ohlc_l,
+                "close": st.session_state.ohlc_c
+            })
+
+            settings = get_trm_settings_safe()
+            if settings:
+                df_live = calc_tkp_trm(df_live, settings)
+                df_live = calc_pac(df_live, settings)
+                df_live = calc_atr_trails(df_live, settings)
+                df_live = calc_macd(df_live, settings)
+
+            # === Convert to JSON for JS (TradingView chart) ===
+            history = []
+            for _, r in df_live.iterrows():
+                history.append({
+                    "time": int(pd.Timestamp(r["datetime"]).timestamp()),
+                    "open": float(r["open"]),
+                    "high": float(r["high"]),
+                    "low": float(r["low"]),
+                    "close": float(r["close"]),
+                    "pacU": r.get("pacU", None),
+                    "pacL": r.get("pacL", None),
+                    "pacC": r.get("pacC", None),
+                    "Trail1": r.get("Trail1", None),
+                    "Trail2": r.get("Trail2", None),
+                    "macd": r.get("macd", None),
+                    "macd_signal": r.get("macd_signal", None),
+                    "macd_hist": r.get("macd_hist", None),
+                    "trm_signal": r.get("trm_signal", "Neutral")
+                })
+
 
             # Selected token
             initial_token = st.session_state.get("selected_symbol")
@@ -918,6 +948,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
