@@ -51,12 +51,13 @@ function startChart() {
     }
   });
 
-  // === Candle Series (Main Price Scale) ===
+// === Candle Series (Main Price Scale) ===
 const candleSeries = chart.addCandlestickSeries({
   upColor:'#26a69a', downColor:'#ef5350',
   borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350',
-  priceScaleId: 'main'
+  priceScaleId: 'main',
+  scaleMargins: { top: 0.05, bottom: 0.25 }  // ✅ Leave space for MACD below
 });
 
 // === PAC / Trail (Overlay on Candle Scale) ===
@@ -66,41 +67,49 @@ const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId:
 const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'main' });
 const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'main' });
 
-// === MACD Panel (Separate Scale at Bottom) ===
-const macdLine = chart.addLineSeries({
-  color: '#00FFFF',
-  lineWidth: 1,
-  priceScaleId: 'macd',
-  scaleMargins: { top: 0.8, bottom: 0.02 }  // ✅ MACD visible space
-});
-const macdSignal = chart.addLineSeries({
-  color: '#FF00FF',
-  lineWidth: 1,
-  lineStyle: 2,
-  priceScaleId: 'macd',
-  scaleMargins: { top: 0.8, bottom: 0.02 }
-});
+// === MACD Panel (Bottom Area, Separate Scale) ===
 const macdHist = chart.addHistogramSeries({
   base: 0,
   priceScaleId: 'macd',
-  scaleMargins: { top: 0.8, bottom: 0.02 }
+  color: '#808080',
+  scaleMargins: { top: 0.80, bottom: 0.02 }  // ✅ Bigger bottom area for MACD
 });
+const macdLine = chart.addLineSeries({
+  color: '#00FFFF',
+  lineWidth: 1.5,
+  priceScaleId: 'macd',
+  scaleMargins: { top: 0.80, bottom: 0.02 }
+});
+const macdSignal = chart.addLineSeries({
+  color: '#FF00FF',
+  lineWidth: 1.5,
+  lineStyle: 2,
+  priceScaleId: 'macd',
+  scaleMargins: { top: 0.80, bottom: 0.02 }
+});
+
 
 // === Chart Layout Fix ===
 chart.applyOptions({
   layout: {
     background: { color: '#000' },
-    textColor: '#fff'
+    textColor: '#fff',
   },
   rightPriceScale: {
-    visible: true,          // ✅ show price labels
-    borderVisible: false,
+    visible: true,            // ✅ Show main price axis
+    entireTextOnly: false,
+    scaleMargins: { top: 0.05, bottom: 0.25 },
+    borderVisible: true
+  },
+  leftPriceScale: {
+    visible: false            // ✅ Disable left axis
   },
   timeScale: {
     borderVisible: false,
-    rightOffset: 8
+    rightOffset: 6
   }
 });
+
 
 // === Apply Historical Data ===
 if (history.length > 0) {
@@ -213,6 +222,7 @@ waitForDataAndStart();
 
 </body>
 </html>
+
 
 
 
