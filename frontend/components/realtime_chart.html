@@ -104,15 +104,25 @@ function connectWS() {
   let ws = new WebSocket(wsUrl);
 
   ws.onopen = async () => {
+    // Wait 200ms to ensure new history fully loaded
+    await new Promise(r => setTimeout(r, 200));
     await httpSubscribe(initialTok);
+    console.log("📡 WS opened and subscribed", initialTok);
   };
 
   ws.onmessage = (event) => {
     try {
+      const p = JSON.parse(event.data);
+      if (!p || typeof p !== "object") return;
+
+      // ✅ Skip tick if not for this symbol
+      const currentToken = String(initialTok.split("|")[1] || "");
+      const tickToken = String(p.tk || "");
+      if (tickToken && tickToken !== currentToken) return;
+
       resetLastBarIfChanged();
       if (!history.length && !lastBar) return;
 
-      const p = JSON.parse(event.data);
       const price = Number(p.lp ?? p.ltp ?? p.price);
       let ts = Number(p.ft ?? p.time ?? p.lts);
       if (!price || !ts) return;
@@ -120,31 +130,30 @@ function connectWS() {
 
       const bucket = bucketToInterval(ts);
 
-      // ✅ FIXED condition for candle rollover
+      // ✅ Candle rollover & update logic
       if (!lastBar || bucket !== lastBar.time) {
-        // New candle
         lastBar = { time: bucket, open: price, high: price, low: price, close: price };
         candleSeries.update(lastBar);
       } else {
-        // Update current candle
         lastBar.high = Math.max(lastBar.high, price);
         lastBar.low  = Math.min(lastBar.low, price);
         lastBar.close = price;
         candleSeries.update(lastBar);
       }
+
     } catch (e) {
       console.warn("Tick parse error", e);
     }
   };
 
-  ws.onclose = () => setTimeout(connectWS, 2000);
+  ws.onclose = () => {
+    console.warn("⚠️ WS closed, retrying...");
+    setTimeout(connectWS, 1500);
+  };
 }
 
-function safeStartWS() {
-  if (!initialTok) return setTimeout(safeStartWS, 1000);
-  connectWS();
-}
 safeStartWS();
 </script>
+
 
 
