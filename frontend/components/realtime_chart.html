@@ -56,20 +56,28 @@ const candleSeries = chart.addCandlestickSeries({
   upColor:'#26a69a', downColor:'#ef5350',
   borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350',
-  priceScaleId: 'right',
+  priceScaleId: 'main',   // ✅ main price scale
 });
 
-// === PAC / Trail (same price scale) ===
-const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'right' });
-const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'right' });
-const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'right' });
-const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'right' });
-const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'right' });
+// === PAC / Trail (same price scale as candles) ===
+const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
+const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
+const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'main' });
+const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'main' });
+const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'main' });
 
-// === MACD (separate scale) ===
-const macdLine = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1, priceScaleId: 'macd' });
-const macdSignal = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, lineStyle: 2, priceScaleId: 'macd' });
-const macdHist = chart.addHistogramSeries({ base: 0, priceScaleId: 'macd' });
+// === MACD (separate hidden scale so it won't distort main chart) ===
+const macdLine = chart.addLineSeries({
+  color: '#00FFFF', lineWidth: 1,
+  priceScaleId: 'macd', scaleMargins: { top: 0.8, bottom: 0.02 }
+});
+const macdSignal = chart.addLineSeries({
+  color: '#FF00FF', lineWidth: 1, lineStyle: 2,
+  priceScaleId: 'macd', scaleMargins: { top: 0.8, bottom: 0.02 }
+});
+const macdHist = chart.addHistogramSeries({
+  base: 0, priceScaleId: 'macd', scaleMargins: { top: 0.8, bottom: 0.02 }
+});
 
   // === Apply Historical Data ===
   if (history.length > 0) {
@@ -80,15 +88,19 @@ const macdHist = chart.addHistogramSeries({ base: 0, priceScaleId: 'macd' });
             : c.trm_signal === 'Sell' ? '#FF0000' : '#808080'
     }));
     candleSeries.setData(candlesData);
-    pacU.setData(history.map(c => ({ time: c.time, value: c.pacU })));
-    pacL.setData(history.map(c => ({ time: c.time, value: c.pacL })));
-    pacC.setData(history.map(c => ({ time: c.time, value: c.pacC })));
-    trail1.setData(history.map(c => ({ time: c.time, value: c.Trail1 })));
-    trail2.setData(history.map(c => ({ time: c.time, value: c.Trail2 })));
-    macdLine.setData(history.map(c => ({ time: c.time, value: c.macd })));
-    macdSignal.setData(history.map(c => ({ time: c.time, value: c.macd_signal })));
+
+    const safe = v => (v === null || v === undefined ? NaN : v);
+
+    pacU.setData(history.map(c => ({ time: c.time, value: safe(c.pacU) })));
+    pacL.setData(history.map(c => ({ time: c.time, value: safe(c.pacL) })));
+    pacC.setData(history.map(c => ({ time: c.time, value: safe(c.pacC) })));
+    trail1.setData(history.map(c => ({ time: c.time, value: safe(c.Trail1) })));
+    trail2.setData(history.map(c => ({ time: c.time, value: safe(c.Trail2) })));
+
+    macdLine.setData(history.map(c => ({ time: c.time, value: safe(c.macd) })));
+    macdSignal.setData(history.map(c => ({ time: c.time, value: safe(c.macd_signal) })));
     macdHist.setData(history.map(c => ({
-      time: c.time, value: c.macd_hist,
+      time: c.time, value: safe(c.macd_hist),
       color: c.macd_hist >= 0 ? '#00FF00' : '#FF0000'
     })));
   }
@@ -168,4 +180,5 @@ waitForDataAndStart();
 
 </body>
 </html>
+
 
