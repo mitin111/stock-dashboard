@@ -51,59 +51,92 @@ function startChart() {
     }
   });
 
-  // === Candle Series ===
+  // === Candle Series (Main Price Scale) ===
 const candleSeries = chart.addCandlestickSeries({
   upColor:'#26a69a', downColor:'#ef5350',
   borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   wickUpColor:'#26a69a', wickDownColor:'#ef5350',
-  priceScaleId: 'main',   // ✅ main price scale
+  priceScaleId: 'main'
 });
 
-// === PAC / Trail (same price scale as candles) ===
+// === PAC / Trail (Overlay on Candle Scale) ===
 const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
 const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'main' });
 const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'main' });
 const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'main' });
 const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'main' });
 
-// === MACD (separate hidden scale so it won't distort main chart) ===
+// === MACD Panel (Separate Scale at Bottom) ===
 const macdLine = chart.addLineSeries({
-  color: '#00FFFF', lineWidth: 1,
-  priceScaleId: 'macd', scaleMargins: { top: 0.8, bottom: 0.02 }
+  color: '#00FFFF',
+  lineWidth: 1,
+  priceScaleId: 'macd',
+  scaleMargins: { top: 0.8, bottom: 0.02 }  // ✅ MACD visible space
 });
 const macdSignal = chart.addLineSeries({
-  color: '#FF00FF', lineWidth: 1, lineStyle: 2,
-  priceScaleId: 'macd', scaleMargins: { top: 0.8, bottom: 0.02 }
+  color: '#FF00FF',
+  lineWidth: 1,
+  lineStyle: 2,
+  priceScaleId: 'macd',
+  scaleMargins: { top: 0.8, bottom: 0.02 }
 });
 const macdHist = chart.addHistogramSeries({
-  base: 0, priceScaleId: 'macd', scaleMargins: { top: 0.8, bottom: 0.02 }
+  base: 0,
+  priceScaleId: 'macd',
+  scaleMargins: { top: 0.8, bottom: 0.02 }
 });
 
-  // === Apply Historical Data ===
-  if (history.length > 0) {
-    const candlesData = history.map(c => ({
+// === Chart Layout Fix ===
+chart.applyOptions({
+  layout: {
+    background: { color: '#000' },
+    textColor: '#fff'
+  },
+  rightPriceScale: {
+    visible: true,          // ✅ show price labels
+    borderVisible: false,
+  },
+  timeScale: {
+    borderVisible: false,
+    rightOffset: 8
+  }
+});
+
+// === Apply Historical Data ===
+if (history.length > 0) {
+  const safe = v => (v === null || v === undefined ? NaN : v);
+
+  // Candles
+  candleSeries.setData(
+    history.map(c => ({
       time: c.time,
-      open: c.open, high: c.high, low: c.low, close: c.close,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
       color: c.trm_signal === 'Buy' ? '#00FF00'
             : c.trm_signal === 'Sell' ? '#FF0000' : '#808080'
-    }));
-    candleSeries.setData(candlesData);
+    }))
+  );
 
-    const safe = v => (v === null || v === undefined ? NaN : v);
+  // PAC + Trails
+  pacU.setData(history.map(c => ({ time: c.time, value: safe(c.pacU) })));
+  pacL.setData(history.map(c => ({ time: c.time, value: safe(c.pacL) })));
+  pacC.setData(history.map(c => ({ time: c.time, value: safe(c.pacC) })));
+  trail1.setData(history.map(c => ({ time: c.time, value: safe(c.Trail1) })));
+  trail2.setData(history.map(c => ({ time: c.time, value: safe(c.Trail2) })));
 
-    pacU.setData(history.map(c => ({ time: c.time, value: safe(c.pacU) })));
-    pacL.setData(history.map(c => ({ time: c.time, value: safe(c.pacL) })));
-    pacC.setData(history.map(c => ({ time: c.time, value: safe(c.pacC) })));
-    trail1.setData(history.map(c => ({ time: c.time, value: safe(c.Trail1) })));
-    trail2.setData(history.map(c => ({ time: c.time, value: safe(c.Trail2) })));
-
-    macdLine.setData(history.map(c => ({ time: c.time, value: safe(c.macd) })));
-    macdSignal.setData(history.map(c => ({ time: c.time, value: safe(c.macd_signal) })));
-    macdHist.setData(history.map(c => ({
-      time: c.time, value: safe(c.macd_hist),
+  // MACD
+  macdLine.setData(history.map(c => ({ time: c.time, value: safe(c.macd) })));
+  macdSignal.setData(history.map(c => ({ time: c.time, value: safe(c.macd_signal) })));
+  macdHist.setData(
+    history.map(c => ({
+      time: c.time,
+      value: safe(c.macd_hist),
       color: c.macd_hist >= 0 ? '#00FF00' : '#FF0000'
-    })));
-  }
+    }))
+  );
+}
 
   // === WebSocket Setup ===
   function bucketToInterval(tsSec) {
@@ -180,5 +213,6 @@ waitForDataAndStart();
 
 </body>
 </html>
+
 
 
