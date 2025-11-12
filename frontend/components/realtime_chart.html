@@ -99,6 +99,16 @@ async function httpSubscribe(token) {
   }).catch(()=>{});
 }
 
+// --- safeStartWS: try start only when initialTok available (prevents errors)
+function safeStartWS() {
+  if (!initialTok) {
+    // token not ready yet — retry after 1s
+    return setTimeout(safeStartWS, 1000);
+  }
+  // token ready → start
+  connectWS();
+}
+  
 function connectWS() {
   if (!initialTok) return;
   let ws = new WebSocket(wsUrl);
@@ -154,6 +164,7 @@ function connectWS() {
 
 safeStartWS();
 </script>
+
 
 
 
