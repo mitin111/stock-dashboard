@@ -166,52 +166,50 @@ safeStartWS();
 </script>
 
 <script>
-// === PAC, Trails, MACD overlay ===
+window.addEventListener('load', () => {
 
-// Candlestick chart पहले से बना होगा
-// अब indicators के लिए नई series बनाते हैं
+  // === PAC, Trails, MACD overlay ===
 
-const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
-const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
-const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2 });
-const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1 });
-const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5 });
+  const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
+  const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
+  const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2 });
+  const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1 });
+  const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5 });
 
-// === MACD Subpane ===
-const macdPane = chart.addPane({ height: 100 });
-const macdLine = macdPane.addLineSeries({ color: '#00FFFF', lineWidth: 1 });
-const macdSignal = macdPane.addLineSeries({ color: '#FF00FF', lineWidth: 1, lineStyle: 2 });
-const macdHist = macdPane.addHistogramSeries({ base: 0, color: '#808080' });
+  // === MACD Subpane ===
+  const macdPane = chart.addPane({ height: 100 });
+  const macdLine = macdPane.addLineSeries({ color: '#00FFFF', lineWidth: 1 });
+  const macdSignal = macdPane.addLineSeries({ color: '#FF00FF', lineWidth: 1, lineStyle: 2 });
+  const macdHist = macdPane.addHistogramSeries({ base: 0, color: '#808080' });
 
-// === Convert history and plot ===
-const candlesData = window.initialHistory.map(c => ({
-  time: c.time,
-  open: c.open,
-  high: c.high,
-  low: c.low,
-  close: c.close,
-  color: c.trm_signal === 'Buy' ? '#00FF00' :
-         c.trm_signal === 'Sell' ? '#FF0000' : '#808080'
-}));
-candleSeries.setData(candlesData);
+  // === Convert history and plot ===
+  const candlesData = window.initialHistory.map(c => ({
+    time: c.time,
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close,
+    color: c.trm_signal === 'Buy' ? '#00FF00'
+          : c.trm_signal === 'Sell' ? '#FF0000'
+          : '#808080'
+  }));
+  candleSeries.setData(candlesData);
 
-// --- Overlay Lines ---
-pacU.setData(window.initialHistory.map(c => ({ time: c.time, value: c.pacU })));
-pacL.setData(window.initialHistory.map(c => ({ time: c.time, value: c.pacL })));
-pacC.setData(window.initialHistory.map(c => ({ time: c.time, value: c.pacC })));
-trail1.setData(window.initialHistory.map(c => ({ time: c.time, value: c.Trail1 })));
-trail2.setData(window.initialHistory.map(c => ({ time: c.time, value: c.Trail2 })));
+  // --- Overlay Lines ---
+  pacU.setData(window.initialHistory.map(c => ({ time: c.time, value: c.pacU })));
+  pacL.setData(window.initialHistory.map(c => ({ time: c.time, value: c.pacL })));
+  pacC.setData(window.initialHistory.map(c => ({ time: c.time, value: c.pacC })));
+  trail1.setData(window.initialHistory.map(c => ({ time: c.time, value: c.Trail1 })));
+  trail2.setData(window.initialHistory.map(c => ({ time: c.time, value: c.Trail2 })));
 
-// --- MACD Panel Data ---
-macdLine.setData(window.initialHistory.map(c => ({ time: c.time, value: c.macd })));
-macdSignal.setData(window.initialHistory.map(c => ({ time: c.time, value: c.macd_signal })));
-macdHist.setData(window.initialHistory.map(c => ({
-  time: c.time,
-  value: c.macd_hist,
-  color: c.macd_hist >= 0 ? '#00FF00' : '#FF0000'
-})));
+  // --- MACD Panel Data ---
+  macdLine.setData(window.initialHistory.map(c => ({ time: c.time, value: c.macd })));
+  macdSignal.setData(window.initialHistory.map(c => ({ time: c.time, value: c.macd_signal })));
+  macdHist.setData(window.initialHistory.map(c => ({
+    time: c.time,
+    value: c.macd_hist,
+    color: c.macd_hist >= 0 ? '#00FF00' : '#FF0000'
+  })));
+
+});
 </script>
-
-
-
-
