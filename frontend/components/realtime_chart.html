@@ -51,23 +51,25 @@ function startChart() {
     }
   });
 
-  // === Series ===
-  const candleSeries = chart.addCandlestickSeries({
-    upColor:'#26a69a', downColor:'#ef5350',
-    borderUpColor:'#26a69a', borderDownColor:'#ef5350',
-    wickUpColor:'#26a69a', wickDownColor:'#ef5350'
-  });
-  const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
-  const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
-  const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2 });
-  const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1 });
-  const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5 });
+  // === Candle Series ===
+const candleSeries = chart.addCandlestickSeries({
+  upColor:'#26a69a', downColor:'#ef5350',
+  borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+  wickUpColor:'#26a69a', wickDownColor:'#ef5350',
+  priceScaleId: 'right',
+});
 
-  // === MACD Panel ===
-  const macdPane = chart.addPane ? chart.addPane({ height: 100 }) : chart;
-  const macdLine = macdPane.addLineSeries({ color: '#00FFFF', lineWidth: 1 });
-  const macdSignal = macdPane.addLineSeries({ color: '#FF00FF', lineWidth: 1, lineStyle: 2 });
-  const macdHist = macdPane.addHistogramSeries({ base: 0 });
+// === PAC / Trail (same price scale) ===
+const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'right' });
+const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1, priceScaleId: 'right' });
+const pacC = chart.addLineSeries({ color: '#00FFFF', lineWidth: 2, priceScaleId: 'right' });
+const trail1 = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, priceScaleId: 'right' });
+const trail2 = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1.5, priceScaleId: 'right' });
+
+// === MACD (separate scale) ===
+const macdLine = chart.addLineSeries({ color: '#00FFFF', lineWidth: 1, priceScaleId: 'macd' });
+const macdSignal = chart.addLineSeries({ color: '#FF00FF', lineWidth: 1, lineStyle: 2, priceScaleId: 'macd' });
+const macdHist = chart.addHistogramSeries({ base: 0, priceScaleId: 'macd' });
 
   // === Apply Historical Data ===
   if (history.length > 0) {
@@ -166,3 +168,4 @@ waitForDataAndStart();
 
 </body>
 </html>
+
