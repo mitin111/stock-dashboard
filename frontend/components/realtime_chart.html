@@ -68,7 +68,20 @@ function bucketToInterval(tsSec) {
   return bucket;
 }
 
-let lastBar = history.length ? { ...history[history.length - 1] } : null;
+// ✅ Reset lastBar always when history reloads (new symbol/interval)
+let lastBar = null;
+let lastSymbol = window.initialToken;
+let lastInterval = barIntMin;
+
+// When a new symbol or timeframe is loaded, reset candle base
+function resetLastBarIfChanged(currentToken, currentInterval) {
+  if (currentToken !== lastSymbol || currentInterval !== lastInterval) {
+    console.log("🔁 Resetting lastBar due to symbol/interval change");
+    lastBar = null;
+    lastSymbol = currentToken;
+    lastInterval = currentInterval;
+  }
+}
 
 function subscribeUrlFromWs(wsUrl) {
   const u = new URL(wsUrl);
@@ -130,3 +143,4 @@ function safeStartWS() {
 }
 safeStartWS();
 </script>
+
