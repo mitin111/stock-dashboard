@@ -15,11 +15,6 @@
   <div id="chart-container"></div>
 
 <script>
-// === Global data injected from Python ===
-let history    = window.initialHistory || [];
-let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
-let initialTok = window.initialToken || null;
-let barIntMin  = Number(window.barInterval || 1);
 
 // === Chart Setup ===
 const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
@@ -47,6 +42,12 @@ const candleSeries = chart.addCandlestickSeries({
   wickUpColor:'#26a69a', wickDownColor:'#ef5350'
 });
 
+// === Global data injected from Python ===
+let history    = window.initialHistory || [];
+let wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
+let initialTok = window.initialToken || null;
+let barIntMin  = Number(window.barInterval || 1);
+  
 // === Indicator Overlays ===
 const pacU = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
 const pacL = chart.addLineSeries({ color: '#808080', lineWidth: 1 });
@@ -188,3 +189,4 @@ safeStartWS();
 
 </body>
 </html>
+
