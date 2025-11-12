@@ -734,13 +734,13 @@ with tab5:
 
             # Inject history + wsUrl + token + interval
             html_data = (
+                html_data +
                 f"<script>"
-                f"window.initialHistory = {json.dumps(history)}; "  # ✅ JSON-safe inject
+                f"window.initialHistory = {json.dumps(history)}; "
                 f"window.wsUrl = '{backend_ws_origin}'; "
                 f"window.initialToken = '{initial_token}'; "
                 f"window.barInterval = {int(selected_interval)};"
                 f"</script>"
-                + html_data
             )
             
             # Render lightweight chart
@@ -948,6 +948,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
