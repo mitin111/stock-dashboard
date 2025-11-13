@@ -11,7 +11,11 @@
 </head>
 
 <body>
-  <div id="chart-container"></div>
+  <!-- TOP PRICE CHART -->
+  <div id="price-chart" style="height: 450px;"></div>
+
+  <!-- BOTTOM MACD CHART -->
+  <div id="macd-chart" style="height: 180px; margin-top:4px;"></div>
 
 <script>
 // === Wait for data injection from Python ===
@@ -32,36 +36,91 @@ function startChart() {
   const initialTok = window.initialToken || null;
   const barIntMin  = Number(window.barInterval || 1);
 
-  // === Create Chart ===
-  const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
-    layout: { background: { color: '#000' }, textColor: '#fff' },
-    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3 },
-    localization: {
-      locale: 'en-IN',
-      timeFormatter: t => new Date(t * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }),
-    },
-  });
-  chart.applyOptions({
-    timezone: 'Asia/Kolkata',
-    timeScale: {
-      tickMarkFormatter: t => new Date(t * 1000).toLocaleTimeString('en-IN', {
-        timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit'
-      }),
-    }
+  // === PRICE CHART ===
+  const priceChart = LightweightCharts.createChart(
+      document.getElementById('price-chart'),
+      {
+          layout: { background:{color:'#000'}, textColor:'#fff' },
+          grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+          timeScale: { timeVisible:true },
+          rightPriceScale: { visible:true }
+      }
+  );
+
+  // ⏱️ Apply IST timezone + formatter
+  priceChart.applyOptions({
+      timezone: 'Asia/Kolkata',
+      timeScale: {
+          tickMarkFormatter: t => new Date(t * 1000).toLocaleTimeString('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit'
+          })
+      }
   });
 
-// === Candle Series (Main Price Scale) ===
-const candleSeries = chart.addCandlestickSeries({
-  upColor: '#26a69a',
-  downColor: '#ef5350',
-  borderUpColor: '#26a69a',
-  borderDownColor: '#ef5350',
-  wickUpColor: '#26a69a',
-  wickDownColor: '#ef5350',
-  priceScaleId: 'right', // ✅ FIXED
-  scaleMargins: { top: 0.05, bottom: 0.25 } // space for MACD
-});
+  const candleSeries = priceChart.addCandlestickSeries({
+      upColor:'#26a69a',
+      downColor:'#ef5350',
+      borderUpColor:'#26a69a',
+      borderDownColor:'#ef5350',
+      wickUpColor:'#26a69a',
+      wickDownColor:'#ef5350'
+  });
+
+
+  // === MACD CHART ===
+  const macdChart = LightweightCharts.createChart(
+      document.getElementById('macd-chart'),
+      {
+          layout: { background:{color:'#000'}, textColor:'#fff' },
+          grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+          timeScale: { timeVisible:true },
+          rightPriceScale: { visible:true }
+      }
+  );
+ 
+  // ⏱️ Apply IST timezone + formatter (MACD panel)
+  macdChart.applyOptions({
+      timezone: 'Asia/Kolkata',
+      timeScale: {
+          tickMarkFormatter: t => new Date(t * 1000).toLocaleTimeString('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit'
+          })
+      }
+  });
+
+  // Histogram
+  const macdHistSeries = macdChart.addHistogramSeries({
+      base: 0,
+      color: '#888'
+  });
+
+  // MACD Line
+  const macdLineSeries = macdChart.addLineSeries({
+      color: '#00FFFF',
+      lineWidth: 1.5
+  });
+
+  // Signal Line
+  const macdSignalSeries = macdChart.addLineSeries({
+      color: '#FF00FF',
+      lineWidth: 1.5
+  });
+
+
+  // === SYNC SCROLL + ZOOM ===
+  priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      macdChart.timeScale().setVisibleRange(range);
+  });
+
+  macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      priceChart.timeScale().setVisibleRange(range);
+  });
 
 // === PAC / Trails ===
 // === PAC / Trails (attach to right scale with candles) ===
@@ -234,6 +293,7 @@ waitForDataAndStart();
 
 </body>
 </html>
+
 
 
 
