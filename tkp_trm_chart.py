@@ -577,6 +577,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
             rows=2, cols=1, shared_xaxes=True,
             row_heights=[0.7, 0.3], vertical_spacing=0.08,
             subplot_titles=("Price + Indicators", "MACD")
+            specs=[[{"secondary_y": False}], [{"secondary_y": False}]]
         )
     else:
         fig = go.Figure()
@@ -604,42 +605,59 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
 
     # --- MACD (only if enabled) ---
     if show_macd_panel:
-        fig.add_trace(go.Bar(
-            x=df["datetime"], y=df["macd_hist"],
-            marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000"),
-            name="MACD Histogram"
-        ), row=2, col=1)
-        fig.add_trace(go.Scatter(
-            x=df["datetime"], y=df["macd"], name="MACD Line",
-            line=dict(color="#00FFFF", width=1)
-        ), row=2, col=1)
-        fig.add_trace(go.Scatter(
-            x=df["datetime"], y=df["macd_signal"], name="Signal Line",
-            line=dict(color="#FF00FF", dash="dot", width=1)
-        ), row=2, col=1)
-
-    # === FIX: Separate y-axis for Price (Row 1) and MACD (Row 2) ===
-    if show_macd_panel:
-        # Price axis fix (Row 1)
-        fig.update_yaxes(
-            title_text="Price",
-            row=1, col=1,
-            fixedrange=False,
-            rangemode="normal",
-            showgrid=True
+        # Histogram
+        fig.add_trace(
+            go.Bar(
+                x=df["datetime"],
+                y=df["macd_hist"],
+                marker_color=np.where(df["macd_hist"] >= 0, "#00FF00", "#FF0000"),
+                name="MACD Histogram"
+            ),
+            row=2, col=1, secondary_y=False
         )
 
-        # MACD axis fix (Row 2)
-        fig.update_yaxes(
-            title_text="MACD",
-            row=2, col=1,
-            fixedrange=False,
-            rangemode="tozero",   # ensures MACD stays around 0 line
-            showgrid=True,
-            zeroline=True,
-            zerolinecolor="white",
-            zerolinewidth=1
+        # MACD Line
+        fig.add_trace(
+            go.Scatter(
+                x=df["datetime"],
+                y=df["macd"],
+                name="MACD Line",
+                line=dict(color="#00FFFF", width=1)
+            ),
+            row=2, col=1, secondary_y=False
         )
+
+        # Signal Line
+        fig.add_trace(
+            go.Scatter(
+                x=df["datetime"],
+                y=df["macd_signal"],
+                name="Signal Line",
+                line=dict(color="#FF00FF", dash="dot", width=1)
+            ),
+            row=2, col=1, secondary_y=False
+        )
+
+    # --- Force separate Y-axes for row-1 (price) and row-2 (MACD)
+    fig.update_yaxes(
+        title_text="Price",
+        row=1, col=1,
+        rangemode="normal",
+        showgrid=True,
+        fixedrange=False
+    )
+
+    fig.update_yaxes(
+        title_text="MACD",
+        row=2, col=1,
+        rangemode="tozero",
+        showgrid=True,
+        zeroline=True,
+        zerolinecolor="white",
+        zerolinewidth=1,
+        fixedrange=False
+    )
+
 
     # --- Layout ---
     fig.update_layout(
@@ -655,6 +673,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
