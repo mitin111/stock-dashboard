@@ -576,7 +576,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
         fig = make_subplots(
             rows=2, cols=1, shared_xaxes=True,
             row_heights=[0.7, 0.3], vertical_spacing=0.08,
-            subplot_titles=("Price + Indicators", "MACD")
+            subplot_titles=("Price + Indicators", "MACD"),
             specs=[[{"secondary_y": False}], [{"secondary_y": False}]]
         )
     else:
@@ -673,6 +673,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
