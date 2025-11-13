@@ -618,6 +618,29 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
             line=dict(color="#FF00FF", dash="dot", width=1)
         ), row=2, col=1)
 
+    # === FIX: Separate y-axis for Price (Row 1) and MACD (Row 2) ===
+    if show_macd_panel:
+        # Price axis fix (Row 1)
+        fig.update_yaxes(
+            title_text="Price",
+            row=1, col=1,
+            fixedrange=False,
+            rangemode="normal",
+            showgrid=True
+        )
+
+        # MACD axis fix (Row 2)
+        fig.update_yaxes(
+            title_text="MACD",
+            row=2, col=1,
+            fixedrange=False,
+            rangemode="tozero",   # ensures MACD stays around 0 line
+            showgrid=True,
+            zeroline=True,
+            zerolinecolor="white",
+            zerolinewidth=1
+        )
+
     # --- Layout ---
     fig.update_layout(
         template="plotly_dark",
@@ -632,6 +655,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
