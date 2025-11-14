@@ -19,6 +19,19 @@
   <!-- BOTTOM MACD CHART -->
   <div id="macd-chart"></div>
 
+<body>
+
+<!-- TOP PRICE CHART -->
+<div id="price-chart"></div>
+
+<!-- BOTTOM MACD CHART -->
+<div id="macd-chart"></div>
+
+<!-- DATA COMES FROM PYTHON HERE -->
+/*INJECT_DATA*/
+
+<script>  
+
 <script>
 // === Wait for data injection ===
 function waitForDataAndStart() {
@@ -257,5 +270,6 @@ function safeStartWS() {
 }
 
 safeStartWS();
+
 
 
