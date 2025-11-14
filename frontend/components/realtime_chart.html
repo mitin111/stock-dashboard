@@ -144,6 +144,41 @@ function startChart() {
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
+// =============================================
+// REQUIRED HELPERS FOR WS (missing in your code)
+// =============================================
+
+// --- Convert wsUrl to HTTP subscribe URL ---
+function subscribeUrlFromWs(wsUrl) {
+    const u = new URL(wsUrl);
+    u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
+    u.pathname = "/subscribe";
+    u.search = "";
+    return u.toString();
+}
+
+// --- HTTP Subscribe (very important!) ---
+async function httpSubscribe(token) {
+    await fetch(subscribeUrlFromWs(wsUrl), {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ tokens: [String(token)] })
+    }).catch(()=>{});
+}
+
+// --- Reset candle if symbol/timeframe changed ---
+let lastToken = initialTok;
+let lastInterval = barIntMin;
+
+function resetLastBarIfChanged() {
+    if (lastToken !== initialTok || lastInterval !== barIntMin) {
+        console.log("🔁 Reset lastBar due to symbol/timeframe change");
+        lastBar = null;
+        lastToken = initialTok;
+        lastInterval = barIntMin;
+        candleSeries.setData(history || []);
+    }
+}
 
  // ========================
 // REAL-TIME TICK UPDATE
@@ -223,3 +258,4 @@ function safeStartWS() {
 }
 
 safeStartWS();
+
