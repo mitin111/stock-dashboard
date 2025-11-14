@@ -145,92 +145,84 @@ function startChart() {
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
 
-  // ========================
+ // ========================
 // REAL-TIME TICK UPDATE
 // ========================
+function bucketToInterval(tsSec) {
+    return Math.floor(tsSec / (barIntMin * 60)) * (barIntMin * 60);
+}
 
-  function bucketToInterval(tsSec) {
-      return Math.floor(tsSec / (barIntMin * 60)) * (barIntMin * 60);
-  }
+let lastBar = null;
 
-  let lastBar = null;
+function connectWS() {
+    let ws = new WebSocket(wsUrl);
 
-  function connectWS() {
-      let ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+        console.log("WS connected");
+    };
 
-      ws.onopen = () => {
-          console.log("WS connected");
-      };
+    ws.onmessage = event => {
+        const p = JSON.parse(event.data);
+        const price = Number(p.lp ?? p.ltp ?? p.price);
+        let ts = Number(p.ft ?? p.time ?? p.lts);
 
-      ws.onmessage = event => {
-          const p = JSON.parse(event.data);
-          const price = Number(p.lp ?? p.ltp ?? p.price);
-          let ts = Number(p.ft ?? p.time ?? p.lts);
+        if (!price || !ts) return;
 
-          if (!price || !ts) return;
+        if (ts > 1e12) ts = Math.floor(ts / 1000);
+        const bucket = bucketToInterval(ts);
 
-          if (ts > 1e12) ts = Math.floor(ts / 1000);
-          const bucket = bucketToInterval(ts);
+        // ====== REALTIME CANDLE UPDATE ======
+        if (!lastBar || bucket !== lastBar.time) {
+            lastBar = {
+                time: bucket,
+                open: price,
+                high: price,
+                low: price,
+                close: price
+            };
+            candleSeries.update(lastBar);
+        } else {
+            lastBar.high = Math.max(lastBar.high, price);
+            lastBar.low  = Math.min(lastBar.low, price);
+            lastBar.close = price;
+            candleSeries.update(lastBar);
+        }
 
-          // ====== REALTIME CANDLE UPDATE ======
-          if (!lastBar || bucket !== lastBar.time) {
-              lastBar = {
-                  time: bucket,
-                  open: price,
-                  high: price,
-                  low: price,
-                  close: price
-              };
-              candleSeries.update(lastBar);
-          } else {
-              lastBar.high = Math.max(lastBar.high, price);
-              lastBar.low  = Math.min(lastBar.low, price);
-              lastBar.close = price;
-              candleSeries.update(lastBar);
-          }
+        // ===== REALTIME PAC / TRAIL / MACD =====
+        if (p.pacU !== undefined) pacU.update({ time: bucket, value: p.pacU });
+        if (p.pacL !== undefined) pacL.update({ time: bucket, value: p.pacL });
+        if (p.pacC !== undefined) pacC.update({ time: bucket, value: p.pacC });
+        if (p.tr1  !== undefined) trail1.update({ time: bucket, value: p.tr1 });
+        if (p.tr2  !== undefined) trail2.update({ time: bucket, value: p.tr2 });
 
-          // ===== REAL-TIME PAC / TRAIL / MACD UPDATE =====
-          if (p.pacU !== undefined) pacU.update({ time: bucket, value: p.pacU });
-          if (p.pacL !== undefined) pacL.update({ time: bucket, value: p.pacL });
-          if (p.pacC !== undefined) pacC.update({ time: bucket, value: p.pacC });
-          if (p.tr1  !== undefined) trail1.update({ time: bucket, value: p.tr1 });
-          if (p.tr2  !== undefined) trail2.update({ time: bucket, value: p.tr2 });
+        if (p.macd_hist !== undefined) {
+            macdHistSeries.update({
+                time: bucket,
+                value: p.macd_hist,
+                color: p.macd_hist >= 0 ? "#00FF00" : "#FF0000"
+            });
+        }
 
-          if (p.macd_hist !== undefined) {
-              macdHistSeries.update({
-                  time: bucket,
-                  value: p.macd_hist,
-                  color: p.macd_hist >= 0 ? "#00FF00" : "#FF0000"
-              });
-          }
+        if (p.macd !== undefined)
+            macdLineSeries.update({ time: bucket, value: p.macd });
 
-          if (p.macd !== undefined)
-              macdLineSeries.update({ time: bucket, value: p.macd });
+        if (p.macd_signal !== undefined)
+            macdSignalSeries.update({ time: bucket, value: p.macd_signal });
+    };
 
-          if (p.macd_signal !== undefined)
-              macdSignalSeries.update({ time: bucket, value: p.macd_signal });
-      };
+    ws.onclose = () => {
+        console.log("WS Closed → Reconnecting...");
+        setTimeout(connectWS, 1500);
+    };
+}
 
-      ws.onclose = () => {
-          console.log("WS Closed → Reconnecting...");
-          setTimeout(connectWS, 1500);
-      };
-  }
+// 🟢 START WS
+connectWS();
 
-  connectWS();   // ✅ Only this, no extra }
+}  // 🔥 THIS closes startChart() correctly
 
-  // END OF startChart() FUNCTION
-  }  
+waitForDataAndStart();
+</script>
 
-  waitForDataAndStart();
-  </script>
-
-  </body>
-  </html>
-
-
-
-
-
-
-
+</body>
+</html>
