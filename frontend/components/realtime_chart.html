@@ -3,144 +3,111 @@
 <head>
   <meta charset="utf-8"/>
   <title>Realtime Chart</title>
+
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
   <style>
     html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
     #price-chart { width: 100vw; height: 450px; }
-    #macd-chart { width: 100vw; height: 180px; margin-top:4px; }
+    #macd-chart  { width: 100vw; height: 180px; margin-top:4px; }
   </style>
 </head>
 
 <body>
 
-  <!-- TOP PRICE CHART -->
+  <!-- PRICE CHART -->
   <div id="price-chart"></div>
 
-  <!-- BOTTOM MACD CHART -->
+  <!-- MACD CHART -->
   <div id="macd-chart"></div>
 
-<body>
-
-<!-- TOP PRICE CHART -->
-<div id="price-chart"></div>
-
-<!-- BOTTOM MACD CHART -->
-<div id="macd-chart"></div>
-
-<!-- DATA COMES FROM PYTHON HERE -->
-/*INJECT_DATA*/
-
-<script>  
+  <!-- Python will inject -->
+  /*INJECT_DATA*/
 
 <script>
-// === Wait for data injection ===
+/* ----------------------------------------
+   Wait until Python injects history + wsUrl + token
+-----------------------------------------*/
 function waitForDataAndStart() {
-  if (!window.initialHistory || !Array.isArray(window.initialHistory)) {
-    console.log("⏳ waiting for Python data...");
+  if (!window.initialHistory ||
+      !Array.isArray(window.initialHistory) ||
+      window.initialHistory.length === 0) {
+
+    console.log("⏳ Waiting for Python injection...");
     return setTimeout(waitForDataAndStart, 300);
   }
   startChart();
 }
+waitForDataAndStart();
 
+/* ----------------------------------------
+   MAIN CHART FUNCTION
+-----------------------------------------*/
 function startChart() {
 
   const history    = window.initialHistory || [];
   const wsUrl      = window.wsUrl || "wss://backend-stream-nmlf.onrender.com/ws/live";
-  const initialTok = window.initialToken;
+  const initialTok = window.initialToken || "";
   const barIntMin  = Number(window.barInterval || 1);
 
-  let lastBar = null;
-  // ========================
-  // PRICE CHART (TOP)
-  // ========================
+  console.log("Injected history:", history.length);
+  console.log("wsUrl:", wsUrl);
+  console.log("initialToken:", initialTok);
+
+  const safe = v => (v === null || v === undefined || isNaN(v) ? null : Number(v));
+
+  /* ----------------------------------------
+     TOP (PRICE) CHART
+  -----------------------------------------*/
   const priceChart = LightweightCharts.createChart(
-      document.getElementById('price-chart'),
-      {
-          layout: { background:{color:'#000'}, textColor:'#fff' },
-          grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-          timeScale: { timeVisible:true },
-          rightPriceScale: { visible:true }
-      }
+    document.getElementById('price-chart'),
+    {
+      layout: { background:{color:'#000'}, textColor:'#fff' },
+      grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+      timeScale:{ timeVisible:true }
+    }
   );
 
-  priceChart.applyOptions({
-      timezone: 'Asia/Kolkata',
-      timeScale: {
-          tickMarkFormatter: t => new Date(t * 1000).toLocaleTimeString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit'
-          })
-      }
-  });
-
   const candleSeries = priceChart.addCandlestickSeries({
-      upColor:'#26a69a',
-      downColor:'#ef5350',
-      borderUpColor:'#26a69a',
-      borderDownColor:'#ef5350',
-      wickUpColor:'#26a69a',
-      wickDownColor:'#ef5350'
+    upColor:'#26a69a',
+    downColor:'#ef5350',
+    borderUpColor:'#26a69a',
+    borderDownColor:'#ef5350',
+    wickUpColor:'#26a69a',
+    wickDownColor:'#ef5350'
   });
 
-  // === PAC / Trails on price chart ===
   const pacU = priceChart.addLineSeries({ color:'#808080', lineWidth:1 });
   const pacL = priceChart.addLineSeries({ color:'#808080', lineWidth:1 });
   const pacC = priceChart.addLineSeries({ color:'#00FFFF', lineWidth:2 });
   const trail1 = priceChart.addLineSeries({ color:'#FF00FF', lineWidth:1 });
   const trail2 = priceChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
 
-
-  // ========================
-  // MACD CHART (BOTTOM)
-  // ========================
+  /* ----------------------------------------
+     BOTTOM (MACD) CHART
+  -----------------------------------------*/
   const macdChart = LightweightCharts.createChart(
-      document.getElementById('macd-chart'),
-      {
-          layout: { background:{color:'#000'}, textColor:'#fff' },
-          grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-          timeScale: { timeVisible:true },
-          rightPriceScale: { visible:true }
-      }
+    document.getElementById('macd-chart'),
+    {
+      layout:{ background:{color:'#000'}, textColor:'#fff' },
+      grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+      timeScale:{ timeVisible:true }
+    }
   );
 
-  macdChart.applyOptions({
-      timezone: 'Asia/Kolkata',
-      timeScale: {
-          tickMarkFormatter: t => new Date(t * 1000).toLocaleTimeString('en-IN', {
-              timeZone:'Asia/Kolkata',
-              hour12:false,
-              hour:'2-digit',
-              minute:'2-digit'
-          })
-      }
-  });
-
-  const macdHistSeries = macdChart.addHistogramSeries({ base:0 });
-  const macdLineSeries = macdChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
+  const macdHistSeries   = macdChart.addHistogramSeries({ base:0 });
+  const macdLineSeries   = macdChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
   const macdSignalSeries = macdChart.addLineSeries({ color:'#FF00FF', lineWidth:1.5 });
 
-
-  // ========================
-  // SYNC SCROLL + ZOOM
-  // ========================
-  priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      macdChart.timeScale().setVisibleRange(range);
-  });
-
-  macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      priceChart.timeScale().setVisibleRange(range);
-  });
-
-
-  // ========================
-  // HISTORICAL DATA LOAD
-  // ========================
-  const safe = v => (v === null || v === undefined ? NaN : v);
-
+  /* ----------------------------------------
+     LOAD FULL HISTORY
+  -----------------------------------------*/
   candleSeries.setData(history.map(c => ({
-      time:c.time, open:c.open, high:c.high, low:c.low, close:c.close
+    time:c.time,
+    open:c.open,
+    high:c.high,
+    low:c.low,
+    close:c.close
   })));
 
   pacU.setData(history.map(c => ({ time:c.time, value:safe(c.pacU) })));
@@ -150,126 +117,93 @@ function startChart() {
   trail2.setData(history.map(c => ({ time:c.time, value:safe(c.Trail2) })));
 
   macdHistSeries.setData(history.map(c => ({
-      time:c.time,
-      value:safe(c.macd_hist),
-      color:c.macd_hist >= 0 ? '#00FF00' : '#FF0000'
+    time:c.time,
+    value:safe(c.macd_hist),
+    color:(c.macd_hist >= 0 ? '#00FF00' : '#FF0000')
   })));
 
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
-// =============================================
-// REQUIRED HELPERS FOR WS (PLACE ABOVE connectWS)
-// =============================================
 
-// Convert wsUrl to HTTP subscribe URL
-function subscribeUrlFromWs(wsUrl) {
-    const u = new URL(wsUrl);
-    u.protocol = (u.protocol === "wss:") ? "https:" : "http:";
-    u.pathname = "/subscribe";
-    u.search = "";
-    return u.toString();
+  /* ----------------------------------------
+     SYNC SCROLL
+  -----------------------------------------*/
+  priceChart.timeScale().subscribeVisibleTimeRangeChange(range => {
+    macdChart.timeScale().setVisibleRange(range);
+  });
+
+
+  /* ----------------------------------------
+     REALTIME WEBSOCKET HANDLING
+  -----------------------------------------*/
+
+  function bucket(ts) {
+    return Math.floor(ts / (barIntMin * 60)) * (barIntMin * 60);
+  }
+
+  let lastBar = null;
+
+  function connectWS() {
+
+    let ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log("WS OPEN");
+      ws.send(JSON.stringify({ type:"subscribe", token: initialTok }));
+    };
+
+    ws.onmessage = (ev) => {
+      const p = JSON.parse(ev.data);
+      if (!p) return;
+
+      const price = Number(p.lp ?? p.ltp ?? p.price);
+      let ts = Number(p.ft ?? p.time ?? p.lts);
+      if (!price || !ts) return;
+
+      if (ts > 1e12) ts = Math.floor(ts / 1000);
+
+      const t = bucket(ts);
+
+      if (!lastBar || t !== lastBar.time) {
+        lastBar = { time:t, open:price, high:price, low:price, close:price };
+        candleSeries.update(lastBar);
+      } else {
+        lastBar.high = Math.max(lastBar.high, price);
+        lastBar.low  = Math.min(lastBar.low,  price);
+        lastBar.close = price;
+        candleSeries.update(lastBar);
+      }
+
+      // Optional indi live update if backend sends them
+      if (p.pacU !== undefined) pacU.update({ time:t, value:p.pacU });
+      if (p.pacL !== undefined) pacL.update({ time:t, value:p.pacL });
+      if (p.pacC !== undefined) pacC.update({ time:t, value:p.pacC });
+
+      if (p.tr1 !== undefined) trail1.update({ time:t, value:p.tr1 });
+      if (p.tr2 !== undefined) trail2.update({ time:t, value:p.tr2 });
+
+      if (p.macd_hist !== undefined)
+        macdHistSeries.update({ time:t, value:p.macd_hist });
+
+      if (p.macd !== undefined)
+        macdLineSeries.update({ time:t, value:p.macd });
+
+      if (p.macd_signal !== undefined)
+        macdSignalSeries.update({ time:t, value:p.macd_signal });
+    };
+
+    ws.onclose = () => {
+      console.log("WS CLOSED → retry in 1s");
+      setTimeout(connectWS, 1000);
+    };
+  }
+
+  if (initialTok) connectWS();
 }
 
-// HTTP Subscribe
-async function httpSubscribe(token) {
-    await fetch(subscribeUrlFromWs(wsUrl), {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ tokens: [String(token)] })
-    }).catch(()=>{});
-}
+</script>
 
-// Reset bar when symbol or interval changes
-let lastToken = initialTok;
-let lastInterval = barIntMin;
-
-function resetLastBarIfChanged() {
-    if (lastToken !== initialTok || lastInterval !== barIntMin) {
-        console.log("🔁 Reset lastBar due to symbol/timeframe change");
-        lastBar = null;
-        lastToken = initialTok;
-        lastInterval = barIntMin;
-        candleSeries.setData(history || []);
-    }
-}
-
- // ========================
-// REAL-TIME TICK UPDATE
-// ========================
-function bucketToInterval(tsSec) {
-    return Math.floor(tsSec / (barIntMin * 60)) * (barIntMin * 60);
-}
-
-function connectWS() {
-  if (!initialTok) return;
-
-  let ws = new WebSocket(wsUrl);
-
-  ws.onopen = async () => {
-    await new Promise(r => setTimeout(r, 200));
-    await httpSubscribe(initialTok);
-    console.log("📡 WS opened and subscribed", initialTok);
-  };
-
-  ws.onmessage = (event) => {
-    const p = JSON.parse(event.data);
-    if (!p || typeof p !== "object") return;
-
-    // --- ONLY ACCEPT TICKS FOR THIS SYMBOL ---
-    const currentToken = String(initialTok.split("|")[1] || "");
-    const tickToken = String(p.tk || "");
-    if (tickToken && tickToken !== currentToken) return;
-
-    resetLastBarIfChanged();
-    if (!history.length && !lastBar) return;
-
-    const price = Number(p.lp ?? p.ltp ?? p.price);
-    let ts = Number(p.ft ?? p.time ?? p.lts);
-    if (!price || !ts) return;
-
-    if (ts > 1e12) ts = Math.floor(ts / 1000);
-    const bucket = bucketToInterval(ts);
-
-    // --- Candle build ---
-    if (!lastBar || bucket !== lastBar.time) {
-      lastBar = { time: bucket, open: price, high: price, low: price, close: price };
-      candleSeries.update(lastBar);
-    } else {
-      lastBar.high = Math.max(lastBar.high, price);
-      lastBar.low  = Math.min(lastBar.low, price);
-      lastBar.close = price;
-      candleSeries.update(lastBar);
-    }
-
-    // --- Real-time indicators ---
-    if (p.pacU !== undefined) pacU.update({ time: bucket, value: p.pacU });
-    if (p.pacL !== undefined) pacL.update({ time: bucket, value: p.pacL });
-    if (p.pacC !== undefined) pacC.update({ time: bucket, value: p.pacC });
-    if (p.tr1  !== undefined) trail1.update({ time: bucket, value: p.tr1 });
-    if (p.tr2  !== undefined) trail2.update({ time: bucket, value: p.tr2 });
-
-    if (p.macd_hist !== undefined)
-      macdHistSeries.update({ time: bucket, value: p.macd_hist });
-
-    if (p.macd !== undefined)
-      macdLineSeries.update({ time: bucket, value: p.macd });
-
-    if (p.macd_signal !== undefined)
-      macdSignalSeries.update({ time: bucket, value: p.macd_signal });
-  };
-
-  ws.onclose = () => {
-    console.log("WS Closed → Reconnecting...");
-    setTimeout(connectWS, 1500);
-  };
-}
-function safeStartWS() {
-  if (!initialTok) return setTimeout(safeStartWS, 1000);
-  connectWS();
-}
-
-safeStartWS();
-
-
+</body>
+</html>
 
