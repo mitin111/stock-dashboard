@@ -129,10 +129,13 @@ function startChart() {
   /* ----------------------------------------
      SYNC SCROLL
   -----------------------------------------*/
-  priceChart.timeScale().subscribeVisibleTimeRangeChange(range => {
-    macdChart.timeScale().setVisibleRange(range);
+  priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      macdChart.timeScale().setVisibleRange(range);
   });
 
+  macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      priceChart.timeScale().setVisibleRange(range);
+  });
 
   /* ----------------------------------------
      REALTIME WEBSOCKET HANDLING
@@ -206,4 +209,5 @@ function startChart() {
 
 </body>
 </html>
+
 
