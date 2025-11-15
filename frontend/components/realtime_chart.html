@@ -57,27 +57,25 @@ function startChart() {
   const safe = v => (v === null || v === undefined || isNaN(v) ? null : Number(v));
 
   /* ----------------------------------------
-     TOP (PRICE) CHART
-  -----------------------------------------*/
-  const macdChart = LightweightCharts.createChart(
-      document.getElementById('macd-chart'),
-      {
-        layout:{ background:{color:'#000'}, textColor:'#fff' },
-        grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-        timeScale:{ timeVisible:true },
-        rightPriceScale:{ visible:true },   // ✅ THIS LINE IS REQUIRED
-      
-        handleScroll: {
-            mouseWheel: true,
-            pressedMouseMove: true
-        },
-        handleScale: {
-            axisPressedMouseMove: true,
-            mouseWheel: true,
-            pinch: true
-        }
-      }
+          🔵 TOP PRICE CHART
+  ----------------------------------------*/
+  const priceChart = LightweightCharts.createChart(
+    document.getElementById('price-chart'),
+    {
+      layout: { background:{color:'#000'}, textColor:'#fff' },
+      grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+      timeScale:{ timeVisible:true }
+    }
   );
+
+  const candleSeries = priceChart.addCandlestickSeries({
+    upColor:'#26a69a',
+    downColor:'#ef5350',
+    borderUpColor:'#26a69a',
+    borderDownColor:'#ef5350',
+    wickUpColor:'#26a69a',
+    wickDownColor:'#ef5350'
+  });
 
   const pacU = priceChart.addLineSeries({ color:'#808080', lineWidth:1 });
   const pacL = priceChart.addLineSeries({ color:'#808080', lineWidth:1 });
@@ -88,24 +86,20 @@ function startChart() {
   /* ----------------------------------------
      BOTTOM (MACD) CHART
   -----------------------------------------*/
+  /* ----------------------------------------
+          🔴 BOTTOM MACD CHART
+  ----------------------------------------*/
   const macdChart = LightweightCharts.createChart(
     document.getElementById('macd-chart'),
     {
       layout:{ background:{color:'#000'}, textColor:'#fff' },
       grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
       timeScale:{ timeVisible:true },
-      handleScroll: {
-          mouseWheel: true,
-          pressedMouseMove: true
-      },
-      handleScale: {
-          axisPressedMouseMove: true,
-          mouseWheel: true,
-          pinch: true
-      }
+      rightPriceScale:{ visible:true },       /* FIXED */
+      handleScroll:{ mouseWheel:true, pressedMouseMove:true },
+      handleScale:{ axisPressedMouseMove:true, mouseWheel:true, pinch:true }
     }
   );
-
 
   const macdHistSeries   = macdChart.addHistogramSeries({ base:0 });
   const macdLineSeries   = macdChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
@@ -228,6 +222,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
