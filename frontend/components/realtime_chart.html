@@ -91,9 +91,19 @@ function startChart() {
     {
       layout:{ background:{color:'#000'}, textColor:'#fff' },
       grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-      timeScale:{ timeVisible:true }
+      timeScale:{ timeVisible:true },
+      handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true
+      },
+      handleScale: {
+          axisPressedMouseMove: true,
+          mouseWheel: true,
+          pinch: true
+      }
     }
   );
+
 
   const macdHistSeries   = macdChart.addHistogramSeries({ base:0 });
   const macdLineSeries   = macdChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
@@ -216,6 +226,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
