@@ -225,35 +225,72 @@ function startChart() {
      REALTIME WEBSOCKET HANDLING
   -----------------------------------------*/
 
-  function bucket(ts) {
-    return Math.floor(ts / (barIntMin * 60)) * (barIntMin * 60);
+  /* ----------------------------------------
+     REALTIME WEBSOCKET HANDLING (STABLE)
+  -----------------------------------------*/
+
+  function bucketToInterval(tsSec) {
+    return Math.floor(tsSec / (barIntMin * 60)) * (barIntMin * 60);
   }
 
   let lastBar = null;
+  let wsInstance = null;
+
+  // Prevent duplicate connections
+  let isConnecting = false;
 
   function connectWS() {
+    if (!initialTok || isConnecting) return;
 
-    let ws = new WebSocket(wsUrl);
+    isConnecting = true;
+    console.log("🔌 Connecting WebSocket:", wsUrl);
 
-    ws.onopen = () => {
-      console.log("WS OPEN");
-      ws.send(JSON.stringify({ type:"subscribe", token: initialTok }));
+    try {
+      wsInstance = new WebSocket(wsUrl);
+    } catch (e) {
+      console.log("❌ WS create error:", e);
+      isConnecting = false;
+      setTimeout(connectWS, 2000);
+      return;
+    }
+
+    wsInstance.onopen = () => {
+      console.log("📡 WS OPEN");
+
+      // Backend expects subscription message
+      const msg = { type: "subscribe", token: initialTok };
+      wsInstance.send(JSON.stringify(msg));
+
+      console.log("✔ Subscribed:", initialTok);
+      isConnecting = false;
     };
 
-    ws.onmessage = (ev) => {
-      const p = JSON.parse(ev.data);
+    wsInstance.onmessage = (event) => {
+      let p;
+      try {
+        p = JSON.parse(event.data);
+      } catch (_) {
+        return;
+      }
+
       if (!p) return;
 
+      // Extract price
       const price = Number(p.lp ?? p.ltp ?? p.price);
-      let ts = Number(p.ft ?? p.time ?? p.lts);
-      if (!price || !ts) return;
+      if (!price) return;
 
+      // Extract timestamp
+      let ts = Number(p.ft ?? p.time ?? p.lts);
+      if (!ts) return;
+
+      // Convert ms → sec
       if (ts > 1e12) ts = Math.floor(ts / 1000);
 
-      const t = bucket(ts);
+      const t = bucketToInterval(ts);
 
+      // NEW candle?
       if (!lastBar || t !== lastBar.time) {
-        lastBar = { time:t, open:price, high:price, low:price, close:price };
+        lastBar = { time: t, open: price, high: price, low: price, close: price };
         candleSeries.update(lastBar);
       } else {
         lastBar.high = Math.max(lastBar.high, price);
@@ -262,37 +299,45 @@ function startChart() {
         candleSeries.update(lastBar);
       }
 
-      // Optional indi live update if backend sends them
-      if (p.pacU !== undefined) pacU.update({ time:t, value:p.pacU });
-      if (p.pacL !== undefined) pacL.update({ time:t, value:p.pacL });
-      if (p.pacC !== undefined) pacC.update({ time:t, value:p.pacC });
+      // Optional indicator live updates (if backend provides)
+      if (p.pacU !== undefined) pacU.update({ time: t, value: p.pacU });
+      if (p.pacL !== undefined) pacL.update({ time: t, value: p.pacL });
+      if (p.pacC !== undefined) pacC.update({ time: t, value: p.pacC });
 
-      if (p.tr1 !== undefined) trail1.update({ time:t, value:p.tr1 });
-      if (p.tr2 !== undefined) trail2.update({ time:t, value:p.tr2 });
+      if (p.tr1 !== undefined) trail1.update({ time: t, value: p.tr1 });
+      if (p.tr2 !== undefined) trail2.update({ time: t, value: p.tr2 });
 
       if (p.macd_hist !== undefined)
-        macdHistSeries.update({ time:t, value:p.macd_hist });
+        macdHistSeries.update({ time: t, value: p.macd_hist });
 
       if (p.macd !== undefined)
-        macdLineSeries.update({ time:t, value:p.macd });
+        macdLineSeries.update({ time: t, value: p.macd });
 
       if (p.macd_signal !== undefined)
-        macdSignalSeries.update({ time:t, value:p.macd_signal });
+        macdSignalSeries.update({ time: t, value: p.macd_signal });
     };
 
-    ws.onclose = () => {
-      console.log("WS CLOSED → retry in 1s");
-      setTimeout(connectWS, 1000);
+    wsInstance.onclose = () => {
+      console.log("⚠ WS CLOSED → retry in 1.5s");
+      isConnecting = false;
+      setTimeout(connectWS, 1500);
+    };
+
+    wsInstance.onerror = (e) => {
+      console.log("❌ WS ERROR", e);
+      try { wsInstance.close(); } catch {}
     };
   }
 
+  // Start WebSocket once token is injected
   if (initialTok) connectWS();
-}
+
 
 </script>
 
 </body>
 </html>
+
 
 
 
