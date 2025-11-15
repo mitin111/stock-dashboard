@@ -92,24 +92,25 @@ function startChart() {
   const macdChart = LightweightCharts.createChart(
       document.getElementById('macd-chart'),
       {
-          layout:{ background:{color:'#000'}, textColor:'#fff' },
-          grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+        layout:{ background:{color:'#000'}, textColor:'#fff' },
+        grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
 
-          // 🔥 SAME TIME SCALE SETTINGS AS PRICE CHART
-          timeScale: {
-              timeVisible: true,
-              rightOffset: priceChart.timeScale().options().rightOffset,
-              barSpacing: priceChart.timeScale().options().barSpacing,
-              fixLeftEdge: true,
-              fixRightEdge: false,
-              lockVisibleTimeRangeOnResize: true,
-              shiftVisibleRangeOnNewBar: true
-          },
+        timeScale:{ timeVisible:true },
 
-          rightPriceScale:{ visible:true, autoScale:false },
+        rightPriceScale:{ 
+            visible:true,
+            autoScale:true   // 🔥 keep this ON 
+        },
 
-          handleScroll:{ mouseWheel:true, pressedMouseMove:true },
-          handleScale:{ axisPressedMouseMove:true, mouseWheel:true, pinch:true }
+        handleScroll:{
+            mouseWheel:false,        // user cannot drag MACD
+            pressedMouseMove:false
+        },
+        handleScale:{
+            axisPressedMouseMove:false,
+            mouseWheel:false,
+            pinch:false
+        }
       }
   );
 
@@ -143,28 +144,16 @@ function startChart() {
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
-  // =======================================
-  // HARD GLUE SYNC (PERFECT FIX)
-  // =======================================
-  setInterval(() => {
-      try {
-          const r = priceChart.timeScale().getVisibleRange();
-          if (r) macdChart.timeScale().setVisibleRange(r);
-      } catch (e) {}
-  }, 100);
-
+  
   // =============================
   // PERFECT SYNC SCROLL + ZOOM
   // =============================
 
-  // HARD GLUE SYNC (BEST WORKING)
-  setInterval(() => {
+  priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
       try {
-          const r = priceChart.timeScale().getVisibleRange();
-          if (r) macdChart.timeScale().setVisibleRange(r);
+          if (range) macdChart.timeScale().setVisibleRange(range);
       } catch (e) {}
-  }, 100);
-
+  });
 
   /* ----------------------------------------
      REALTIME WEBSOCKET HANDLING
@@ -238,6 +227,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
