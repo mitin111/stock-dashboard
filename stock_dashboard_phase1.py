@@ -613,6 +613,23 @@ with tab5:
         load_history_into_state(df)
         st.success(f" Loaded TPSeries candles: {len(df)}")
 
+        # === Apply TRM + PAC + ATR + MACD immediately on TPSeries load ===
+        from tkp_trm_chart import (
+            calc_tkp_trm, calc_pac, calc_macd, calc_atr_trails,
+            get_trm_settings_safe
+        )
+
+        settings = get_trm_settings_safe()
+        df_trm = df.copy()
+
+        df_trm = calc_tkp_trm(df_trm, settings)
+        df_trm = calc_pac(df_trm, settings)
+        df_trm = calc_atr_trails(df_trm, settings)
+        df_trm = calc_macd(df_trm, settings)
+
+        # Replace internal df_live so that next chart render shows correct indicators
+        df_live = df_trm
+
         # Manage holidays + rangebreaks
         if "holiday_values" not in st.session_state or "holiday_breaks" not in st.session_state:
             holiday_values = [pd.Timestamp(h).to_pydatetime().replace(tzinfo=None) for h in full_holidays]
@@ -956,6 +973,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
