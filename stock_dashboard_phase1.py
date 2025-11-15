@@ -761,8 +761,16 @@ with tab5:
             ts = int(tick.get("ft") or tick.get("time") or 0)
             if ts == 0:
                 return
-            # tick timestamp is epoch seconds UTC -> convert to IST
+
+            # ---- FIX: Convert ProStocks tick timestamp → IST ----
+            # ProStocks sometimes sends milliseconds (13 digits)
+            # Normalize to seconds first
+            if ts > 1_000_000_000_000:   # > 1e12 → ms
+                ts = ts // 1000
+
+            # Convert to IST
             dt = datetime.fromtimestamp(ts, tz=pytz.UTC).astimezone(pytz.timezone("Asia/Kolkata"))
+            # ------------------------------------------------------
 
             minute = (dt.minute // interval) * interval
             candle_time = dt.replace(second=0, microsecond=0, minute=minute)
@@ -948,6 +956,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
