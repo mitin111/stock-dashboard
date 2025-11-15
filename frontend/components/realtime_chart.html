@@ -143,32 +143,34 @@ function startChart() {
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
   // =============================
-  // PERFECT 2-WAY SYNC SCROLL + ZOOM
+  // PERFECT 2-WAY SYNC SCROLL + ZOOM (NO LOCKING)
   // =============================
 
-  // --- prevent infinite loop flags ---
   let syncingFromPrice = false;
   let syncingFromMacd  = false;
 
-  // --- PRICE → MACD ---
-  priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (syncingFromMacd) return;
+  // PRICE → MACD
+  priceChart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
+      if (syncingFromMacd || !logicalRange) return;
+
       syncingFromPrice = true;
       try {
-          if (range) macdChart.timeScale().setVisibleRange(range);
+          macdChart.timeScale().setVisibleLogicalRange(logicalRange);
       } catch (e) {}
       syncingFromPrice = false;
   });
 
-  // --- MACD → PRICE ---
-  macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (syncingFromPrice) return;
+  // MACD → PRICE
+  macdChart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
+      if (syncingFromPrice || !logicalRange) return;
+
       syncingFromMacd = true;
       try {
-          if (range) priceChart.timeScale().setVisibleRange(range);
+          priceChart.timeScale().setVisibleLogicalRange(logicalRange);
       } catch (e) {}
       syncingFromMacd = false;
   });
+
 
   /* ----------------------------------------
      REALTIME WEBSOCKET HANDLING
@@ -242,6 +244,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
