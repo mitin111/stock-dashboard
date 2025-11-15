@@ -723,6 +723,18 @@ with tab5:
                 df_live = calc_macd(df_live, settings)
 
             # === Convert to JSON for JS (TradingView chart) ===
+            import math
+
+            def clean(v):
+                if v is None:
+                    return None
+                try:
+                    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                        return None
+                except:
+                    pass
+                return v
+
             history = []
             for _, r in df_live.iterrows():
                 history.append({
@@ -731,14 +743,14 @@ with tab5:
                     "high": float(r["high"]),
                     "low": float(r["low"]),
                     "close": float(r["close"]),
-                    "pacU": r.get("pacU", None),
-                    "pacL": r.get("pacL", None),
-                    "pacC": r.get("pacC", None),
-                    "Trail1": r.get("Trail1", None),
-                    "Trail2": r.get("Trail2", None),
-                    "macd": r.get("macd", None),
-                    "macd_signal": r.get("macd_signal", None),
-                    "macd_hist": r.get("macd_hist", None),
+                    "pacU": clean(r.get("pacU")),
+                    "pacL": clean(r.get("pacL")),
+                    "pacC": clean(r.get("pacC")),
+                    "Trail1": clean(r.get("Trail1")),
+                    "Trail2": clean(r.get("Trail2")),
+                    "macd": clean(r.get("macd")),
+                    "macd_signal": clean(r.get("macd_signal")),
+                    "macd_hist": clean(r.get("macd_hist")),
                     "trm_signal": r.get("trm_signal", "Neutral")
                 })
 
@@ -989,6 +1001,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
