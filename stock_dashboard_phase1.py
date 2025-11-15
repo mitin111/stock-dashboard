@@ -747,18 +747,28 @@ with tab5:
             initial_token = st.session_state.get("selected_symbol")
 
             # Read HTML
+            # Read HTML
             html_data = open(chart_file, "r", encoding="utf-8").read()
 
-            # Inject history + wsUrl + token + interval
-            html_data = (
-                html_data +
-                f"<script>"
-                f"window.initialHistory = {json.dumps(history)}; "
-                f"window.wsUrl = '{backend_ws_origin}'; "
-                f"window.initialToken = '{initial_token}'; "
-                f"window.barInterval = {int(selected_interval)};"
-                f"</script>"
+            # Build safe injection using JSON.parse with backticks (avoids quote/newline escaping issues)
+            # Ensure history is pure Python types (ints, floats, None -> null). You already built it that way above.
+            import json
+            safe_history_json = json.dumps(history, ensure_ascii=False)   # compact JSON string
+            safe_ws = json.dumps(backend_ws_origin)    # produces a valid JS string literal
+            safe_token = json.dumps(initial_token)     # produces a valid JS string literal
+            safe_interval = int(selected_interval)
+
+            inject = (
+                "<script>\n"
+                f"window.initialHistory = JSON.parse(`{safe_history_json}`);\n"
+                f"window.wsUrl = {safe_ws};\n"
+                f"window.initialToken = {safe_token};\n"
+                f"window.barInterval = {safe_interval};\n"
+                "</script>\n"
             )
+
+            html_data = html_data + inject
+
             
             # Render lightweight chart
             st_html(html_data, height=650)
@@ -973,6 +983,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
