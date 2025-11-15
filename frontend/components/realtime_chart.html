@@ -90,15 +90,28 @@ function startChart() {
           🔴 BOTTOM MACD CHART
   ----------------------------------------*/
   const macdChart = LightweightCharts.createChart(
-    document.getElementById('macd-chart'),
-    {
-      layout:{ background:{color:'#000'}, textColor:'#fff' },
-      grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-      timeScale:{ timeVisible:true },
-      rightPriceScale:{ visible:true },       /* FIXED */
-      handleScroll:{ mouseWheel:true, pressedMouseMove:true },
-      handleScale:{ axisPressedMouseMove:true, mouseWheel:true, pinch:true }
-    }
+      document.getElementById('macd-chart'),
+      {
+        layout:{ background:{color:'#000'}, textColor:'#fff' },
+        grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+
+        timeScale:{ timeVisible:true },
+
+        rightPriceScale:{
+            visible:true,
+            autoScale:false   // 🔥 FIXES SCROLL LAG
+        },
+
+        handleScroll:{ 
+            mouseWheel:true, 
+            pressedMouseMove:true 
+        },
+        handleScale:{ 
+            axisPressedMouseMove:true,
+            mouseWheel:true,
+            pinch:true 
+        }
+      }
   );
 
   const macdHistSeries   = macdChart.addHistogramSeries({ base:0 });
@@ -222,6 +235,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
