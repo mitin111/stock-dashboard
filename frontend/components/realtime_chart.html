@@ -59,23 +59,25 @@ function startChart() {
   /* ----------------------------------------
      TOP (PRICE) CHART
   -----------------------------------------*/
-  const priceChart = LightweightCharts.createChart(
-    document.getElementById('price-chart'),
-    {
-      layout: { background:{color:'#000'}, textColor:'#fff' },
-      grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-      timeScale:{ timeVisible:true }
-    }
+  const macdChart = LightweightCharts.createChart(
+      document.getElementById('macd-chart'),
+      {
+        layout:{ background:{color:'#000'}, textColor:'#fff' },
+        grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+        timeScale:{ timeVisible:true },
+        rightPriceScale:{ visible:true },   // ✅ THIS LINE IS REQUIRED
+      
+        handleScroll: {
+            mouseWheel: true,
+            pressedMouseMove: true
+        },
+        handleScale: {
+            axisPressedMouseMove: true,
+            mouseWheel: true,
+            pinch: true
+        }
+      }
   );
-
-  const candleSeries = priceChart.addCandlestickSeries({
-    upColor:'#26a69a',
-    downColor:'#ef5350',
-    borderUpColor:'#26a69a',
-    borderDownColor:'#ef5350',
-    wickUpColor:'#26a69a',
-    wickDownColor:'#ef5350'
-  });
 
   const pacU = priceChart.addLineSeries({ color:'#808080', lineWidth:1 });
   const pacL = priceChart.addLineSeries({ color:'#808080', lineWidth:1 });
@@ -226,6 +228,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
