@@ -129,6 +129,15 @@ function startChart() {
   // =============================
   // PERFECT SYNC SCROLL + ZOOM
   // =============================
+
+  // INITIAL SYNC (very important)
+  try {
+      macdChart.timeScale().setVisibleRange(
+          priceChart.timeScale().getVisibleRange()
+      );
+  } catch (e) {}
+
+  // ONE-WAY FOLLOW (MACD follows PRICE)
   priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
       try {
           if (range) macdChart.timeScale().setVisibleRange(range);
@@ -207,6 +216,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
