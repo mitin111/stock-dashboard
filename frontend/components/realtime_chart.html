@@ -142,15 +142,32 @@ function startChart() {
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
-  
   // =============================
-  // PERFECT SYNC SCROLL + ZOOM
+  // PERFECT 2-WAY SYNC SCROLL + ZOOM
   // =============================
 
+  // --- prevent infinite loop flags ---
+  let syncingFromPrice = false;
+  let syncingFromMacd  = false;
+
+  // --- PRICE → MACD ---
   priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      if (syncingFromMacd) return;
+      syncingFromPrice = true;
       try {
           if (range) macdChart.timeScale().setVisibleRange(range);
       } catch (e) {}
+      syncingFromPrice = false;
+  });
+
+  // --- MACD → PRICE ---
+  macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      if (syncingFromPrice) return;
+      syncingFromMacd = true;
+      try {
+          if (range) priceChart.timeScale().setVisibleRange(range);
+      } catch (e) {}
+      syncingFromMacd = false;
   });
 
   /* ----------------------------------------
@@ -225,6 +242,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
