@@ -71,6 +71,27 @@ function startChart() {
         }
     }
   );
+  priceChart.applyOptions({
+      timezone: 'Asia/Kolkata',
+      localization: {
+          locale: 'en-IN',
+          timeFormatter: t =>
+              new Date(t * 1000).toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  hour12: false,
+              }),
+      },
+      timeScale: {
+          tickMarkFormatter: t =>
+              new Date(t * 1000).toLocaleTimeString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+              }),
+      },
+  });
+
   const candleSeries = priceChart.addCandlestickSeries({
     upColor:'#26a69a',
     downColor:'#ef5350',
@@ -118,6 +139,27 @@ function startChart() {
           }
       }
   );
+
+  macdChart.applyOptions({
+      timezone: 'Asia/Kolkata',
+      localization: {
+          locale: 'en-IN',
+          timeFormatter: t =>
+              new Date(t * 1000).toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  hour12: false,
+              }),
+      },
+      timeScale: {
+          tickMarkFormatter: t =>
+              new Date(t * 1000).toLocaleTimeString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+              }),
+      },
+  });
 
   const macdHistSeries   = macdChart.addHistogramSeries({ base:0 });
   const macdLineSeries   = macdChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
@@ -251,6 +293,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
