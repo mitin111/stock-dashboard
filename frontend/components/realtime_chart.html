@@ -129,13 +129,27 @@ function startChart() {
   /* ----------------------------------------
      SYNC SCROLL
   -----------------------------------------*/
+  // =============================
+  // PERFECT SYNC SCROLL + ZOOM
+  // =============================
+  let syncing = false;
+
   priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      macdChart.timeScale().setVisibleRange(range);
+      if (syncing || !range) return;
+      syncing = true;
+      try { macdChart.timeScale().setVisibleRange(range); }
+      catch(e){}
+      syncing = false;
   });
 
   macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      priceChart.timeScale().setVisibleRange(range);
+      if (syncing || !range) return;
+      syncing = true;
+      try { priceChart.timeScale().setVisibleRange(range); }
+      catch(e){}
+      syncing = false;
   });
+
 
   /* ----------------------------------------
      REALTIME WEBSOCKET HANDLING
@@ -209,5 +223,6 @@ function startChart() {
 
 </body>
 </html>
+
 
 
