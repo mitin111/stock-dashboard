@@ -753,26 +753,32 @@ with tab5:
             # Build safe injection using JSON.parse with backticks (avoids quote/newline escaping issues)
             # Ensure history is pure Python types (ints, floats, None -> null). You already built it that way above.
             import json
-            safe_history_json = json.dumps(history, ensure_ascii=False)   # compact JSON string
-            safe_ws = json.dumps(backend_ws_origin)    # produces a valid JS string literal
-            safe_token = json.dumps(initial_token)     # produces a valid JS string literal
+            # SAFE JSON (no NaN, no None, no invalid chars)
+            safe_history_json = json.dumps(history, ensure_ascii=False)
+            safe_ws = json.dumps(backend_ws_origin)
+            safe_token = json.dumps(initial_token)
             safe_interval = int(selected_interval)
 
-            inject = (
-                "<script>\n"
-                f"window.initialHistory = JSON.parse(`{safe_history_json}`);\n"
-                f"window.wsUrl = {safe_ws};\n"
-                f"window.initialToken = {safe_token};\n"
-                f"window.barInterval = {safe_interval};\n"
-                "</script>\n"
-            )
+            # Inject at VERY END — outside all existing <script> tags
+            inject = f"""
+            <script>
+                window.initialHistory = JSON.parse(String.raw`{safe_history_json}`);
+                window.wsUrl = {safe_ws};
+                window.initialToken = {safe_token};
+                window.barInterval = {safe_interval};
+            </script>
+            </body>
+            </html>
+            """
 
+            # Remove existing </body></html> first to avoid duplication
+            html_data = html_data.replace("</body></html>", "")
+
+            # Append SAFE injection
             html_data = html_data + inject
 
-            
             # Render lightweight chart
             st_html(html_data, height=650)
-
         
         else:
             st.error(" realtime_chart.html missing — Lightweight chart not found.")
@@ -983,6 +989,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
