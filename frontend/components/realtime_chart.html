@@ -62,12 +62,15 @@ function startChart() {
   const priceChart = LightweightCharts.createChart(
     document.getElementById('price-chart'),
     {
-      layout: { background:{color:'#000'}, textColor:'#fff' },
-      grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
-      timeScale:{ timeVisible:true }
+        layout: { background:{color:'#000'}, textColor:'#fff' },
+        grid: { vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+        timeScale:{
+            timeVisible:true,
+            secondsVisible:false,
+            timeZone:'Asia/Kolkata'
+        }
     }
   );
-
   const candleSeries = priceChart.addCandlestickSeries({
     upColor:'#26a69a',
     downColor:'#ef5350',
@@ -91,26 +94,30 @@ function startChart() {
   const macdChart = LightweightCharts.createChart(
       document.getElementById('macd-chart'),
       {
-        layout:{ background:{color:'#000'}, textColor:'#fff' },
-        grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
+          layout:{ background:{color:'#000'}, textColor:'#fff' },
+          grid:{ vertLines:{color:'#222'}, horzLines:{color:'#222'} },
 
-        timeScale:{ timeVisible:true },
+          // ⭐ Correct India Time (IST)
+          timeScale:{
+              timeVisible:true,
+              secondsVisible:false,
+              timeZone:'Asia/Kolkata'
+          },
 
-        rightPriceScale:{ visible:true, autoScale:true },
+          rightPriceScale:{ visible:true, autoScale:true },
 
-        // 🔥 Allow user to move MACD chart
-        handleScroll:{
-            mouseWheel:true,
-            pressedMouseMove:true    // ⭐ allow drag
-        },
-        handleScale:{
-            axisPressedMouseMove:true,
-            mouseWheel:true,
-            pinch:true
-        }
+          // 🔥 Allow user to move MACD chart
+          handleScroll:{
+              mouseWheel:true,
+              pressedMouseMove:true
+          },
+          handleScale:{
+              axisPressedMouseMove:true,
+              mouseWheel:true,
+              pinch:true
+          }
       }
   );
-
 
   const macdHistSeries   = macdChart.addHistogramSeries({ base:0 });
   const macdLineSeries   = macdChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
@@ -244,6 +251,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
