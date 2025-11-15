@@ -22,7 +22,9 @@
   <div id="macd-chart"></div>
 
   <!-- Python will inject -->
-  /*INJECT_DATA*/
+  <script>
+    /*INJECT_DATA*/
+  </script>
 
 <script>
 /* ----------------------------------------
@@ -220,86 +222,60 @@ function startChart() {
       syncingFromMacd = false;
   });
 
-
-  /* ----------------------------------------
-     REALTIME WEBSOCKET HANDLING
-  -----------------------------------------*/
-
   /* ----------------------------------------
      REALTIME WEBSOCKET HANDLING (STABLE)
   -----------------------------------------*/
 
-  function bucketToInterval(tsSec) {
-    return Math.floor(tsSec / (barIntMin * 60)) * (barIntMin * 60);
+  /* ----------------------------------------
+     REALTIME WEBSOCKET HANDLING (FIXED)
+  -----------------------------------------*/
+
+  function bucket(ts) {
+    return Math.floor(ts / (barIntMin * 60)) * (barIntMin * 60);
   }
 
   let lastBar = null;
-  let wsInstance = null;
-
-  // Prevent duplicate connections
-  let isConnecting = false;
 
   function connectWS() {
-    if (!initialTok || isConnecting) return;
-
-    isConnecting = true;
-    console.log("🔌 Connecting WebSocket:", wsUrl);
-
-    try {
-      wsInstance = new WebSocket(wsUrl);
-    } catch (e) {
-      console.log("❌ WS create error:", e);
-      isConnecting = false;
-      setTimeout(connectWS, 2000);
+    if (!initialTok) {
+      console.log("⛔ No token → cannot start WS");
       return;
     }
 
-    wsInstance.onopen = () => {
-      console.log("📡 WS OPEN");
+    console.log("🔌 Connecting WS:", wsUrl);
+    const ws = new WebSocket(wsUrl);
 
-      // Backend expects subscription message
-      const msg = { type: "subscribe", token: initialTok };
-      wsInstance.send(JSON.stringify(msg));
-
-      console.log("✔ Subscribed:", initialTok);
-      isConnecting = false;
+    ws.onopen = () => {
+      console.log("📡 WS OPEN → subscribing…");
+      ws.send(JSON.stringify({ type: "subscribe", token: initialTok }));
     };
 
-    wsInstance.onmessage = (event) => {
+    ws.onmessage = (ev) => {
       let p;
-      try {
-        p = JSON.parse(event.data);
-      } catch (_) {
-        return;
-      }
-
+      try { p = JSON.parse(ev.data); } catch (e) { return; }
       if (!p) return;
 
-      // Extract price
       const price = Number(p.lp ?? p.ltp ?? p.price);
       if (!price) return;
 
-      // Extract timestamp
       let ts = Number(p.ft ?? p.time ?? p.lts);
       if (!ts) return;
 
-      // Convert ms → sec
       if (ts > 1e12) ts = Math.floor(ts / 1000);
+      const t = bucket(ts);
 
-      const t = bucketToInterval(ts);
-
-      // NEW candle?
+      // ---- CANDLE CREATION ----
       if (!lastBar || t !== lastBar.time) {
         lastBar = { time: t, open: price, high: price, low: price, close: price };
         candleSeries.update(lastBar);
       } else {
-        lastBar.high = Math.max(lastBar.high, price);
-        lastBar.low  = Math.min(lastBar.low,  price);
+        lastBar.high  = Math.max(lastBar.high, price);
+        lastBar.low   = Math.min(lastBar.low,  price);
         lastBar.close = price;
         candleSeries.update(lastBar);
       }
 
-      // Optional indicator live updates (if backend provides)
+      // ---- LIVE INDICATOR UPDATES ----
       if (p.pacU !== undefined) pacU.update({ time: t, value: p.pacU });
       if (p.pacL !== undefined) pacL.update({ time: t, value: p.pacL });
       if (p.pacC !== undefined) pacC.update({ time: t, value: p.pacC });
@@ -317,19 +293,12 @@ function startChart() {
         macdSignalSeries.update({ time: t, value: p.macd_signal });
     };
 
-    wsInstance.onclose = () => {
-      console.log("⚠ WS CLOSED → retry in 1.5s");
-      isConnecting = false;
-      setTimeout(connectWS, 1500);
-    };
-
-    wsInstance.onerror = (e) => {
-      console.log("❌ WS ERROR", e);
-      try { wsInstance.close(); } catch {}
+    ws.onclose = () => {
+      console.log("⚠ WS CLOSED → retry in 1s");
+      setTimeout(connectWS, 1000);
     };
   }
 
-  // Start WebSocket once token is injected
   if (initialTok) connectWS();
 
 
@@ -337,6 +306,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
