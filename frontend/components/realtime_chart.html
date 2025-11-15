@@ -126,30 +126,14 @@ function startChart() {
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
 
-  /* ----------------------------------------
-     SYNC SCROLL
-  -----------------------------------------*/
   // =============================
   // PERFECT SYNC SCROLL + ZOOM
   // =============================
-  let syncing = false;
-
   priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (syncing || !range) return;
-      syncing = true;
-      try { macdChart.timeScale().setVisibleRange(range); }
-      catch(e){}
-      syncing = false;
+      try {
+          if (range) macdChart.timeScale().setVisibleRange(range);
+      } catch (e) {}
   });
-
-  macdChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (syncing || !range) return;
-      syncing = true;
-      try { priceChart.timeScale().setVisibleRange(range); }
-      catch(e){}
-      syncing = false;
-  });
-
 
   /* ----------------------------------------
      REALTIME WEBSOCKET HANDLING
@@ -223,6 +207,7 @@ function startChart() {
 
 </body>
 </html>
+
 
 
 
