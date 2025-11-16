@@ -751,7 +751,10 @@ with tab5:
                     "macd": clean(r.get("macd")),
                     "macd_signal": clean(r.get("macd_signal")),
                     "macd_hist": clean(r.get("macd_hist")),
-                    "trm_signal": r.get("trm_signal", "Neutral")
+                    "trm_signal": r.get("trm_signal", "Neutral"),
+                    "high_yest": clean(r.get("high_yest")),
+                    "low_yest": clean(r.get("low_yest")),
+                    "day_volatility": clean(r.get("day_move_pct"))
                 })
 
 
@@ -1001,6 +1004,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
