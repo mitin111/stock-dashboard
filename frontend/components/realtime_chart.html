@@ -213,15 +213,37 @@ function startChart() {
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
 
-  /* -------------------------------------
-     ⭐ VOLATILITY PANEL (TOP RIGHT)
-  --------------------------------------*/
+  // ----------------------------------
+  // ⭐ Compute Day Volatility (same as Python TRM)
+  // ----------------------------------
+  function computeDayVolatility(history) {
+      if (!history || history.length === 0) return null;
 
-  const last = history[history.length - 1];
-  let vol = last?.range_pct ?? null;
+      // Latest day (IST date)
+      const lastTime = history[history.length - 1].time;
+      const latestDate = new Date(lastTime * 1000);
+      const latestDay = latestDate.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+      // Collect that day's candles
+      let dayCandles = history.filter(c => {
+          let d = new Date(c.time * 1000).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+          return d === latestDay;
+      });
+
+      if (dayCandles.length === 0) return null;
+
+      const dayHigh = Math.max(...dayCandles.map(c => c.high));
+      const dayLow  = Math.min(...dayCandles.map(c => c.low));
+
+      if (!dayHigh || !dayLow || dayLow <= 0) return null;
+
+      return ((dayHigh - dayLow) / dayLow) * 100;
+  }
+
+  // ⭐ VOLATILITY PANEL (same as TRM calculation)
+  let vol = computeDayVolatility(history);
 
   if (vol !== null && !isNaN(vol)) {
-      // Floating HTML tooltip-like label
       const panel = document.createElement("div");
       panel.style.position = "absolute";
       panel.style.top = "10px";
@@ -232,7 +254,7 @@ function startChart() {
       panel.style.fontSize = "14px";
       panel.style.borderRadius = "4px";
       panel.style.zIndex = "50";
-      panel.innerHTML = `📊 Volatility: ${vol.toFixed(2)}%`;
+      panel.innerHTML = `📊 Day Volatility: ${vol.toFixed(2)}%`;
       document.getElementById("price-chart").appendChild(panel);
   }
 
@@ -380,6 +402,7 @@ bootChart();   // Start waiting
   
 </body>
 </html>
+
 
 
 
