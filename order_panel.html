@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Order Panel</title>
+<style>
+body { background:#111; color:#fff; padding:20px; font-family:Arial; }
+.btn { padding:14px 22px; font-size:18px; border:none; margin:10px; border-radius:8px; cursor:pointer; }
+.buy  { background:#00e676; }
+.sell { background:#ff1744; }
+</style>
+</head>
+
+<body>
+
+<h2>⚡ Ultra-Fast Order Panel</h2>
+
+<input id="symbol" placeholder="Symbol" style="padding:10px;">  
+<input id="qty" type="number" placeholder="Qty" style="padding:10px;width:80px;">  
+
+<br><br>
+
+<button class="btn buy" onclick="sendOrder('BUY')">BUY</button>
+<button class="btn sell" onclick="sendOrder('SELL')">SELL</button>
+
+<script>
+async function sendOrder(side) {
+    const symbol = document.getElementById("symbol").value;
+    const qty = Number(document.getElementById("qty").value);
+
+    const res = await fetch("https://backend-stream-nmlf.onrender.com/order", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            symbol: symbol,
+            side: side,
+            qty: qty,
+            ptype: "MKT"
+        })
+    });
+
+    const data = await res.json();
+    alert(JSON.stringify(data));
+}
+</script>
+
+</body>
+</html>
