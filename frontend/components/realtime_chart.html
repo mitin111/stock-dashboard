@@ -24,20 +24,6 @@
   <!-- Python will inject -->
 
 <script>
-/* ----------------------------------------
-   Wait until Python injects history + wsUrl + token
------------------------------------------*/
-function waitForDataAndStart() {
-  if (!window.initialHistory ||
-      !Array.isArray(window.initialHistory) ||
-      window.initialHistory.length === 0) {
-
-    console.log("⏳ Waiting for Python injection...");
-    return setTimeout(waitForDataAndStart, 300);
-  }
-  startChart();
-}
-waitForDataAndStart();
 
 /* ----------------------------------------
    MAIN CHART FUNCTION
@@ -292,8 +278,6 @@ function startChart() {
     };
   }
 
-  if (initialTok) connectWS();
-
 }  // close startChart()
 
 </script>
@@ -302,9 +286,31 @@ function startChart() {
 <script>
   /*INJECT_DATA*/
 </script>
+
+<script>
+// Wait until Python injects variables, THEN start chart
+function bootChart() {
+    if (
+        window.initialHistory &&
+        Array.isArray(window.initialHistory) &&
+        window.initialHistory.length > 0 &&
+        window.initialToken &&
+        window.wsUrl
+    ) {
+        console.log("🚀 Injection complete → starting chart");
+        startChart();
+    } else {
+        console.log("⏳ Waiting for inject...");
+        setTimeout(bootChart, 300);
+    }
+}
+
+bootChart();   // Start waiting
+</script> 
   
 </body>
 </html>
+
 
 
 
