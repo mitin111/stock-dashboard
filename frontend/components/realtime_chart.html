@@ -92,6 +92,23 @@ function startChart() {
   const trail1 = priceChart.addLineSeries({ color:'#FF00FF', lineWidth:1 });
   const trail2 = priceChart.addLineSeries({ color:'#00FFFF', lineWidth:1.5 });
 
+  // ===============================
+  // ⭐ Yesterday High / Low Lines
+  // ===============================
+  const yHigh = priceChart.addLineSeries({
+      color: "orange",
+      lineWidth: 1,
+      priceLineVisible: true,
+      priceLineColor: "orange"
+  });
+
+  const yLow = priceChart.addLineSeries({
+      color: "#00FFAA",
+      lineWidth: 1,
+      priceLineVisible: true,
+      priceLineColor: "#00FFAA"
+  });
+
  
   /* ----------------------------------------
           🔴 BOTTOM MACD CHART
@@ -174,6 +191,17 @@ function startChart() {
   trail1.setData(history.map(c => ({ time:c.time, value:safe(c.Trail1) })));
   trail2.setData(history.map(c => ({ time:c.time, value:safe(c.Trail2) })));
 
+  // ====== YESTERDAY HIGH/LOW =======
+  yHigh.setData(history.map(c => ({
+      time: c.time,
+      value: safe(c.high_yest)
+  })));
+
+  yLow.setData(history.map(c => ({
+      time: c.time,
+      value: safe(c.low_yest)
+  })));
+
   macdHistSeries.setData(history.map(c => ({
     time:c.time,
     value:safe(c.macd_hist),
@@ -182,7 +210,30 @@ function startChart() {
 
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
-  
+
+  /* -------------------------------------
+     ⭐ VOLATILITY PANEL (TOP RIGHT)
+  --------------------------------------*/
+
+  const last = history[history.length - 1];
+  let vol = last?.day_volatility ?? null;
+
+  if (vol !== null && !isNaN(vol)) {
+      // Floating HTML tooltip-like label
+      const panel = document.createElement("div");
+      panel.style.position = "absolute";
+      panel.style.top = "10px";
+      panel.style.right = "10px";
+      panel.style.padding = "6px 10px";
+      panel.style.background = "rgba(0,0,0,0.6)";
+      panel.style.color = "orange";
+      panel.style.fontSize = "14px";
+      panel.style.borderRadius = "4px";
+      panel.style.zIndex = "50";
+      panel.innerHTML = `📊 Volatility: ${vol.toFixed(2)}%`;
+      document.body.appendChild(panel);
+  }
+
   /* ----------------------------------------
      WEBSOCKET GLOBAL HELPERS (inside startChart)
   -----------------------------------------*/
@@ -319,6 +370,7 @@ bootChart();   // Start waiting
   
 </body>
 </html>
+
 
 
 
