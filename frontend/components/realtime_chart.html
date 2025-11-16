@@ -175,6 +175,17 @@ function startChart() {
 
   macdLineSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd) })));
   macdSignalSeries.setData(history.map(c => ({ time:c.time, value:safe(c.macd_signal) })));
+  
+  /* ----------------------------------------
+     WEBSOCKET GLOBAL HELPERS (inside startChart)
+  -----------------------------------------*/
+
+  function bucket(ts) {
+      return Math.floor(ts / (barIntMin * 60)) * (barIntMin * 60);
+  }
+
+  window._lastBar = null;
+  window._candleSeries = candleSeries;
 
   // =============================
   // PERFECT 2-WAY SYNC SCROLL + ZOOM (NO LOCKING)
@@ -205,80 +216,70 @@ function startChart() {
       syncingFromMacd = false;
   });
 
-  /* ----------------------------------------
-     REALTIME WEBSOCKET HANDLING (FIXED)
-  -----------------------------------------*/
+}  // close startChart()
 
-  function bucket(ts) {
-    return Math.floor(ts / (barIntMin * 60)) * (barIntMin * 60);
-  }
-
-  let lastBar = null;
-
-  function connectWS() {
-    if (!initialTok) {
-      console.log("⛔ No token → cannot start WS");
-      return;
+function connectWS() {
+    if (!window.initialToken) {
+        console.log("⛔ No token → cannot start WS");
+        return;
     }
 
-    console.log("🔌 Connecting WS:", wsUrl);
-    const ws = new WebSocket(wsUrl);
+    console.log("🔌 Connecting WS:", window.wsUrl);
+    const ws = new WebSocket(window.wsUrl);
 
     ws.onopen = () => {
-      console.log("📡 WS OPEN → subscribing…");
-      ws.send(JSON.stringify({ type: "subscribe", token: initialTok }));
+        console.log("📡 WS OPEN → subscribing…");
+        ws.send(JSON.stringify({ type: "subscribe", token: window.initialToken }));
     };
 
     ws.onmessage = (ev) => {
-      let p;
-      try { p = JSON.parse(ev.data); } catch (e) { return; }
-      if (!p) return;
+        let p;
+        try { p = JSON.parse(ev.data); } catch (e) { return; }
+        if (!p) return;
 
-      const price = Number(p.lp ?? p.ltp ?? p.price);
-      if (!price) return;
+        const price = Number(p.lp ?? p.ltp ?? p.price);
+        if (!price) return;
 
-      let ts = Number(p.ft ?? p.time ?? p.lts);
-      if (!ts) return;
+        let ts = Number(p.ft ?? p.time ?? p.lts);
+        if (ts > 1e12) ts = Math.floor(ts / 1000);
 
-      if (ts > 1e12) ts = Math.floor(ts / 1000);
-      const t = bucket(ts);
+        const barIntMin = Number(window.barInterval || 1);
+        const t = bucket(ts);
 
-      // ---- CANDLE CREATION ----
-      if (!lastBar || t !== lastBar.time) {
-        lastBar = { time: t, open: price, high: price, low: price, close: price };
-        candleSeries.update(lastBar);
-      } else {
-        lastBar.high  = Math.max(lastBar.high, price);
-        lastBar.low   = Math.min(lastBar.low,  price);
-        lastBar.close = price;
-        candleSeries.update(lastBar);
-      }
+        // ---- CANDLE CREATION ----
+        if (!window._lastBar || t !== window._lastBar.time) {
+            window._lastBar = { time:t, open:price, high:price, low:price, close:price };
+        } else {
+            window._lastBar.high  = Math.max(window._lastBar.high,  price);
+            window._lastBar.low   = Math.min(window._lastBar.low,   price);
+            window._lastBar.close = price;
+        }
 
-      // ---- LIVE INDICATOR UPDATES ----
-      if (p.pacU !== undefined) pacU.update({ time: t, value: p.pacU });
-      if (p.pacL !== undefined) pacL.update({ time: t, value: p.pacL });
-      if (p.pacC !== undefined) pacC.update({ time: t, value: p.pacC });
+        window._candleSeries.update(window._lastBar);
 
-      if (p.tr1 !== undefined) trail1.update({ time: t, value: p.tr1 });
-      if (p.tr2 !== undefined) trail2.update({ time: t, value: p.tr2 });
+        // ---- LIVE INDICATORS ----
+        if (p.pacU !== undefined) pacU.update({ time: t, value: p.pacU });
+        if (p.pacL !== undefined) pacL.update({ time: t, value: p.pacL });
+        if (p.pacC !== undefined) pacC.update({ time: t, value: p.pacC });
 
-      if (p.macd_hist !== undefined)
-        macdHistSeries.update({ time: t, value: p.macd_hist });
+        if (p.tr1 !== undefined) trail1.update({ time: t, value: p.tr1 });
+        if (p.tr2 !== undefined) trail2.update({ time: t, value: p.tr2 });
 
-      if (p.macd !== undefined)
-        macdLineSeries.update({ time: t, value: p.macd });
+        if (p.macd_hist !== undefined)
+            macdHistSeries.update({ time: t, value: p.macd_hist });
 
-      if (p.macd_signal !== undefined)
-        macdSignalSeries.update({ time: t, value: p.macd_signal });
+        if (p.macd !== undefined)
+            macdLineSeries.update({ time: t, value: p.macd });
+
+        if (p.macd_signal !== undefined)
+            macdSignalSeries.update({ time: t, value: p.macd_signal });
     };
 
     ws.onclose = () => {
-      console.log("⚠ WS CLOSED → retry in 1s");
-      setTimeout(connectWS, 1000);
+        console.log("⚠ WS CLOSED → retry in 1s");
+        setTimeout(connectWS, 1000);
     };
-  }
-
-}  // close startChart()
+}
 
 </script>
 
@@ -299,6 +300,7 @@ function bootChart() {
     ) {
         console.log("🚀 Injection complete → starting chart");
         startChart();
+        connectWS();
     } else {
         console.log("⏳ Waiting for inject...");
         setTimeout(bootChart, 300);
@@ -310,6 +312,7 @@ bootChart();   // Start waiting
   
 </body>
 </html>
+
 
 
 
