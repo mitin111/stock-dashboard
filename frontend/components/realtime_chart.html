@@ -192,15 +192,17 @@ function startChart() {
   trail2.setData(history.map(c => ({ time:c.time, value:safe(c.Trail2) })));
 
   // ====== YESTERDAY HIGH/LOW =======
-  yHigh.setData(history.map(c => ({
-      time: c.time,
-      value: safe(c.high_yest)
-  })));
+  yHigh.setData(
+      history
+        .filter(c => c.high_yest !== null && !isNaN(c.high_yest) && c.high_yest > 0)
+        .map(c => ({ time: c.time, value: Number(c.high_yest) }))
+  );
 
-  yLow.setData(history.map(c => ({
-      time: c.time,
-      value: safe(c.low_yest)
-  })));
+  yLow.setData(
+      history
+        .filter(c => c.low_yest !== null && !isNaN(c.low_yest) && c.low_yest > 0)
+        .map(c => ({ time: c.time, value: Number(c.low_yest) }))
+  );
 
   macdHistSeries.setData(history.map(c => ({
     time:c.time,
@@ -216,7 +218,7 @@ function startChart() {
   --------------------------------------*/
 
   const last = history[history.length - 1];
-  let vol = last?.day_volatility ?? null;
+  let vol = last?.range_pct ?? null;
 
   if (vol !== null && !isNaN(vol)) {
       // Floating HTML tooltip-like label
@@ -231,7 +233,7 @@ function startChart() {
       panel.style.borderRadius = "4px";
       panel.style.zIndex = "50";
       panel.innerHTML = `📊 Volatility: ${vol.toFixed(2)}%`;
-      document.body.appendChild(panel);
+      document.getElementById("price-chart").appendChild(panel);
   }
 
   /* ----------------------------------------
@@ -273,6 +275,14 @@ function startChart() {
       } catch (e) {}
       syncingFromMacd = false;
   });
+  
+// ⭐ FINAL FIX: force autoscale after loading all series
+setTimeout(() => {
+    try {
+        priceChart.timeScale().fitContent();
+        priceChart.priceScale("right").applyOptions({ autoScale: true });
+    } catch(e) { console.log("Autoscale error", e); }
+}, 100);
 
 }  // close startChart()
 
@@ -370,6 +380,7 @@ bootChart();   // Start waiting
   
 </body>
 </html>
+
 
 
 
