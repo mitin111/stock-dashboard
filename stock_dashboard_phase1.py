@@ -722,6 +722,27 @@ with tab5:
                 df_live = calc_atr_trails(df_live, settings)
                 df_live = calc_macd(df_live, settings)
 
+            # ----------------------------------------
+            # ⭐ ADD YESTERDAY HIGH/LOW HERE
+            # ----------------------------------------
+            df_live = df_live.sort_values("datetime")
+            df_live["date"] = df_live["datetime"].dt.date
+
+            # Group by date → Yesterday's high/low (shift by 1 day)
+            yhl = df_live.groupby("date").agg({"high": "max", "low": "min"}).shift(1)
+
+            # Join to main dataframe
+            df_live = df_live.join(yhl, on="date", rsuffix="_yest")
+
+            # Rename for JS
+            df_live["high_yest"] = df_live["high_yest"]
+            df_live["low_yest"]  = df_live["low_yest"]
+
+            # Clean up
+            df_live = df_live.drop(columns=["date"])
+            # ----------------------------------------
+
+
             # === Convert to JSON for JS (TradingView chart) ===
             import math
 
@@ -1004,6 +1025,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
