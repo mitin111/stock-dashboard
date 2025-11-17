@@ -166,55 +166,33 @@ if __name__ == "__main__":
     while True:
         time.sleep(9999)
 
-# ------------------------------------------------------
-# ⭐ SUPER-FAST ORDER API (BUY / SELL / MKT / LIMIT)
-# ------------------------------------------------------
-@app.post("/order")
-async def place_order(request: Request):
+# =========================================================
+# 🔥 ORDER API (HTML Panel → Backend → batch_screener.py)
+# =========================================================
+@app.post("/order_api")
+async def order_api_handler(request: Request):
     global ps_api
 
+    # 🚫 If backend not initialized
     if ps_api is None or ps_api.session_token is None:
-        return {"stat": "error", "emsg": "Backend not initialized — call /init first"}
+        return {"status": "error", "msg": "Backend not initialized — call /init first"}
 
     body = await request.json()
-
     symbol = body.get("symbol")
-    side   = body.get("side", "").upper()
-    qty    = int(body.get("qty", 1))
-    price  = float(body.get("price", 0))
-    ptype  = body.get("ptype", "MKT")   # MKT or LMT
-    exch   = body.get("exchange", "NSE")
+    qty = int(body.get("qty", 0))
+    side = body.get("side")  # BUY / SELL
 
-    if side not in ["BUY", "SELL"]:
-        return {"stat": "error", "emsg": "Invalid side"}
+    if not symbol or qty <= 0:
+        return {"status": "error", "msg": "Invalid symbol or qty"}
 
-    # Convert for ProStocks
-    bs = "B" if side == "BUY" else "S"
-
+    # 🔥 Run full strategy logic from batch_screener.py
     try:
-        resp = ps_api.place_order(
-            buy_or_sell=bs,
-            product_type="I",        # MIS / Intraday
-            exchange=exch,
-            tradingsymbol=symbol,
-            quantity=qty,
-            discloseqty=0,
-            price_type=ptype,        # MKT / LMT
-            price=price,
-            trigger_price=0,
-            retention="DAY",
-        )
+        from batch_screener import run_strategy_request
 
-        return {"stat": "Ok", "order_response": resp}
+        result = await asyncio.to_thread(
+            run_strategy_request, ps_api, symbol, qty, side
+        )
+        return result
 
     except Exception as e:
-        return {"stat": "error", "emsg": str(e)}
-
-
-
-
-
-
-
-
-
+        return {"status": "error", "msg": str(e)}
