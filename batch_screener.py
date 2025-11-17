@@ -1065,9 +1065,18 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
             setattr(args, "place_orders", True)
 
     # Login check
+    # Login check
     if ps_api is None:
         creds = load_credentials()
-        ps_api = ProStocksAPI(**creds)
+        ps_api = ProStocksAPI(
+            userid=creds.get("uid"),
+            password_plain=creds.get("pwd"),
+            vc=creds.get("vc"),
+            api_key=creds.get("api_key"),
+            imei=creds.get("imei"),
+            base_url=creds.get("base_url"),
+            apkversion=creds.get("apkversion", "1.0.0")
+        )
         if not ps_api.is_logged_in():
             print("❌ Not logged in. Login via dashboard first")
             return []
@@ -1245,6 +1254,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
