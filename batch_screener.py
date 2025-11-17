@@ -829,73 +829,53 @@ def monitor_open_positions(ps_api, settings):
 # -----------------------
 # Per-symbol processing
 # -----------------------
-def process_symbol(ps_api, symbol_obj, interval, settings):
-    exch = symbol_obj.get("exch", "NSE")
+def process_symbol(df, symbol_obj, settings):
+    tsym  = symbol_obj.get("tsym")
     token = str(symbol_obj.get("token"))
-    tsym = symbol_obj.get("tsym") or symbol_obj.get("tradingsymbol") or f"{exch}|{token}"
+    exch  = symbol_obj.get("exch", "NSE")
 
-    result = {"symbol": tsym, "exch": exch, "token": token, "status": "unknown"}
+    result = {"symbol": tsym, "token": token, "exch": exch}
 
-    try:
-        df = ps_api.fetch_full_tpseries(exch, token, interval)
-    except Exception as e:
-        result.update({"status": "error_fetch_tp", "emsg": str(e)})
-        print(f"❌ [{tsym}] TPSeries fetch error: {e}")
+    # --- TPSeries already preloaded ---
+    if df is None or df.empty:
+        result.update({"status": "no_tp_data"})
         return result
 
-    if isinstance(df, dict):
-        result.update({"status": "error_fetch_tp", "emsg": json.dumps(df)})
-        print(f"❌ [{tsym}] TPSeries returned dict error: {df}")
-        return result
-    if df.empty:
-        result.update({"status": "no_data"})
-        print(f"⚠️ [{tsym}] No TPSeries data")
-        return result
-
-    if "into" in df.columns and "open" not in df.columns:
+    # ---- Normalize columns ----
+    if "into" in df.columns:
         df = df.rename(columns={
             "into": "open",
             "inth": "high",
             "intl": "low",
             "intc": "close",
-            "intv": "volume"
+            "intv": "volume",
         })
 
-    for col in ["open", "high", "low", "close", "volume"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna(subset=["open", "high", "low", "close"])
+    df["open"]  = pd.to_numeric(df["open"], errors="coerce")
+    df["high"]  = pd.to_numeric(df["high"], errors="coerce")
+    df["low"]   = pd.to_numeric(df["low"], errors="coerce")
+    df["close"] = pd.to_numeric(df["close"], errors="coerce")
 
-    df = tz_normalize_df(df)
+    df = df.dropna(subset=["open", "high", "low", "close"])
     if df.empty:
-        result.update({"status": "no_data_after_norm"})
-        print(f"⚠️ [{tsym}] No data after timezone normalization")
+        result.update({"status": "no_valid_data"})
         return result
 
-    print(f"🔹 Debug [{tsym}] DF head:\n", df.head())
-    print(f"🔹 Debug [{tsym}] DF columns:\n", df.columns)
+    df = tz_normalize_df(df)
 
     sig = generate_signal_for_df(df, settings)
     if sig is None:
         result.update({"status": "no_signal"})
-        print(f"⚠️ [{tsym}] Signal generation failed")
         return result
 
-    result.update({
-        "yclose": df["close"].iloc[-2] if len(df) > 1 else df["close"].iloc[-1],
-        "open": df["open"].iloc[-1]
-    })
-
-    last_candle_time = pd.to_datetime(df["datetime"].iloc[-1])
-    if last_candle_time.strftime("%H:%M") == "09:15":
-        result.update({"status": "skip_first_candle"})
-        print(f"⏸ [{tsym}] Skipping trade on first candle of the day ({last_candle_time})")
+    # skip first candle
+    last_dt = pd.to_datetime(df["datetime"].iloc[-1])
+    if last_dt.strftime("%H:%M") == "09:15":
+        result.update({"status": "skip_first"})
         return result
 
     result.update({"status": "ok", **sig})
     return result
-
-
 
 # ============================================================
 #  🔥 INSERTED: FAST HTML ORDER ENTRY STRATEGY BLOCK
@@ -1174,6 +1154,22 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     start_time = time.time()
 
+    # =======================================================
+    # PRELOAD TPSeries once for all tokens (BIG SPEED BOOST)
+    # =======================================================
+    symbol_tokens = [s["token"] for s in symbols_with_tokens]
+    print(f"⚡ Preloading TPSeries for {len(symbol_tokens)} tokens...")
+
+    df_tp = ps_api.fetch_full_tpseries("NSE", symbol_tokens, interval=args.interval)
+    if df_tp is None or df_tp.empty:
+        print("❌ TPSeries preload failed")
+        return []
+
+    # --- group by token so we can slice fast ---
+    df_tp["token"] = df_tp["token"].astype(str)
+    tp_map = {tok: df for tok, df in df_tp.groupby("token")}
+    print("✅ TPSeries preload complete")
+
     # ============================
     # Parallel Batch Processing 🚀
     # ============================
@@ -1265,6 +1261,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
