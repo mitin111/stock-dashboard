@@ -942,6 +942,37 @@ def start_trailing_sl(ps_api, interval=5):
             time.sleep(interval)
 
 
+# =========================================================
+# 🔥 ORDER API (HTML Panel → Backend → batch_screener.py)
+# =========================================================
+@app.post("/order_api")
+async def order_api_handler(request: Request):
+    global ps_api
+
+    # 🚫 If backend not initialized
+    if ps_api is None or ps_api.session_token is None:
+        return {"status": "error", "msg": "Backend not initialized — call /init first"}
+
+    body = await request.json()
+    symbol = body.get("symbol")
+    qty = int(body.get("qty", 0))
+    side = body.get("side")  # BUY / SELL
+
+    if not symbol or qty <= 0:
+        return {"status": "error", "msg": "Invalid symbol or qty"}
+
+    # 🔥 Run full strategy logic from batch_screener.py
+    try:
+        from batch_screener import run_strategy_request
+
+        result = await asyncio.to_thread(
+            run_strategy_request, ps_api, symbol, qty, side
+        )
+        return result
+
+    except Exception as e:
+        return {"status": "error", "msg": str(e)}
+
 # -----------------------
 # Optimized Parallel Main Runner
 # -----------------------
@@ -1154,6 +1185,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
