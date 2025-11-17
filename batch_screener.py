@@ -648,16 +648,18 @@ import pandas as pd
 from datetime import datetime
 import pytz
 
+# Put this OUTSIDE the function (top of file)
 active_orders = None
 
+
 def monitor_open_positions(ps_api, settings):
-    global active_orders       # <---- CRUCIAL
+    global active_orders      # <-- MUST BE FIRST LINE
+
     """
     Every 5 sec: check open orders, fetch chart, detect hammer reversal, exit trade if confirmed.
     """
 
     def safe_df(data):
-        """Safely convert order_book to DataFrame."""
         try:
             if isinstance(data, list):
                 return pd.DataFrame(data)
@@ -678,16 +680,20 @@ def monitor_open_positions(ps_api, settings):
             except Exception:
                 if "|" in str(symbol):
                     token = symbol.split("|")[-1]
+
             df = ps_api.fetch_full_tpseries(exch, token, interval)
             df = safe_df(df)
             if df.empty:
                 return pd.DataFrame()
+
             df = df.tail(lookback)
             for c in ["open", "high", "low", "close"]:
                 if c in df.columns:
                     df[c] = pd.to_numeric(df[c], errors="coerce")
             df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+
             return df
+
         except Exception as e:
             print(f"⚠️ Error fetching chart for {symbol}: {e}")
             return pd.DataFrame()
@@ -695,10 +701,12 @@ def monitor_open_positions(ps_api, settings):
     def detect_hammer_patterns(df):
         if df.empty or len(df) < 3:
             return df
+
         df = df.copy()
         body = (df["close"] - df["open"]).abs()
         upper = df["high"] - df[["close", "open"]].max(axis=1)
         lower = df[["close", "open"]].min(axis=1) - df["low"]
+
         df["is_hammer"] = (lower > 2 * body) & (upper < body)
         df["is_inv_hammer"] = (upper > 2 * body) & (lower < body)
         return df
@@ -706,15 +714,21 @@ def monitor_open_positions(ps_api, settings):
     def check_hammer_reversal(df, side):
         if len(df) < 3:
             return False
+
         last3 = df.tail(3).reset_index(drop=True)
-        if side == "B":  # BUY position reversal → bearish hammer + break below
-            return bool(last3.iloc[-3].get("is_hammer", False)) and (
-                last3.iloc[-1]["close"] < last3.iloc[-3]["low"]
+
+        if side == "B":
+            return (
+                bool(last3.iloc[-3].get("is_hammer", False))
+                and last3.iloc[-1]["close"] < last3.iloc[-3]["low"]
             )
-        if side == "S":  # SELL position reversal → bullish inverted hammer + break above
-            return bool(last3.iloc[-3].get("is_inv_hammer", False)) and (
-                last3.iloc[-1]["close"] > last3.iloc[-3]["high"]
+
+        if side == "S":
+            return (
+                bool(last3.iloc[-3].get("is_inv_hammer", False))
+                and last3.iloc[-1]["close"] > last3.iloc[-3]["high"]
             )
+
         return False
 
     def exit_trade(ps_api, symbol, side):
@@ -731,6 +745,7 @@ def monitor_open_positions(ps_api, settings):
                 df["status"] = df.get("Status")
 
             df["status_up"] = df["status"].astype(str).str.upper()
+
             df_active = df[
                 (df["tradingsymbol"] == symbol)
                 & (df["status_up"].isin(["OPEN", "TRIGGER_PENDING", "PENDING"]))
@@ -753,69 +768,51 @@ def monitor_open_positions(ps_api, settings):
             print(f"📢 Attempting exit for {symbol} ({side}) | payload={payload}")
             resp = ps_api.post("/NorenWClientTP/ExitSNOOrder", payload)
             print(f"📨 ExitSNOOrder resp: {resp}")
+
         except Exception as e:
             print(f"❌ Exit trade exception for {symbol}: {e}")
 
-    # === Main loop ===
+    # === Monitor Loop ===
     print("🚀 Starting order monitor loop (5-sec interval)...")
 
     while True:
         try:
-            # graceful shutdown check
-            if not hasattr(sys, "modules") or "threading" not in sys.modules:
-                print("⚠️ Interpreter shutting down — exiting monitor thread.")
-                break
-
             order_book = ps_api.order_book()
             df_orders = safe_df(order_book)
-            if df_orders.empty:
-                time.sleep(5)
-                continue
-
-            # --- Normalize possible column names ---
-            if "tradingsymbol" not in df_orders.columns:
-                if "tsym" in df_orders.columns:
-                    df_orders["tradingsymbol"] = df_orders["tsym"]
-                elif "trading_symbol" in df_orders.columns:
-                    df_orders["tradingsymbol"] = df_orders["trading_symbol"]
-
-            if "status" not in df_orders.columns:
-                if "Status" in df_orders.columns:
-                    df_orders["status"] = df_orders["Status"]
-
-            # --- Convert to uppercase and filter only active ones ---
-            df_orders["status_up"] = df_orders["status"].astype(str).str.upper()
-
-            # ✅ Ignore rejected/cancelled orders
-            df_orders = df_orders[df_orders["status_up"].isin(["OPEN", "TRIGGER_PENDING", "EXECUTED"])]
-            global active_orders
-            active_orders = df_orders   # <--- NOW DEFINED
-
-            global active_orders
 
             if df_orders.empty:
-                active_orders = pd.DataFrame()      # EMPTY SET
+                active_orders = pd.DataFrame()
                 print("ℹ️ No active/open orders to monitor yet.")
                 time.sleep(5)
                 continue
 
-            active_orders = df_orders              # <--- NOW ALWAYS DEFINED
-            print(f"ℹ️ Active Orders: {len(active_orders)} being monitored...")
+            if "tradingsymbol" not in df_orders.columns:
+                df_orders["tradingsymbol"] = df_orders.get("tsym") or df_orders.get("trading_symbol")
 
+            if "status" not in df_orders.columns:
+                df_orders["status"] = df_orders.get("Status")
+
+            df_orders["status_up"] = df_orders["status"].astype(str).str.upper()
+
+            df_orders = df_orders[df_orders["status_up"].isin(["OPEN", "TRIGGER_PENDING", "EXECUTED"])]
+
+            active_orders = df_orders
+
+            print(f"ℹ️ Active Orders: {len(active_orders)} being monitored...")
 
             for _, order in active_orders.iterrows():
                 symbol = order.get("tradingsymbol") or order.get("tsym")
                 side = order.get("buy_or_sell") or order.get("trantype")
                 side = "B" if str(side).upper().startswith("B") else "S"
 
-                print(f"🔍 Checking {symbol} ({'BUY' if side=='B' else 'SELL'}) for hammer reversal...")
                 df_chart = fetch_chart_for_symbol(symbol)
                 if df_chart.empty:
                     continue
 
                 df_chart = detect_hammer_patterns(df_chart)
+
                 if check_hammer_reversal(df_chart, side):
-                    print(f"⚠️ Hammer reversal confirmed on {symbol}! Exiting position...")
+                    print(f"⚠️ Hammer reversal confirmed on {symbol}! Exiting...")
                     exit_trade(ps_api, symbol, side)
                     time.sleep(2)
 
@@ -1263,6 +1260,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
