@@ -787,7 +787,12 @@ def monitor_open_positions(ps_api, settings):
                 continue
 
             if "tradingsymbol" not in df_orders.columns:
-                df_orders["tradingsymbol"] = df_orders.get("tsym") or df_orders.get("trading_symbol")
+                if "tsym" in df_orders.columns:
+                    df_orders["tradingsymbol"] = df_orders["tsym"]
+                elif "trading_symbol" in df_orders.columns:
+                    df_orders["tradingsymbol"] = df_orders["trading_symbol"]
+                else:
+                    df_orders["tradingsymbol"] = None
 
             if "status" not in df_orders.columns:
                 df_orders["status"] = df_orders.get("Status")
@@ -1260,6 +1265,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
