@@ -1177,9 +1177,20 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     BATCH_SIZE = 40
 
     def process_one(sym, ob_list_cache):
-        """Wrapper to process and optionally place order"""
+        """Wrapper to process a single symbol using preloaded TPSeries (tp_map) and optionally place order"""
         try:
-            r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
+            # identify token & human symbol
+            token = str(sym.get("token", ""))
+            tsym = sym.get("tsym") or sym.get("tradingsymbol") or f"{sym.get('exch','NSE')}|{token}"
+
+            # get preloaded TPSeries slice for this token
+            df_token = tp_map.get(token)
+            if df_token is None or (hasattr(df_token, "empty") and df_token.empty):
+                # no TPSeries for this token — skip
+                return {"symbol": tsym, "response": {"stat": "Skipped", "emsg": "TPSeries missing"}}
+
+            # call process_symbol which expects (df, symbol_obj, settings)
+            r = process_symbol(df_token, sym, settings)
 
             # --- Place order only if valid signal and allowed ---
             if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
@@ -1188,31 +1199,34 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
                 if r.get("skip_due_to_gap", False):
                     gap_pct = float(r.get("gap_pct", 0))
                     print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (>1.0%)")
-                    all_order_responses.append({
-                        "symbol": r['symbol'],
-                        "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
-                    })
-                    return {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
+                    resp = {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
+                    all_order_responses.append(resp)
+                    return resp
 
                 # --- Skip if open order already exists (use cached order book) ---
                 open_orders = [
                     o for o in ob_list_cache if isinstance(o, dict)
-                    and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
-                    and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])
+                    and (o.get("trading_symbol") == r.get("symbol") or o.get("tsym") == r.get("symbol"))
+                    and (str(o.get("status")).upper() in ["OPEN", "PENDING", "TRIGGER PENDING"])
                 ]
                 if open_orders:
-                    return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
+                    return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
-                # --- Place the order now ---
-                order_resp = place_order_from_signal(ps_api, r)
-                return {"symbol": r["symbol"], "response": order_resp}
+                # --- Place the order now (wrap to catch API errors) ---
+                try:
+                    order_resp = place_order_from_signal(ps_api, r)
+                except Exception as e:
+                    order_resp = {"stat": "Exception", "emsg": str(e)}
+                return {"symbol": r.get("symbol"), "response": order_resp}
 
             else:
+                # no action required / no signal
                 return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "No signal or disabled"}}
 
         except Exception as e:
-            return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
-
+            # best-effort error shape consistent with earlier returns
+            sym_name = (sym.get("tsym") if isinstance(sym, dict) else str(sym))
+            return {"symbol": sym_name, "response": {"stat": "Error", "emsg": str(e)}}
 
     # Run batches
     for i in range(0, len(symbols_with_tokens), BATCH_SIZE):
@@ -1261,20 +1275,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
