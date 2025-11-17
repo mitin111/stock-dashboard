@@ -23,9 +23,8 @@ body { background:#111; color:#fff; padding:20px; font-family:Arial; }
 <button class="btn sell" onclick="sendOrder('SELL')">SELL</button>
 
 <script>
-// 🔥 Streamlit API endpoint
-const API_URL = "https://your-domain.onrender.com/order_api";  
-// NOTE: Streamlit locally = http://localhost:8501/order_api
+// 🔥 Correct Backend API endpoint (NOT Streamlit)
+const API_URL = "https://backend-stream-nmlf.onrender.com/order_api";
 
 async function sendOrder(side) {
     const symbol = document.getElementById("symbol").value.trim();
@@ -40,21 +39,18 @@ async function sendOrder(side) {
         const res = await fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                symbol: symbol,
-                qty: qty,
-                side: side
-            })
+            body: JSON.stringify({ symbol, qty, side })
         });
 
         const data = await res.json();
         alert("Order Response: " + JSON.stringify(data));
-        
+
     } catch (err) {
         alert("Error: " + err);
     }
 }
 </script>
+
 
 </body>
 </html>
