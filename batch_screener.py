@@ -1227,7 +1227,11 @@ def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False
     print(f"💾 Saved results to {out_file}")
 
     return {"results": results, "orders": all_order_responses}
-
+# -------------------------------------------------------
+# Alias for Auto Trader compatibility
+# -------------------------------------------------------
+def batch_main(*args, **kwargs):
+    return main(*args, **kwargs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch TPSeries Screener Debug")
@@ -1241,6 +1245,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
