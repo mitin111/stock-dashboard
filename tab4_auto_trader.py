@@ -197,7 +197,9 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             while running_flag["running"]:
                 try:
                     # run blocking batch_main in a thread pool
+                    from batch_screener import main as batch_main
                     res = await asyncio.to_thread(batch_main, ps_api, None, strategy_settings, symbols, True)
+
                     # push responses to UI queue
                     try:
                         for r in res.get("orders", []) if isinstance(res, dict) else []:
@@ -329,5 +331,6 @@ def on_new_candle(symbol, df):
 #        st.session_state["ps_api"].on_new_candle = on_new_candle
 #    except Exception as e:
 #        st.warning(f" Could not set on_new_candle: {e}")
+
 
 
