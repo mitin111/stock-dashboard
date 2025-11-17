@@ -829,53 +829,73 @@ def monitor_open_positions(ps_api, settings):
 # -----------------------
 # Per-symbol processing
 # -----------------------
-def process_symbol(df, symbol_obj, settings):
-    tsym  = symbol_obj.get("tsym")
+def process_symbol(ps_api, symbol_obj, interval, settings):
+    exch = symbol_obj.get("exch", "NSE")
     token = str(symbol_obj.get("token"))
-    exch  = symbol_obj.get("exch", "NSE")
+    tsym = symbol_obj.get("tsym") or symbol_obj.get("tradingsymbol") or f"{exch}|{token}"
 
-    result = {"symbol": tsym, "token": token, "exch": exch}
+    result = {"symbol": tsym, "exch": exch, "token": token, "status": "unknown"}
 
-    # --- TPSeries already preloaded ---
-    if df is None or df.empty:
-        result.update({"status": "no_tp_data"})
+    try:
+        df = ps_api.fetch_full_tpseries(exch, token, interval)
+    except Exception as e:
+        result.update({"status": "error_fetch_tp", "emsg": str(e)})
+        print(f"❌ [{tsym}] TPSeries fetch error: {e}")
         return result
 
-    # ---- Normalize columns ----
-    if "into" in df.columns:
+    if isinstance(df, dict):
+        result.update({"status": "error_fetch_tp", "emsg": json.dumps(df)})
+        print(f"❌ [{tsym}] TPSeries returned dict error: {df}")
+        return result
+    if df.empty:
+        result.update({"status": "no_data"})
+        print(f"⚠️ [{tsym}] No TPSeries data")
+        return result
+
+    if "into" in df.columns and "open" not in df.columns:
         df = df.rename(columns={
             "into": "open",
             "inth": "high",
             "intl": "low",
             "intc": "close",
-            "intv": "volume",
+            "intv": "volume"
         })
 
-    df["open"]  = pd.to_numeric(df["open"], errors="coerce")
-    df["high"]  = pd.to_numeric(df["high"], errors="coerce")
-    df["low"]   = pd.to_numeric(df["low"], errors="coerce")
-    df["close"] = pd.to_numeric(df["close"], errors="coerce")
-
+    for col in ["open", "high", "low", "close", "volume"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["open", "high", "low", "close"])
-    if df.empty:
-        result.update({"status": "no_valid_data"})
-        return result
 
     df = tz_normalize_df(df)
+    if df.empty:
+        result.update({"status": "no_data_after_norm"})
+        print(f"⚠️ [{tsym}] No data after timezone normalization")
+        return result
+
+    print(f"🔹 Debug [{tsym}] DF head:\n", df.head())
+    print(f"🔹 Debug [{tsym}] DF columns:\n", df.columns)
 
     sig = generate_signal_for_df(df, settings)
     if sig is None:
         result.update({"status": "no_signal"})
+        print(f"⚠️ [{tsym}] Signal generation failed")
         return result
 
-    # skip first candle
-    last_dt = pd.to_datetime(df["datetime"].iloc[-1])
-    if last_dt.strftime("%H:%M") == "09:15":
-        result.update({"status": "skip_first"})
+    result.update({
+        "yclose": df["close"].iloc[-2] if len(df) > 1 else df["close"].iloc[-1],
+        "open": df["open"].iloc[-1]
+    })
+
+    last_candle_time = pd.to_datetime(df["datetime"].iloc[-1])
+    if last_candle_time.strftime("%H:%M") == "09:15":
+        result.update({"status": "skip_first_candle"})
+        print(f"⏸ [{tsym}] Skipping trade on first candle of the day ({last_candle_time})")
         return result
 
     result.update({"status": "ok", **sig})
     return result
+
+
 
 # ============================================================
 #  🔥 INSERTED: FAST HTML ORDER ENTRY STRATEGY BLOCK
@@ -1154,22 +1174,6 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     start_time = time.time()
 
-    # =======================================================
-    # PRELOAD TPSeries once for all tokens (BIG SPEED BOOST)
-    # =======================================================
-    symbol_tokens = [s["token"] for s in symbols_with_tokens]
-    print(f"⚡ Preloading TPSeries for {len(symbol_tokens)} tokens...")
-
-    df_tp = ps_api.fetch_full_tpseries("NSE", symbol_tokens, interval=args.interval)
-    if df_tp is None or df_tp.empty:
-        print("❌ TPSeries preload failed")
-        return []
-
-    # --- group by token so we can slice fast ---
-    df_tp["token"] = df_tp["token"].astype(str)
-    tp_map = {tok: df for tok, df in df_tp.groupby("token")}
-    print("✅ TPSeries preload complete")
-
     # ============================
     # Parallel Batch Processing 🚀
     # ============================
@@ -1177,20 +1181,9 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     BATCH_SIZE = 40
 
     def process_one(sym, ob_list_cache):
-        """Wrapper to process a single symbol using preloaded TPSeries (tp_map) and optionally place order"""
+        """Wrapper to process and optionally place order"""
         try:
-            # identify token & human symbol
-            token = str(sym.get("token", ""))
-            tsym = sym.get("tsym") or sym.get("tradingsymbol") or f"{sym.get('exch','NSE')}|{token}"
-
-            # get preloaded TPSeries slice for this token
-            df_token = tp_map.get(token)
-            if df_token is None or (hasattr(df_token, "empty") and df_token.empty):
-                # no TPSeries for this token — skip
-                return {"symbol": tsym, "response": {"stat": "Skipped", "emsg": "TPSeries missing"}}
-
-            # call process_symbol which expects (df, symbol_obj, settings)
-            r = process_symbol(df_token, sym, settings)
+            r = process_symbol(ps_api, sym, args.interval if args else "5", settings)
 
             # --- Place order only if valid signal and allowed ---
             if r.get("status") == "ok" and r.get("signal") in ["BUY", "SELL"] and getattr(args, 'place_orders', False):
@@ -1199,34 +1192,31 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
                 if r.get("skip_due_to_gap", False):
                     gap_pct = float(r.get("gap_pct", 0))
                     print(f"⏸ Skipping {r['symbol']} due to {gap_pct:.2f}% gap (>1.0%)")
-                    resp = {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
-                    all_order_responses.append(resp)
-                    return resp
+                    all_order_responses.append({
+                        "symbol": r['symbol'],
+                        "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}
+                    })
+                    return {"symbol": r['symbol'], "response": {"stat": "Skipped", "emsg": f"Gap {gap_pct:.2f}% > 1.0%"}}
 
                 # --- Skip if open order already exists (use cached order book) ---
                 open_orders = [
                     o for o in ob_list_cache if isinstance(o, dict)
-                    and (o.get("trading_symbol") == r.get("symbol") or o.get("tsym") == r.get("symbol"))
-                    and (str(o.get("status")).upper() in ["OPEN", "PENDING", "TRIGGER PENDING"])
+                    and (o.get("trading_symbol") == r["symbol"] or o.get("tsym") == r["symbol"])
+                    and (o.get("status") in ["OPEN", "PENDING", "TRIGGER PENDING"])
                 ]
                 if open_orders:
-                    return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "Open order exists"}}
+                    return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
-                # --- Place the order now (wrap to catch API errors) ---
-                try:
-                    order_resp = place_order_from_signal(ps_api, r)
-                except Exception as e:
-                    order_resp = {"stat": "Exception", "emsg": str(e)}
-                return {"symbol": r.get("symbol"), "response": order_resp}
+                # --- Place the order now ---
+                order_resp = place_order_from_signal(ps_api, r)
+                return {"symbol": r["symbol"], "response": order_resp}
 
             else:
-                # no action required / no signal
                 return {"symbol": r.get("symbol"), "response": {"stat": "Skipped", "emsg": "No signal or disabled"}}
 
         except Exception as e:
-            # best-effort error shape consistent with earlier returns
-            sym_name = (sym.get("tsym") if isinstance(sym, dict) else str(sym))
-            return {"symbol": sym_name, "response": {"stat": "Error", "emsg": str(e)}}
+            return {"symbol": sym.get("tsym"), "response": {"stat": "Error", "emsg": str(e)}}
+
 
     # Run batches
     for i in range(0, len(symbols_with_tokens), BATCH_SIZE):
@@ -1275,6 +1265,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-
-
