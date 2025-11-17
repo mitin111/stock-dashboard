@@ -1038,7 +1038,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 import argparse
 
-def main(args=None, ps_api=None, settings=None, symbols=None, place_orders=False):
+def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False):
     if args is None:
         class _A:
             delay_between_calls = 0.25
@@ -1254,6 +1254,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
