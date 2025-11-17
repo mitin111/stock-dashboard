@@ -648,7 +648,10 @@ import pandas as pd
 from datetime import datetime
 import pytz
 
+active_orders = None
+
 def monitor_open_positions(ps_api, settings):
+    global active_orders       # <---- CRUCIAL
     """
     Every 5 sec: check open orders, fetch chart, detect hammer reversal, exit trade if confirmed.
     """
@@ -785,13 +788,19 @@ def monitor_open_positions(ps_api, settings):
 
             # ✅ Ignore rejected/cancelled orders
             df_orders = df_orders[df_orders["status_up"].isin(["OPEN", "TRIGGER_PENDING", "EXECUTED"])]
+            global active_orders
+            active_orders = df_orders   # <--- NOW DEFINED
+
+            global active_orders
 
             if df_orders.empty:
+                active_orders = pd.DataFrame()      # EMPTY SET
                 print("ℹ️ No active/open orders to monitor yet.")
                 time.sleep(5)
                 continue
 
-            print(f"ℹ️ Active Orders: {len(df_orders)} being monitored...")
+            active_orders = df_orders              # <--- NOW ALWAYS DEFINED
+            print(f"ℹ️ Active Orders: {len(active_orders)} being monitored...")
 
 
             for _, order in active_orders.iterrows():
@@ -1254,6 +1263,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
