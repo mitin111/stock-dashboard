@@ -885,6 +885,93 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
     return result
 
 
+
+# ============================================================
+#  🔥 INSERTED: FAST HTML ORDER ENTRY STRATEGY BLOCK
+# ============================================================
+def run_strategy_request(ps_api, symbol, qty, side):
+    """
+    HTML order panel request → full strategy logic → filtered order
+    """
+    from tkp_trm_chart import (
+        calc_tkp_trm, calc_pac, calc_macd, calc_atr_trails,
+        get_trm_settings_safe,
+        calc_gap_move_flag, calc_intraday_volatility_flag, calc_day_move_flag
+    )
+    import pandas as pd
+
+    exch = "NSE"
+    token = ps_api.search_scrip(symbol).get("values", [{}])[0].get("token")
+    if not token:
+        return {"status": "error", "msg": "Symbol token not found"}
+
+    # ------------------------------
+    # 1) Load TPSeries (last 3 days)
+    # ------------------------------
+    df_raw = ps_api.fetch_full_tpseries(exch, token, interval="5", max_days=3)
+    if df_raw is None or df_raw.empty:
+        return {"status": "error", "msg": "No TPSeries data"}
+
+    df = df_raw.copy()
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    df = df.sort_values("datetime")
+
+    # ------------------------------
+    # 2) Apply Indicators
+    # ------------------------------
+    settings = get_trm_settings_safe()
+    df = calc_tkp_trm(df, settings)
+    df = calc_pac(df, settings)
+    df = calc_atr_trails(df, settings)
+    df = calc_macd(df, settings)
+    df = calc_gap_move_flag(df)
+    df = calc_day_move_flag(df)
+    df = calc_intraday_volatility_flag(df)
+
+    last = df.iloc[-1]
+
+    # ------------------------------
+    # 3) Apply Strategy Conditions
+    # ------------------------------
+    if last.get("skip_due_to_gap"):
+        return {"status": "blocked", "msg": "GAP FILTER BLOCKED"}
+
+    if last.get("skip_due_to_intraday_vol"):
+        return {"status": "blocked", "msg": "VOLATILITY FILTER BLOCKED"}
+
+    if abs(last.get("day_move_pct", 0)) > 1.5:
+        return {"status": "blocked", "msg": "DAY MOVE FILTER BLOCKED"}
+
+    # BUY
+    if side == "BUY":
+        if not (last["trm_signal"] == "Buy" and last["macd"] > last["macd_signal"]):
+            return {"status": "blocked", "msg": "BUY conditions not matched"}
+
+    # SELL
+    if side == "SELL":
+        if not (last["trm_signal"] == "Sell" and last["macd"] < last["macd_signal"]):
+            return {"status": "blocked", "msg": "SELL conditions not matched"}
+
+    # ------------------------------
+    # 4) CONDITIONS PASSED → ORDER
+    # ------------------------------
+    order = ps_api.place_order(
+        symbol=symbol,
+        qty=qty,
+        side=side,
+        exchange="NSE",
+        order_type="MKT",
+        product="I"
+    )
+
+    return {
+        "status": "ok",
+        "symbol": symbol,
+        "qty": qty,
+        "side": side,
+        "order": order
+    }
+
 # ------------------ Trailing SL loop ------------------
 def start_trailing_sl(ps_api, interval=5):
     while True:
@@ -941,37 +1028,6 @@ def start_trailing_sl(ps_api, interval=5):
             print(f"❌ Error in trailing SL loop: {e}")
             time.sleep(interval)
 
-
-# =========================================================
-# 🔥 ORDER API (HTML Panel → Backend → batch_screener.py)
-# =========================================================
-@app.post("/order_api")
-async def order_api_handler(request: Request):
-    global ps_api
-
-    # 🚫 If backend not initialized
-    if ps_api is None or ps_api.session_token is None:
-        return {"status": "error", "msg": "Backend not initialized — call /init first"}
-
-    body = await request.json()
-    symbol = body.get("symbol")
-    qty = int(body.get("qty", 0))
-    side = body.get("side")  # BUY / SELL
-
-    if not symbol or qty <= 0:
-        return {"status": "error", "msg": "Invalid symbol or qty"}
-
-    # 🔥 Run full strategy logic from batch_screener.py
-    try:
-        from batch_screener import run_strategy_request
-
-        result = await asyncio.to_thread(
-            run_strategy_request, ps_api, symbol, qty, side
-        )
-        return result
-
-    except Exception as e:
-        return {"status": "error", "msg": str(e)}
 
 # -----------------------
 # Optimized Parallel Main Runner
@@ -1185,6 +1241,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
