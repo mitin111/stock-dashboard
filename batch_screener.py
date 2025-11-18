@@ -807,8 +807,9 @@ def monitor_open_positions(ps_api, settings):
 
             for _, order in active_orders.iterrows():
                 symbol = order.get("tradingsymbol") or order.get("tsym")
-                side = order.get("buy_or_sell") or order.get("trantype")
-                side = "B" if str(side).upper().startswith("B") else "S"
+                side_raw = order.get("buy_or_sell") or order.get("trantype")
+                side = str(side_raw).strip().upper()
+                side = "B" if side in ["B", "BUY"] else "S"
 
                 df_chart = fetch_chart_for_symbol(symbol)
                 if df_chart.empty:
@@ -1265,3 +1266,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
