@@ -265,7 +265,7 @@ def generate_signal_for_df(df, settings):
     pac_upper = last.get("pacU", None)
 
     latest_day = df["datetime"].iloc[-1].date()
-    day_data = df[df["datetime"].dt.date == latest_day]
+    day_data = df[df["datetime"].dt.date == latest_day].copy()
     day_high = day_data["high"].max() if not day_data.empty else last_price
     day_low = day_data["low"].min() if not day_data.empty else last_price
     volatility = ((day_high - day_low) / day_low) * 100 if day_low > 0 else 0
@@ -277,7 +277,7 @@ def generate_signal_for_df(df, settings):
     # ============================================================
     try:
         skip_due_to_intraday_vol = False
-        intraday_df = day_data.copy()
+        intraday_df = day_data.copy(deep=True)
         intraday_df["range_pct"] = ((intraday_df["high"] - intraday_df["low"]) / intraday_df["low"]) * 100
 
         # --- (1) Any single candle > 1.3% range ---
@@ -1270,6 +1270,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
