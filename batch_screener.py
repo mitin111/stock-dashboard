@@ -846,7 +846,7 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         return result
 
     # ❗ Keep only last 1000 candles for TRM/TSI stability
-    df = df_raw.tail(1000)
+    df = df_raw.tail(1000).copy()     # <-- FIXED
         
     if isinstance(df, dict):
         result.update({"status": "error_fetch_tp", "emsg": json.dumps(df)})
@@ -1270,6 +1270,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
