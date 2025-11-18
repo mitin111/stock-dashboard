@@ -838,15 +838,15 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
     result = {"symbol": tsym, "exch": exch, "token": token, "status": "unknown"}
 
     try:
-        df = ps_api.fetch_full_tpseries(exch, token, interval)
+        # fetch full TPSeries
+        df_raw = ps_api.fetch_full_tpseries(exch, token, interval)
     except Exception as e:
         result.update({"status": "error_fetch_tp", "emsg": str(e)})
         print(f"❌ [{tsym}] TPSeries fetch error: {e}")
         return result
 
     # ❗ Keep only last 1000 candles for TRM/TSI stability
-    df = df.tail(1000)
-
+    df = df_raw.tail(1000)
         
     if isinstance(df, dict):
         result.update({"status": "error_fetch_tp", "emsg": json.dumps(df)})
@@ -1270,6 +1270,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
