@@ -1178,8 +1178,8 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ============================
     # Parallel Batch Processing 🚀
     # ============================
-    MAX_WORKERS = 40  # process 40 stocks at a time
-    BATCH_SIZE = 40
+    MAX_WORKERS = 120  # process 120 stocks at a time
+    BATCH_SIZE = 120
 
     def process_one(sym, ob_list_cache):
         """Wrapper to process and optionally place order"""
@@ -1236,7 +1236,7 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
                 all_order_responses.append(res)
 
         # small sleep to avoid API burst
-        time.sleep(0.05)
+        time.sleep(0.005)
 
     total_time = round(time.time() - start_time, 2)
     print(f"\n✅ Batch completed for {len(symbols_with_tokens)} symbols in {total_time} sec")
@@ -1266,4 +1266,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
