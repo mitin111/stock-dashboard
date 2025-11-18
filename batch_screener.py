@@ -866,12 +866,16 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
             "intv": "volume"
         })
 
-    for col in ["open", "high", "low", "close", "volume"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna(subset=["open", "high", "low", "close"])
+    df[["open","high","low","close","volume"]] =
+        df[["open","high","low","close","volume"]].apply(pd.to_numeric, errors="coerce")
 
-    df = tz_normalize_df(df)
+    df.dropna(subset=["open","high","low","close"], inplace=True)
+
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")\
+                           .dt.tz_localize("Asia/Kolkata", ambiguous="NaT", nonexistent="NaT")
+
+    df.dropna(subset=["datetime"], inplace=True)
+
     if df.empty:
         result.update({"status": "no_data_after_norm"})
         print(f"⚠️ [{tsym}] No data after timezone normalization")
@@ -1270,6 +1274,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
