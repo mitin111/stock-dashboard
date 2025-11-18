@@ -866,8 +866,9 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
             "intv": "volume"
         })
 
-    df[["open","high","low","close","volume"]] =
-        df[["open","high","low","close","volume"]].apply(pd.to_numeric, errors="coerce")
+    df[["open", "high", "low", "close", "volume"]] = df[
+        ["open", "high", "low", "close", "volume"]
+    ].apply(pd.to_numeric, errors="coerce")
 
     df.dropna(subset=["open","high","low","close"], inplace=True)
 
@@ -1274,6 +1275,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
