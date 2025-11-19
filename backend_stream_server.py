@@ -70,6 +70,10 @@ async def init_api(request: Request):
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
     ps_api.is_ws_connected = False
 
+    ps_api.trm_settings = body.get("trm_settings", {})
+
+    logging.info("🔧 TRM settings loaded → OK")
+
     logging.info("✅ Backend session attached (FULL LOGIN MODE)")
     return {"stat": "Ok", "msg": "Backend synced successfully"}
 
@@ -284,6 +288,7 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
 
 
