@@ -71,6 +71,7 @@ async def init_api(request: Request):
     ps_api.is_ws_connected = False
 
     ps_api.trm_settings = body.get("trm_settings", {})
+    ps_api._tokens = body.get("tokens_map", {})
 
     logging.info("🔧 TRM settings loaded → OK")
 
@@ -294,6 +295,7 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
 
 
