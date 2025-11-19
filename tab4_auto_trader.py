@@ -115,6 +115,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
                     "vc": ps.vc,
                     "api_key": ps.api_key,
                     "imei": ps.imei
+                    "trm_settings": st.session_state.get("trm_settings", {})
                 },
                 timeout=5
             )
@@ -142,6 +143,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.write(r.json())
         except Exception as e:
             st.error(f"Stop error: {e}")
+
 
 
 
