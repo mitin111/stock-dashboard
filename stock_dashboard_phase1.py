@@ -118,7 +118,29 @@ with st.sidebar:
                     st.session_state["chart_open"] = False   # ✅ Prevent auto-open
 
                     st.success("✅ Login Successful — Now open Tab 5 and Click 'Open Chart'")
-
+                    # ===========================================
+                    # 2️⃣ BACKEND SESSION CLONE (ADD HERE)
+                    # ===========================================
+                    try:
+                        ps = ps_api
+                        requests.post(
+                            "https://backend-stream-nmlf.onrender.com/init",
+                            json={
+                                "session_token": ps.session_token,
+                                "jKey": ps.jKey,
+                                "userid": ps.userid,
+                                "uid": ps.uid,
+                                "actid": ps.actid,
+                                "vc": ps.vc,
+                                "api_key": ps.api_key,
+                                "imei": ps.imei,
+                                "headers": ps.headers,
+                            },
+                            timeout=5
+                        )
+                        st.success("🔄 Backend session fully cloned")
+                    except Exception as e:
+                        st.warning(f"Backend clone failed: {e}")
                 else:
                     st.error(f"❌ Login failed: {login_resp.get('emsg', 'Unknown error')}")
 
@@ -1037,6 +1059,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
