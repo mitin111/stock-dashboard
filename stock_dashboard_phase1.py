@@ -300,8 +300,7 @@ with tab5:
     st.subheader("📉 TPSeries + Live Tick Data (auto-start, blink-free)")
 
     # Register strategy callback only after login
-    st.session_state.ps_api.on_new_candle = on_new_candle
-
+    
     import plotly.graph_objects as go
     import threading, queue, time
     import pandas as pd, pytz
@@ -1033,6 +1032,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
