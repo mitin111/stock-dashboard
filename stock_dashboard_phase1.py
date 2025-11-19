@@ -269,6 +269,7 @@ with tab3:
 with tab4:
     from tab4_auto_trader import render_tab4
     from tkp_trm_chart import ensure_trm_settings_loaded, render_trm_settings_ui_body
+    from tab4_auto_trader import render_tab4, init_backend_session
 
     st.subheader("📀 Indicator & TRM Settings")
 
@@ -1032,6 +1033,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
