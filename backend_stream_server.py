@@ -36,25 +36,37 @@ async def init_api(request: Request):
     api_key = body.get("api_key")
     imei = body.get("imei")
 
-    # ✅ Must keep base_url (LIVE)
+    # Create API object without login request
     ps_api = ProStocksAPI(
         userid=userid,
         password_plain="",
         vc=vc,
         api_key=api_key,
         imei=imei,
-        base_url="https://starapi.prostocks.com/NorenWClientTP"   # ✅ FIXED REQUIRED
+        base_url="https://starapi.prostocks.com/NorenWClientTP"
     )
 
-    ps_api.session_token = jKey
+    # 🔥 Attach session token manually
     ps_api.jKey = jKey
+    ps_api.session_token = jKey
 
-    ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"  # ✅ LIVE WS
+    # 🔥 Mark as logged-in (important)
+    ps_api.is_logged_in = True
+    ps_api.uid = userid
+    ps_api.actid = userid   # ProStocks uses userid as account id
+
+    # 🔥 Required for order placement
+    ps_api.headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": jKey
+    }
+
+    # 🔥 WS URL
+    ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
     ps_api.is_ws_connected = False
 
-    logging.info("✅ Backend attached to existing Frontend session (NO LOGIN)")
+    logging.info("✅ Backend session attached (FULL LOGIN MODE)")
     return {"stat": "Ok", "msg": "Backend synced successfully"}
-
 
 
 clients = set()
@@ -267,4 +279,5 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
