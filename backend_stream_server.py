@@ -196,3 +196,75 @@ async def order_api_handler(request: Request):
 
     except Exception as e:
         return {"status": "error", "msg": str(e)}
+
+# =========================================================
+# 🔥 AUTO TRADER BACKEND CONTROL API
+# =========================================================
+
+auto_trader_running = False
+auto_trader_task = None
+
+
+async def auto_trader_loop():
+    """
+    Main background loop → keeps processing batch_screener main()
+    """
+    import asyncio
+    from batch_screener import main as batch_main
+
+    global auto_trader_running
+
+    logging.info("🚀 Auto Trader Loop Started")
+
+    while auto_trader_running:
+        try:
+            # MAIN STRATEGY CALL
+            await asyncio.to_thread(batch_main)
+        except Exception as e:
+            logging.error(f"❌ Auto Trader error: {e}")
+
+        # wait between cycles
+        await asyncio.sleep(3)
+
+    logging.info("🛑 Auto Trader Loop Stopped")
+
+@app.post("/start_auto")
+async def start_auto_api():
+
+    global auto_trader_running, auto_trader_task
+
+    if ps_api is None or ps_api.session_token is None:
+        return {"status": "error", "msg": "Backend not initialized — call /init first"}
+
+    if auto_trader_running:
+        return {"status": "already_running", "msg": "Auto Trader already running"}
+
+    auto_trader_running = True
+    auto_trader_task = asyncio.create_task(auto_trader_loop())
+
+    logging.info("⚡ Auto Trader started")
+    return {"status": "ok", "msg": "Auto Trader started"}
+
+@app.post("/stop_auto")
+async def stop_auto_api():
+
+    global auto_trader_running, auto_trader_task
+
+    if not auto_trader_running:
+        return {"status": "not_running", "msg": "Auto Trader already stopped"}
+
+    auto_trader_running = False
+
+    if auto_trader_task:
+        auto_trader_task.cancel()
+        auto_trader_task = None
+
+    logging.info("🛑 Auto Trader stopped")
+    return {"status": "ok", "msg": "Auto Trader stopped"}
+
+@app.get("/auto_status")
+async def auto_status_api():
+    return {
+        "status": "running" if auto_trader_running else "stopped"
+    }
+
