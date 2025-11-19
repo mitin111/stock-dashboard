@@ -624,9 +624,32 @@ class ProStocksAPI:
             
     # prostocks_connector.py ke andar ProStocksAPI class me add karein
     def is_logged_in(self):
-        """Check if session key / jKey exists and is valid"""
-        return hasattr(self, "session_token") and self.session_token is not None and len(self.session_token) > 0
+        """
+        Streamlit dashboard login + backend cloned login को support करता है।
+        """
+        # MAIN SESSION TOKEN PRESENT?
+        if getattr(self, "session_token", None):
+            return True
 
+        # BACKEND JKEY PRESENT?
+        if getattr(self, "jKey", None):
+            return True
+
+        # FULL CLONED SESSION FLAGS
+        if getattr(self, "logged_in", False):
+            return True
+
+        if getattr(self, "is_logged_in", False):
+            return True
+
+        if getattr(self, "login_status", False):
+            return True
+
+        if getattr(self, "is_session_active", False):
+            return True
+
+        # Otherwise → NOT logged in
+        return False
 
     def order_book(self):
         url = f"{self.base_url}/OrderBook"
@@ -994,6 +1017,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
