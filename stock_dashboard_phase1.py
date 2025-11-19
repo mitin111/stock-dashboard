@@ -244,10 +244,11 @@ with tab3:
     # ✅ HARD STOP: Market Data must NOT run before login (blink fix)
     if not st.session_state.get("logged_in", False):
         st.info("🔐 Please login to view live watchlist data.")
-        st.stop()   # <--- THIS FIXES THE BLINK COMPLETELY
+        st.stop()
 
     ps_api = st.session_state["ps_api"]
 
+    # ---- Load list of watchlists ----
     try:
         wl_resp = ps_api.get_watchlists()
     except Exception as e:
@@ -262,27 +263,49 @@ with tab3:
     watchlists = sorted(raw_watchlists, key=int)
     wl_labels = [f"Watchlist {wl}" for wl in watchlists]
 
+    # === UI dropdown shows ONLY ONE watchlist (unchanged) ===
     selected_label = st.selectbox("📁 Choose Watchlist", wl_labels)
     selected_wl = dict(zip(wl_labels, watchlists))[selected_label]
 
+    # Save in session
     st.session_state.all_watchlists = watchlists
     st.session_state.selected_watchlist = selected_wl
 
+    # =======================================================
+    # ⭐ NEW LOGIC: LOAD ALL WATCHLISTS → MERGE ALL SYMBOLS
+    # =======================================================
+    merged_symbols = {}   # tsym → {tsym, token, exch}
+
+    for wl in watchlists:
+        wl_data = ps_api.get_watchlist(wl)
+        if wl_data.get("stat") != "Ok":
+            continue
+
+        for s in wl_data["values"]:
+            tsym = s.get("tsym")
+            token = s.get("token")
+            exch = s.get("exch", "NSE")
+
+            if tsym and token:
+                merged_symbols[tsym] = {
+                    "tsym": tsym,
+                    "exch": exch,
+                    "token": token
+                }
+
+    # Save ALL symbols for AutoTrader
+    st.session_state["symbols"] = list(merged_symbols.values())
+
+    st.success(f"✅ Loaded total {len(st.session_state['symbols'])} symbols across ALL watchlists")
+
+    # ---- UI still shows ONLY selected watchlist ----
     wl_data = ps_api.get_watchlist(selected_wl)
     if wl_data.get("stat") == "Ok":
         df = pd.DataFrame(wl_data["values"])
         st.write(f"📦 {len(df)} scrips in watchlist '{selected_wl}'")
         st.dataframe(df if not df.empty else pd.DataFrame())
-
-        symbols_with_tokens = []
-        for s in wl_data["values"]:
-            token = s.get("token", "")
-            if token:
-                symbols_with_tokens.append({"tsym": s["tsym"], "exch": s["exch"], "token": token})
-        st.session_state["symbols"] = symbols_with_tokens
-        st.success(f"✅ {len(symbols_with_tokens)} symbols ready for WebSocket/AutoTrader")
     else:
-        st.warning(wl_data.get("emsg", "Failed to load watchlist."))
+        st.warning(wl_data.get("emsg", "Failed to load selected watchlist."))
 
 
 # === Tab 4: Indicator Settings === 
@@ -1057,6 +1080,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
