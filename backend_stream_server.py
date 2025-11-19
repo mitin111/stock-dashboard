@@ -46,24 +46,27 @@ async def init_api(request: Request):
         base_url="https://starapi.prostocks.com/NorenWClientTP"
     )
 
-    # 🔥 Attach session token manually
+    # Inject session token
     ps_api.jKey = jKey
     ps_api.session_token = jKey
 
-    # 🔥 Mark as logged-in (important)
+    # ---- REQUIRED FLAGS ----
     ps_api.logged_in = True
-    ps_api.uid = userid
-    ps_api.actid = userid   # ProStocks uses userid as account id
+    ps_api.is_logged_in = True
+    ps_api.login_status = True
+    ps_api.is_session_active = True
 
-    # 🔥 Required for order placement
+    ps_api.uid = userid
+    ps_api.actid = userid
+
     ps_api.headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "Authorization": jKey
     }
 
-    # 🔥 WS URL
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
     ps_api.is_ws_connected = False
+
 
     logging.info("✅ Backend session attached (FULL LOGIN MODE)")
     return {"stat": "Ok", "msg": "Backend synced successfully"}
@@ -279,6 +282,7 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
 
 
