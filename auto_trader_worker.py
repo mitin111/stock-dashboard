@@ -94,6 +94,15 @@ def process_live_symbol(ps_api, sym, settings):
 #  🔥 MAIN AUTO TRADER LOOP (CONTINUOUS)
 # =====================================================================
 def auto_trade_loop(ps_api, settings, symbols):
+    # wait until at least one file exists for first symbol (max 30s)
+    timeout = time.time() + 30
+    while time.time() < timeout:
+        sample_fn = os.path.join(CANDLE_PATH, f"{symbols[0]}.json")
+        if os.path.exists(sample_fn) and os.path.getsize(sample_fn) > 100:
+            break
+        print("Waiting for merged candle files from tick engine...")
+        time.sleep(1) 
+
     print(f"🚀 Auto Trader started for {len(symbols)} symbols (5-minute LIVE mode)")
     print("Waiting for next 5-minute candle...")
 
