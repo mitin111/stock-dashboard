@@ -131,7 +131,7 @@ with st.sidebar:
                                 "vc": ps.vc,
                                 "api_key": ps.api_key,
                                 "imei": ps.imei,
-                                "tokens_map": ps._tokens,
+                                "tokens_map": { item["tsym"]: item["token"] for item in st.session_state.get("symbols", []) },
                                 "trm_settings": st.session_state.get("trm_settings", {})
                             },
                             timeout=5
@@ -1057,6 +1057,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
