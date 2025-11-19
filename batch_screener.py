@@ -833,79 +833,69 @@ def monitor_open_positions(ps_api, settings):
 def process_symbol(ps_api, symbol_obj, interval, settings):
     exch = symbol_obj.get("exch", "NSE")
     token = str(symbol_obj.get("token"))
-    tsym = symbol_obj.get("tsym") or symbol_obj.get("tradingsymbol") or f"{exch}|{token}"
+    sym = symbol_obj.get("tsym")
 
-    result = {"symbol": tsym, "exch": exch, "token": token, "status": "unknown"}
+    result = {"symbol": sym, "exch": exch, "token": token, "status": "unknown"}
 
+    # --------------------------------------------------------
+    # 01: BACKFILL 3 days
+    # --------------------------------------------------------
     try:
-        # fetch full TPSeries
-        df_raw = ps_api.fetch_full_tpseries(exch, token, interval)
+        df_hist = ps_api.fetch_full_tpseries(exch, token, interval, max_days=3)
     except Exception as e:
         result.update({"status": "error_fetch_tp", "emsg": str(e)})
-        print(f"❌ [{tsym}] TPSeries fetch error: {e}")
         return result
 
-    # ❗ Keep only last 1000 candles for TRM/TSI stability
-    df = df_raw.tail(1000).copy()     # <-- FIXED
-        
-    if isinstance(df, dict):
-        result.update({"status": "error_fetch_tp", "emsg": json.dumps(df)})
-        print(f"❌ [{tsym}] TPSeries returned dict error: {df}")
-        return result
-    if df.empty:
-        result.update({"status": "no_data"})
-        print(f"⚠️ [{tsym}] No TPSeries data")
+    df_hist = pd.DataFrame(df_hist)
+    if df_hist.empty:
+        result.update({"status": "no_history"})
         return result
 
-    if "into" in df.columns and "open" not in df.columns:
-        df = df.rename(columns={
-            "into": "open",
-            "inth": "high",
-            "intl": "low",
-            "intc": "close",
-            "intv": "volume"
+    # rename raw cols if needed
+    if "into" in df_hist.columns and "open" not in df_hist.columns:
+        df_hist = df_hist.rename(columns={
+            "into": "open", "inth": "high", "intl": "low",
+            "intc": "close", "intv": "volume"
         })
 
-    df[["open", "high", "low", "close", "volume"]] = df[
-        ["open", "high", "low", "close", "volume"]
+    # numeric cast
+    df_hist[["open","high","low","close","volume"]] = df_hist[
+         ["open","high","low","close","volume"]
     ].apply(pd.to_numeric, errors="coerce")
 
-    df.dropna(subset=["open","high","low","close"], inplace=True)
+    # datetime fix
+    df_hist["datetime"] = pd.to_datetime(df_hist["datetime"], errors="coerce")
+    df_hist["datetime"] = df_hist["datetime"].dt.tz_localize("Asia/Kolkata")
 
-    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")\
-                           .dt.tz_localize("Asia/Kolkata", ambiguous="NaT", nonexistent="NaT")
+    df_hist.dropna(subset=["datetime","open","high","low","close"], inplace=True)
 
-    df.dropna(subset=["datetime"], inplace=True)
+    # --------------------------------------------------------
+    # 02: LOAD LIVE MERGED 5-MIN CANDLE
+    # --------------------------------------------------------
+    df_live = load_live_5min(sym)     # 🔥 NEW PART
 
-    if df.empty:
-        result.update({"status": "no_data_after_norm"})
-        print(f"⚠️ [{tsym}] No data after timezone normalization")
+    # --------------------------------------------------------
+    # 03: MERGE BOTH
+    # --------------------------------------------------------
+    df = pd.concat([df_hist, df_live])
+    df = df.drop_duplicates("datetime")
+    df = df.sort_values("datetime").tail(1000).reset_index(drop=True)
+
+    if df.empty or len(df) < 50:
+        result.update({"status":"no_data_after_merge"})
         return result
 
-    print(f"🔹 Debug [{tsym}] DF head:\n", df.head())
-    print(f"🔹 Debug [{tsym}] DF columns:\n", df.columns)
-
+    # --------------------------------------------------------
+    # 04: INDICATORS + SIGNAL
+    # --------------------------------------------------------
     sig = generate_signal_for_df(df, settings)
     if sig is None:
-        result.update({"status": "no_signal"})
-        print(f"⚠️ [{tsym}] Signal generation failed")
+        result.update({"status":"no_signal"})
         return result
 
-    result.update({
-        "yclose": df["close"].iloc[-2] if len(df) > 1 else df["close"].iloc[-1],
-        "open": df["open"].iloc[-1]
-    })
-
-    last_candle_time = pd.to_datetime(df["datetime"].iloc[-1])
-    if last_candle_time.strftime("%H:%M") == "09:15":
-        result.update({"status": "skip_first_candle"})
-        print(f"⏸ [{tsym}] Skipping trade on first candle of the day ({last_candle_time})")
-        return result
-
-    result.update({"status": "ok", **sig})
+    result.update(sig)
+    result.update({"status":"ok"})
     return result
-
-
 
 # ============================================================
 #  🔥 INSERTED: FAST HTML ORDER ENTRY STRATEGY BLOCK
@@ -1275,6 +1265,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
