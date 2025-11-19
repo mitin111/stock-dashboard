@@ -51,7 +51,7 @@ async def init_api(request: Request):
     ps_api.session_token = jKey
 
     # 🔥 Mark as logged-in (important)
-    ps_api.is_logged_in = True
+    ps_api.logged_in = True
     ps_api.uid = userid
     ps_api.actid = userid   # ProStocks uses userid as account id
 
@@ -279,5 +279,6 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
 
