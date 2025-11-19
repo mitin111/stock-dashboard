@@ -277,17 +277,22 @@ with tab4:
         st.info("🔐 Please login first to configure Auto Trader settings.")
         st.stop()
 
+    # -------------------------------------------
+    # ⭐ MUST RUN — attach dashboard session → backend
+    # -------------------------------------------
+    init_backend_session()
+    # -------------------------------------------
+
     # ✅ ALWAYS SHOW TRM SETTINGS IN SIDEBAR (never disappears now)
     with st.sidebar:
         st.markdown("### 🎛️ TRM Strategy Settings")
-        ensure_trm_settings_loaded()        # load from trm_settings.json → session_state
-        render_trm_settings_ui_body()       # show input controls always
+        ensure_trm_settings_loaded()       
+        render_trm_settings_ui_body()       
 
-    st.markdown("---")   # divider
+    st.markdown("---")
 
-    # ✅ Now show Quantity Mapping + Auto Trader Controls
+    # Quantity Mapping + Auto Trader Controls UI
     render_tab4(require_session_settings=True, allow_file_fallback=False)
-
 
 # === Tab 5: Strategy Engine ===
 with tab5:
@@ -1032,6 +1037,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
