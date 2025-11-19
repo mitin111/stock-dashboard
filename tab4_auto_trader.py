@@ -57,10 +57,33 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
 
     BACKEND_URL = "https://backend-stream-nmlf.onrender.com"
 
+    
     # --------------------------
     # START AUTO TRADER
     # --------------------------
     if st.button("🚀 Start Auto Trader"):
+
+        # 🔵 STEP 1: INIT BACKEND SESSION
+        try:
+            ps = st.session_state.ps_api
+            resp = requests.post(
+                f"{BACKEND_URL}/init",
+                json={
+                    "jKey": ps.session_token,
+                    "userid": ps.userid,
+                    "vc": ps.vc,
+                    "api_key": ps.api_key,
+                    "imei": ps.imei
+                },
+                timeout=5
+            )
+            st.success("Backend initialized for Auto Trader")
+            st.write(resp.json())
+        except Exception as e:
+            st.error(f"Backend init failed: {e}")
+            st.stop()
+
+        # 🔵 STEP 2: START AUTO TRADER
         try:
             r = requests.post(f"{BACKEND_URL}/start_auto")
             st.success("Auto Trader Started (Background Worker Running)")
@@ -78,4 +101,5 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.write(r.json())
         except Exception as e:
             st.error(f"Stop error: {e}")
+
 
