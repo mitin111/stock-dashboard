@@ -8,6 +8,36 @@ Usage:
   python batch_screener_debug.py --watchlists 1,2,3 --interval 5 --output signals.csv --place-orders
 """
 
+LIVE_PATH = "/tmp/live_candles"
+
+def load_live_5min(sym):
+    fn = f"{LIVE_PATH}/{sym}.json"
+    if not os.path.exists(fn):
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_json(fn)
+        if df.empty:
+            return df
+
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df["bucket"] = df["datetime"].dt.floor("5min")
+
+        df = df.groupby("bucket").agg(
+            open=("open", "first"),
+            high=("high", "max"),
+            low=("low", "min"),
+            close=("close", "last"),
+            volume=("volume", "sum")
+        ).reset_index().rename(columns={"bucket": "datetime"})
+
+        df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
+        return df.tail(200)
+
+    except Exception as e:
+        print(f"⚠️ load_live_5min error {sym}: {e}")
+        return pd.DataFrame()
+
 import os
 import time
 import argparse
@@ -1265,6 +1295,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
