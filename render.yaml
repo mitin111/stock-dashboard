@@ -1,12 +1,30 @@
 services:
-  - type: worker        # <-- Worker = No public port
+  # 1) LIVE TICK ENGINE
+  - type: worker
+    name: tick-engine
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python tick_engine_worker.py
+    plan: standard
+
+  # 2) AUTO TRADER (strategy loop)
+  - type: worker
+    name: auto-trader
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python auto_trader_worker.py
+    plan: standard
+
+  # 3) BACKEND STREAM SERVER (WS + order gateway)
+  - type: worker
     name: backend-stream
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python backend_stream_server.py   # ✅ No uvicorn
+    startCommand: python backend_stream_server.py
     plan: standard
 
-  - type: web           # <-- This is the UI
+  # 4) FRONTEND DASHBOARD (Streamlit)
+  - type: web
     name: stock-dashboard
     env: python
     buildCommand: pip install -r requirements.txt
