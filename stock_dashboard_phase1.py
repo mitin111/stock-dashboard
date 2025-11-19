@@ -127,7 +127,7 @@ with st.sidebar:
                             "https://backend-stream-nmlf.onrender.com/init",
                             json={
                                 "session_token": ps.session_token,
-                                "jKey": ps.jKey,
+                                "jKey": ps.session_token,
                                 "userid": ps.userid,
                                 "uid": ps.uid,
                                 "actid": ps.actid,
@@ -1059,6 +1059,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
