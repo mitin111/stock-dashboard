@@ -126,19 +126,15 @@ with st.sidebar:
                         requests.post(
                             "https://backend-stream-nmlf.onrender.com/init",
                             json={
-                                "session_token": ps.session_token,
                                 "jKey": ps.session_token,
                                 "userid": ps.userid,
-                                "uid": ps.uid,
-                                "actid": ps.actid,
                                 "vc": ps.vc,
                                 "api_key": ps.api_key,
-                                "imei": ps.imei,
-                                "headers": ps.headers,
+                                "imei": ps.imei
                             },
                             timeout=5
                         )
-                        st.success("🔄 Backend session fully cloned")
+                        st.success("Backend session fully cloned")
                     except Exception as e:
                         st.warning(f"Backend clone failed: {e}")
                 else:
@@ -1059,6 +1055,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
