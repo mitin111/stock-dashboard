@@ -30,46 +30,51 @@ async def init_api(request: Request):
     global ps_api
     body = await request.json()
 
-    jKey = body.get("jKey")
-    userid = body.get("userid")
-    vc = body.get("vc")
-    api_key = body.get("api_key")
-    imei = body.get("imei")
-
-    # Create API object without login request
+    # FULL OBJECT BUILD
     ps_api = ProStocksAPI(
-        userid=userid,
-        password_plain="",
-        vc=vc,
-        api_key=api_key,
-        imei=imei,
+        userid = body.get("userid"),
+        password_plain = "",
+        vc = body.get("vc"),
+        api_key = body.get("api_key"),
+        imei = body.get("imei"),
         base_url="https://starapi.prostocks.com/NorenWClientTP"
     )
 
-    # Inject session token
-    ps_api.jKey = jKey
-    ps_api.session_token = jKey
+    # ---- SESSION RESTORE ----
+    ps_api.session_token = body.get("session_token")
+    ps_api.jKey = body.get("jKey")
 
-    # ---- REQUIRED FLAGS ----
+    # ProStocks API internal flags 
     ps_api.logged_in = True
     ps_api.is_logged_in = True
     ps_api.login_status = True
     ps_api.is_session_active = True
+    ps_api._logged_in = True
 
-    ps_api.uid = userid
-    ps_api.actid = userid
+    # account identifiers
+    ps_api.uid = body.get("uid") or body.get("userid")
+    ps_api.actid = body.get("actid") or body.get("userid")
 
-    ps_api.headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": jKey
-    }
+    # token aliases
+    ps_api.token = ps_api.jKey
+    ps_api.susertoken = ps_api.jKey
+    ps_api.auth = ps_api.jKey
+
+    # restore headers from frontend
+    incoming_headers = body.get("headers")
+    if incoming_headers:
+        ps_api.headers = incoming_headers
+    else:
+        ps_api.headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": ps_api.jKey
+        }
 
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
     ps_api.is_ws_connected = False
 
-
-    logging.info("✅ Backend session attached (FULL LOGIN MODE)")
-    return {"stat": "Ok", "msg": "Backend synced successfully"}
+    logging.info("✅ FULL LOGIN CLONED INTO BACKEND")
+    return {"stat": "Ok", "msg": "Backend fully synced"}
 
 
 clients = set()
@@ -282,6 +287,7 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
 
 
