@@ -1160,44 +1160,69 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
         print("🔹 Loaded TRM settings for Auto Trader:", settings)
 
     # Build symbol list
-    symbols_with_tokens = []
-    if symbols:
-        for s in symbols:
-            symbols_with_tokens.append({
-                "tsym": s.get("tsym") if isinstance(s, dict) else s,
-                "exch": s.get("exch", "NSE") if isinstance(s, dict) else "NSE",
-                "token": s.get("token", "") if isinstance(s, dict) else ""
-            })
-    else:
-        all_symbols = []
-        if args and getattr(args, 'all_watchlists', False):
-            wls = ps_api.get_watchlists()
-            stat, values = resp_to_status_and_list(wls)
-            if stat != "Ok":
-                print("❌ Failed to list watchlists:", wls)
-                return []
-            watchlist_ids = sorted(values, key=int)
-        else:
-            watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
+    # ============================================================
+    # ⭐ BACKEND TOKEN-MAP MODE: Use tokens sent via /init
+    # ============================================================
+    if hasattr(ps_api, "_tokens") and ps_api._tokens:
+        print("🚀 Using backend-synced token map (from /init)")
+        tokens_map = ps_api._tokens
+        symbols = list(tokens_map.keys())
 
-        for wl in watchlist_ids:
-            wl_data = ps_api.get_watchlist(wl)
-            wl_stat, wl_list = resp_to_status_and_list(wl_data)
-            if wl_stat != "Ok":
-                print(f"❌ Could not load watchlist {wl}: {wl_data}")
-                continue
-            all_symbols.extend(wl_list)
-
-        for s in all_symbols:
-            token = s.get("token", "")
-            if token:
+        symbols_with_tokens = []
+        for sym in symbols:
+            tok = tokens_map.get(sym)
+            if tok:
                 symbols_with_tokens.append({
-                    "tsym": s.get("tsym"),
-                    "exch": s.get("exch", "NSE"),
-                    "token": token
+                    "tsym": sym,
+                    "exch": "NSE",
+                    "token": tok
                 })
 
-    print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
+        print(f"ℹ️ Symbols with valid tokens (backend mode): {len(symbols_with_tokens)}")
+
+    else:
+        # ============================================================
+        # OLD MODE: Build symbol list from watchlist
+        # ============================================================
+        symbols_with_tokens = []
+
+        if symbols:
+            for s in symbols:
+                symbols_with_tokens.append({
+                    "tsym": s.get("tsym") if isinstance(s, dict) else s,
+                    "exch": s.get("exch", "NSE") if isinstance(s, dict) else "NSE",
+                    "token": s.get("token", "") if isinstance(s, dict) else ""
+                })
+        else:
+            all_symbols = []
+            if args and getattr(args, 'all_watchlists', False):
+                wls = ps_api.get_watchlists()
+                stat, values = resp_to_status_and_list(wls)
+                if stat != "Ok":
+                    print("❌ Failed to list watchlists:", wls)
+                    return []
+                watchlist_ids = sorted(values, key=int)
+            else:
+                watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
+
+            for wl in watchlist_ids:
+                wl_data = ps_api.get_watchlist(wl)
+                wl_stat, wl_list = resp_to_status_and_list(wl_data)
+                if wl_stat != "Ok":
+                    print(f"❌ Could not load watchlist {wl}: {wl_data}")
+                    continue
+                all_symbols.extend(wl_list)
+
+            for s in all_symbols:
+                token = s.get("token", "")
+                if token:
+                    symbols_with_tokens.append({
+                        "tsym": s.get("tsym"),
+                        "exch": s.get("exch", "NSE"),
+                        "token": token
+                    })
+
+        print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
     results = []
     all_order_responses = []
@@ -1295,6 +1320,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
