@@ -1181,46 +1181,46 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
         print(f"ℹ️ Symbols with valid tokens (backend mode): {len(symbols_with_tokens)}")
 
     else:
+        
         # ============================================================
         # OLD MODE: Build symbol list from watchlist
         # ============================================================
         symbols_with_tokens = []
 
-        if symbols:
-            for s in symbols:
-                symbols_with_tokens.append({
-                    "tsym": s.get("tsym") if isinstance(s, dict) else s,
-                    "exch": s.get("exch", "NSE") if isinstance(s, dict) else "NSE",
-                    "token": s.get("token", "") if isinstance(s, dict) else ""
-                })
+        all_symbols = []
+
+        # Load watchlist IDs
+        if args and getattr(args, 'all_watchlists', False):
+            wls = ps_api.get_watchlists()
+            stat, values = resp_to_status_and_list(wls)
+            if stat != "Ok":
+                print("❌ Failed to list watchlists:", wls)
+                return []
+            watchlist_ids = sorted(values, key=int)
         else:
-            all_symbols = []
-            if args and getattr(args, 'all_watchlists', False):
-                wls = ps_api.get_watchlists()
-                stat, values = resp_to_status_and_list(wls)
-                if stat != "Ok":
-                    print("❌ Failed to list watchlists:", wls)
-                    return []
-                watchlist_ids = sorted(values, key=int)
-            else:
-                watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
+            watchlist_ids = [w.strip() for w in (args.watchlists.split(",") if args else []) if w.strip()]
 
-            for wl in watchlist_ids:
-                wl_data = ps_api.get_watchlist(wl)
-                wl_stat, wl_list = resp_to_status_and_list(wl_data)
-                if wl_stat != "Ok":
-                    print(f"❌ Could not load watchlist {wl}: {wl_data}")
-                    continue
-                all_symbols.extend(wl_list)
+        # Load watchlist items
+        for wl in watchlist_ids:
+            wl_data = ps_api.get_watchlist(wl)
+            wl_stat, wl_list = resp_to_status_and_list(wl_data)
+            if wl_stat != "Ok":
+                print(f"❌ Could not load watchlist {wl}: {wl_data}")
+                continue
+            all_symbols.extend(wl_list)
 
-            for s in all_symbols:
-                token = s.get("token", "")
-                if token:
-                    symbols_with_tokens.append({
-                        "tsym": s.get("tsym"),
-                        "exch": s.get("exch", "NSE"),
-                        "token": token
-                    })
+        # FINAL CLEAN SYMBOL TOKEN LIST
+        symbols_with_tokens = []
+        for s in all_symbols:
+            tsym = s.get("tsym")
+            token = s.get("token")
+            exch = s.get("exch", "NSE")
+            if tsym and token:
+                symbols_with_tokens.append({
+                    "tsym": tsym,
+                    "exch": exch,
+                    "token": token
+                })
 
         print(f"ℹ️ Symbols with valid tokens: {len(symbols_with_tokens)}")
 
@@ -1320,6 +1320,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
