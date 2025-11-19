@@ -228,26 +228,32 @@ auto_trader_task = None
 
 async def auto_trader_loop():
     """
-    Main background loop → keeps processing batch_screener main()
+    Main background loop → runs batch_screener main repeatedly.
+    TRM settings + API session FIXED.
     """
     import asyncio
     from batch_screener import main as batch_main
-
-    global auto_trader_running
+    global auto_trader_running, ps_api
 
     logging.info("🚀 Auto Trader Loop Started")
 
     while auto_trader_running:
         try:
-            # MAIN STRATEGY CALL
-            await asyncio.to_thread(batch_main)
+            await asyncio.to_thread(
+                batch_main,
+                ps_api,                       # FIX 1
+                None,                         # args
+                ps_api.trm_settings,          # FIX 2 → TRM always passed
+                None,                         # symbols
+                True                          # FIX 3 → place orders
+            )
         except Exception as e:
             logging.error(f"❌ Auto Trader error: {e}")
 
-        # wait between cycles
         await asyncio.sleep(3)
 
     logging.info("🛑 Auto Trader Loop Stopped")
+
 
 @app.post("/start_auto")
 async def start_auto_api():
@@ -288,6 +294,7 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
 
 
 
