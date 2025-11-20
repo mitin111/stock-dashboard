@@ -19,6 +19,19 @@ import pandas as pd
 import pytz
 from prostocks_connector import ProStocksAPI
 
+import requests
+
+BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
+
+# fetch tokens_map from backend
+try:
+    resp = requests.get(f"{BACKEND_URL}/tokens", timeout=5)
+    token_map = resp.json().get("tokens_map", {})
+    print(f"✔ Loaded {len(token_map)} tokens from backend")
+except Exception as e:
+    print("❌ Could not load token_map from backend:", e)
+    token_map = {}
+
 SAVE_PATH = "/tmp/live_candles"
 os.makedirs(SAVE_PATH, exist_ok=True)
 
@@ -231,29 +244,14 @@ if __name__ == "__main__":
     # Fallback to get_watchlists() only if tokens_map missing
     # ----------------------------
     token_map = getattr(ps_api, "_tokens", {}) or {}
-    if token_map:
-        print(f"✔ Using backend-synced tokens_map → {len(token_map)} symbols")
-    else:
-        print("⚠️ No backend tokens_map found — falling back to get_watchlists() (slower)")
-        all_syms = []
-        try:
-            wls_resp = ps_api.get_watchlists()
-            wls = wls_resp.get("values", []) if isinstance(wls_resp, dict) else []
-            for wl in wls:
-                try:
-                    data = ps_api.get_watchlist(wl).get("values", [])
-                    for s in data:
-                        tsym = s.get("tsym")
-                        token = s.get("token")
-                        if tsym and token:
-                            all_syms.append((tsym, token))
-                except Exception as e:
-                    print(f"⚠️ Could not load watchlist {wl}: {e}")
-        except Exception as e:
-            print(f"⚠️ get_watchlists() failed: {e}")
 
-        token_map = {sym: tkn for sym, tkn in all_syms}
-        print(f"✔ Fallback loaded {len(token_map)} symbols from watchlists")
+    # ---- HARD STOP ----
+    if not token_map:
+        print("❌ No tokens received from backend — cannot continue.")
+        print("👉 Fix: Open Streamlit Tab-3 → load watchlist → backend /init will send tokens_map.")
+        exit(1)
+
+    print(f"✔ Using backend tokens_map: {len(token_map)} symbols")
 
     # Preload TPSeries 60 days into cached_tp
     cached_tp = {}
