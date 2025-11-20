@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # ---- 1) Load session + tokens from backend ----
     print("🔍 Fetching session_info from backend...")
     try:
-        resp = requests.get(f"{BACKEND_URL}/session_info", timeout=5)
+        resp = requests.get(f"{BACKEND_URL}/session_info", timeout=25)
         session_info = resp.json()
     except Exception as e:
         print("❌ Could not load session_info from backend:", e)
