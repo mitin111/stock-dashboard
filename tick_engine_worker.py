@@ -214,30 +214,64 @@ async def ws_loop(ps_api, token_map):
 
 
 if __name__ == "__main__":
-    # credentials same as before
-    creds = {
-        "uid": os.environ.get("UID"),
-        "pwd": os.environ.get("PWD"),
-        "vc": os.environ.get("VC"),
-        "api_key": os.environ.get("API_KEY"),
-        "imei": os.environ.get("IMEI"),
-        "base_url": os.environ.get("BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
-    }
 
-    ps_api = ProStocksAPI(
-        userid=creds["uid"],
-        password_plain=creds["pwd"],
-        vc=creds["vc"],
-        api_key=creds["api_key"],
-        imei=creds["imei"],
-        base_url=creds["base_url"]
-    )
+    # ---- 1) Load session + tokens from backend ----
+    print("🔍 Fetching session_info from backend...")
+    resp = requests.get(f"{BACKEND_URL}/session_info", timeout=5).json()
+    session_token = resp.get("session_token")
+    token_map = resp.get("tokens_map", {})
 
-    if not ps_api.is_logged_in():
-        print("❌ Login failed. Check credentials.")
+    if not session_token or not token_map:
+        print("❌ No session or tokens from backend. Cannot start tick engine.")
         exit(1)
 
-    print("✔ Logged in. Loading TPSeries…")
+    print(f"✔ Session OK, tokens received: {len(token_map)}")
+
+    # ---- 2) Create ps_api without login ----
+    ps_api = ProStocksAPI(
+        userid=os.environ.get("UID"),
+        password_plain="",
+        vc=os.environ.get("VC"),
+        api_key=os.environ.get("API_KEY"),
+        imei=os.environ.get("IMEI"),
+        base_url=os.environ.get("BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
+    )
+
+    # inject backend session
+    ps_api.session_token = session_token
+    ps_api.jKey = session_token
+    ps_api.headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": session_token
+    }
+
+    ps_api.logged_in = True
+    ps_api.is_logged_in = True
+    ps_api.is_session_active = True
+
+    print("✔ Backend session attached. Loading TPSeries…")
+
+    # ---- Continue same (unchanged) ----
+    if not token_map:
+        print("❌ No tokens received from backend — cannot continue.")
+        exit(1)
+
+    print(f"✔ Using backend tokens_map: {len(token_map)} symbols")
+
+    # Preload TPSeries...
+    cached_tp = {}
+    for sym, tkn in token_map.items():
+        try:
+            df = load_backfill(ps_api, "NSE", tkn, "1")
+            cached_tp[sym] = df
+        except Exception as e:
+            print(f"⚠️ Backfill failed for {sym}: {e}")
+            cached_tp[sym] = pd.DataFrame()
+
+    print("✔ TPSeries cached. Starting WS…")
+
+    asyncio.run(ws_loop(ps_api, token_map))
+
 
     # ----------------------------
     # Prefer backend-synced tokens_map (sent via /init)
