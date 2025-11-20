@@ -308,6 +308,16 @@ async def get_tokens():
     global TOKENS_MAP
     return {"tokens_map": TOKENS_MAP}
 
+@app.get("/session_info")
+async def session_info():
+    global ps_api, TOKENS_MAP
+    return {
+        "session_token": getattr(ps_api, "session_token", None),
+        "tokens_map": TOKENS_MAP
+    }
+
+
+
 
 
 
