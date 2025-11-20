@@ -732,7 +732,7 @@ class ProStocksAPI:
             "uid": self.userid,
             "actid": self.userid,
             "susertoken": self.session_token,
-            "source": "API",
+            "source": "WEB",   # ✅ FIXED
         }
         ws.send(json.dumps(login_pkt))
         print("🔑 WS login sent")
@@ -1017,6 +1017,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
