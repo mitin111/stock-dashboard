@@ -117,8 +117,10 @@ async def ws_loop(ps_api, token_map):
 
     global cached_tp
     last_merge = time.time()
-
+    print("🚀 on_tick function registered")
+    
     def on_tick(payload):
+        print("📡 TICK RECEIVED:", payload)
         try:
             if isinstance(payload, str):
                 data = json.loads(payload)
