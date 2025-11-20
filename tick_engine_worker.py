@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+
+    #!/usr/bin/env python3
 """
 LIVE TICK ENGINE
 ----------------
@@ -14,23 +15,14 @@ import asyncio
 import json
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import pytz
-from prostocks_connector import ProStocksAPI
-
 import requests
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
+from prostocks_connector import ProStocksAPI
 
-# fetch tokens_map from backend
-try:
-    resp = requests.get(f"{BACKEND_URL}/tokens", timeout=5)
-    token_map = resp.json().get("tokens_map", {})
-    print(f"✔ Loaded {len(token_map)} tokens from backend")
-except Exception as e:
-    print("❌ Could not load token_map from backend:", e)
-    token_map = {}
+BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
 
 SAVE_PATH = "/tmp/live_candles"
 os.makedirs(SAVE_PATH, exist_ok=True)
@@ -39,14 +31,19 @@ IST = pytz.timezone("Asia/Kolkata")
 
 
 # -----------------------------------------------------------
-# 1) Load full TPSeries 60 days
+# 1) Load full TPSeries 60 days (or as per API)
 # -----------------------------------------------------------
 def load_backfill(ps_api, exch, token, interval="1"):
     df = ps_api.fetch_full_tpseries(exch, token, interval)
     if df is None or isinstance(df, dict) or df.empty:
         return pd.DataFrame()
 
-    df["datetime"] = pd.to_datetime(df["datetime"]).dt.tz_localize(IST)
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    if df["datetime"].dt.tz is None:
+        df["datetime"] = df["datetime"].dt.tz_localize(IST)
+    else:
+        df["datetime"] = df["datetime"].dt.tz_convert(IST)
+
     df = df.sort_values("datetime")
     return df
 
@@ -56,7 +53,8 @@ def load_backfill(ps_api, exch, token, interval="1"):
 # -----------------------------------------------------------
 class CandleBuilder:
     def __init__(self):
-        self.candles = {}  # {symbol: { "open": ..., "high": ..., } }
+        # key = (symbol, minute)
+        self.candles = {}
 
     def update_tick(self, symbol, ltp, volume, ts):
         ts = datetime.fromtimestamp(ts, tz=IST)
@@ -99,31 +97,29 @@ def merge_candles(df_tp, live_candle):
     df = df_tp.copy()
 
     if live_candle:
-        df = df[df["datetime"] < live_candle["datetime"]]  # remove last tpseries candle
+        # last TPSeries candle हटा कर latest live candle जोड़ते हैं
+        df = df[df["datetime"] < live_candle["datetime"]]
         df = pd.concat([df, pd.DataFrame([live_candle])], ignore_index=True)
 
     return df
 
 
-# ---------------------- Paste replacement for ws_loop + __main__ section ----------------------
-
+# -----------------------------------------------------------
+# 4) WebSocket loop – PS API WS + merge + save
+# -----------------------------------------------------------
 async def ws_loop(ps_api, token_map):
     """
     Start the PS API websocket using the PS API's start_ticks helper and
     receive ticks via the ps_api._on_tick callback.
     token_map: { "TSYM-EQ": "21614", ... }
     """
-    # Build tokens in the format expected by ProStocks WS (NSE|token)
     tokens = [f"NSE|{t}" for t in token_map.values()]
 
-    # Ensure cached_tp exists globally
     global cached_tp
     last_merge = time.time()
 
-    # on_tick will be invoked from ps_api's WS thread
     def on_tick(payload):
         try:
-            # payload may already be parsed dict; guard both types
             if isinstance(payload, str):
                 data = json.loads(payload)
             else:
@@ -137,7 +133,6 @@ async def ws_loop(ps_api, token_map):
             if token is None or ltp in (None, "", "NA"):
                 return
 
-            # normalize numeric types
             try:
                 ltp = float(ltp)
             except:
@@ -149,13 +144,12 @@ async def ws_loop(ps_api, token_map):
             try:
                 ts = int(ts)
             except:
-                # sometimes timestamp is in ms string
                 try:
                     ts = int(float(ts) / 1000)
                 except:
                     ts = int(time.time())
 
-            # find tsym from token_map
+            # token → tsym map
             tsym = None
             for s, t in token_map.items():
                 if str(t) == str(token):
@@ -164,16 +158,13 @@ async def ws_loop(ps_api, token_map):
             if tsym is None:
                 return
 
-            # update builder
             candle_builder.update_tick(tsym, ltp, vol, ts)
 
         except Exception as e:
             print("on_tick error:", e)
 
-    # assign the callback into ps_api (consumed by its WS implementation)
     ps_api._on_tick = on_tick
 
-    # start the PS websocket (assumes implementation starts a thread and delivers to _on_tick)
     try:
         ps_api.start_ticks(tokens)
         print(f"✔ Started PS websocket with {len(tokens)} tokens")
@@ -183,10 +174,8 @@ async def ws_loop(ps_api, token_map):
         ps_api.is_ws_connected = False
         return
 
-    # background merge loop — only IO here (non-blocking)
     try:
         while True:
-            # merge + save every 3 seconds
             if time.time() - last_merge > 3:
                 last_merge = time.time()
                 for sym, tkn in token_map.items():
@@ -196,8 +185,13 @@ async def ws_loop(ps_api, token_map):
                     live_c = candle_builder.get_latest(sym)
 
                     try:
-                        df_final = merge_candles(df_tp, live_c) if df_tp is not None else (pd.DataFrame([live_c]) if live_c else pd.DataFrame())
-                        # Save only when not empty
+                        if df_tp is not None:
+                            df_final = merge_candles(df_tp, live_c)
+                        elif live_c:
+                            df_final = pd.DataFrame([live_c])
+                        else:
+                            df_final = pd.DataFrame()
+
                         if not df_final.empty:
                             df_final.to_json(fn, orient="records", date_format="iso")
                     except Exception as e:
@@ -213,28 +207,44 @@ async def ws_loop(ps_api, token_map):
         print("WS loop exiting")
 
 
+# -----------------------------------------------------------
+# 5) ENTRY POINT
+# -----------------------------------------------------------
 if __name__ == "__main__":
 
     # ---- 1) Load session + tokens from backend ----
     print("🔍 Fetching session_info from backend...")
-    session_info = requests.get(f"{BACKEND_URL}/session_info", timeout=5).json()
+    try:
+        resp = requests.get(f"{BACKEND_URL}/session_info", timeout=5)
+        session_info = resp.json()
+    except Exception as e:
+        print("❌ Could not load session_info from backend:", e)
+        exit(1)
 
     session_token = session_info.get("session_token")
     token_map = session_info.get("tokens_map", {})
-    userid = session_info.get("userid")   # ❗ Add this in backend
+    userid = session_info.get("userid")
 
     if not session_token or not token_map or not userid:
         print("❌ No session or tokens or userid from backend — cannot continue.")
+        print("👉 Fix: Tab-3 open karke watchlist load karo, phir Tab-4 se backend /init run karo.")
         exit(1)
 
-    # Create ps_api WITHOUT LOGIN (reuse backend session)
+    print(f"✔ Session OK, userid={userid}, tokens={len(token_map)}")
+
+    # ---- 2) Create ps_api WITHOUT login (reuse backend session) ----
+    base_url = os.environ.get(
+        "BASE_URL",
+        "https://starapi.prostocks.com/NorenWClientTP"
+    )
+
     ps_api = ProStocksAPI(
         userid=userid,
         password_plain="",
         vc=os.environ.get("VC"),
         api_key=os.environ.get("API_KEY"),
         imei=os.environ.get("IMEI"),
-        base_url=os.environ.get("BASE_URL")
+        base_url=base_url
     )
 
     # Inject backend session
@@ -253,7 +263,7 @@ if __name__ == "__main__":
 
     print("✔ Backend session attached. Loading TPSeries…")
 
-    # Preload TPSeries...
+    # ---- 3) Preload TPSeries for all symbols ----
     cached_tp = {}
     for sym, tkn in token_map.items():
         try:
@@ -265,33 +275,6 @@ if __name__ == "__main__":
 
     print("✔ TPSeries cached. Starting WS…")
 
+    # ---- 4) Run WS loop forever ----
     asyncio.run(ws_loop(ps_api, token_map))
 
-
-    # ----------------------------
-    # Prefer backend-synced tokens_map (sent via /init)
-    # Fallback to get_watchlists() only if tokens_map missing
-    # ----------------------------
-
-    # ---- HARD STOP ----
-    if not token_map:
-        print("❌ No tokens received from backend — cannot continue.")
-        print("👉 Fix: Open Streamlit Tab-3 → load watchlist → backend /init will send tokens_map.")
-        exit(1)
-
-    print(f"✔ Using backend tokens_map: {len(token_map)} symbols")
-
-    # Preload TPSeries 60 days into cached_tp
-    cached_tp = {}
-    for sym, tkn in token_map.items():
-        try:
-            df = load_backfill(ps_api, "NSE", tkn, "1")
-            cached_tp[sym] = df
-        except Exception as e:
-            print(f"⚠️ Backfill failed for {sym}: {e}")
-            cached_tp[sym] = pd.DataFrame()
-
-    print("✔ TPSeries cached. Starting WS…")
-
-    # Run the ws_loop forever
-    asyncio.run(ws_loop(ps_api, token_map))
