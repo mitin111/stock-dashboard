@@ -243,7 +243,6 @@ if __name__ == "__main__":
     # Prefer backend-synced tokens_map (sent via /init)
     # Fallback to get_watchlists() only if tokens_map missing
     # ----------------------------
-    token_map = getattr(ps_api, "_tokens", {}) or {}
 
     # ---- HARD STOP ----
     if not token_map:
