@@ -217,46 +217,41 @@ if __name__ == "__main__":
 
     # ---- 1) Load session + tokens from backend ----
     print("🔍 Fetching session_info from backend...")
-    resp = requests.get(f"{BACKEND_URL}/session_info", timeout=5).json()
-    session_token = resp.get("session_token")
-    token_map = resp.get("tokens_map", {})
+    session_info = requests.get(f"{BACKEND_URL}/session_info", timeout=5).json()
 
-    if not session_token or not token_map:
-        print("❌ No session or tokens from backend. Cannot start tick engine.")
+    session_token = session_info.get("session_token")
+    token_map = session_info.get("tokens_map", {})
+    userid = session_info.get("userid")   # ❗ Add this in backend
+
+    if not session_token or not token_map or not userid:
+        print("❌ No session or tokens or userid from backend — cannot continue.")
         exit(1)
 
-    print(f"✔ Session OK, tokens received: {len(token_map)}")
-
-    # ---- 2) Create ps_api without login ----
+    # Create ps_api WITHOUT LOGIN (reuse backend session)
     ps_api = ProStocksAPI(
-        userid=os.environ.get("UID"),
+        userid=userid,
         password_plain="",
         vc=os.environ.get("VC"),
         api_key=os.environ.get("API_KEY"),
         imei=os.environ.get("IMEI"),
-        base_url=os.environ.get("BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
+        base_url=os.environ.get("BASE_URL")
     )
 
-    # inject backend session
+    # Inject backend session
     ps_api.session_token = session_token
     ps_api.jKey = session_token
+    ps_api.uid = userid
+    ps_api.actid = userid
+    ps_api.logged_in = True
+    ps_api.is_logged_in = True
+    ps_api.is_session_active = True
+
     ps_api.headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "Authorization": session_token
     }
 
-    ps_api.logged_in = True
-    ps_api.is_logged_in = True
-    ps_api.is_session_active = True
-
     print("✔ Backend session attached. Loading TPSeries…")
-
-    # ---- Continue same (unchanged) ----
-    if not token_map:
-        print("❌ No tokens received from backend — cannot continue.")
-        exit(1)
-
-    print(f"✔ Using backend tokens_map: {len(token_map)} symbols")
 
     # Preload TPSeries...
     cached_tp = {}
