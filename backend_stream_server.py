@@ -24,6 +24,8 @@ app.add_middleware(
 
 # --- DO NOT LOGIN OR INIT WITHOUT USER SESSION ---
 ps_api = None
+# ---- ADD THIS GLOBAL ----
+TOKENS_MAP = {}
 
 @app.post("/init")
 async def init_api(request: Request):
@@ -73,6 +75,10 @@ async def init_api(request: Request):
     ps_api.trm_settings = body.get("trm_settings", {})
     ps_api._tokens = body.get("tokens_map", {})
 
+    # ---- Store tokens_map globally for tick-engine ----
+    global TOKENS_MAP
+    TOKENS_MAP = body.get("tokens_map", {}) or {}
+    logging.info(f"🟢 tokens_map stored: {len(TOKENS_MAP)} symbols")
     logging.info("🔧 TRM settings loaded → OK")
 
     logging.info("✅ Backend session attached (FULL LOGIN MODE)")
@@ -295,6 +301,14 @@ async def auto_status_api():
     return {
         "status": "running" if auto_trader_running else "stopped"
     }
+
+# ---- TOKEN MAP FETCH FOR TICK ENGINE ----
+@app.get("/tokens")
+async def get_tokens():
+    global TOKENS_MAP
+    return {"tokens_map": TOKENS_MAP}
+
+
 
 
 
