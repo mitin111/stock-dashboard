@@ -313,6 +313,7 @@ async def session_info():
     global ps_api, TOKENS_MAP
     return {
         "session_token": getattr(ps_api, "session_token", None),
+        "userid": getattr(ps_api, "uid", None),     # ← this is REQUIRED
         "tokens_map": TOKENS_MAP
     }
 
