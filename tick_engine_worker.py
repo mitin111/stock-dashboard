@@ -288,5 +288,7 @@ if __name__ == "__main__":
     print("✔ TPSeries cached. Starting WS…")
 
     # ---- 4) Run WS loop forever ----
+    print("✅ ENTERING ws_loop()")
+
     asyncio.run(ws_loop(ps_api, token_map))
 
