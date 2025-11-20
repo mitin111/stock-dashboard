@@ -166,7 +166,7 @@ async def ws_loop(ps_api, token_map):
             print("on_tick error:", e)
 
     ps_api._on_tick = on_tick
-
+    print("🚀 CALLING start_ticks() ...")   # ✅ ADD THIS
     try:
         ps_api.start_ticks(tokens)
         print(f"✔ Started PS websocket with {len(tokens)} tokens")
