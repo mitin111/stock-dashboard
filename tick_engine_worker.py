@@ -113,7 +113,17 @@ async def ws_loop(ps_api, token_map):
     receive ticks via the ps_api._on_tick callback.
     token_map: { "TSYM-EQ": "21614", ... }
     """
-    tokens = [f"NSE|{t}" for t in token_map.values()]
+    tokens = []
+    for t in token_map.values():
+        t = str(t).strip()
+
+        # ✅ already has exchange?
+        if "|" in t:
+            tokens.append(t)
+        else:
+            tokens.append(f"NSE|{t}")
+
+    print("✅ FINAL TOKENS FOR WS:", tokens)
 
     global cached_tp
     last_merge = time.time()
