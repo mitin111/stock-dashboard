@@ -1232,8 +1232,8 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ============================
     # Parallel Batch Processing 🚀
     # ============================
-    MAX_WORKERS = 120  # process 120 stocks at a time
-    BATCH_SIZE = 120
+    MAX_WORKERS = 60  # process 60 stocks at a time
+    BATCH_SIZE = 60
 
     def process_one(sym, ob_list_cache):
         """Wrapper to process and optionally place order"""
@@ -1320,6 +1320,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
