@@ -108,7 +108,8 @@ event_loop = asyncio.get_event_loop()
 
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket):
-
+    
+    logging.info("🚨 /ws/live endpoint HIT")
     global ps_api
     if ps_api is None or ps_api.session_token is None:
         await websocket.accept()
@@ -316,6 +317,7 @@ async def session_info():
         "userid": getattr(ps_api, "uid", None),     # ← this is REQUIRED
         "tokens_map": TOKENS_MAP
     }
+
 
 
 
