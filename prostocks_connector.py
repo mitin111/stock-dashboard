@@ -943,6 +943,8 @@ class ProStocksAPI:
         def run_ws():
             try:
                 ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
+                print("🌐 Trying WS URL:", ws_url)   # ✅ VERY IMPORTANT LINE
+
                 self.ws = websocket.WebSocketApp(
                     ws_url,
                     on_message=self._ws_on_message,
@@ -950,7 +952,9 @@ class ProStocksAPI:
                     on_error=self._ws_on_error,
                     on_close=self._ws_on_close,
                 )
+
                 self.ws.run_forever(ping_interval=20, ping_timeout=10)
+
             except Exception as e:
                 print("❌ start_ticks websocket error:", e)
 
@@ -960,7 +964,6 @@ class ProStocksAPI:
         print(f"🟢 WebSocket starting... will subscribe after login ACK → {self._sub_tokens}")
 
         return True
-
 
   
     # ---------------- Fetch Yesterday's Candles ----------------
@@ -1017,6 +1020,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
