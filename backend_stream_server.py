@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio, json, logging, os
 from prostocks_connector import ProStocksAPI
 
+print("🔥🔥 BACKEND STREAM SERVER LOADED 🔥🔥")
+
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 
@@ -210,13 +212,6 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": str(e)}
 
 
-# ✅ ADD THIS AT THE VERY END OF FILE (LAST LINES)
-if __name__ == "__main__":
-    import time
-    print("✅ Backend Stream Worker Running (no webserver)...")
-    while True:
-        time.sleep(9999)
-
 # =========================================================
 # 🔥 ORDER API (HTML Panel → Backend → batch_screener.py)
 # =========================================================
@@ -339,6 +334,7 @@ async def session_info():
         "userid": getattr(ps_api, "uid", None),     # ← this is REQUIRED
         "tokens_map": TOKENS_MAP
     }
+
 
 
 
