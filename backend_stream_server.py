@@ -121,6 +121,28 @@ async def ws_live(websocket: WebSocket):
     clients.add(websocket)
     logging.info(f"Client connected (total={len(clients)})")
 
+    # ✅ AUTO START PROSTOCKS WS + SUBSCRIBE (ONCE)
+    if not getattr(ps_api, "is_ws_connected", False):
+
+        tokens = []
+
+        for t in TOKENS_MAP.values():
+            t = str(t).strip()
+            if "|" in t:
+                tokens.append(t)
+            else:
+                tokens.append(f"NSE|{t}")
+
+        if tokens:
+            try:
+                ps_api.start_ticks(tokens)
+                ps_api.is_ws_connected = True
+                logging.info(f"✅ Auto-started ProStocks WS for {len(tokens)} tokens")
+            except Exception as e:
+                logging.error(f"❌ Auto-start WS failed: {e}")
+        else:
+            logging.warning("⚠️ No tokens in TOKENS_MAP")
+
     def on_tick(tick):
         try:
             token = tick.get("tk") or tick.get("token")
@@ -317,6 +339,7 @@ async def session_info():
         "userid": getattr(ps_api, "uid", None),     # ← this is REQUIRED
         "tokens_map": TOKENS_MAP
     }
+
 
 
 
