@@ -107,31 +107,25 @@ def merge_candles(df_tp, live_candle):
 # -----------------------------------------------------------
 # 4) WebSocket loop – PS API WS + merge + save
 # -----------------------------------------------------------
+import websockets
+
 async def ws_loop(ps_api, token_map):
     """
-    Start the PS API websocket using the PS API's start_ticks helper and
-    receive ticks via the ps_api._on_tick callback.
-    token_map: { "TSYM-EQ": "21614", ... }
+    ✅ NO ProStocks websocket here
+    ✅ Only connect to backend /ws/live
+    ✅ Receive ticks from backend and process normally
     """
+
     print("✅✅✅ WS_LOOP FUNCTION ENTERED ✅✅✅")
-    tokens = []
-    for t in token_map.values():
-        t = str(t).strip()
-
-        # ✅ already has exchange?
-        if "|" in t:
-            tokens.append(t)
-        else:
-            tokens.append(f"NSE|{t}")
-
-    print("✅ FINAL TOKENS FOR WS:", tokens)
 
     global cached_tp
     last_merge = time.time()
+
     print("🚀 on_tick function registered")
-    
+
     def on_tick(payload):
         print("📡 TICK RECEIVED:", payload)
+
         try:
             if isinstance(payload, str):
                 data = json.loads(payload)
@@ -139,9 +133,9 @@ async def ws_loop(ps_api, token_map):
                 data = payload
 
             token = data.get("tk") or data.get("token")
-            ltp = data.get("lp") or data.get("ltp")
-            vol = data.get("v") or data.get("vol") or 0
-            ts = data.get("ft") or data.get("time") or data.get("timestamp")
+            ltp   = data.get("lp") or data.get("ltp")
+            vol   = data.get("v") or data.get("vol") or 0
+            ts    = data.get("ft") or data.get("time") or data.get("timestamp")
 
             if token is None or ltp in (None, "", "NA"):
                 return
@@ -150,10 +144,12 @@ async def ws_loop(ps_api, token_map):
                 ltp = float(ltp)
             except:
                 return
+
             try:
                 vol = int(vol)
             except:
                 vol = 0
+
             try:
                 ts = int(ts)
             except:
@@ -162,12 +158,13 @@ async def ws_loop(ps_api, token_map):
                 except:
                     ts = int(time.time())
 
-            # token → tsym map
+            # token → symbol
             tsym = None
             for s, t in token_map.items():
                 if str(t) == str(token):
                     tsym = s
                     break
+
             if tsym is None:
                 return
 
@@ -176,49 +173,47 @@ async def ws_loop(ps_api, token_map):
         except Exception as e:
             print("on_tick error:", e)
 
-    ps_api._on_tick = on_tick
-    print("🚀 CALLING start_ticks() ...")   # ✅ ADD THIS
-    try:
-        ps_api.start_ticks(tokens)
-        print("✅ WS START CALLED - waiting for connection + login ACK")
-        print(f"✔ Started PS websocket with {len(tokens)} tokens")
-        ps_api.is_ws_connected = True
-    except Exception as e:
-        print("❌ Failed to start PS websocket:", e)
-        ps_api.is_ws_connected = False
-        return
+
+    # ✅ CONNECT TO BACKEND WS (NOT ProStocks)
+    backend_ws_url = BACKEND_URL.replace("http", "ws") + "/ws/live"
+    print("🌐 Connecting to backend WS:", backend_ws_url)
 
     try:
-        while True:
-            if time.time() - last_merge > 3:
-                last_merge = time.time()
-                for sym, tkn in token_map.items():
-                    fn = os.path.join(SAVE_PATH, f"{sym}.json")
+        async with websockets.connect(backend_ws_url) as ws:
+            print("✅ Connected to backend /ws/live")
 
-                    df_tp = cached_tp.get(sym)
-                    live_c = candle_builder.get_latest(sym)
+            while True:
+                # 1) receive ticks from backend
+                msg = await ws.recv()
+                on_tick(msg)
 
-                    try:
-                        if df_tp is not None:
-                            df_final = merge_candles(df_tp, live_c)
-                        elif live_c:
-                            df_final = pd.DataFrame([live_c])
-                        else:
-                            df_final = pd.DataFrame()
+                # 2) every 3 sec merge + save
+                if time.time() - last_merge > 3:
+                    last_merge = time.time()
 
-                        if not df_final.empty:
-                            df_final.to_json(fn, orient="records", date_format="iso")
-                    except Exception as e:
-                        print(f"⚠️ Error saving {sym}: {e}")
+                    for sym, tkn in token_map.items():
 
-            await asyncio.sleep(1)
+                        fn = os.path.join(SAVE_PATH, f"{sym}.json")
 
-    except asyncio.CancelledError:
-        print("ws_loop cancelled")
+                        df_tp = cached_tp.get(sym)
+                        live_c = candle_builder.get_latest(sym)
+
+                        try:
+                            if df_tp is not None:
+                                df_final = merge_candles(df_tp, live_c)
+                            elif live_c:
+                                df_final = pd.DataFrame([live_c])
+                            else:
+                                df_final = pd.DataFrame()
+
+                            if not df_final.empty:
+                                df_final.to_json(fn, orient="records", date_format="iso")
+
+                        except Exception as e:
+                            print(f"⚠️ Error saving {sym}: {e}")
+
     except Exception as e:
-        print("WS loop error:", e)
-    finally:
-        print("WS loop exiting")
+        print("❌ Backend WS connection error:", e)
 
 
 # -----------------------------------------------------------
