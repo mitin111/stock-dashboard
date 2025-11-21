@@ -768,6 +768,7 @@ class ProStocksAPI:
         try:
             self.ws.send(json.dumps(sub_req))
             print(f"📡 Subscribed: {uniq}")
+            print("✅ SUBSCRIBE COMMAND SENT TO SERVER")  # ← ✅ YAHAN ADD KARO
         except Exception as e:
             print("❌ subscribe_tokens error:", e)
    
@@ -1020,6 +1021,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
