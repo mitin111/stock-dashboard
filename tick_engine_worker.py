@@ -113,6 +113,7 @@ async def ws_loop(ps_api, token_map):
     receive ticks via the ps_api._on_tick callback.
     token_map: { "TSYM-EQ": "21614", ... }
     """
+    print("✅✅✅ WS_LOOP FUNCTION ENTERED ✅✅✅")
     tokens = []
     for t in token_map.values():
         t = str(t).strip()
