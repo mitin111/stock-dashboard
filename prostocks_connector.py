@@ -729,10 +729,10 @@ class ProStocksAPI:
         # Login packet (UID/JKEY dynamically from successful REST login)
         login_pkt = {
             "t": "c",
-            "uid": self.userid,
-            "actid": self.userid,
-            "susertoken": self.session_token,
-            "source": "API",   # ✅ FINAL FIX
+            "uid": str(self.userid).strip(),
+            "actid": str(self.userid).strip(),
+            "susertoken": str(self.session_token).strip(),
+            "source": "API"   # ✅ IMPORTANT
         }
         ws.send(json.dumps(login_pkt))
         print("🔑 WS login sent")
@@ -1021,6 +1021,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
