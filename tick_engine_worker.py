@@ -179,6 +179,7 @@ async def ws_loop(ps_api, token_map):
     print("🚀 CALLING start_ticks() ...")   # ✅ ADD THIS
     try:
         ps_api.start_ticks(tokens)
+        print("✅ WS START CALLED - waiting for connection + login ACK")
         print(f"✔ Started PS websocket with {len(tokens)} tokens")
         ps_api.is_ws_connected = True
     except Exception as e:
