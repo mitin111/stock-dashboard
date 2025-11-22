@@ -135,28 +135,28 @@ def auto_trade_loop(ps_api, settings, symbols):
 #  🔥 ENTRY POINT
 # =====================================================================
 if __name__ == "__main__":
-    # Load credentials from environment variables (Render)
-    creds = {
-        "uid": os.environ.get("UID"),
-        "pwd": os.environ.get("PWD"),
-        "vc": os.environ.get("VC"),
-        "api_key": os.environ.get("API_KEY"),
-        "imei": os.environ.get("IMEI"),
-        "base_url": os.environ.get("BASE_URL")
-    }
+    print("🔍 Fetching session_info from backend...")
+    resp = requests.get("https://backend-stream-nmlf.onrender.com/session_info")
+    session_info = resp.json()
 
     ps_api = ProStocksAPI(
-        userid=creds["uid"],
-        password_plain=creds["pwd"],
-        vc=creds["vc"],
-        api_key=creds["api_key"],
-        imei=creds["imei"],
-        base_url=creds["base_url"]
+        userid=session_info["userid"],
+        password_plain="",
+        vc=os.environ.get("VC"),
+        api_key=os.environ.get("API_KEY"),
+        imei=os.environ.get("IMEI"),
+        base_url=os.environ.get("BASE_URL")
     )
 
-    if not ps_api.is_logged_in():
-        print("❌ Login failed. Check credentials.")
-        exit(1)
+    # Inject same session
+    ps_api.session_token = session_info["session_token"]
+    ps_api.jKey = session_info["session_token"]
+    ps_api.uid = session_info["userid"]
+    ps_api.actid = session_info["userid"]
+    ps_api.logged_in = True
+    ps_api.is_logged_in = True
+
+    print("✅ Using backend cloned session")
 
     print("✔ Logged in. Loading watchlists...")
 
