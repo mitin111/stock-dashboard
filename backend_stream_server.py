@@ -39,6 +39,10 @@ async def init_api(request: Request):
     vc = body.get("vc")
     api_key = body.get("api_key")
     imei = body.get("imei")
+    # 🔥 DEBUG LOGS (important for WS issue)
+    logging.info(f"🔥 DEBUG UID = {userid}")
+    logging.info(f"🔥 DEBUG JKEY len = {len(str(jKey))}")
+    logging.info(f"🔥 DEBUG JKEY first20 = {str(jKey)[:20]}")
 
     if not jKey or not userid:
         return {"stat": "Not_Ok", "emsg": "Missing jKey or userid"}
@@ -334,6 +338,7 @@ async def session_info():
         "userid": getattr(ps_api, "uid", None),     # ← this is REQUIRED
         "tokens_map": TOKENS_MAP
     }
+
 
 
 
