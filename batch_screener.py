@@ -13,6 +13,7 @@ LIVE_PATH = "/tmp/live_candles"
 def load_live_5min(sym):
     fn = f"{LIVE_PATH}/{sym}.json"
     if not os.path.exists(fn):
+        print(f"❌ Tick data missing for {sym}. Run tick_engine_worker.py")
         return pd.DataFrame()
 
     try:
@@ -1294,6 +1295,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
