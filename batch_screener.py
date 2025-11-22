@@ -861,70 +861,44 @@ def monitor_open_positions(ps_api, settings):
 # Per-symbol processing
 # -----------------------
 def process_symbol(ps_api, symbol_obj, interval, settings):
-    exch = symbol_obj.get("exch", "NSE")
-    token = str(symbol_obj.get("token"))
     sym = symbol_obj.get("tsym")
+    exch = symbol_obj.get("exch", "NSE")
 
-    result = {"symbol": sym, "exch": exch, "token": token, "status": "unknown"}
+    result = {"symbol": sym, "exch": exch, "status": "unknown"}
 
-    # --------------------------------------------------------
-    # 01: BACKFILL 3 days
-    # --------------------------------------------------------
-    try:
-        df_hist = ps_api.fetch_full_tpseries(exch, token, interval, max_days=3)
-    except Exception as e:
-        result.update({"status": "error_fetch_tp", "emsg": str(e)})
-        return result
+    # ✅ ONLY use tick_engine data (single source of truth)
+    df = load_live_5min(sym)
 
-    df_hist = pd.DataFrame(df_hist)
-    if df_hist.empty:
-        result.update({"status": "no_history"})
-        return result
-
-    # rename raw cols if needed
-    if "into" in df_hist.columns and "open" not in df_hist.columns:
-        df_hist = df_hist.rename(columns={
-            "into": "open", "inth": "high", "intl": "low",
-            "intc": "close", "intv": "volume"
+    if df is None or df.empty:
+        result.update({
+            "status": "no_live_data",
+            "emsg": "Tick data missing. Run tick_engine_worker.py"
         })
-
-    # numeric cast
-    df_hist[["open","high","low","close","volume"]] = df_hist[
-         ["open","high","low","close","volume"]
-    ].apply(pd.to_numeric, errors="coerce")
-
-    # datetime fix
-    df_hist["datetime"] = pd.to_datetime(df_hist["datetime"], errors="coerce")
-    df_hist["datetime"] = df_hist["datetime"].dt.tz_localize("Asia/Kolkata")
-
-    df_hist.dropna(subset=["datetime","open","high","low","close"], inplace=True)
-
-    # --------------------------------------------------------
-    # 02: LOAD LIVE MERGED 5-MIN CANDLE
-    # --------------------------------------------------------
-    df_live = load_live_5min(sym)     # 🔥 NEW PART
-
-    # --------------------------------------------------------
-    # 03: MERGE BOTH
-    # --------------------------------------------------------
-    df = pd.concat([df_hist, df_live])
-    df = df.drop_duplicates("datetime")
-    df = df.sort_values("datetime").tail(1000).reset_index(drop=True)
-
-    if df.empty or len(df) < 50:
-        result.update({"status":"no_data_after_merge"})
         return result
 
-    # --------------------------------------------------------
-    # 04: INDICATORS + SIGNAL
-    # --------------------------------------------------------
+    if len(df) < 50:
+        result.update({
+            "status": "not_enough_candles",
+            "emsg": f"Only {len(df)} candles found"
+        })
+        return result
+
+    # Normalize time & clean
+    df = tz_normalize_df(df)
+
+    if df.empty:
+        result.update({"status": "invalid_live_data"})
+        return result
+
+    # ✅ Indicators + signal (full strategy)
     sig = generate_signal_for_df(df, settings)
+
     if sig is None:
-        result.update({"status":"no_signal"})
+        result.update({"status": "no_signal"})
         return result
 
     result.update(sig)
-    result.update({"status":"ok"})
+    result.update({"status": "ok"})
     return result
 
 # ============================================================
@@ -1320,6 +1294,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
