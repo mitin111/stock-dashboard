@@ -178,7 +178,7 @@ def start_prostocks_ws(ps_api, token_map):
                 "appkey": ps_api.api_key,
                 "vc": ps_api.vc,
                 "imei": ps_api.imei,
-                "jKey": ps_api.session_token,
+                "jkey": ps_api.session_token
             }
 
             print("LOGIN PAYLOAD BEING SENT:")
@@ -202,7 +202,7 @@ def start_prostocks_ws(ps_api, token_map):
             print(f"📡 Subscribed: {sym} | {tok}")
 
     def on_message(ws, message):
-        print("RAW MESSAGE:", message)
+        print("📩 RAW FROM WS:", message)
         try:
             data = json.loads(message)
 
