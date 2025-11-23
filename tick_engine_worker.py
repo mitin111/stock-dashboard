@@ -159,11 +159,38 @@ def start_prostocks_ws(ps_api, token_map):
 
     WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
 
+    # ==============================
+    #  ✅ BATCH SUBSCRIBE HELPER
+    # ==============================
+    def subscribe_in_batches(ws, batch_size=25, delay=1.0):
+        items = list(token_map.items())
+        print(f"🚀 Batch subscribing {len(items)} symbols...")
+
+        for i in range(0, len(items), batch_size):
+            batch = items[i:i + batch_size]
+
+            for sym, tok in batch:
+                if not tok:
+                    continue
+
+                msg = {
+                    "t": "t",
+                    "k": f"NSE|{tok}"
+                }
+                ws.send(json.dumps(msg))
+                # print(f"📡 Subscribed: {sym} | {tok}")
+
+            print(f"✅ Subscribed batch {i+1} → {i+len(batch)}")
+            time.sleep(delay)
+
+    # ==============================
+    #  ✅ on_open → sirf LOGIN
+    # ==============================
     def on_open(ws):
         print("🔥🔥 on_open ENTERED 🔥🔥")
-
         print("✅ ProStocks WS TCP Connected — sending login...")
-        # ✅✅ YAHI PAR ADD KARO (login ke just pehle)
+
+        # ✅ DEBUG CREDENTIALS
         print("🔍 DEBUG CREDS CHECK")
         print("vc      =", ps_api.vc)
         print("api_key =", ps_api.api_key)
@@ -190,56 +217,40 @@ def start_prostocks_ws(ps_api, token_map):
             print(json.dumps(login_msg, indent=2))
 
             ws.send(json.dumps(login_msg))
-            ws.send(json.dumps({"t": "ping"}))  # keep alive
             print("📨 WS login sent:", login_msg)
+
         except Exception as e:
             print("⚠️ Failed to send WS login:", e)
 
-        
-    # ✅ NEW FUNCTION - Batch subscriber
-    def subscribe_in_batches(ws, batch_size=25, delay=0.5):
-
-        items = list(token_map.items())
-        print(f"🚀 Batch subscribing {len(items)} tokens...")
-
-        for i in range(0, len(items), batch_size):
-            batch = items[i:i + batch_size]
-
-            for sym, tok in batch:
-                if not tok:
-                    continue
-
-                ws.send(json.dumps({
-                    "t": "t",
-                    "k": f"NSE|{tok}"
-                }))
-
-            print(f"✅ Subscribed batch {i} → {i+batch_size}")
-            time.sleep(delay)   # 🔥 MOST IMPORTANT LINE
-
+    # ==============================
+    #  ✅ on_message → ck + ticks
+    # ==============================
     def on_message(ws, message):
         print("📩 RAW FROM WS:", message)
         try:
             data = json.loads(message)
 
-            # 🔎 Login response
+            # 🔎 LOGIN RESPONSE (ck)
             if data.get("t") == "ck":
                 print("🔔 WS ck message:", data)
 
+                # ✅ LOGIN OK → ab batch subscribe
                 if data.get("s") == "OK":
-                    print("✅ LOGIN CONFIRMED — STARTING BATCH SUBSCRIPTION")
+                    print("✅ WS LOGIN OK — starting batch subscribe...")
                     subscribe_in_batches(ws)
-
                 else:
-                    print("❌ WS login NOT_OK — session_token / jKey check karo")
+                    print("❌ WS LOGIN NOT_OK — jKey / creds check karo")
 
                 return
 
-
-            # Ignore non-tick messages
+            # 🔎 Heartbeat / other non-tick messages
             if data.get("t") != "tk":
+                print("ℹ️ Non-tick WS msg:", data)
                 return
 
+            # ==========================
+            #  ✅ TICK PARSE
+            # ==========================
             token = data.get("tk")
             ltp = data.get("fp") or data.get("lp")
             vol = data.get("v") or 0
@@ -279,23 +290,17 @@ def start_prostocks_ws(ps_api, token_map):
         time.sleep(5)
         start_prostocks_ws(ps_api, token_map)
 
-    # ✅ Correct Auth Headers
-    headers = [
-        f"User-Agent: okhttp/4.9.0",
-        f"Authorization: {ps_api.session_token}"
-    ]
-
+    # ✅ WebSocket client
     ws = websocket.WebSocketApp(
         WS_URL,
-        # header=headers,
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
         on_open=on_open,
     )
 
-    ws.run_forever()
-
+    # ✅ Keepalive with ping
+    ws.run_forever(ping_interval=20, ping_timeout=10)
 
 # -----------------------------------------------------------
 # 6) ENTRY POINT
