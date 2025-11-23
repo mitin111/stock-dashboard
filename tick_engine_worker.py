@@ -1,26 +1,29 @@
 
-    #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 LIVE TICK ENGINE
 ----------------
 ✔ Fetch TPSeries (60 days)
-✔ Subscribe WS ticks for all tokens
-✔ Build LIVE candles (1m/3m/5m)
+✔ Subscribe ProStocks WS ticks for all tokens
+✔ Build LIVE candles (1m)
 ✔ Merge TPSeries + live candle
 ✔ Save final dataframe per symbol
 ✔ Accessible to Auto Trader Worker
 """
 
-import asyncio
 import json
 import os
 import time
 from datetime import datetime
+
 import pandas as pd
 import pytz
 import requests
 
 from prostocks_connector import ProStocksAPI
+
+import websocket
+import threading
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
 
@@ -31,7 +34,7 @@ IST = pytz.timezone("Asia/Kolkata")
 
 
 # -----------------------------------------------------------
-# 1) Load full TPSeries 60 days (or as per API)
+# 1) Load full TPSeries (backfill)
 # -----------------------------------------------------------
 def load_backfill(ps_api, exch, token, interval="1"):
     df = ps_api.fetch_full_tpseries(exch, token, interval)
@@ -97,7 +100,7 @@ def merge_candles(df_tp, live_candle):
     df = df_tp.copy()
 
     if live_candle:
-        # last TPSeries candle हटा कर latest live candle जोड़ते हैं
+        # last TPSeries candle हटाकर latest live candle जोड़ते हैं
         df = df[df["datetime"] < live_candle["datetime"]]
         df = pd.concat([df, pd.DataFrame([live_candle])], ignore_index=True)
 
@@ -105,119 +108,135 @@ def merge_candles(df_tp, live_candle):
 
 
 # -----------------------------------------------------------
-# 4) WebSocket loop – PS API WS + merge + save
+# 4) SAVE LOOP – har 3 sec me JSON files update
 # -----------------------------------------------------------
-import websockets
-
-async def ws_loop(ps_api, token_map):
-    """
-    ✅ NO ProStocks websocket here
-    ✅ Only connect to backend /ws/live
-    ✅ Receive ticks from backend and process normally
-    """
-
-    print("✅✅✅ WS_LOOP FUNCTION ENTERED ✅✅✅")
-
+def save_loop(token_map):
+    """Periodically merge TPSeries + LIVE candle and save to /tmp/live_candles"""
     global cached_tp
-    last_merge = time.time()
+    print("🧾 Save loop started (every 3 sec)...")
+    last_merge = 0
 
-    print("🚀 on_tick function registered")
-
-    def on_tick(payload):
-        print("📡 TICK RECEIVED:", payload)
-
+    while True:
         try:
-            if isinstance(payload, str):
-                data = json.loads(payload)
-            else:
-                data = payload
+            if time.time() - last_merge > 3:
+                last_merge = time.time()
 
-            token = data.get("tk") or data.get("token")
-            ltp   = data.get("lp") or data.get("ltp")
-            vol   = data.get("v") or data.get("vol") or 0
-            ts    = data.get("ft") or data.get("time") or data.get("timestamp")
+                for sym, tkn in token_map.items():
+                    fn = os.path.join(SAVE_PATH, f"{sym}.json")
 
-            if token is None or ltp in (None, "", "NA"):
+                    df_tp = cached_tp.get(sym)
+                    live_c = candle_builder.get_latest(sym)
+
+                    try:
+                        if df_tp is not None and not df_tp.empty:
+                            df_final = merge_candles(df_tp, live_c)
+                        elif live_c:
+                            df_final = pd.DataFrame([live_c])
+                        else:
+                            df_final = pd.DataFrame()
+
+                        if not df_final.empty:
+                            df_final.to_json(fn, orient="records", date_format="iso")
+                    except Exception as e:
+                        print(f"⚠️ Error saving {sym}: {e}")
+
+        except Exception as e:
+            print(f"⚠️ save_loop error: {e}")
+
+        time.sleep(1)
+
+
+# -----------------------------------------------------------
+# 5) ProStocks DIRECT WebSocket – ALL symbols
+# -----------------------------------------------------------
+def start_prostocks_ws(ps_api, token_map):
+    """
+    🔥 Direct ProStocks WebSocket for ALL symbols
+    """
+
+    WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
+
+    def on_open(ws):
+        print("✅ ProStocks WebSocket Connected")
+
+        # ✅ SUBSCRIBE ALL TOKENS
+        for sym, tok in token_map.items():
+            if not tok:
+                continue
+            subscribe_msg = json.dumps({
+                "t": "t",
+                "k": f"NSE|{tok}"
+            })
+            ws.send(subscribe_msg)
+            print(f"📡 Subscribed: {sym} | {tok}")
+
+    def on_message(ws, message):
+        try:
+            data = json.loads(message)
+
+            # Ignore non tick messages
+            if data.get("t") != "tk":
+                return
+
+            token = data.get("tk")
+            ltp = data.get("fp") or data.get("lp")
+            vol = data.get("v") or 0
+            ts = data.get("ft") or int(time.time())
+
+            if not token or not ltp:
                 return
 
             try:
                 ltp = float(ltp)
-            except:
-                return
-
-            try:
                 vol = int(vol)
-            except:
-                vol = 0
-
-            try:
                 ts = int(ts)
             except:
-                try:
-                    ts = int(float(ts) / 1000)
-                except:
-                    ts = int(time.time())
-
-            # token → symbol
-            tsym = None
-            for s, t in token_map.items():
-                if str(t) == str(token):
-                    tsym = s
-                    break
-
-            if tsym is None:
                 return
 
-            candle_builder.update_tick(tsym, ltp, vol, ts)
+            # map token -> symbol
+            symbol = None
+            for s, t in token_map.items():
+                if str(t) == str(token):
+                    symbol = s
+                    break
+
+            if not symbol:
+                return
+
+            # ✅ update candle
+            candle_builder.update_tick(symbol, ltp, vol, ts)
 
         except Exception as e:
-            print("on_tick error:", e)
+            print("❌ WS Message Error:", e)
 
+    def on_error(ws, error):
+        print("❌ WebSocket Error:", error)
 
-    # ✅ CONNECT TO BACKEND WS (NOT ProStocks)
-    backend_ws_url = BACKEND_URL.replace("http", "ws") + "/ws/live"
-    print("🌐 Connecting to backend WS:", backend_ws_url)
+    def on_close(ws, close_status_code, close_msg):
+        print("⚠️ ProStocks WS closed… reconnecting in 5s")
+        time.sleep(5)
+        start_prostocks_ws(ps_api, token_map)
 
-    try:
-        async with websockets.connect(backend_ws_url) as ws:
-            print("✅ Connected to backend /ws/live")
+    # ✅ Correct Auth Headers
+    headers = [
+        f"User-Agent: okhttp/4.9.0",
+        f"Authorization: {ps_api.session_token}"
+    ]
 
-            while True:
-                # 1) receive ticks from backend
-                msg = await ws.recv()
-                on_tick(msg)
+    ws = websocket.WebSocketApp(
+        WS_URL,
+        header=headers,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close,
+        on_open=on_open,
+    )
 
-                # 2) every 3 sec merge + save
-                if time.time() - last_merge > 3:
-                    last_merge = time.time()
-
-                    for sym, tkn in token_map.items():
-
-                        fn = os.path.join(SAVE_PATH, f"{sym}.json")
-
-                        df_tp = cached_tp.get(sym)
-                        live_c = candle_builder.get_latest(sym)
-
-                        try:
-                            if df_tp is not None:
-                                df_final = merge_candles(df_tp, live_c)
-                            elif live_c:
-                                df_final = pd.DataFrame([live_c])
-                            else:
-                                df_final = pd.DataFrame()
-
-                            if not df_final.empty:
-                                df_final.to_json(fn, orient="records", date_format="iso")
-
-                        except Exception as e:
-                            print(f"⚠️ Error saving {sym}: {e}")
-
-    except Exception as e:
-        print("❌ Backend WS connection error:", e)
+    ws.run_forever()
 
 
 # -----------------------------------------------------------
-# 5) ENTRY POINT
+# 6) ENTRY POINT
 # -----------------------------------------------------------
 if __name__ == "__main__":
 
@@ -273,19 +292,20 @@ if __name__ == "__main__":
     print("✔ Backend session attached. Loading TPSeries…")
 
     # ---- 3) Preload TPSeries for all symbols ----
+    global cached_tp
     cached_tp = {}
     for sym, tkn in token_map.items():
         try:
             df = load_backfill(ps_api, "NSE", tkn, "1")
             cached_tp[sym] = df
+            print(f"📥 TPSeries loaded for {sym} ({len(df)} rows)")
         except Exception as e:
             print(f"⚠️ Backfill failed for {sym}: {e}")
             cached_tp[sym] = pd.DataFrame()
 
     print("✔ TPSeries cached. Starting WS…")
 
-    # ---- 4) Run WS loop forever ----
-    print("✅ ENTERING ws_loop()")
-
-    asyncio.run(ws_loop(ps_api, token_map))
-
+    # ---- 4) Start save loop in background + WS ----
+    threading.Thread(target=save_loop, args=(token_map,), daemon=True).start()
+    print("🚀 Starting ProStocks WebSocket for ALL symbols")
+    start_prostocks_ws(ps_api, token_map)
