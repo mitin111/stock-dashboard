@@ -163,6 +163,11 @@ def start_prostocks_ws(ps_api, token_map):
         print("🔥🔥 on_open ENTERED 🔥🔥")
 
         print("✅ ProStocks WS TCP Connected — sending login...")
+        # ✅✅ YAHI PAR ADD KARO (login ke just pehle)
+        print("🔍 DEBUG CREDS CHECK")
+        print("vc      =", ps_api.vc)
+        print("api_key =", ps_api.api_key)
+        print("imei    =", ps_api.imei)
 
         # 🔑 WS LOGIN (mandatory for ticks)
         try:
@@ -292,6 +297,11 @@ if __name__ == "__main__":
     token_map = session_info.get("tokens_map", {})
     userid = session_info.get("userid")
 
+    # ✅ ADD THESE 3 LINES
+    vc      = session_info.get("vc") or os.environ.get("VC")
+    api_key = session_info.get("api_key") or os.environ.get("API_KEY")
+    imei    = session_info.get("imei") or os.environ.get("IMEI")
+
     if not session_token or not token_map or not userid:
         print("❌ No session or tokens or userid from backend — cannot continue.")
         print("👉 Fix: Tab-3 open karke watchlist load karo, phir Tab-4 se backend /init run karo.")
@@ -308,9 +318,9 @@ if __name__ == "__main__":
     ps_api = ProStocksAPI(
         userid=userid,
         password_plain="",
-        vc=os.environ.get("VC"),
-        api_key=os.environ.get("API_KEY"),
-        imei=os.environ.get("IMEI"),
+        vc=vc,
+        api_key=api_key,
+        imei=imei,
         base_url=base_url
     )
 
