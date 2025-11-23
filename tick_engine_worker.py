@@ -157,9 +157,30 @@ def start_prostocks_ws(ps_api, token_map):
     WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
 
     def on_open(ws):
-        print("✅ ProStocks WebSocket Connected")
+        print("✅ ProStocks WS TCP Connected — sending login...")
 
-        # ✅ SUBSCRIBE ALL TOKENS
+        # 🔑 WS LOGIN (mandatory for ticks)
+        try:
+            uid = getattr(ps_api, "uid", None) or getattr(ps_api, "userid", None)
+            actid = getattr(ps_api, "actid", None) or uid
+
+            login_msg = {
+                "t": "c",              # connect
+                "uid": uid,
+                "actid": actid,
+                "source": "API",
+                "apkversion": "1.0.0",
+                "appkey": ps_api.api_key,
+                "vc": ps_api.vc,
+                "imei": ps_api.imei,
+                "jKey": ps_api.session_token,
+            }
+            ws.send(json.dumps(login_msg))
+            print("📨 WS login sent:", login_msg)
+        except Exception as e:
+            print("⚠️ Failed to send WS login:", e)
+
+        # ✅ SUBSCRIBE ALL TOKENS (after login msg)
         for sym, tok in token_map.items():
             if not tok:
                 continue
@@ -174,7 +195,14 @@ def start_prostocks_ws(ps_api, token_map):
         try:
             data = json.loads(message)
 
-            # Ignore non tick messages
+            # 🔎 Login response
+            if data.get("t") == "ck":
+                print("🔔 WS ck message:", data)
+                if data.get("s") != "OK":
+                    print("❌ WS login NOT_OK — session_token / jKey check karo")
+                return
+
+            # Ignore non-tick messages
             if data.get("t") != "tk":
                 return
 
