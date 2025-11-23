@@ -150,6 +150,9 @@ def save_loop(token_map):
 # 5) ProStocks DIRECT WebSocket – ALL symbols
 # -----------------------------------------------------------
 def start_prostocks_ws(ps_api, token_map):
+    print("🔥🔥 ENTERED start_prostocks_ws() 🔥🔥")
+    print("DEBUG: Token map size =", len(token_map))
+
     """
     🔥 Direct ProStocks WebSocket for ALL symbols
     """
@@ -157,6 +160,8 @@ def start_prostocks_ws(ps_api, token_map):
     WS_URL = "wss://starapi.prostocks.com/NorenWSTP/"
 
     def on_open(ws):
+        print("🔥🔥 on_open ENTERED 🔥🔥")
+
         print("✅ ProStocks WS TCP Connected — sending login...")
 
         # 🔑 WS LOGIN (mandatory for ticks)
@@ -192,6 +197,7 @@ def start_prostocks_ws(ps_api, token_map):
             print(f"📡 Subscribed: {sym} | {tok}")
 
     def on_message(ws, message):
+        print("RAW MESSAGE:", message)
         try:
             data = json.loads(message)
 
@@ -253,14 +259,14 @@ def start_prostocks_ws(ps_api, token_map):
 
     ws = websocket.WebSocketApp(
         WS_URL,
-        header=headers,
+        # header=headers,
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
         on_open=on_open,
     )
 
-    ws.run_forever()
+    ws.run_forever(sslopt={"cert_reqs": None})
 
 
 # -----------------------------------------------------------
