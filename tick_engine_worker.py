@@ -350,7 +350,7 @@ if __name__ == "__main__":
     print("token_map sample:", list(token_map.items())[:3])
     print("session_token:", ps_api.session_token[:20])
 
-start_prostocks_ws(ps_api, token_map)
+    start_prostocks_ws(ps_api, token_map)
 
     print("❌ THIS LINE SHOULD NEVER PRINT (ws.run_forever blocks)")
 
