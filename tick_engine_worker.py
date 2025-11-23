@@ -342,15 +342,27 @@ if __name__ == "__main__":
             print(f"⚠️ Backfill failed for {sym}: {e}")
             cached_tp[sym] = pd.DataFrame()
 
-    print("✔ TPSeries cached. Starting WS…")
-
-    # ---- 4) Start save loop in background + WS ----
+    
+    print("✔ TPSeries cached")
+    print("🔥 STARTING SAVE LOOP")
     threading.Thread(target=save_loop, args=(token_map,), daemon=True).start()
-    print("🔥🔥 ENTERED start_prostocks_ws() 🔥🔥")
-    print("token_map sample:", list(token_map.items())[:3])
-    print("session_token:", ps_api.session_token[:20])
 
-    start_prostocks_ws(ps_api, token_map)
+    print("🔥 STARTING PROSTOCKS WS THREAD")
+
+    ws_thread = threading.Thread(
+        target=start_prostocks_ws,
+        args=(ps_api, token_map),
+        daemon=False
+    )
+
+    ws_thread.start()
+
+    print("✅ WS THREAD STARTED SUCCESSFULLY")
+
+    # keep main thread alive
+    while True:
+        time.sleep(1)
+
 
     print("❌ THIS LINE SHOULD NEVER PRINT (ws.run_forever blocks)")
 
