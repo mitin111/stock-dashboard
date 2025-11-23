@@ -331,28 +331,19 @@ if __name__ == "__main__":
     print("✔ Backend session attached. Loading TPSeries…")
 
     # ---- 3) Preload TPSeries for all symbols ----
-    # ---- 3) Preload TPSeries for LIMITED symbols (debug) ----
+    # ---- 3) SKIP TPSeries (FAST LIVE MODE) ----
     global cached_tp
-    cached_tp = {}
+    print("🚫 Skipping TPSeries for now (FAST LIVE MODE)")
+    cached_tp = {}     # blank historical data
 
-    # sirf 5 symbols ke liye backfill (fast debug)
-    limited_items = list(token_map.items())[:5]
-    print("🧪 DEBUG: Limiting TPSeries backfill to", len(limited_items), "symbols")
 
-    for sym, tkn in limited_items:
-
-        try:
-            df = load_backfill(ps_api, "NSE", tkn, "1")
-            cached_tp[sym] = df
-            print(f"📥 TPSeries loaded for {sym} ({len(df)} rows)")
-        except Exception as e:
-            print(f"⚠️ Backfill failed for {sym}: {e}")
-            cached_tp[sym] = pd.DataFrame()
-
-    
-    print("✔ TPSeries cached")
     print("🔥 STARTING SAVE LOOP")
-    threading.Thread(target=save_loop, args=(token_map,), daemon=True).start()
+    threading.Thread(
+        target=save_loop,
+        args=(token_map,),
+        daemon=True
+    ).start()
+
 
     print("🔥 STARTING PROSTOCKS WS THREAD")
 
