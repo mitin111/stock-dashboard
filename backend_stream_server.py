@@ -335,9 +335,16 @@ async def session_info():
     global ps_api, TOKENS_MAP
     return {
         "session_token": getattr(ps_api, "session_token", None),
-        "userid": getattr(ps_api, "uid", None),     # ← this is REQUIRED
-        "tokens_map": TOKENS_MAP
+        "userid": getattr(ps_api, "uid", None),
+        "tokens_map": TOKENS_MAP,
+
+        # ✅ ADD THESE 3 LINES
+        "vc": getattr(ps_api, "vc", None),
+        "api_key": getattr(ps_api, "api_key", None),
+        "imei": getattr(ps_api, "imei", None),
     }
+
+
 
 
 
