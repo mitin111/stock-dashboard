@@ -181,6 +181,7 @@ def start_prostocks_ws(ps_api, token_map):
                 "jKey": ps_api.session_token,
             }
             ws.send(json.dumps(login_msg))
+            ws.send(json.dumps({"t": "ping"}))  # keep alive
             print("📨 WS login sent:", login_msg)
         except Exception as e:
             print("⚠️ Failed to send WS login:", e)
