@@ -331,9 +331,16 @@ if __name__ == "__main__":
     print("✔ Backend session attached. Loading TPSeries…")
 
     # ---- 3) Preload TPSeries for all symbols ----
+    # ---- 3) Preload TPSeries for LIMITED symbols (debug) ----
     global cached_tp
     cached_tp = {}
-    for sym, tkn in token_map.items():
+
+    # sirf 5 symbols ke liye backfill (fast debug)
+    limited_items = list(token_map.items())[:5]
+    print("🧪 DEBUG: Limiting TPSeries backfill to", len(limited_items), "symbols")
+
+    for sym, tkn in limited_items:
+
         try:
             df = load_backfill(ps_api, "NSE", tkn, "1")
             cached_tp[sym] = df
