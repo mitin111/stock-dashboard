@@ -346,8 +346,11 @@ if __name__ == "__main__":
 
     # ---- 4) Start save loop in background + WS ----
     threading.Thread(target=save_loop, args=(token_map,), daemon=True).start()
-    print("🚀 Starting ProStocks WebSocket for ALL symbols")
-    print("✅ CALLING start_prostocks_ws() NOW...")
-    start_prostocks_ws(ps_api, token_map)
+    print("🔥🔥 ENTERED start_prostocks_ws() 🔥🔥")
+    print("token_map sample:", list(token_map.items())[:3])
+    print("session_token:", ps_api.session_token[:20])
+
+start_prostocks_ws(ps_api, token_map)
+
     print("❌ THIS LINE SHOULD NEVER PRINT (ws.run_forever blocks)")
 
