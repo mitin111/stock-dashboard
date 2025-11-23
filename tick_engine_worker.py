@@ -271,7 +271,7 @@ def start_prostocks_ws(ps_api, token_map):
         on_open=on_open,
     )
 
-    ws.run_forever(sslopt={"cert_reqs": None})
+    ws.run_forever()
 
 
 # -----------------------------------------------------------
