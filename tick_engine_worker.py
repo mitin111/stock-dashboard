@@ -180,6 +180,10 @@ def start_prostocks_ws(ps_api, token_map):
                 "imei": ps_api.imei,
                 "jKey": ps_api.session_token,
             }
+
+            print("LOGIN PAYLOAD BEING SENT:")
+            print(json.dumps(login_msg, indent=2))
+
             ws.send(json.dumps(login_msg))
             ws.send(json.dumps({"t": "ping"}))  # keep alive
             print("📨 WS login sent:", login_msg)
