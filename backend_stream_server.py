@@ -60,6 +60,11 @@ async def init_api(request: Request):
     # Inject session token
     ps_api.jKey = jKey
     ps_api.session_token = jKey
+    
+    # ✅✅ ADD THIS
+    ps_api.vc = vc
+    ps_api.api_key = api_key
+    ps_api.imei = imei
 
     # ---- REQUIRED FLAGS ----
     ps_api.logged_in = True
@@ -343,6 +348,7 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
 
 
