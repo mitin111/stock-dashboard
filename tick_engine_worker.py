@@ -195,16 +195,27 @@ def start_prostocks_ws(ps_api, token_map):
         except Exception as e:
             print("⚠️ Failed to send WS login:", e)
 
-        # ✅ SUBSCRIBE ALL TOKENS (after login msg)
-        for sym, tok in token_map.items():
-            if not tok:
-                continue
-            subscribe_msg = json.dumps({
-                "t": "t",
-                "k": f"NSE|{tok}"
-            })
-            ws.send(subscribe_msg)
-            print(f"📡 Subscribed: {sym} | {tok}")
+        
+    # ✅ NEW FUNCTION - Batch subscriber
+    def subscribe_in_batches(ws, batch_size=25, delay=0.5):
+
+        items = list(token_map.items())
+        print(f"🚀 Batch subscribing {len(items)} tokens...")
+
+        for i in range(0, len(items), batch_size):
+            batch = items[i:i + batch_size]
+
+            for sym, tok in batch:
+                if not tok:
+                    continue
+
+                ws.send(json.dumps({
+                    "t": "t",
+                    "k": f"NSE|{tok}"
+                }))
+
+            print(f"✅ Subscribed batch {i} → {i+batch_size}")
+            time.sleep(delay)   # 🔥 MOST IMPORTANT LINE
 
     def on_message(ws, message):
         print("📩 RAW FROM WS:", message)
@@ -214,9 +225,16 @@ def start_prostocks_ws(ps_api, token_map):
             # 🔎 Login response
             if data.get("t") == "ck":
                 print("🔔 WS ck message:", data)
-                if data.get("s") != "OK":
+
+                if data.get("s") == "OK":
+                    print("✅ LOGIN CONFIRMED — STARTING BATCH SUBSCRIPTION")
+                    subscribe_in_batches(ws)
+
+                else:
                     print("❌ WS login NOT_OK — session_token / jKey check karo")
+
                 return
+
 
             # Ignore non-tick messages
             if data.get("t") != "tk":
