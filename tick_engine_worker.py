@@ -361,7 +361,7 @@ if __name__ == "__main__":
     print("✔ Backend session attached. Loading TPSeries…")
 
     # ---- 3) Preload TPSeries for all symbols ----
-    # ---- 3) LOAD TPSeries + MERGE MODE ----
+    # ---- 3) Preload TPSeries for all symbols ----
     global cached_tp
     cached_tp = {}
 
@@ -381,9 +381,9 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Error loading TPSeries for {sym}: {e}")
 
-    # ---- 4) Start SAVE LOOP immediately (no wait) ----
-    print("✅✅ TPSeries LOOP FINISHED - SHOULD START WS NOW ✅✅")
+    print("✅✅ TPSeries LOOP FINISHED - STARTING WS + SAVE LOOP ✅✅")
 
+    # ---- 4) Start SAVE LOOP immediately ----
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
         target=save_loop,
@@ -392,7 +392,7 @@ if __name__ == "__main__":
     ).start()
     print("✅ SAVE LOOP STARTED")
 
-    # ---- 5) Start ProStocks WS (ticks) ----
+    # ---- 5) Start ProStocks WS for live ticks ----
     print("🔥 STARTING PROSTOCKS WS THREAD")
     threading.Thread(
         target=start_prostocks_ws,
