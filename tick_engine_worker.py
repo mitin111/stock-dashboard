@@ -198,12 +198,8 @@ def start_prostocks_ws(ps_api, token_map):
                 "t": "c",
                 "uid": uid,
                 "actid": actid,
-                "source": "API",
-                "apkversion": "1.0.0",
-                "appkey": ps_api.api_key,
-                "vc": ps_api.vc,
-                "imei": ps_api.imei,
-                "jkey": ps_api.session_token
+                "susertoken": ps_api.session_token,   # ✅ THIS IS THE FIX
+                "source": "API"
             }
 
             print("LOGIN PAYLOAD =")
@@ -304,7 +300,7 @@ def start_prostocks_ws(ps_api, token_map):
     )
 
     # ✅ Keepalive with ping
-    ws.run_forever(ping_interval=20, ping_timeout=10)
+    ws.run_forever(ping_interval=10, ping_timeout=5)
 
 # -----------------------------------------------------------
 # 6) ENTRY POINT
