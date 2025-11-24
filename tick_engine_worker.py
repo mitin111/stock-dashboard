@@ -380,29 +380,25 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Error loading TPSeries for {sym}: {e}")
 
-    # ✅ WAIT until at least 1 live tick comes
-    print("⏳ Waiting for first live ticks before save loop...")
-    while not candle_builder.candles:
-        time.sleep(2)
-
+    # ---- 4) Start SAVE LOOP immediately (no wait) ----
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
         target=save_loop,
         args=(token_map,),
         daemon=True
     ).start()
+    print("✅ SAVE LOOP STARTED")
 
-
+    # ---- 5) Start ProStocks WS (ticks) ----
     print("🔥 STARTING PROSTOCKS WS THREAD")
-    ws_thread = threading.Thread(
+    threading.Thread(
         target=start_prostocks_ws,
         args=(ps_api, token_map),
-        daemon=False
-    )
-    ws_thread.start()
+        daemon=True
+    ).start()
+    print("✅ WS THREAD STARTED (daemon)")
 
-    print("✅ WS THREAD STARTED SUCCESSFULLY")
-
-    # keep main thread alive
+    # ---- 6) Keep main process alive ----
+    print("🔁 Tick engine running (TPSeries + Live WS + Save Loop)...")
     while True:
-        time.sleep(1)
+        time.sleep(5)
