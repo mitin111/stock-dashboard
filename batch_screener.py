@@ -883,7 +883,7 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         })
         return result
 
-    if len(df) < 50:
+    if len(df) < 10:
         result.update({
             "status": "not_enough_candles",
             "emsg": f"Only {len(df)} candles found"
@@ -1301,6 +1301,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
