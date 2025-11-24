@@ -190,12 +190,6 @@ def start_prostocks_ws(ps_api, token_map):
         print("🔥🔥 on_open ENTERED 🔥🔥")
         print("✅ ProStocks WS TCP Connected — sending login...")
 
-        # ✅ DEBUG CREDENTIALS
-        print("🔍 DEBUG CREDS CHECK")
-        print("vc      =", ps_api.vc)
-        print("api_key =", ps_api.api_key)
-        print("imei    =", ps_api.imei)
-
         # 🔑 WS LOGIN (mandatory for ticks)
         try:
             uid = getattr(ps_api, "uid", None) or getattr(ps_api, "userid", None)
@@ -214,6 +208,14 @@ def start_prostocks_ws(ps_api, token_map):
 
             ws.send(json.dumps(login_msg))
             print("📨 WS login sent:", login_msg)
+
+            print("⚡ TEST SUBSCRIBE SBIN (NSE|3045)")
+            ws.send(json.dumps({
+                "t": "t",
+                "k": "NSE|3045"
+            }))
+            print("✅ SBIN subscribe sent")
+
 
         except Exception as e:
             print("⚠️ Failed to send WS login:", e)
