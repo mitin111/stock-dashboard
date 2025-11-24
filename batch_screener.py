@@ -1116,8 +1116,10 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     if not settings:
         raise ValueError("❌ TRM settings missing in ps_api (backend not initialized or Tab-4 not synced)")
 
+    # ✅ Match TRM UI / tkp_trm_chart.py
     required_keys = [
-        "long", "short", "signal_length",
+        "long", "short", "signal",          # TSI
+        "len_rsi", "rsiBuyLevel", "rsiSellLevel",
         "macd_fast", "macd_slow", "macd_signal"
     ]
 
@@ -1309,6 +1311,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
