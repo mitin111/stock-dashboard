@@ -21,7 +21,14 @@ def load_live_5min(sym):
         if df.empty:
             return df
 
-        df["datetime"] = pd.to_datetime(df["datetime"])
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+
+        # ✅ Safe timezone handling (no more crash)
+        if df["datetime"].dt.tz is None:
+            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
+        else:
+            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+
         df["bucket"] = df["datetime"].dt.floor("5min")
 
         df = df.groupby("bucket").agg(
@@ -32,7 +39,6 @@ def load_live_5min(sym):
             volume=("volume", "sum")
         ).reset_index().rename(columns={"bucket": "datetime"})
 
-        df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
         return df.tail(200)
 
     except Exception as e:
@@ -1295,6 +1301,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
