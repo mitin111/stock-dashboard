@@ -363,9 +363,14 @@ if __name__ == "__main__":
     # ---- 3) Preload TPSeries for all symbols ----
     # ---- 3) SKIP TPSeries (FAST LIVE MODE) ----
     global cached_tp
-    print("🚫 Skipping TPSeries for now (FAST LIVE MODE)")
-    cached_tp = {}     # blank historical data
+    cached_tp = {}
 
+    print("📥 Loading TPSeries for all symbols...")
+    for sym, token in token_map.items():
+        df_tp = load_backfill(ps_api, "NSE", token, interval="5")
+        if not df_tp.empty:
+            cached_tp[sym] = df_tp
+            print(f"✅ {sym} backfill loaded: {len(df_tp)} candles")
 
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
