@@ -361,16 +361,29 @@ if __name__ == "__main__":
     print("✔ Backend session attached. Loading TPSeries…")
 
     # ---- 3) Preload TPSeries for all symbols ----
-    # ---- 3) SKIP TPSeries (FAST LIVE MODE) ----
+    # ---- 3) LOAD TPSeries + MERGE MODE ----
     global cached_tp
     cached_tp = {}
 
     print("📥 Loading TPSeries for all symbols...")
+
     for sym, token in token_map.items():
-        df_tp = load_backfill(ps_api, "NSE", token, interval="5")
-        if not df_tp.empty:
-            cached_tp[sym] = df_tp
-            print(f"✅ {sym} backfill loaded: {len(df_tp)} candles")
+        try:
+            df_tp = load_backfill(ps_api, "NSE", token, interval="5")
+
+            if df_tp is None or df_tp.empty:
+                print(f"⚠️ {sym} backfill empty")
+            else:
+                cached_tp[sym] = df_tp
+                print(f"✅ {sym} backfill loaded: {len(df_tp)} candles")
+
+        except Exception as e:
+            print(f"❌ Error loading TPSeries for {sym}: {e}")
+
+    # ✅ WAIT until at least 1 live tick comes
+    print("⏳ Waiting for first live ticks before save loop...")
+    while not candle_builder.candles:
+        time.sleep(2)
 
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
@@ -381,13 +394,11 @@ if __name__ == "__main__":
 
 
     print("🔥 STARTING PROSTOCKS WS THREAD")
-
     ws_thread = threading.Thread(
         target=start_prostocks_ws,
         args=(ps_api, token_map),
         daemon=False
     )
-
     ws_thread.start()
 
     print("✅ WS THREAD STARTED SUCCESSFULLY")
@@ -395,7 +406,3 @@ if __name__ == "__main__":
     # keep main thread alive
     while True:
         time.sleep(1)
-
-
-    print("❌ THIS LINE SHOULD NEVER PRINT (ws.run_forever blocks)")
-
