@@ -366,6 +366,7 @@ if __name__ == "__main__":
     cached_tp = {}
 
     print("📥 Loading TPSeries for all symbols...")
+    print("🚀 ENTERED TPSeries LOOP, token count =", len(token_map))
 
     for sym, token in token_map.items():
         try:
@@ -381,6 +382,8 @@ if __name__ == "__main__":
             print(f"❌ Error loading TPSeries for {sym}: {e}")
 
     # ---- 4) Start SAVE LOOP immediately (no wait) ----
+    print("✅✅ TPSeries LOOP FINISHED - SHOULD START WS NOW ✅✅")
+
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
         target=save_loop,
