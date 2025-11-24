@@ -361,27 +361,37 @@ if __name__ == "__main__":
     print("✔ Backend session attached. Loading TPSeries…")
 
     # ---- 3) Preload TPSeries for all symbols ----
-    # ---- 3) Preload TPSeries for all symbols ----
+    # ---- 3) Preload TPSeries for all symbols (BACKGROUND THREAD) ----
     global cached_tp
     cached_tp = {}
 
-    print("📥 Loading TPSeries for all symbols...")
-    print("🚀 ENTERED TPSeries LOOP, token count =", len(token_map))
+    def preload_all_tpseries():
+        global cached_tp
+        print("📥 Background TPSeries loading started...")
+        print("🚀 Token count =", len(token_map))
 
-    for sym, token in token_map.items():
-        try:
-            df_tp = load_backfill(ps_api, "NSE", token, interval="5")
+        for sym, token in token_map.items():
+            try:
+                df_tp = load_backfill(ps_api, "NSE", token, interval="5")
 
-            if df_tp is None or df_tp.empty:
-                print(f"⚠️ {sym} backfill empty")
-            else:
-                cached_tp[sym] = df_tp
-                print(f"✅ {sym} backfill loaded: {len(df_tp)} candles")
+                if df_tp is None or df_tp.empty:
+                    print(f"⚠️ {sym} backfill empty")
+                else:
+                    cached_tp[sym] = df_tp
+                    print(f"✅ {sym} backfill loaded: {len(df_tp)} candles")
 
-        except Exception as e:
-            print(f"❌ Error loading TPSeries for {sym}: {e}")
+            except Exception as e:
+                print(f"❌ Error loading TPSeries for {sym}: {e}")
 
-    print("✅✅ TPSeries LOOP FINISHED - STARTING WS + SAVE LOOP ✅✅")
+        print("✅✅ TPSeries preload FINISHED ✅✅")
+
+
+    print("🔥 STARTING TPSeries preload thread")
+    threading.Thread(
+        target=preload_all_tpseries,
+        daemon=True
+    ).start()
+
 
     # ---- 4) Start SAVE LOOP immediately ----
     print("🔥 STARTING SAVE LOOP")
@@ -392,6 +402,7 @@ if __name__ == "__main__":
     ).start()
     print("✅ SAVE LOOP STARTED")
 
+
     # ---- 5) Start ProStocks WS for live ticks ----
     print("🔥 STARTING PROSTOCKS WS THREAD")
     threading.Thread(
@@ -400,6 +411,7 @@ if __name__ == "__main__":
         daemon=True
     ).start()
     print("✅ WS THREAD STARTED (daemon)")
+
 
     # ---- 6) Keep main process alive ----
     print("🔁 Tick engine running (TPSeries + Live WS + Save Loop)...")
