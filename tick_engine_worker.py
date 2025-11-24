@@ -224,7 +224,7 @@ def start_prostocks_ws(ps_api, token_map):
     #  ✅ on_message → ck + ticks
     # ==============================
     def on_message(ws, message):
-        print("📩 RAW FROM WS:", message)
+        print("📩 FROM WS >>>", repr(message))
         try:
             data = json.loads(message)
 
