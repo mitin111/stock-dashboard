@@ -202,16 +202,12 @@ def start_prostocks_ws(ps_api, token_map):
             actid = getattr(ps_api, "actid", None) or uid
 
             login_msg = {
-                "t": "c",              # connect
+                "t": "c",
                 "uid": uid,
                 "actid": actid,
-                "source": "API",
-                "apkversion": "1.0.0",
-                "appkey": ps_api.api_key,
-                "vc": ps_api.vc,
-                "imei": ps_api.imei,
                 "jkey": ps_api.session_token
             }
+
 
             print("LOGIN PAYLOAD BEING SENT:")
             print(json.dumps(login_msg, indent=2))
