@@ -190,7 +190,6 @@ def start_prostocks_ws(ps_api, token_map):
         print("🔥🔥 on_open ENTERED 🔥🔥")
         print("✅ ProStocks WS TCP Connected — sending login...")
 
-        # 🔑 WS LOGIN (mandatory for ticks)
         try:
             uid = getattr(ps_api, "uid", None) or getattr(ps_api, "userid", None)
             actid = getattr(ps_api, "actid", None) or uid
@@ -199,23 +198,30 @@ def start_prostocks_ws(ps_api, token_map):
                 "t": "c",
                 "uid": uid,
                 "actid": actid,
+                "source": "API",
+                "apkversion": "1.0.0",
+                "appkey": ps_api.api_key,
+                "vc": ps_api.vc,
+                "imei": ps_api.imei,
                 "jkey": ps_api.session_token
             }
 
-
-            print("LOGIN PAYLOAD BEING SENT:")
+            print("LOGIN PAYLOAD =")
             print(json.dumps(login_msg, indent=2))
 
             ws.send(json.dumps(login_msg))
-            print("📨 WS login sent:", login_msg)
+            print("📨 WS login sent")
 
-            print("⚡ TEST SUBSCRIBE SBIN (NSE|3045)")
+            # ✅ wait for login handshake
+            time.sleep(1)
+
+            print("⚡ TEST SUBSCRIBE : NSE|3045 (SBIN)")
             ws.send(json.dumps({
                 "t": "t",
                 "k": "NSE|3045"
             }))
-            print("✅ SBIN subscribe sent")
 
+            print("✅ SBIN subscribe sent")
 
         except Exception as e:
             print("⚠️ Failed to send WS login:", e)
@@ -224,7 +230,7 @@ def start_prostocks_ws(ps_api, token_map):
     #  ✅ on_message → ck + ticks
     # ==============================
     def on_message(ws, message):
-        print("📩 FROM WS >>>", repr(message))
+        print("\n📩 FROM WS >>>", message, "\n")
         try:
             data = json.loads(message)
 
