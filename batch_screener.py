@@ -1107,38 +1107,46 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ================================================================
     # ✅ Start Hammer Reversal Monitor Thread
     # ================================================================
+    # ================================================================
+    # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
+    # ================================================================
+
+    settings = getattr(ps_api, "trm_settings", None)
+
+    if not settings:
+        raise ValueError("❌ TRM settings missing in ps_api (backend not initialized or Tab-4 not synced)")
+
+    required_keys = [
+        "long", "short", "signal_length",
+        "macd_fast", "macd_slow", "macd_signal"
+    ]
+
+    missing = [k for k in required_keys if k not in settings]
+    if missing:
+        raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
+
+    print("✅ ACTIVE TRM SETTINGS (from Dashboard → Backend):", settings)
+
+
+    # ================================================================
+    # ✅ Hammer Monitor Thread (ONLY if Streamlit is available)
+    # ================================================================
     try:
         import threading
         import streamlit as st
 
-        if "hammer_thread_started" not in st.session_state:
-            threading.Thread(
-                target=monitor_open_positions,
-                args=(ps_api, settings),
-                daemon=True
-            ).start()
-            st.session_state["hammer_thread_started"] = True
-            print("🧠 Hammer Reversal Monitor Thread started ✅")
+        if hasattr(st, "session_state"):
+            if "hammer_thread_started" not in st.session_state:
+                threading.Thread(
+                    target=monitor_open_positions,
+                    args=(ps_api, settings),
+                    daemon=True
+                ).start()
+                st.session_state["hammer_thread_started"] = True
+                print("🧠 Hammer Reversal Monitor Thread started ✅")
+
     except Exception as e:
-        print(f"⚠️ Failed to start hammer monitor thread: {e}")
-
-    # Load strategy settings
-    if settings is None:
-        try:
-            import streamlit as st
-            settings = st.session_state.get("strategy_settings")
-        except Exception:
-            settings = None
-
-        if not settings:
-            raise ValueError("❌ TRM settings missing in session_state! Cannot proceed without explicit settings.")
-
-        required_keys = ["long", "short", "signal_length", "macd_fast", "macd_slow", "macd_signal"]
-        missing = [k for k in required_keys if k not in settings]
-        if missing:
-            raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
-
-        print("🔹 Loaded TRM settings for Auto Trader:", settings)
+        print("⚠️ Hammer monitor skipped (CLI mode):", e)
 
     # Build symbol list
     # ============================================================
@@ -1301,6 +1309,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
