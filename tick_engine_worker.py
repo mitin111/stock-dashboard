@@ -41,15 +41,12 @@ def load_backfill(ps_api, exch, token, interval="1"):
     if df is None or isinstance(df, dict) or df.empty:
         return pd.DataFrame()
 
-    df["datetime"] = pd.to_datetime(df["datetime"])
-    if df["datetime"].dt.tz is None:
-        df["datetime"] = df["datetime"].dt.tz_localize(IST)
-    else:
-        df["datetime"] = df["datetime"].dt.tz_convert(IST)
+    # ✅ Always parse as UTC, then convert to IST
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
+    df["datetime"] = df["datetime"].dt.tz_convert(IST)
 
     df = df.sort_values("datetime")
     return df
-
 
 # -----------------------------------------------------------
 # 2) Build LIVE candles from ticks
