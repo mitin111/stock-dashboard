@@ -407,3 +407,6 @@ def main():
     print("🔁 Tick engine running...")
     while True:
         time.sleep(5)
+        
+if __name__ == "__main__":
+    main()
