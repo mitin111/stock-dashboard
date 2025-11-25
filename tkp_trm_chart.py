@@ -28,9 +28,11 @@ def load_trm_settings_from_file():
 
 
 def save_trm_settings(settings):
+    print("📝 Saving TRM file to:", SETTINGS_FILE)   # ✅ ADD
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2)
 
+    print("✅ File written successfully:", os.path.exists(SETTINGS_FILE))  # ✅ ADD
 
 # =========================
 # Initialize session_state safely
@@ -677,6 +679,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
