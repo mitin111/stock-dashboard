@@ -4,7 +4,6 @@ from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio, json, logging, os
 from prostocks_connector import ProStocksAPI
-import threading
 
 print("🔥🔥 BACKEND STREAM SERVER LOADED 🔥🔥")
 
@@ -111,16 +110,8 @@ async def broadcast(msg: str):
 
 @app.on_event("startup")
 async def startup_event():
-    logging.info("🚀 Starting embedded tick engine...")
+    logging.info("Backend stream server ready ✅")
 
-    def safe_start():
-        try:
-            from tick_engine_worker import main
-            main()
-        except Exception as e:
-            logging.error(f"❌ Tick Engine crash: {e}")
-
-    threading.Thread(target=safe_start, daemon=True).start()
 
 # ✅ MAIN LIVE WS FEED PIPE (FrontEnd → Backend)
 # Store server event loop
@@ -357,26 +348,3 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
