@@ -386,34 +386,32 @@ if __name__ == "__main__":
         print("✅✅ TPSeries preload FINISHED ✅✅")
 
 
-    print("🔥 STARTING TPSeries preload thread")
-    threading.Thread(
-        target=preload_all_tpseries,
-        daemon=True
-    ).start()
-
-
-    # ---- 4) Start SAVE LOOP immediately ----
-    print("🔥 STARTING SAVE LOOP")
-    threading.Thread(
-        target=save_loop,
-        args=(token_map,),
-        daemon=True
-    ).start()
-    print("✅ SAVE LOOP STARTED")
-
-
-    # ---- 5) Start ProStocks WS for live ticks ----
+    
     print("🔥 STARTING PROSTOCKS WS THREAD")
     threading.Thread(
         target=start_prostocks_ws,
         args=(ps_api, token_map),
         daemon=True
     ).start()
-    print("✅ WS THREAD STARTED (daemon)")
 
+    time.sleep(5)   # ✅ WS ko head-start
 
-    # ---- 6) Keep main process alive ----
-    print("🔁 Tick engine running (TPSeries + Live WS + Save Loop)...")
+    print("🔥 STARTING SAVE LOOP")
+    threading.Thread(
+        target=save_loop,
+        args=(token_map,),
+        daemon=True
+    ).start()
+
+    time.sleep(3)
+
+    print("🔥 STARTING TPSeries preload thread")
+    threading.Thread(
+        target=preload_all_tpseries,
+        args=(ps_api, token_map),
+        daemon=True
+    ).start()
+
+    print("🔁 Tick engine running...")
     while True:
         time.sleep(5)
