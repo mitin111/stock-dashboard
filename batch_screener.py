@@ -1125,13 +1125,11 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
     # ================================================================
 
-    # ✅ USE FILE BASED SETTINGS ONLY (CLI MODE SAFE)
-    from tkp_trm_chart import load_trm_settings_from_file
+    # ✅ TAKE SETTINGS FROM BACKEND SESSION
+    if not hasattr(ps_api, "trm_settings") or not ps_api.trm_settings:
+        raise ValueError("❌ TRM settings missing in backend memory. Click 'Start Auto Trader' once.")
 
-    settings = load_trm_settings_from_file()
-
-    if not settings:
-        raise ValueError("❌ TRM settings json file not found. Save it once from dashboard.")
+    settings = ps_api.trm_settings
 
     required_keys = [
         "long", "short", "signal",
@@ -1141,9 +1139,9 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     missing = [k for k in required_keys if k not in settings]
     if missing:
-        raise ValueError(f"❌ TRM settings incomplete in JSON file, missing: {missing}")
+        raise ValueError(f"❌ TRM settings incomplete in backend, missing: {missing}")
 
-    print("✅ ACTIVE TRM SETTINGS (from trm_settings.json):")
+    print("✅ ACTIVE TRM SETTINGS (from BACKEND memory):")
     for k, v in settings.items():
         print(f"   {k} = {v}")
 
@@ -1328,6 +1326,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
