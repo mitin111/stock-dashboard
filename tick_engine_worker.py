@@ -304,7 +304,7 @@ def start_prostocks_ws(ps_api, token_map):
 # -----------------------------------------------------------
 # 6) ENTRY POINT
 # -----------------------------------------------------------
-if __name__ == "__main__":
+def main():
 
     # ---- 1) Load session + tokens from backend ----
     print("🔍 Fetching session_info from backend...")
@@ -319,7 +319,6 @@ if __name__ == "__main__":
     token_map = session_info.get("tokens_map", {})
     userid = session_info.get("userid")
 
-    # ✅ ADD THESE 3 LINES
     vc      = session_info.get("vc") or os.environ.get("VC")
     api_key = session_info.get("api_key") or os.environ.get("API_KEY")
     imei    = session_info.get("imei") or os.environ.get("IMEI")
@@ -331,11 +330,7 @@ if __name__ == "__main__":
 
     print(f"✔ Session OK, userid={userid}, tokens={len(token_map)}")
 
-    # ---- 2) Create ps_api WITHOUT login (reuse backend session) ----
-    base_url = os.environ.get(
-        "BASE_URL",
-        "https://starapi.prostocks.com/NorenWClientTP"
-    )
+    base_url = os.environ.get("BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
 
     ps_api = ProStocksAPI(
         userid=userid,
@@ -346,7 +341,6 @@ if __name__ == "__main__":
         base_url=base_url
     )
 
-    # Inject backend session
     ps_api.session_token = session_token
     ps_api.jKey = session_token
     ps_api.uid = userid
@@ -362,8 +356,6 @@ if __name__ == "__main__":
 
     print("✔ Backend session attached. Loading TPSeries…")
 
-    # ---- 3) Preload TPSeries for all symbols ----
-    # ---- 3) Preload TPSeries for all symbols (BACKGROUND THREAD) ----
     global cached_tp
     cached_tp = {}
 
@@ -387,8 +379,6 @@ if __name__ == "__main__":
 
         print("✅✅ TPSeries preload FINISHED ✅✅")
 
-
-    
     print("🔥 STARTING PROSTOCKS WS THREAD")
     threading.Thread(
         target=start_prostocks_ws,
@@ -396,7 +386,7 @@ if __name__ == "__main__":
         daemon=True
     ).start()
 
-    time.sleep(5)   # ✅ WS ko head-start
+    time.sleep(5)
 
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
