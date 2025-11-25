@@ -111,6 +111,16 @@ async def broadcast(msg: str):
 @app.on_event("startup")
 async def startup_event():
     logging.info("Backend stream server ready ✅")
+    logging.info("🚀 Starting embedded tick engine...")
+
+    def start_tick_engine():
+        try:
+            from tick_engine_worker import main as start_engine
+            start_engine()
+        except Exception as e:
+            logging.error(f"Tick engine failed: {e}")
+
+    threading.Thread(target=start_tick_engine, daemon=True).start()
 
 
 # ✅ MAIN LIVE WS FEED PIPE (FrontEnd → Backend)
@@ -348,6 +358,7 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
 
 
