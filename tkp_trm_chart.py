@@ -5,7 +5,11 @@ import streamlit as st
 import json
 import os
 
-SETTINGS_FILE = "trm_settings.json"
+
+# Always save/load TRM settings from the src folder
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SETTINGS_FILE = os.path.join(BASE_DIR, "trm_settings.json")
+
 
 # =========================
 # Load / Save Settings
@@ -673,6 +677,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
