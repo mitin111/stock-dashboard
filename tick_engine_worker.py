@@ -304,7 +304,7 @@ def start_prostocks_ws(ps_api, token_map):
 # -----------------------------------------------------------
 # 6) ENTRY POINT
 # -----------------------------------------------------------
-def main():
+if __name__ == "__main__":
 
     # ---- 1) Load session + tokens from backend ----
     print("🔍 Fetching session_info from backend...")
@@ -319,6 +319,7 @@ def main():
     token_map = session_info.get("tokens_map", {})
     userid = session_info.get("userid")
 
+    # ✅ ADD THESE 3 LINES
     vc      = session_info.get("vc") or os.environ.get("VC")
     api_key = session_info.get("api_key") or os.environ.get("API_KEY")
     imei    = session_info.get("imei") or os.environ.get("IMEI")
@@ -330,7 +331,11 @@ def main():
 
     print(f"✔ Session OK, userid={userid}, tokens={len(token_map)}")
 
-    base_url = os.environ.get("BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
+    # ---- 2) Create ps_api WITHOUT login (reuse backend session) ----
+    base_url = os.environ.get(
+        "BASE_URL",
+        "https://starapi.prostocks.com/NorenWClientTP"
+    )
 
     ps_api = ProStocksAPI(
         userid=userid,
@@ -341,6 +346,7 @@ def main():
         base_url=base_url
     )
 
+    # Inject backend session
     ps_api.session_token = session_token
     ps_api.jKey = session_token
     ps_api.uid = userid
@@ -356,6 +362,8 @@ def main():
 
     print("✔ Backend session attached. Loading TPSeries…")
 
+    # ---- 3) Preload TPSeries for all symbols ----
+    # ---- 3) Preload TPSeries for all symbols (BACKGROUND THREAD) ----
     global cached_tp
     cached_tp = {}
 
@@ -379,6 +387,8 @@ def main():
 
         print("✅✅ TPSeries preload FINISHED ✅✅")
 
+
+    
     print("🔥 STARTING PROSTOCKS WS THREAD")
     threading.Thread(
         target=start_prostocks_ws,
@@ -386,7 +396,7 @@ def main():
         daemon=True
     ).start()
 
-    time.sleep(5)
+    time.sleep(5)   # ✅ WS ko head-start
 
     print("🔥 STARTING SAVE LOOP")
     threading.Thread(
@@ -407,6 +417,3 @@ def main():
     print("🔁 Tick engine running...")
     while True:
         time.sleep(5)
-        
-if __name__ == "__main__":
-    main()
