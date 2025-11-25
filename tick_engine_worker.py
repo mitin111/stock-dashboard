@@ -27,8 +27,10 @@ import threading
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
 
-SAVE_PATH = "/tmp/live_candles"
+# NEW ✅ (PERMANENT)
+SAVE_PATH = "/opt/render/project/src/live_candles"
 os.makedirs(SAVE_PATH, exist_ok=True)
+
 
 IST = pytz.timezone("Asia/Kolkata")
 
