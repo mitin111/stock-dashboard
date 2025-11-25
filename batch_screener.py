@@ -1125,27 +1125,27 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
     # ================================================================
 
-    # ✅ USE BACKEND-SYNCED TRM SETTINGS (NO FILE)
-    if hasattr(ps_api, "trm_settings") and ps_api.trm_settings:
-        settings = ps_api.trm_settings
-        print("✅ ACTIVE TRM SETTINGS (FROM FRONTEND / BACKEND):")
-    else:
-        raise ValueError("❌ TRM settings missing from backend. Use 'Start Auto Trader' in Tab-4/5 first")
+    # ✅ USE FILE BASED SETTINGS ONLY (CLI MODE SAFE)
+    from tkp_trm_chart import load_trm_settings_from_file
 
-    # ✅ Match TRM UI / tkp_trm_chart.py
+    settings = load_trm_settings_from_file()
+
+    if not settings:
+        raise ValueError("❌ TRM settings json file not found. Save it once from dashboard.")
+
     required_keys = [
-        "long", "short", "signal",          # TSI
+        "long", "short", "signal",
         "len_rsi", "rsiBuyLevel", "rsiSellLevel",
         "macd_fast", "macd_slow", "macd_signal"
     ]
 
     missing = [k for k in required_keys if k not in settings]
     if missing:
-        raise ValueError(f"❌ TRM settings incomplete, missing: {missing}")
+        raise ValueError(f"❌ TRM settings incomplete in JSON file, missing: {missing}")
 
+    print("✅ ACTIVE TRM SETTINGS (from trm_settings.json):")
     for k, v in settings.items():
         print(f"   {k} = {v}")
-
 
     # ================================================================
     # ✅ Hammer Monitor Thread (ONLY if Streamlit is available)
@@ -1328,6 +1328,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
