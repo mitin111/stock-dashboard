@@ -11,6 +11,11 @@ import os
 import pandas as pd
 import pytz
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TRM_FILE = os.path.join(BASE_DIR, "trm_settings.json")
+
+print("🔍 Using TRM file:", TRM_FILE)
+
 LIVE_PATH = "live_candles"
 
 def load_live_5min(sym):
@@ -1322,6 +1327,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
