@@ -1113,17 +1113,18 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
             return []
         print("✅ Logged in successfully via credentials")
 
-    # ================================================================
-    # ✅ Start Hammer Reversal Monitor Thread
-    # ================================================================
+  
     # ================================================================
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
     # ================================================================
 
-    settings = getattr(ps_api, "trm_settings", None)
+    # ✅ USE FILE BASED SETTINGS
+    from tkp_trm_chart import load_trm_settings_from_file
+
+    settings = load_trm_settings_from_file()
 
     if not settings:
-        raise ValueError("❌ TRM settings missing in ps_api (backend not initialized or Tab-4 not synced)")
+        raise ValueError("❌ TRM settings json file not found. Save it from Tab-5 first.")
 
     # ✅ Match TRM UI / tkp_trm_chart.py
     required_keys = [
@@ -1134,10 +1135,11 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     missing = [k for k in required_keys if k not in settings]
     if missing:
-        raise ValueError(f"❌ TRM settings incomplete, missing keys: {missing}")
+        raise ValueError(f"❌ TRM settings incomplete in JSON file, missing: {missing}")
 
-    print("✅ ACTIVE TRM SETTINGS (from Dashboard → Backend):", settings)
-
+    print("✅ ACTIVE TRM SETTINGS (from trm_settings.json):")
+    for k, v in settings.items():
+        print(f"   {k} = {v}")
 
     # ================================================================
     # ✅ Hammer Monitor Thread (ONLY if Streamlit is available)
@@ -1320,6 +1322,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
