@@ -8,22 +8,26 @@ Usage:
   python batch_screener_debug.py --watchlists 1,2,3 --interval 5 --output signals.csv --place-orders
 """
 
-LIVE_PATH = "/tmp/live_candles"
+LIVE_PATH = "live_candles"
 
 def load_live_5min(sym):
-    fn = f"{LIVE_PATH}/{sym}.json"
+
+    # ✅ EXACT same name as created by tick_engine
+    fn = os.path.join(LIVE_PATH, f"{sym}-EQ.json")
+
     if not os.path.exists(fn):
-        print(f"❌ Tick data missing for {sym}. Run tick_engine_worker.py")
+        print(f"❌ Tick data missing for {sym}-EQ. Run tick_engine_worker.py")
         return pd.DataFrame()
 
     try:
         df = pd.read_json(fn)
+
         if df.empty:
             return df
 
         df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
 
-        # ✅ Safe timezone handling (no more crash)
+        # ✅ Safe timezone handling (no crash)
         if df["datetime"].dt.tz is None:
             df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
         else:
@@ -1311,6 +1315,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
