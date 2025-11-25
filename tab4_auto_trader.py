@@ -103,10 +103,10 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     if st.button("🚀 Start Auto Trader"):
         # ✅ Always write latest TRM settings to file
         if st.session_state.get("trm_settings"):
-        save_trm_settings(st.session_state["trm_settings"])
-        st.success("✅ TRM settings written to file for backend")
-    else:
-        st.warning("⚠️ TRM settings empty in session")
+            save_trm_settings(st.session_state["trm_settings"])
+            st.success("✅ TRM settings written to file for backend")
+        else:
+            st.warning("⚠️ TRM settings empty in session")
 
         # 🔵 STEP 1: INIT BACKEND SESSION
         try:
@@ -148,6 +148,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.write(r.json())
         except Exception as e:
             st.error(f"Stop error: {e}")
+
 
 
 
