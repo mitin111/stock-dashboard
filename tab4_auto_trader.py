@@ -5,12 +5,8 @@ import queue
 from tkp_trm_chart import load_trm_settings_from_file
 from dashboard_logic import save_qty_map, load_qty_map
 import requests
+from tkp_trm_chart import load_trm_settings_from_file, save_trm_settings
 
-import streamlit as st
-import queue
-from tkp_trm_chart import load_trm_settings_from_file
-from dashboard_logic import save_qty_map, load_qty_map
-import requests
 
 
 # ============================================================
@@ -105,6 +101,10 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
     # START AUTO TRADER
     # --------------------------
     if st.button("🚀 Start Auto Trader"):
+        # ✅ Always write latest TRM settings to file
+        if st.session_state.get("trm_settings"):
+            save_trm_settings(st.session_state["trm_settings"])
+            st.success("✅ TRM settings written to file for backend + batch")
 
         # 🔵 STEP 1: INIT BACKEND SESSION
         try:
@@ -146,6 +146,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.write(r.json())
         except Exception as e:
             st.error(f"Stop error: {e}")
+
 
 
 
