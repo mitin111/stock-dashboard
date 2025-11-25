@@ -365,7 +365,7 @@ if __name__ == "__main__":
     global cached_tp
     cached_tp = {}
 
-    def preload_all_tpseries():
+    def preload_all_tpseries(ps_api, token_map):
         global cached_tp
         print("📥 Background TPSeries loading started...")
         print("🚀 Token count =", len(token_map))
