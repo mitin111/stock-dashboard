@@ -1123,13 +1123,12 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
     # ================================================================
 
-    # ✅ USE FILE BASED SETTINGS
-    from tkp_trm_chart import load_trm_settings_from_file
-
-    settings = load_trm_settings_from_file()
-
-    if not settings:
-        raise ValueError("❌ TRM settings json file not found. Save it from Tab-5 first.")
+    # ✅ USE BACKEND-SYNCED TRM SETTINGS (NO FILE)
+    if hasattr(ps_api, "trm_settings") and ps_api.trm_settings:
+        settings = ps_api.trm_settings
+        print("✅ ACTIVE TRM SETTINGS (FROM FRONTEND / BACKEND):")
+    else:
+        raise ValueError("❌ TRM settings missing from backend. Use 'Start Auto Trader' in Tab-4/5 first")
 
     # ✅ Match TRM UI / tkp_trm_chart.py
     required_keys = [
@@ -1140,11 +1139,11 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     missing = [k for k in required_keys if k not in settings]
     if missing:
-        raise ValueError(f"❌ TRM settings incomplete in JSON file, missing: {missing}")
+        raise ValueError(f"❌ TRM settings incomplete, missing: {missing}")
 
-    print("✅ ACTIVE TRM SETTINGS (from trm_settings.json):")
     for k, v in settings.items():
         print(f"   {k} = {v}")
+
 
     # ================================================================
     # ✅ Hammer Monitor Thread (ONLY if Streamlit is available)
@@ -1327,6 +1326,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
