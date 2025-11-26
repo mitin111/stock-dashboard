@@ -28,7 +28,8 @@ from batch_screener import (
     monitor_open_positions
 )
 
-CANDLE_PATH = "/tmp/live_candles"
+CANDLE_PATH = "/opt/render/project/src/live_candles"
+
 IST = pytz.timezone("Asia/Kolkata")
 
 # =====================================================================
