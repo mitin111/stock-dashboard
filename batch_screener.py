@@ -24,7 +24,8 @@ def load_live_5min(sym):
     if sym.endswith("-EQ"):
         sym = sym.replace("-EQ", "")
 
-    fn = os.path.join(LIVE_PATH, f"{sym}-EQ.json")
+    fn = os.path.join(LIVE_PATH, f"{sym}.json")
+
     print("🔍 Looking for:", fn)
 
     if not os.path.exists(fn):
@@ -1326,6 +1327,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
