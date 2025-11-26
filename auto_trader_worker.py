@@ -28,7 +28,11 @@ from batch_screener import (
     monitor_open_positions
 )
 
-CANDLE_PATH = "/opt/render/project/src/live_candles"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CANDLE_PATH = os.path.join(BASE_DIR, "live_candles")
+
+print("📁 Auto trader candle path:", CANDLE_PATH)
+
 
 IST = pytz.timezone("Asia/Kolkata")
 
