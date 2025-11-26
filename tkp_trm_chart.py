@@ -21,7 +21,7 @@ if not os.path.exists(TRM_FILE) and os.path.exists(ALT_TRM_FILE):
 # =========================
 def load_trm_settings_from_file():
     """Load TRM settings strictly from JSON file."""
-    if os.path.exists(TRM_FILE):
+    if os.path.exists(TRM_FILE):         ✅ RIGHT
         with open(TRM_FILE, "r") as f:
             try:
                 settings = json.load(f)
@@ -690,6 +690,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
