@@ -16,7 +16,9 @@ TRM_FILE = os.path.join(BASE_DIR, "trm_settings.json")
 
 print("🔍 Using TRM file:", TRM_FILE)
 
-LIVE_PATH = "/opt/render/project/src/live_candles"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LIVE_PATH = os.path.join(BASE_DIR, "live_candles")
+
 
 def load_live_5min(sym):
 
@@ -1326,6 +1328,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
