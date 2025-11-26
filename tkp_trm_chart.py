@@ -8,8 +8,13 @@ import os
 
 # Always save/load TRM settings from the src folder
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_FILE = os.path.join(BASE_DIR, "trm_settings.json")
+TRM_FILE = os.path.join(BASE_DIR, "trm_settings.json")
 
+# ✅ ADD THIS (Render safety backup)
+ALT_TRM_FILE = "/opt/render/project/src/trm_settings.json"
+if not os.path.exists(TRM_FILE) and os.path.exists(ALT_TRM_FILE):
+    print(f"⚠️ Using ALT TRM file: {ALT_TRM_FILE}")
+    TRM_FILE = ALT_TRM_FILE
 
 # =========================
 # Load / Save Settings
@@ -684,6 +689,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
