@@ -312,6 +312,10 @@ def generate_signal_for_df(df, settings):
         print("⚠️ Dataframe empty after indicators")
         return None
 
+    # ✅ DEBUG: Last 5 candles
+    print("\n🔍 Last 5 candles:")
+    print(df.tail(5)[["datetime", "open", "high", "low", "close"]])
+
     last = df.iloc[-1]
     last_price = float(last.get("close", 0))
     last_dt = last.get("datetime")
@@ -460,6 +464,7 @@ def generate_signal_for_df(df, settings):
 
     if signal not in ["BUY", "SELL"]:
         signal = None
+    print("📊 SIGNAL RESULT:", signal, "| Reasons:", reasons)
 
     return {
         "signal": signal,
@@ -1331,6 +1336,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
