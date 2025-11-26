@@ -78,7 +78,7 @@ from prostocks_connector import ProStocksAPI
 from dashboard_logic import place_order_from_signal, load_credentials
 import tkp_trm_chart as trm
 import threading
-
+print("🔥🔥 batch_screener_debug.py LOADED 🔥🔥")
 # -----------------------------
 # ✅ Trade-cycle tracker (1 BUY + 1 SELL per day, non-consecutive)
 # -----------------------------
@@ -293,6 +293,7 @@ def resp_to_status_and_list(resp):
 # Signal generation with debug
 # -----------------------
 def generate_signal_for_df(df, settings):
+    print("✅✅ FUNCTION generate_signal_for_df CALLED ✅✅")
     try:
         df = df.copy()
         df = trm.calc_tkp_trm(df, settings)
@@ -464,8 +465,8 @@ def generate_signal_for_df(df, settings):
 
     if signal not in ["BUY", "SELL"]:
         signal = None
-    print("📊 SIGNAL RESULT:", signal, "| Reasons:", reasons)
-
+    print("\n📊 FINAL SIGNAL:", signal)
+    print("📌 REASONS:", reasons)
     return {
         "signal": signal,
         "reason": " & ".join(reasons),
@@ -1336,6 +1337,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
