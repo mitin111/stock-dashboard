@@ -20,23 +20,22 @@ LIVE_PATH = "/opt/render/project/src/live_candles"
 
 def load_live_5min(sym):
 
-    # ✅ Remove -EQ if already present
-    if sym.endswith("-EQ"):
-        sym = sym.replace("-EQ", "")
+    # ✅ Keep the correct symbol name from watchlist (with -EQ)
+    sym = str(sym).strip().upper()
 
     fn = os.path.join(LIVE_PATH, f"{sym}.json")
 
     print("🔍 Looking for:", fn)
 
     if not os.path.exists(fn):
-        print(f"❌ Tick data missing for {sym}-EQ (expected: {fn})")
+        print(f"❌ Tick data missing for {sym} (expected: {fn})")
         return pd.DataFrame()
 
     try:
         df = pd.read_json(fn)
 
         if df.empty:
-            print(f"⚠️ Empty candle file: {sym}-EQ")
+            print(f"⚠️ Empty candle file: {sym}")
             return df
 
         df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
@@ -1327,6 +1326,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
