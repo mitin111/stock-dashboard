@@ -22,46 +22,49 @@ LIVE_PATH = os.path.join(BASE_DIR, "live_candles")
 
 def load_live_5min(sym):
 
-    # ✅ Keep the correct symbol name from watchlist (with -EQ)
-    sym = str(sym).strip().upper()
+    sym = str(sym).upper().strip()
 
-    fn = os.path.join(LIVE_PATH, f"{sym}.json")
+    # Try both: with and without -EQ
+    filename_variants = [sym, sym.replace("-EQ", "")]
 
-    print("🔍 Looking for:", fn)
+    for f in filename_variants:
+        fn = os.path.join(LIVE_PATH, f"{f}.json")
+        print("🔍 Looking for:", fn)
 
-    if not os.path.exists(fn):
-        print(f"❌ Tick data missing for {sym} (expected: {fn})")
-        return pd.DataFrame()
+        if os.path.exists(fn):
+            try:
+                df = pd.read_json(fn)
 
-    try:
-        df = pd.read_json(fn)
+                if df.empty:
+                    print(f"⚠️ Empty candle file: {f}")
+                    return df
 
-        if df.empty:
-            print(f"⚠️ Empty candle file: {sym}")
-            return df
+                df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
 
-        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+                if df["datetime"].dt.tz is None:
+                    df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
+                else:
+                    df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
 
-        if df["datetime"].dt.tz is None:
-            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
-        else:
-            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
+                df["bucket"] = df["datetime"].dt.floor("5min")
 
-        df["bucket"] = df["datetime"].dt.floor("5min")
+                df = df.groupby("bucket").agg(
+                    open=("open", "first"),
+                    high=("high", "max"),
+                    low=("low", "min"),
+                    close=("close", "last"),
+                    volume=("volume", "sum")
+                ).reset_index().rename(columns={"bucket": "datetime"})
 
-        df = df.groupby("bucket").agg(
-            open=("open", "first"),
-            high=("high", "max"),
-            low=("low", "min"),
-            close=("close", "last"),
-            volume=("volume", "sum")
-        ).reset_index().rename(columns={"bucket": "datetime"})
+                return df.tail(200)
 
-        return df.tail(200)
+            except Exception as e:
+                print(f"⚠️ load_live_5min error {f}: {e}")
+                return pd.DataFrame()
 
-    except Exception as e:
-        print(f"⚠️ load_live_5min error {sym}: {e}")
-        return pd.DataFrame()
+    # If both not found
+    print(f"❌ Tick data missing for {sym} (tried both)")
+    return pd.DataFrame()
 
 import os
 import time
@@ -1328,6 +1331,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
