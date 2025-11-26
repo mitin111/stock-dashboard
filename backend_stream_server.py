@@ -112,6 +112,16 @@ async def broadcast(msg: str):
 async def startup_event():
     logging.info("Backend stream server ready ✅")
 
+    import threading
+    import os
+
+    def run_tick_engine():
+        logging.info("🔥 Starting tick_engine_worker inside backend server...")
+        os.system("python tick_engine_worker.py")
+
+    t = threading.Thread(target=run_tick_engine, daemon=True)
+    t.start()
+
 
 # ✅ MAIN LIVE WS FEED PIPE (FrontEnd → Backend)
 # Store server event loop
@@ -348,3 +358,4 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
