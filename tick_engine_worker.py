@@ -172,6 +172,15 @@ def save_loop(token_map):
 def start_prostocks_ws(ps_api, token_map):
     print("🔥🔥 ENTERED start_prostocks_ws() 🔥🔥")
     print("DEBUG: Token map size =", len(token_map))
+    # ✅ ADD THIS BLOCK HERE
+    # --------------------------------
+    token_to_symbol = {}
+    for sym, tkn in token_map.items():
+        clean_sym = str(sym).upper().strip().replace("-EQ", "")
+        clean_tok = str(tkn).replace("NSE|", "").strip()
+        token_to_symbol[clean_tok] = clean_sym
+
+    print("✅ token_to_symbol mapped:", len(token_to_symbol))
 
     """
     🔥 Direct ProStocks WebSocket for ALL symbols
@@ -271,33 +280,31 @@ def start_prostocks_ws(ps_api, token_map):
             # ==========================
             #  ✅ TICK PARSE
             # ==========================
-            token = data.get("tk")
-            ltp = data.get("fp") or data.get("lp")
-            vol = data.get("v") or 0
-            ts = data.get("ft") or int(time.time())
+            # 🔥 LIVE TICK DATA
+            if data.get("t") == "tk":
 
-            if not token or not ltp:
+                print("📩 LIVE TICK:", data)   # <-- debug
+
+                try:
+                    token = str(data.get("tk"))
+                    price = float(data.get("lp", 0))
+                    ts = int(float(data.get("ft", time.time())))
+                    volume = int(float(data.get("v", 1)))
+
+                    # token → symbol map
+                    symbol = token_to_symbol.get(token)
+
+                    if not symbol:
+                        print("⚠️ Token not mapped:", token)
+                        return
+
+                    # ✅ candle update
+                    candle_builder.update_tick(symbol, price, volume, ts)
+
+                except Exception as e:
+                    print("⚠️ TICK PARSE ERROR:", e)
+
                 return
-
-            try:
-                ltp = float(ltp)
-                vol = int(vol)
-                ts = int(ts)
-            except:
-                return
-
-            # map token -> symbol
-            symbol = None
-            for s, t in token_map.items():
-                if str(t) == str(token):
-                    symbol = s
-                    break
-
-            if not symbol:
-                return
-
-            # ✅ update candle
-            candle_builder.update_tick(symbol, ltp, vol, ts)
 
         except Exception as e:
             print("❌ WS Message Error:", e)
