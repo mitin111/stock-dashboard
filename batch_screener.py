@@ -1351,7 +1351,8 @@ if __name__ == "__main__":
     parser.add_argument("--place-orders", action="store_true", help="Place orders automatically")
     args = parser.parse_args()
 
-    main(args)
+    main(None, args)   # ✅ FIXED
+
 
 
 
