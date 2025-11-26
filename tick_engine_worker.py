@@ -25,16 +25,19 @@ from prostocks_connector import ProStocksAPI
 import websocket
 import threading
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
+print("✅ Running file:", os.path.abspath(__file__))
 
 # NEW ✅ (PERMANENT)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+print("✅ BASE_DIR:", BASE_DIR)
+
 SAVE_PATH = os.path.join(BASE_DIR, "live_candles")
 os.makedirs(SAVE_PATH, exist_ok=True)
 print("📁 Save folder:", SAVE_PATH)
 
-IST = pytz.timezone("Asia/Kolkata")
+BACKEND_URL = os.environ.get("BACKEND_URL", "https://backend-stream-nmlf.onrender.com")
 
+IST = pytz.timezone("Asia/Kolkata")
 
 # -----------------------------------------------------------
 # 1) Load full TPSeries (backfill)
