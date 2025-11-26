@@ -277,35 +277,33 @@ def start_prostocks_ws(ps_api, token_map):
                 print("ℹ️ Non-tick WS msg:", data)
                 return
 
-            # ==========================
-            #  ✅ TICK PARSE
-            # ==========================
-            # 🔥 LIVE TICK DATA
-            if data.get("t") == "tk":
+            print("📩 LIVE RAW:", data)
 
-                print("📩 LIVE TICK:", data)   # <-- debug
+            token_raw = str(data.get("tk"))
+            token = token_raw.replace("NSE|", "").strip()
 
-                try:
-                    token = str(data.get("tk"))
-                    price = float(data.get("lp", 0))
-                    ts = int(float(data.get("ft", time.time())))
-                    volume = int(float(data.get("v", 1)))
+            price = data.get("lp") or data.get("fp")
+            ts = data.get("ft")
 
-                    # token → symbol map
-                    symbol = token_to_symbol.get(token)
-
-                    if not symbol:
-                        print("⚠️ Token not mapped:", token)
-                        return
-
-                    # ✅ candle update
-                    candle_builder.update_tick(symbol, price, volume, ts)
-
-                except Exception as e:
-                    print("⚠️ TICK PARSE ERROR:", e)
-
+            if not token or not price or not ts:
+                print("⚠️ Missing fields:", data)
                 return
 
+            price = float(price)
+            ts = int(float(ts))
+            volume = int(float(data.get("v", 1)))
+
+            print("DEBUG token raw:", token_raw, " cleaned:", token)
+
+            symbol = token_to_symbol.get(token)
+
+            if not symbol:
+                print("❌ TOKEN MAP FAIL:", token)
+                return
+
+            print(f"✅ TICK OK → {symbol} | {price} | {ts}")
+
+            candle_builder.update_tick(symbol, price, volume, ts)
         except Exception as e:
             print("❌ WS Message Error:", e)
 
