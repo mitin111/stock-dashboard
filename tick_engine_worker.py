@@ -121,6 +121,7 @@ def save_loop(token_map):
                 last_merge = time.time()
 
                 for sym, tkn in token_map.items():
+                    sym = str(sym).strip().upper()   # <-- ye add karo upar loop me
                     fn = os.path.join(SAVE_PATH, f"{sym}.json")
 
                     df_tp = cached_tp.get(sym)
