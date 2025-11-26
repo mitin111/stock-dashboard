@@ -1136,12 +1136,27 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
     # ================================================================
 
-    # ✅ TAKE SETTINGS FROM BACKEND SESSION
-    if not hasattr(ps_api, "trm_settings") or not ps_api.trm_settings:
-        raise ValueError("❌ TRM settings missing in backend memory. Click 'Start Auto Trader' once.")
+    # ✅ TAKE SETTINGS FROM BACKEND SESSION OR FILE
+    if hasattr(ps_api, "trm_settings") and ps_api.trm_settings:
 
-    settings = ps_api.trm_settings
+        print("✅ TRM settings loaded from BACKEND memory")
+        settings = ps_api.trm_settings
 
+    else:
+        print("⚠️ Backend TRM settings missing — loading from trm_settings.json")
+        try:
+            if not os.path.exists(TRM_FILE):
+                raise FileNotFoundError(f"{TRM_FILE} not found")
+
+            with open(TRM_FILE, "r") as f:
+                settings = json.load(f)
+
+            print("✅ TRM settings loaded from FILE:", TRM_FILE)
+
+        except Exception as e:
+            raise ValueError(f"❌ Could not load TRM settings from file: {e}")
+
+    # ✅ Validate keys
     required_keys = [
         "long", "short", "signal",
         "len_rsi", "rsiBuyLevel", "rsiSellLevel",
@@ -1150,12 +1165,12 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     missing = [k for k in required_keys if k not in settings]
     if missing:
-        raise ValueError(f"❌ TRM settings incomplete in backend, missing: {missing}")
+        raise ValueError(f"❌ TRM settings incomplete, missing: {missing}")
 
-    print("✅ ACTIVE TRM SETTINGS (from BACKEND memory):")
+    print("✅ ACTIVE TRM SETTINGS:")
     for k, v in settings.items():
         print(f"   {k} = {v}")
-
+  
     # ================================================================
     # ✅ Hammer Monitor Thread (ONLY if Streamlit is available)
     # ================================================================
@@ -1337,6 +1352,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+
 
 
 
