@@ -91,7 +91,7 @@ class ProStocksAPI:
         except requests.exceptions.RequestException as e:
             return {"emsg": str(e)}
 
-    def login(self, factor2_otp):
+    def login(self, factor2_otp=""):
         url = f"{self.base_url}/QuickAuth"
         pwd_hash = self.sha256(self.password_plain)
         appkey_raw = f"{self.userid}|{self.api_key}"
@@ -1021,6 +1021,7 @@ class ProStocksAPI:
         except Exception as e:
             print(f"❌ fetch_yesterday_candles() failed: {e}")
             return pd.DataFrame()
+
 
 
 
