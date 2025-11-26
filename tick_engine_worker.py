@@ -85,6 +85,7 @@ class CandleBuilder:
             c["low"] = min(c["low"], ltp)
             c["close"] = ltp
             c["volume"] += volume
+        print(f"📈 TICK SAVED → {symbol} | {ltp}")
 
     def get_latest(self, symbol):
         latest_keys = [k for k in self.candles.keys() if k[0] == symbol]
