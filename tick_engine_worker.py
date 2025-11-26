@@ -63,6 +63,8 @@ class CandleBuilder:
         self.candles = {}
 
     def update_tick(self, symbol, ltp, volume, ts):
+        print("📥 TICK RECEIVED:", symbol, ltp, ts)
+
         ts = datetime.fromtimestamp(ts, tz=IST)
         minute = ts.replace(second=0, microsecond=0)
 
@@ -130,6 +132,7 @@ def save_loop(token_map):
 
                     df_tp = cached_tp.get(sym)
                     live_c = candle_builder.get_latest(sym)
+                    print(f"DEBUG → sym={sym} tp={'YES' if df_tp is not None else 'NO'} live={'YES' if live_c else 'NO'}")
 
                     try:
                         if df_tp is not None and not df_tp.empty:
