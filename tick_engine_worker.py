@@ -116,7 +116,6 @@ def merge_candles(df_tp, live_candle):
 # 4) SAVE LOOP – har 3 sec me JSON files update
 # -----------------------------------------------------------
 def save_loop(token_map):
-    """Periodically merge TPSeries + LIVE candle and save to /tmp/live_candles"""
     global cached_tp
     print("🧾 Save loop started (every 3 sec)...")
     last_merge = 0
@@ -127,23 +126,37 @@ def save_loop(token_map):
                 last_merge = time.time()
 
                 for sym, tkn in token_map.items():
-                    sym = str(sym).strip().upper()   # <-- ye add karo upar loop me
+
+                    # ✅ ALWAYS remove -EQ
+                    sym = str(sym).strip().upper()
+                    if sym.endswith("-EQ"):
+                        sym = sym.replace("-EQ", "")
+
                     fn = os.path.join(SAVE_PATH, f"{sym}.json")
 
                     df_tp = cached_tp.get(sym)
                     live_c = candle_builder.get_latest(sym)
-                    print(f"DEBUG → sym={sym} tp={'YES' if df_tp is not None else 'NO'} live={'YES' if live_c else 'NO'}")
+
+                    print(
+                        f"DEBUG → sym={sym} "
+                        f"tp={'YES' if df_tp is not None else 'NO'} "
+                        f"live={'YES' if live_c else 'NO'}"
+                    )
 
                     try:
                         if df_tp is not None and not df_tp.empty:
                             df_final = merge_candles(df_tp, live_c)
+
                         elif live_c:
                             df_final = pd.DataFrame([live_c])
+
                         else:
                             df_final = pd.DataFrame()
 
                         if not df_final.empty:
                             df_final.to_json(fn, orient="records", date_format="iso")
+                            print(f"💾 SAVED: {fn}")
+
                     except Exception as e:
                         print(f"⚠️ Error saving {sym}: {e}")
 
@@ -151,7 +164,6 @@ def save_loop(token_map):
             print(f"⚠️ save_loop error: {e}")
 
         time.sleep(1)
-
 
 # -----------------------------------------------------------
 # 5) ProStocks DIRECT WebSocket – ALL symbols
