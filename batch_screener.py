@@ -11,8 +11,17 @@ import os
 import pandas as pd
 import pytz
 
+import json
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TRM_FILE = os.path.join(BASE_DIR, "trm_settings.json")
+
+# Render universal fallback
+ALT_TRM_FILE = "/opt/render/project/src/trm_settings.json"
+
+if not os.path.exists(TRM_FILE) and os.path.exists(ALT_TRM_FILE):
+    print(f"⚠️ Using ALT TRM file: {ALT_TRM_FILE}")
+    TRM_FILE = ALT_TRM_FILE
 
 print("🔍 Using TRM file:", TRM_FILE)
 
@@ -1363,5 +1372,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
