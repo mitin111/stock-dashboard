@@ -123,22 +123,23 @@ with st.sidebar:
                     # ✅ NEW: SERVER-BASED LOGIN (NO IP MISMATCH)
                     # ===========================================
                     try:
-                        resp = requests.post(
-                            "https://backend-stream-nmlf.onrender.com/server_login",
+                        ps = ps_api
+                        requests.post(
+                            "https://backend-stream-nmlf.onrender.com/init",
                             json={
-                                "userid": uid,
-                                "password": pwd,
-                                "vc": vc,
-                                "api_key": api_key,
-                                "imei": imei
+                                "jKey": ps.session_token,
+                                "userid": ps.userid,
+                                "vc": ps.vc,
+                                "api_key": ps.api_key,
+                                "imei": ps.imei,
+                                "tokens_map": { item["tsym"]: item["token"] for item in st.session_state.get("symbols", []) },
+                                "trm_settings": st.session_state.get("trm_settings", {})
                             },
-                            timeout=8
+                            timeout=5
                         )
-
-                        data = resp.json()
-
-                        if data.get("status") == "ok":
-                            st.success("✅ Backend logged in successfully (server-side)")
+                        st.success("Backend session fully cloned")
+                        except Exception as e:
+                            st.warning(f"Backend clone failed: {e}")
                         else:
                             st.warning(f"Backend login failed: {data}")
 
@@ -1083,6 +1084,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
