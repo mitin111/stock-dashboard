@@ -138,18 +138,8 @@ with st.sidebar:
                             timeout=5
                         )
                         st.success("Backend session fully cloned")
-                        except Exception as e:
-                            st.warning(f"Backend clone failed: {e}")
-                        else:
-                            st.warning(f"Backend login failed: {data}")
-
                     except Exception as e:
-                        st.warning(f"Backend server_login failed: {e}")
-                else:
-                    st.error(f"❌ Login failed: {login_resp.get('emsg', 'Unknown error')}")
-
-            except Exception as e:
-                st.error(f"❌ Exception: {e}")
+                        st.warning(f"❌ Backend clone failed: {e}")
 
     # --- Logout ---
     if st.button("🔓 Logout"):
@@ -1086,6 +1076,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
