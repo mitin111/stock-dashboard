@@ -36,6 +36,7 @@ def init_backend_session():
             json={
                 "userid": ps.userid,
                 "password": ps.password_plain if hasattr(ps, "password_plain") else None,
+                "factor2": st.session_state.get("last_otp"),   # ✅ ADD THIS
                 "vc": ps.vc,
                 "api_key": ps.api_key,
                 "imei": ps.imei
@@ -180,6 +181,7 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.write(r.json())
         except Exception as e:
             st.error(f"Stop error: {e}")
+
 
 
 
