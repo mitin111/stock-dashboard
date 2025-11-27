@@ -108,18 +108,27 @@ async def broadcast(msg: str):
     for d in dead:
         clients.discard(d)
 
+import subprocess
+import threading
+import time
+
+def run_tick_engine_forever():
+    while True:
+        try:
+            logging.info("🚀 Starting Tick Engine (safe mode)")
+            p = subprocess.Popen(["python", "tick_engine_worker.py"])
+            p.wait()
+            logging.warning("⚠️ Tick Engine stopped. Restarting in 5 sec...")
+        except Exception as e:
+            logging.error(f"❌ Tick crash: {e}")
+
+        time.sleep(5)
+
+
 @app.on_event("startup")
-async def startup_event():
-    logging.info("Backend stream server ready ✅")
-
-    import threading
-    import os
-
-    def run_tick_engine():
-        logging.info("🔥 Starting tick_engine_worker inside backend server...")
-        os.system("python tick_engine_worker.py")
-
-    t = threading.Thread(target=run_tick_engine, daemon=True)
+async def start_tick_engine():
+    logging.info("✅ Backend stream server ready – launching tick engine supervisor")
+    t = threading.Thread(target=run_tick_engine_forever, daemon=True)
     t.start()
 
 
@@ -360,5 +369,6 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
 
