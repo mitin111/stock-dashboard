@@ -1123,7 +1123,6 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
             setattr(args, "place_orders", True)
 
     # Login check
-    # Login check
     if ps_api is None:
         creds = load_credentials()
         ps_api = ProStocksAPI(
@@ -1135,13 +1134,31 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
             base_url=creds.get("base_url"),
             apkversion=creds.get("apkversion", "1.0.0")
         )
-        if not ps_api.is_logged_in():
-            print("🔐 Logging in from batch_screener...")
-            login_resp = ps_api.login(factor2_otp="")
-            print("LOGIN:", login_resp)
 
-        print("✅ Logged in successfully via credentials")
+        # ✅ use existing Dashboard session (NO OTP)
+        import requests
+        print("🔍 Fetching session_info from backend...")
 
+        try:
+            resp = requests.get("https://backend-stream-nmlf.onrender.com/session_info", timeout=10)
+            session_info = resp.json()
+
+            if session_info.get("session_token"):
+                ps_api.session_token = session_info["session_token"]
+                ps_api.jKey = session_info["session_token"]
+                ps_api.uid = session_info.get("userid")
+                ps_api.actid = session_info.get("userid")
+                ps_api.logged_in = True
+
+                print("✅ Using BACKEND SESSION (OTP already verified)")
+
+            else:
+                print("❌ No active session – login in dashboard first")
+                return []
+
+        except Exception as e:
+            print("❌ Error getting backend session:", e)
+            return []
   
     # ================================================================
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
@@ -1372,6 +1389,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
