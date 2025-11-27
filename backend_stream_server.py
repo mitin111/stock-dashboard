@@ -417,3 +417,18 @@ async def session_info():
         "imei": getattr(ps_api, "imei", None),
     }
 
+@app.get("/signals")
+async def get_signals():
+    from batch_screener import main
+
+    result = await asyncio.to_thread(
+        main,
+        None,        # ps_api comes from backend
+        None,
+        None,
+        None,
+        False        # place_orders = False
+    )
+
+    return result
+
