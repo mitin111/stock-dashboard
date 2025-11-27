@@ -84,7 +84,7 @@ import pandas as pd
 import numpy as np
 
 from prostocks_connector import ProStocksAPI
-from dashboard_logic import place_order_from_signal, load_credentials
+
 import tkp_trm_chart as trm
 import threading
 print("🔥🔥 batch_screener_debug.py LOADED 🔥🔥")
@@ -1397,6 +1397,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
