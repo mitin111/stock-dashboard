@@ -12,9 +12,6 @@ from tkp_trm_chart import load_trm_settings_from_file, save_trm_settings
 # ============================================================
 # ⭐ REQUIRED FUNCTION — Backend session auto attach
 # ============================================================
-# ============================================================
-# ⭐ REQUIRED FUNCTION — Backend session auto attach
-# ============================================================
 def init_backend_session():
     """Attach Streamlit session to backend-stream worker."""
     BACKEND_URL = "https://backend-stream-nmlf.onrender.com"
@@ -29,38 +26,15 @@ def init_backend_session():
     if st.session_state.get("backend_inited", False):
         return
 
-    # ✅ STEP 1 — server-side login
-    try:
-        resp = requests.post(
-            f"{BACKEND_URL}/server_login",
-            json={
-                "userid": ps.userid,
-                "password": ps.password_plain if hasattr(ps, "password_plain") else None,
-                "factor2": st.session_state.get("last_otp"),   # ✅ ADD THIS
-                "vc": ps.vc,
-                "api_key": ps.api_key,
-                "imei": ps.imei
-            },
-            timeout=8
-        )
-        data = resp.json()
-
-        if data.get("status") != "ok":
-            st.error(f"Server login failed: {data}")
-            st.stop()
-
-        st.success("✅ Backend server login successful")
-
-    except Exception as e:
-        st.error(f"Backend server_login failed: {e}")
-        st.stop()
-
-    # ✅ STEP 2 — init without jKey
     try:
         resp = requests.post(
             f"{BACKEND_URL}/init",
             json={
+                "jKey": ps.session_token,
                 "userid": ps.userid,
+                "vc": ps.vc,
+                "api_key": ps.api_key,
+                "imei": ps.imei,
                 "tokens_map": { item["tsym"]: item["token"] for item in st.session_state.get("symbols", []) },
                 "trm_settings": st.session_state.get("trm_settings", {})
             },
@@ -68,13 +42,6 @@ def init_backend_session():
         )
 
         st.session_state["backend_inited"] = True
-        st.success("✅ Backend attached (Tab-4 auto init)")
-        st.write(resp.json())
-
-    except Exception as e:
-        st.error(f"Backend init failed: {e}")
-        st.stop()
-
         st.success("Backend attached (Tab-4 auto init)")
     except Exception as e:
         st.warning(f"Backend init failed: {e}")
@@ -181,15 +148,3 @@ def render_tab4(require_session_settings=False, allow_file_fallback=True):
             st.write(r.json())
         except Exception as e:
             st.error(f"Stop error: {e}")
-
-
-
-
-
-
-
-
-
-
-
-
