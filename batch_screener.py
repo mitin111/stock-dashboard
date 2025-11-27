@@ -1149,6 +1149,8 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
                 ps_api.uid = session_info.get("userid")
                 ps_api.actid = session_info.get("userid")
                 ps_api.logged_in = True
+                # ✅ ADD THIS LINE (VERY IMPORTANT)
+                ps_api.trm_settings = session_info.get("trm_settings", {})
 
                 print("✅ Using BACKEND SESSION (OTP already verified)")
 
@@ -1382,6 +1384,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
