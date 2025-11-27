@@ -124,16 +124,18 @@ with st.sidebar:
                     # ===========================================
                     try:
                         resp = requests.post(
-                            "https://backend-stream-nmlf.onrender.com/server_login",
+                            f"{BACKEND_URL}/server_login",
                             json={
-                                "userid": uid,
-                                "password": pwd,
-                                "vc": vc,
-                                "api_key": api_key,
-                                "imei": imei
+                                "userid": ps.userid,
+                                "password": ps.password_plain if hasattr(ps, "password_plain") else None,
+                                "factor2": st.session_state.get("last_otp"),   # ✅ ADD THIS
+                                "vc": ps.vc,
+                                "api_key": ps.api_key,
+                                "imei": ps.imei
                             },
                             timeout=8
                         )
+
                         data = resp.json()
 
                         if data.get("status") == "ok":
@@ -1082,6 +1084,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
