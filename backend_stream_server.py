@@ -286,36 +286,6 @@ async def subscribe(request: Request):
         logging.error(f"❌ Subscribe failed: {e}")
         return {"stat": "error", "emsg": str(e)}
 
-# =========================================================
-# 🔥 SIGNALS API (batch_screener.py → backend only)
-# =========================================================
-@app.get("/signals")
-async def get_signals():
-    global ps_api
-
-    if ps_api is None or ps_api.session_token is None:
-        return {"status": "error", "msg": "Backend not initialized — call /init first"}
-
-    try:
-        from batch_screener import main as batch_main
-
-        result = await asyncio.to_thread(
-            batch_main,
-            ps_api,     # ✅ backend session used
-            None,
-            None,
-            None,
-            False        # ✅ NO order placement
-        )
-
-        return {
-            "status": "ok",
-            "source": "batch_screener",
-            "data": result
-        }
-
-    except Exception as e:
-        return {"status": "error", "msg": str(e)}
 
 # =========================================================
 # 🔥 ORDER API (HTML Panel → Backend → batch_screener.py)
@@ -446,4 +416,19 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
+@app.get("/signals")
+async def get_signals():
+    from batch_screener import main
+
+    result = await asyncio.to_thread(
+        main,
+        None,        # ps_api comes from backend
+        None,
+        None,
+        None,
+        False        # place_orders = False
+    )
+
+    return result
 
