@@ -1,5 +1,4 @@
 # backend_stream_server.py
-# backend_stream_server.py
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio, json, logging, os
@@ -82,14 +81,51 @@ async def init_api(request: Request):
     global ps_api
     body = await request.json()
 
+    jKey = body.get("jKey") or body.get("session_token")
     userid = body.get("userid")
+    vc = body.get("vc")
+    api_key = body.get("api_key")
+    imei = body.get("imei")
+    # 🔥 DEBUG LOGS (important for WS issue)
+    logging.info(f"🔥 DEBUG UID = {userid}")
+    logging.info(f"🔥 DEBUG JKEY len = {len(str(jKey))}")
+    logging.info(f"🔥 DEBUG JKEY first20 = {str(jKey)[:20]}")
 
-    if not userid:
-        return {"stat": "Not_Ok", "emsg": "Missing userid"}
+    if not jKey or not userid:
+        return {"stat": "Not_Ok", "emsg": "Missing jKey or userid"}
 
-    # ps_api MUST already be logged in via /server_login
-    if ps_api is None or not getattr(ps_api, "session_token", None):
-        return {"stat": "Not_Ok", "emsg": "Backend not logged in. Call /server_login first."}
+    # Create API object
+    ps_api = ProStocksAPI(
+        userid=userid,
+        password_plain="",
+        vc=vc,
+        api_key=api_key,
+        imei=imei,
+        base_url="https://starapi.prostocks.com/NorenWClientTP"
+    )
+
+    # Inject session token
+    ps_api.jKey = jKey
+    ps_api.session_token = jKey
+    
+    # ✅✅ ADD THIS
+    ps_api.vc = vc
+    ps_api.api_key = api_key
+    ps_api.imei = imei
+
+    # ---- REQUIRED FLAGS ----
+    ps_api.logged_in = True
+    ps_api.is_logged_in = True
+    ps_api.login_status = True
+    ps_api.is_session_active = True
+
+    ps_api.uid = userid
+    ps_api.actid = userid
+
+    ps_api.headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": jKey
+    }
 
     ps_api.ws_url = "wss://starapi.prostocks.com/NorenWSTP/"
     ps_api.is_ws_connected = False
@@ -380,8 +416,4 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
-
-
-
-
 
