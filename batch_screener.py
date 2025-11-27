@@ -1164,25 +1164,17 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
     # ================================================================
 
-    # ✅ TAKE SETTINGS FROM BACKEND SESSION OR FILE
+    # ✅ TAKE SETTINGS FROM BACKEND SESSION ONLY (NO FILE FALLBACK)
     if hasattr(ps_api, "trm_settings") and ps_api.trm_settings:
 
         print("✅ TRM settings loaded from BACKEND memory")
         settings = ps_api.trm_settings
 
     else:
-        print("⚠️ Backend TRM settings missing — loading from trm_settings.json")
-        try:
-            if not os.path.exists(TRM_FILE):
-                raise FileNotFoundError(f"{TRM_FILE} not found")
-
-            with open(TRM_FILE, "r") as f:
-                settings = json.load(f)
-
-            print("✅ TRM settings loaded from FILE:", TRM_FILE)
-
-        except Exception as e:
-            raise ValueError(f"❌ Could not load TRM settings from file: {e}")
+        raise ValueError(
+            "❌ TRM settings missing in BACKEND memory. "
+            "Open dashboard → Tab 4 → Save settings or click 'Start Auto Trader' once."
+        )
 
     # ✅ Validate keys
     required_keys = [
@@ -1193,11 +1185,12 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
 
     missing = [k for k in required_keys if k not in settings]
     if missing:
-        raise ValueError(f"❌ TRM settings incomplete, missing: {missing}")
+        raise ValueError(f"❌ TRM settings incomplete in BACKEND: missing {missing}")
 
-    print("✅ ACTIVE TRM SETTINGS:")
+    print("✅ ACTIVE TRM SETTINGS (from BACKEND):")
     for k, v in settings.items():
         print(f"   {k} = {v}")
+
   
     # ================================================================
     # ✅ Hammer Monitor Thread (ONLY if logged-in and valid session)
@@ -1389,6 +1382,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
