@@ -5,29 +5,31 @@ import streamlit as st
 import json
 import os
 
-
 # Always save/load TRM settings from the src folder
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TRM_FILE = os.path.join(BASE_DIR, "trm_settings.json")
 
-# ✅ ADD THIS (Render safety backup)
+# Render safety backup
 ALT_TRM_FILE = "/opt/render/project/src/trm_settings.json"
 if not os.path.exists(TRM_FILE) and os.path.exists(ALT_TRM_FILE):
     print(f"⚠️ Using ALT TRM file: {ALT_TRM_FILE}")
     TRM_FILE = ALT_TRM_FILE
+
 
 # =========================
 # Load / Save Settings
 # =========================
 def load_trm_settings_from_file():
     """Load TRM settings strictly from JSON file."""
-    if os.path.exists(TRM_FILE):         ✅ RIGHT
-        with open(TRM_FILE, "r") as f:
-            try:
+    if os.path.exists(TRM_FILE):
+        try:
+            with open(TRM_FILE, "r") as f:
                 settings = json.load(f)
-            except:
-                settings = {}
+        except Exception as e:
+            print(f"❌ Error reading TRM file: {e}")
+            settings = {}
     else:
+        print(f"⚠️ TRM file not found at: {TRM_FILE}")
         settings = {}
 
     return settings
@@ -35,15 +37,16 @@ def load_trm_settings_from_file():
 
 def save_trm_settings(settings):
     try:
-        print("📝 SAVING TRM TO:", SETTINGS_FILE)
+        print("📝 SAVING TRM TO:", TRM_FILE)
 
-        with open(SETTINGS_FILE, "w") as f:
+        with open(TRM_FILE, "w") as f:
             json.dump(settings, f, indent=2)
 
-        print("✅ TRM SAVED:", os.path.exists(SETTINGS_FILE))
+        print("✅ TRM SAVED:", os.path.exists(TRM_FILE))
 
     except Exception as e:
         print("❌ SAVE ERROR:", e)
+
 
 # =========================
 # Initialize session_state safely
@@ -690,6 +693,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
