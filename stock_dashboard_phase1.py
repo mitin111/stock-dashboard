@@ -626,9 +626,11 @@ with tab5:
                     requests.post(
                         "https://backend-stream-nmlf.onrender.com/init",
                         json={
+                            "jKey": ps.session_token,
                             "userid": ps.userid,
-                            "tokens_map": { item["tsym"]: item["token"] for item in st.session_state.get("symbols", []) },
-                            "trm_settings": st.session_state.get("trm_settings", {})
+                            "vc": ps.vc,
+                            "api_key": ps.api_key,
+                            "imei": ps.imei
                         },
                         timeout=3
                     )
@@ -1084,6 +1086,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
