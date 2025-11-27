@@ -118,27 +118,31 @@ with st.sidebar:
                     st.session_state["chart_open"] = False   # ✅ Prevent auto-open
 
                     st.success("✅ Login Successful — Now open Tab 5 and Click 'Open Chart'")
+                    
                     # ===========================================
-                    # 2️⃣ BACKEND SESSION CLONE (ADD HERE)
+                    # ✅ NEW: SERVER-BASED LOGIN (NO IP MISMATCH)
                     # ===========================================
                     try:
-                        ps = ps_api
-                        requests.post(
-                            "https://backend-stream-nmlf.onrender.com/init",
+                        resp = requests.post(
+                            "https://backend-stream-nmlf.onrender.com/server_login",
                             json={
-                                "jKey": ps.session_token,
-                                "userid": ps.userid,
-                                "vc": ps.vc,
-                                "api_key": ps.api_key,
-                                "imei": ps.imei,
-                                "tokens_map": { item["tsym"]: item["token"] for item in st.session_state.get("symbols", []) },
-                                "trm_settings": st.session_state.get("trm_settings", {})
+                                "userid": uid,
+                                "password": pwd,
+                                "vc": vc,
+                                "api_key": api_key,
+                                "imei": imei
                             },
-                            timeout=5
+                            timeout=8
                         )
-                        st.success("Backend session fully cloned")
+                        data = resp.json()
+
+                        if data.get("status") == "ok":
+                            st.success("✅ Backend logged in successfully (server-side)")
+                        else:
+                            st.warning(f"Backend login failed: {data}")
+
                     except Exception as e:
-                        st.warning(f"Backend clone failed: {e}")
+                        st.warning(f"Backend server_login failed: {e}")
                 else:
                     st.error(f"❌ Login failed: {login_resp.get('emsg', 'Unknown error')}")
 
@@ -620,11 +624,9 @@ with tab5:
                     requests.post(
                         "https://backend-stream-nmlf.onrender.com/init",
                         json={
-                            "jKey": ps.session_token,
                             "userid": ps.userid,
-                            "vc": ps.vc,
-                            "api_key": ps.api_key,
-                            "imei": ps.imei
+                            "tokens_map": { item["tsym"]: item["token"] for item in st.session_state.get("symbols", []) },
+                            "trm_settings": st.session_state.get("trm_settings", {})
                         },
                         timeout=3
                     )
@@ -1080,6 +1082,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
