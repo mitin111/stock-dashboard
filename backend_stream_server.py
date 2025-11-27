@@ -353,9 +353,12 @@ async def session_info():
         "userid": getattr(ps_api, "uid", None),
         "tokens_map": TOKENS_MAP,
 
+        "trm_settings": getattr(ps_api, "trm_settings", {}),
+
         # ✅ ADD THESE 3 LINES
         "vc": getattr(ps_api, "vc", None),
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
