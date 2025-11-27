@@ -1144,15 +1144,28 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
             session_info = resp.json()
 
             if session_info.get("session_token"):
+
+                uid = str(session_info.get("userid"))
+
                 ps_api.session_token = session_info["session_token"]
                 ps_api.jKey = session_info["session_token"]
-                ps_api.uid = session_info.get("userid")
-                ps_api.actid = session_info.get("userid")
+
+                # ✅ VERY IMPORTANT (string format)
+                ps_api.userid = uid
+                ps_api.uid = uid
+                ps_api.actid = uid
+
                 ps_api.logged_in = True
-                # ✅ ADD THIS LINE (VERY IMPORTANT)
+                ps_api.is_logged_in = True
+
+                # ✅ Inject TRM settings
                 ps_api.trm_settings = session_info.get("trm_settings", {})
 
+                # ✅ Inject tokens map (important for backend mode)
+                ps_api._tokens = session_info.get("tokens_map", {})
+
                 print("✅ Using BACKEND SESSION (OTP already verified)")
+                print("✅ UID injected into ps_api:", uid)
 
             else:
                 print("❌ No active session – login in dashboard first")
@@ -1384,6 +1397,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
