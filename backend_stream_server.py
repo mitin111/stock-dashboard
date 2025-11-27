@@ -29,6 +29,54 @@ ps_api = None
 # ---- ADD THIS GLOBAL ----
 TOKENS_MAP = {}
 
+# ✅✅✅ YAHI PE ADD KARO (LINE EXACT YAHI HOGI)
+@app.post("/server_login")
+async def server_login(request: Request):
+    """
+    ✅ Proper login directly from Render server
+    ✅ Avoids IP mismatch completely
+    """
+    global ps_api
+
+    body = await request.json()
+
+    userid = body.get("userid")
+    password = body.get("password")
+    vc = body.get("vc")
+    api_key = body.get("api_key")
+    imei = body.get("imei")
+
+    if not all([userid, password, vc, api_key, imei]):
+        return {"status": "error", "msg": "Missing credentials"}
+
+    ps_api = ProStocksAPI(
+        userid=userid,
+        password_plain=password,
+        vc=vc,
+        api_key=api_key,
+        imei=imei,
+        base_url="https://starapi.prostocks.com/NorenWClientTP"
+    )
+
+    try:
+        login_resp = ps_api.login()
+    except Exception as e:
+        return {"status": "error", "msg": str(e)}
+
+    if not ps_api.session_token:
+        return {"status": "error", "msg": "Login failed"}
+
+    ps_api.logged_in = True
+    ps_api.is_logged_in = True
+    ps_api.is_session_active = True
+    ps_api.login_status = True
+
+    return {
+        "status": "ok",
+        "userid": userid,
+        "session_token": ps_api.session_token
+    }
+
 @app.post("/init")
 async def init_api(request: Request):
     global ps_api
@@ -369,6 +417,7 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
 
 
