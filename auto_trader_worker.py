@@ -75,19 +75,29 @@ def load_live_5min_candle(sym):
 #  🔥 AUTO TRADE SINGLE SYMBOL
 # =====================================================================
 def process_live_symbol(ps_api, sym, settings):
+
+    # ✅ Fix mismatch
+    sym = sym.replace("-EQ", "").strip().upper()
+
     df = load_live_5min_candle(sym)
 
     if df.empty or len(df) < 2:
         return {"symbol": sym, "status": "no_data"}
 
-    # --- apply strategy indicators (exact chart logic) ---
     sig = generate_signal_for_df(df, settings)
     if sig is None:
         return {"symbol": sym, "status": "no_signal"}
 
-    # --- place order if signal valid ---
-    # --- place order if signal valid (via BACKEND) ---
+    if not hasattr(ps_api, "last_signal"):
+        ps_api.last_signal = {}
+
     if sig.get("signal") in ["BUY", "SELL"]:
+
+        # ✅ duplicate safety
+        if ps_api.last_signal.get(sym) == sig["signal"]:
+            return {"symbol": sym, "status": "duplicate_signal_blocked"}
+
+        ps_api.last_signal[sym] = sig["signal"]
 
         import requests
 
@@ -103,7 +113,7 @@ def process_live_symbol(ps_api, sym, settings):
 
         return {"symbol": sym, "status": "order", "resp": order_resp}
 
-        return {"symbol": sym, "status": "neutral"}
+    return {"symbol": sym, "status": "neutral"}
 
 
 # =====================================================================
