@@ -24,8 +24,7 @@ import tkp_trm_chart as trm
 from batch_screener import (
     generate_signal_for_df,
     place_order_from_signal,
-    resp_to_status_and_list,
-    monitor_open_positions
+    resp_to_status_and_list
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
