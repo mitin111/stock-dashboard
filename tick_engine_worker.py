@@ -24,6 +24,8 @@ from prostocks_connector import ProStocksAPI
 
 import websocket
 import threading
+from datetime import timedelta
+
 
 print("✅ Running file:", os.path.abspath(__file__))
 
@@ -67,6 +69,7 @@ class CandleBuilder:
 
         ts = datetime.fromtimestamp(ts, tz=IST)
         minute = ts.replace(second=0, microsecond=0)
+        minute = minute - timedelta(minutes=minute.minute % 5)
 
         key = (symbol, minute)
 
