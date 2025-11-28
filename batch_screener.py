@@ -939,9 +939,13 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
         else:
             setattr(args, "place_orders", True)
 
+    
     # Login check
     if ps_api is None:
+        print("🔐 Creating new ProStocksAPI object...")
+
         creds = load_credentials()
+
         ps_api = ProStocksAPI(
             userid=creds.get("uid"),
             password_plain=creds.get("pwd"),
@@ -952,45 +956,16 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
             apkversion=creds.get("apkversion", "1.0.0")
         )
 
-        # ✅ use existing Dashboard session (NO OTP)
-        import requests
-        print("🔍 Fetching session_info from backend...")
+        print("🔐 Doing fresh login from batch_screener (this IP)...")
 
-        try:
-            resp = requests.get("https://backend-stream-nmlf.onrender.com/session_info", timeout=10)
-            session_info = resp.json()
+        login_res = ps_api.login()
 
-            if session_info.get("session_token"):
-
-                uid = str(session_info.get("userid"))
-
-                ps_api.session_token = session_info["session_token"]
-                ps_api.jKey = session_info["session_token"]
-
-                # ✅ VERY IMPORTANT (string format)
-                ps_api.userid = uid
-                ps_api.uid = uid
-                ps_api.actid = uid
-
-                ps_api.logged_in = True
-                ps_api.is_logged_in = True
-
-                # ✅ Inject TRM settings
-                ps_api.trm_settings = session_info.get("trm_settings", {})
-
-                # ✅ Inject tokens map (important for backend mode)
-                ps_api._tokens = session_info.get("tokens_map", {})
-
-                print("✅ Using BACKEND SESSION (OTP already verified)")
-                print("✅ UID injected into ps_api:", uid)
-
-            else:
-                print("❌ No active session – login in dashboard first")
-                return []
-
-        except Exception as e:
-            print("❌ Error getting backend session:", e)
+        if not login_res:
+            print("❌ LOGIN FAILED – batch_screener stopping")
             return []
+
+        print("✅ Logged in fresh from this IP:", ps_api.uid)
+
   
     # ================================================================
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
@@ -1185,6 +1160,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
