@@ -110,6 +110,10 @@ def process_live_symbol(ps_api, sym, settings):
 #  🔥 MAIN AUTO TRADER LOOP (CONTINUOUS)
 # =====================================================================
 def auto_trade_loop(ps_api, settings, symbols):
+    # ✅ SAFETY CHECK
+    if not symbols:
+        print("❌ No symbols — exiting safely")
+        return
     # wait until at least one file exists for first symbol (max 30s)
     timeout = time.time() + 30
     while time.time() < timeout:
@@ -188,19 +192,27 @@ if __name__ == "__main__":
     print("✔ Logged in. Loading watchlists...")
 
 
-    # Load all symbols from watchlists
-    all_syms = []
-    wls = ps_api.get_watchlists().get("values", [])
+    # ✅ Load symbols from BACKEND (no ProStocks direct call)
+    print("🔍 Fetching symbols from backend /tokens ...")
 
-    for wl in wls:
-        data = ps_api.get_watchlist(wl)
-        if data.get("stat") == "Ok":
-            for s in data["values"]:
-                all_syms.append(s["tsym"])
+    try:
+        resp = requests.get("https://backend-stream-nmlf.onrender.com/tokens", timeout=10)
+        data = resp.json()
 
-    symbols = sorted(list(set(all_syms)))
+        TOKENS_MAP = data.get("tokens_map", {}) or {}
 
-    print("✔ Symbols loaded:", len(symbols))
+        # symbols = watchlist symbols (keys)
+        symbols = [sym.strip().upper() for sym in TOKENS_MAP.keys()]
+
+        if not symbols:
+            print("❌ No symbols found in backend")
+            exit(1)
+
+        print(f"✔ Symbols loaded from backend: {len(symbols)}")
+
+    except Exception as e:
+        print("❌ Failed to load symbols from backend:", e)
+        exit(1)
 
     # Load TRM settings
     try:
