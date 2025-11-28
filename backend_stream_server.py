@@ -287,41 +287,53 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": str(e)}
 
 
-# =========================================
-# ✅ SIMPLE ORDER ENDPOINT (FOR BATCH)
-# =========================================
+# =========================================================
+# 🔥 SIMPLE DIRECT ORDER API (for curl + batch_screener)
+# =========================================================
 @app.post("/place_order")
-async def place_order_direct(request: Request):
-
+async def place_order_simple(request: Request):
     global ps_api
 
-    if ps_api is None or not ps_api.is_session_active:
-        return {"status": "error", "msg": "Backend session not ready"}
+    # 🚫 Backend not initialized
+    if ps_api is None or getattr(ps_api, "session_token", None) is None:
+        return {"stat": "Not_Ok", "emsg": "Backend not initialized — call /init first"}
 
     body = await request.json()
+    symbol = str(body.get("symbol", "")).strip().upper()
+    side = str(body.get("side", "")).strip().upper()   # BUY / SELL
+    qty = int(body.get("qty", 0) or 0)
 
-    symbol = body.get("symbol")
-    side   = body.get("side")
-    qty    = int(body.get("qty", 0))
+    if not symbol or qty <= 0 or side not in ("BUY", "SELL"):
+        return {"stat": "Not_Ok", "emsg": "Invalid symbol/qty/side"}
 
-    if not symbol or not side or qty <= 0:
-        return {"status": "error", "msg": "Invalid input"}
+    # NSE symbol ko -EQ ke saath bana do
+    tsym = symbol if symbol.endswith("-EQ") else f"{symbol}-EQ"
 
     try:
+        logging.info(f"📝 /place_order → {side} {qty} {tsym}")
+
         resp = ps_api.place_order(
-            exch="NSE",
-            symbol=symbol,
-            qty=qty,
-            side=side.upper(),
-            prd_type="I",
-            order_type="MKT",
-            price=0
+            buy_or_sell="B" if side == "BUY" else "S",
+            product_type="I",          # Intraday simple order
+            exchange="NSE",
+            tradingsymbol=tsym,
+            quantity=qty,
+            discloseqty=0,
+            price_type="MKT",
+            price=0,
+            trigger_price=0,
+            book_profit=0,
+            book_loss=0,
+            trail_price=0,
+            remarks="Backend /place_order API"
         )
 
-        return {"status": "ok", "response": resp}
+        # ProStocks API already dict deta hai → direct return
+        return resp
 
     except Exception as e:
-        return {"status": "error", "msg": str(e)}
+        logging.error(f"❌ /place_order failed: {e}")
+        return {"stat": "Not_Ok", "emsg": str(e)}
 
 # =========================================================
 # 🔥 AUTO TRADER BACKEND CONTROL API
@@ -421,5 +433,6 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
 
