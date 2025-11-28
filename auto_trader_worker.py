@@ -212,15 +212,5 @@ if __name__ == "__main__":
 
     print("✔ TRM settings loaded")
 
-    # Start hammer monitor thread
-    import threading
-    threading.Thread(
-        target=monitor_open_positions,
-        args=(ps_api, settings),
-        daemon=True
-    ).start()
-
-    print("🧠 Hammer Exit Monitor started")
-
     # Start Auto Trader loop
     auto_trade_loop(ps_api, settings, symbols)
