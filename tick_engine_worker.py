@@ -99,6 +99,8 @@ class CandleBuilder:
 
 
 candle_builder = CandleBuilder()
+# ✅ ADD THIS
+cached_tp = {}
 
 
 # -----------------------------------------------------------
@@ -392,8 +394,6 @@ if __name__ == "__main__":
 
     # ---- 3) Preload TPSeries for all symbols ----
     # ---- 3) Preload TPSeries for all symbols (BACKGROUND THREAD) ----
-    global cached_tp
-    cached_tp = {}
 
     def preload_all_tpseries(ps_api, token_map):
         global cached_tp
