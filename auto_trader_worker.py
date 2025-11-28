@@ -77,7 +77,7 @@ def load_live_5min_candle(sym):
 def process_live_symbol(ps_api, sym, settings):
     df = load_live_5min_candle(sym)
 
-    if df.empty or len(df) < 20:
+    if df.empty or len(df) < 2:
         return {"symbol": sym, "status": "no_data"}
 
     # --- apply strategy indicators (exact chart logic) ---
