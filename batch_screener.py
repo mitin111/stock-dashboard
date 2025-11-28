@@ -828,16 +828,19 @@ def run_strategy_request(ps_api, symbol, qty, side):
             return {"status": "blocked", "msg": "SELL conditions not matched"}
 
     # ------------------------------
-    # 4) CONDITIONS PASSED → ORDER
+    # 4) CONDITIONS PASSED → BACKEND ORDER
     # ------------------------------
-    order = ps_api.place_order(
-        symbol=symbol,
-        qty=qty,
-        side=side,
-        exchange="NSE",
-        order_type="MKT",
-        product="I"
-    )
+    import requests
+
+    order = requests.post(
+        "https://backend-stream-nmlf.onrender.com/place_order",
+        json={
+            "symbol": symbol,
+            "side": side,
+            "qty": qty
+        },
+        timeout=5
+    ).json()
 
     return {
         "status": "ok",
@@ -846,6 +849,7 @@ def run_strategy_request(ps_api, symbol, qty, side):
         "side": side,
         "order": order
     }
+
 
 # ------------------ Trailing SL loop ------------------
 def start_trailing_sl(ps_api, interval=5):
@@ -939,33 +943,46 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
         else:
             setattr(args, "place_orders", True)
 
-    
-    # Login check
+  
+    # ✅ FETCH BACKEND SESSION INSTEAD OF LOGIN
     if ps_api is None:
-        print("🔐 Creating new ProStocksAPI object...")
+        print("🔍 Fetching session_info from backend...")
 
-        creds = load_credentials()
+        import requests
 
-        ps_api = ProStocksAPI(
-            userid=creds.get("uid"),
-            password_plain=creds.get("pwd"),
-            vc=creds.get("vc"),
-            api_key=creds.get("api_key"),
-            imei=creds.get("imei"),
-            base_url=creds.get("base_url"),
-            apkversion=creds.get("apkversion", "1.0.0")
-        )
+        resp = requests.get("https://backend-stream-nmlf.onrender.com/session_info", timeout=10)
+        session_info = resp.json()
 
-        print("🔐 Doing fresh login from batch_screener (this IP)...")
-
-        login_res = ps_api.login()
-
-        if not login_res:
-            print("❌ LOGIN FAILED – batch_screener stopping")
+        if not session_info.get("session_token"):
+            print("❌ No active backend session – login via dashboard first")
             return []
 
-        print("✅ Logged in fresh from this IP:", ps_api.uid)
+        uid = str(session_info.get("userid"))
 
+        ps_api = ProStocksAPI(
+            userid=uid,
+            password_plain="",
+            vc=session_info.get("vc"),
+            api_key=session_info.get("api_key"),
+            imei=session_info.get("imei"),
+            base_url="https://starapi.prostocks.com/NorenWClientTP"
+        )
+
+        # Inject session
+        ps_api.session_token = session_info["session_token"]
+        ps_api.jKey = session_info["session_token"]
+        ps_api.uid = uid
+        ps_api.actid = uid
+
+        ps_api.logged_in = True
+        ps_api.is_logged_in = True
+        ps_api.is_session_active = True
+
+        # ✅ IMPORTANT
+        ps_api._tokens = session_info.get("tokens_map", {})
+        ps_api.trm_settings = session_info.get("trm_settings", {})
+
+        print("✅ Using BACKEND session")
   
     # ================================================================
     # ✅ USE ONLY BACKEND-SYNCED TRM SETTINGS (Single Source of Truth)
@@ -1103,7 +1120,20 @@ def main(ps_api=None, args=None, settings=None, symbols=None, place_orders=False
                     return {"symbol": r["symbol"], "response": {"stat": "Skipped", "emsg": "Open order exists"}}
 
                 # --- Place the order now ---
-                order_resp = place_order_from_signal(ps_api, r)
+                import requests
+
+                res = requests.post(
+                    "https://backend-stream-nmlf.onrender.com/place_order",
+                    json={
+                        "symbol": r["symbol"],
+                        "side": r["signal"],
+                        "qty": r.get("suggested_qty", 1)
+                    },
+                    timeout=5
+                )
+
+                order_resp = res.json()
+
                 return {"symbol": r["symbol"], "response": order_resp}
 
             else:
@@ -1160,6 +1190,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
