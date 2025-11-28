@@ -69,6 +69,7 @@ class CandleBuilder:
 
         ts = datetime.fromtimestamp(ts, tz=IST)
         minute = ts.replace(second=0, microsecond=0)
+        minute = minute - timedelta(minutes=minute.minute % 5)
 
         key = (symbol, minute)
 
