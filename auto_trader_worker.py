@@ -40,7 +40,7 @@ IST = pytz.timezone("Asia/Kolkata")
 # =====================================================================
 def load_live_5min_candle(sym):
     """Load latest REAL-TIME merged 5m candle from JSON produced by tick_engine."""
-    sym = sym.replace("-EQ", "").replace(".NS","").strip().upper()
+    sym = sym.strip().upper()
     fn = os.path.join(CANDLE_PATH, f"{sym}.json")
     if not os.path.exists(fn):
         return pd.DataFrame()
@@ -77,8 +77,8 @@ def load_live_5min_candle(sym):
 def process_live_symbol(ps_api, sym, settings):
 
     # ✅ Fix mismatch
-    sym = sym.replace("-EQ", "").strip().upper()
-
+    sym = sym.strip().upper()
+    
     df = load_live_5min_candle(sym)
 
     if df.empty or len(df) < 2:
