@@ -144,6 +144,41 @@ def get_trm_settings_safe():
     return st.session_state["trm_settings"]
 
 # =========================
+# SAFE ACCESS (Non-streamlit, FILE ONLY)
+# =========================
+def get_trm_settings():
+    """
+    Used by auto_trader_worker only.
+    Must load from JSON file. No Streamlit. No fallback. No defaults.
+    """
+
+    settings = load_trm_settings_from_file()
+
+    if not settings:
+        print("❌ TRM settings file empty or not found")
+        return None
+
+    # Minimal required keys to allow trading
+    required = [
+        "long", "short", "signal",
+        "len_rsi", "rsiBuyLevel", "rsiSellLevel",
+        "macd_fast", "macd_slow", "macd_signal",
+        "pac_length",
+        "atr_fast_period", "atr_fast_mult",
+        "atr_slow_period", "atr_slow_mult"
+    ]
+
+    missing = [k for k in required if k not in settings]
+
+    if missing:
+        print("❌ TRM settings missing keys:", missing)
+        return None
+
+    print("✅ TRM SETTINGS LOADED FOR AUTOTRADER")
+    return settings
+
+
+# =========================
 # Utility Functions
 # =========================
 def ema(series, length):
@@ -693,6 +728,7 @@ def plot_trm_chart(df, settings, rangebreaks=None, fig=None, show_macd_panel=Tru
     fig = add_volatility_panel(fig, df)
     
     return fig
+
 
 
 
