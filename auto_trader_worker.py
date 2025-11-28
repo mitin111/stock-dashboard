@@ -87,13 +87,24 @@ def process_live_symbol(ps_api, sym, settings):
         return {"symbol": sym, "status": "no_signal"}
 
     # --- place order if signal valid ---
+    # --- place order if signal valid (via BACKEND) ---
     if sig.get("signal") in ["BUY", "SELL"]:
-        sig["symbol"] = sym
-        sig["exch"] = "NSE"
-        order_resp = place_order_from_signal(ps_api, sig)
+
+        import requests
+
+        order_resp = requests.post(
+            "https://backend-stream-nmlf.onrender.com/place_order",
+            json={
+                "symbol": sym,
+                "side": sig["signal"],
+                "qty": sig.get("suggested_qty", 1)
+            },
+            timeout=5
+        ).json()
+
         return {"symbol": sym, "status": "order", "resp": order_resp}
 
-    return {"symbol": sym, "status": "neutral"}
+        return {"symbol": sym, "status": "neutral"}
 
 
 # =====================================================================
@@ -141,17 +152,26 @@ def auto_trade_loop(ps_api, settings, symbols):
 #  🔥 ENTRY POINT
 # =====================================================================
 if __name__ == "__main__":
+
+    import requests   # ✅ VERY IMPORTANT
+    
     print("🔍 Fetching session_info from backend...")
-    resp = requests.get("https://backend-stream-nmlf.onrender.com/session_info")
+    resp = requests.get("https://backend-stream-nmlf.onrender.com/session_info", timeout=10)
     session_info = resp.json()
+
+    if not session_info.get("session_token"):
+        print("❌ No session in backend. Login first from Dashboard.")
+        exit(1)
+
+    print("✅ Backend session found for:", session_info["userid"])
 
     ps_api = ProStocksAPI(
         userid=session_info["userid"],
-        password_plain="",
-        vc=os.environ.get("VC"),
-        api_key=os.environ.get("API_KEY"),
-        imei=os.environ.get("IMEI"),
-        base_url=os.environ.get("BASE_URL")
+        password_plain="",  # ✅ Not needed (already logged in)
+        vc=session_info.get("vc"),
+        api_key=session_info.get("api_key"),
+        imei=session_info.get("imei"),
+        base_url=os.getenv("PROSTOCKS_BASE_URL", "https://starapi.prostocks.com/NorenWClientTP")
     )
 
     # Inject same session
@@ -159,12 +179,15 @@ if __name__ == "__main__":
     ps_api.jKey = session_info["session_token"]
     ps_api.uid = session_info["userid"]
     ps_api.actid = session_info["userid"]
+
     ps_api.logged_in = True
     ps_api.is_logged_in = True
+    ps_api.is_session_active = True
+    ps_api.login_status = True
 
     print("✅ Using backend cloned session")
-
     print("✔ Logged in. Loading watchlists...")
+
 
     # Load all symbols from watchlists
     all_syms = []
