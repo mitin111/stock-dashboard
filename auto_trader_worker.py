@@ -224,15 +224,17 @@ if __name__ == "__main__":
         print("❌ Failed to load symbols from backend:", e)
         exit(1)
 
-    # Load TRM settings
-    try:
-        from tkp_trm_chart import get_trm_settings_safe
-        settings = get_trm_settings_safe()
-    except:
-        print("❌ Could not load TRM settings")
+    # ✅ Load TRM settings (FILE ONLY — NO streamlit)
+    from tkp_trm_chart import get_trm_settings
+
+    settings = get_trm_settings()
+
+    if not settings:
+        print("❌ TRM SETTINGS FILE NOT FOUND / INVALID")
+        print("👉 Dashboard se ek baar 'Save TRM Settings' button click karo")
         exit(1)
 
-    print("✔ TRM settings loaded")
+print("✅ TRM settings loaded from JSON file")
 
     # Start Auto Trader loop
     auto_trade_loop(ps_api, settings, symbols)
