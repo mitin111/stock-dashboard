@@ -132,14 +132,12 @@ def save_loop(token_map):
                 last_merge = time.time()
 
                 for sym, tkn in token_map.items():
-
-                    # ✅ ALWAYS remove -EQ
+                    # 🔁 SYMBOL KO AS-IS RAKHO (sirf strip + upper)
                     sym = str(sym).strip().upper()
-                    if sym.endswith("-EQ"):
-                        sym = sym.replace("-EQ", "")
 
                     fn = os.path.join(SAVE_PATH, f"{sym}.json")
 
+                    # ✅ EXACT SAME KEY USED:
                     df_tp = cached_tp.get(sym)
                     live_c = candle_builder.get_latest(sym)
 
@@ -181,7 +179,8 @@ def start_prostocks_ws(ps_api, token_map):
     # --------------------------------
     token_to_symbol = {}
     for sym, tkn in token_map.items():
-        clean_sym = str(sym).upper().strip().replace("-EQ", "")
+        # 🔁 SYMBOL KO FULL RAKHO (ABCAPITAL-EQ)
+        clean_sym = str(sym).upper().strip()
         clean_tok = str(tkn).replace("NSE|", "").strip()
         token_to_symbol[clean_tok] = clean_sym
 
