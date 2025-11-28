@@ -287,33 +287,38 @@ async def subscribe(request: Request):
         return {"stat": "error", "emsg": str(e)}
 
 
-# =========================================================
-# 🔥 ORDER API (HTML Panel → Backend → batch_screener.py)
-# =========================================================
-@app.post("/order_api")
-async def order_api_handler(request: Request):
+# =========================================
+# ✅ SIMPLE ORDER ENDPOINT (FOR BATCH)
+# =========================================
+@app.post("/place_order")
+async def place_order_direct(request: Request):
+
     global ps_api
 
-    # 🚫 If backend not initialized
-    if ps_api is None or ps_api.session_token is None:
-        return {"status": "error", "msg": "Backend not initialized — call /init first"}
+    if ps_api is None or not ps_api.is_session_active:
+        return {"status": "error", "msg": "Backend session not ready"}
 
     body = await request.json()
+
     symbol = body.get("symbol")
-    qty = int(body.get("qty", 0))
-    side = body.get("side")  # BUY / SELL
+    side   = body.get("side")
+    qty    = int(body.get("qty", 0))
 
-    if not symbol or qty <= 0:
-        return {"status": "error", "msg": "Invalid symbol or qty"}
+    if not symbol or not side or qty <= 0:
+        return {"status": "error", "msg": "Invalid input"}
 
-    # 🔥 Run full strategy logic from batch_screener.py
     try:
-        from batch_screener import run_strategy_request
-
-        result = await asyncio.to_thread(
-            run_strategy_request, ps_api, symbol, qty, side
+        resp = ps_api.place_order(
+            exch="NSE",
+            symbol=symbol,
+            qty=qty,
+            side=side.upper(),
+            prd_type="I",
+            order_type="MKT",
+            price=0
         )
-        return result
+
+        return {"status": "ok", "response": resp}
 
     except Exception as e:
         return {"status": "error", "msg": str(e)}
@@ -416,4 +421,5 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
