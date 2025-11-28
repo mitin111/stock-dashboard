@@ -69,7 +69,6 @@ class CandleBuilder:
 
         ts = datetime.fromtimestamp(ts, tz=IST)
         minute = ts.replace(second=0, microsecond=0)
-        minute = minute - timedelta(minutes=minute.minute % 5)
 
         key = (symbol, minute)
 
@@ -403,7 +402,7 @@ if __name__ == "__main__":
 
         for sym, token in token_map.items():
             try:
-                df_tp = load_backfill(ps_api, "NSE", token, interval="5")
+                df_tp = load_backfill(ps_api, "NSE", token, interval="1")
 
                 if df_tp is None or df_tp.empty:
                     print(f"⚠️ {sym} backfill empty")
