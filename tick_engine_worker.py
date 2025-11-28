@@ -402,7 +402,7 @@ if __name__ == "__main__":
 
         for sym, token in token_map.items():
             try:
-                df_tp = load_backfill(ps_api, "NSE", token, interval="1")
+                df_tp = load_backfill(ps_api, "NSE", token, interval="5")
 
                 if df_tp is None or df_tp.empty:
                     print(f"⚠️ {sym} backfill empty")
