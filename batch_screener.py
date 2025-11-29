@@ -30,50 +30,57 @@ LIVE_PATH = os.path.join(BASE_DIR, "live_candles")
 
 
 def load_live_5min(sym):
+    sym_clean = str(sym).upper().replace("-EQ", "").strip()
 
-    sym = str(sym).upper().replace("-EQ", "").strip()
+    live_fn = os.path.join(LIVE_PATH, f"{sym_clean}.json")
+    tp_fn = os.path.join(TPS_PATH, f"{sym_clean}.json")
 
-    fn = os.path.join(LIVE_PATH, f"{sym}.json")
-    print(f"📂 TRYING: {fn}")
+    live_df = pd.DataFrame()
+    tp_df = pd.DataFrame()
 
-    if not os.path.exists(fn):
-        print(f"❌ Tick data missing for {sym}")
+    # --- Load TPSeries first (always available)
+    if os.path.exists(tp_fn):
+        try:
+            tp_df = pd.read_json(tp_fn)
+            tp_df["datetime"] = pd.to_datetime(tp_df["datetime"], errors="coerce")
+            tp_df = tp_df.dropna(subset=["datetime"])
+            tp_df["datetime"] = tp_df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
+            print(f"📦 {sym_clean}: TPSeries candles = {len(tp_df)}")
+        except Exception as e:
+            print(f"❌ TPSeries load error {sym_clean}: {e}")
+
+    # --- Load LIVE candles (running WS ticks)
+    if os.path.exists(live_fn):
+        try:
+            live_df = pd.read_json(live_fn)
+            live_df["datetime"] = pd.to_datetime(live_df["datetime"], errors="coerce")
+            live_df = live_df.dropna(subset=["datetime"])
+            live_df["datetime"] = live_df["datetime"].dt.tz_localize("Asia/Kolkata", nonexistent="shift_forward", ambiguous="NaT")
+            print(f"🔥 {sym_clean}: Live ticks loaded = {len(live_df)}")
+        except Exception as e:
+            print(f"❌ Live load error {sym_clean}: {e}")
+
+    # --- MERGE BOTH ---
+    merged = pd.concat([tp_df, live_df], ignore_index=True).sort_values("datetime")
+
+    if merged.empty:
+        print(f"❌ NO DATA at all for {sym_clean}")
         return pd.DataFrame()
 
-    try:
-        df = pd.read_json(fn)
+    # --- BUILD 5-MIN BARS ---
+    merged["bucket"] = merged["datetime"].dt.floor("5min")
 
-        if df is None or df.empty:
-            print(f"⚠️ Empty candle file: {sym}")
-            return pd.DataFrame()
+    df = merged.groupby("bucket").agg(
+        open=("open", "first"),
+        high=("high", "max"),
+        low=("low", "min"),
+        close=("close", "last"),
+        volume=("volume", "sum")
+    ).reset_index().rename(columns={"bucket": "datetime"})
 
-        # FORCE datetime parse
-        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    print(f"✅ MERGED {sym_clean}: Total {len(df)} candles")
 
-        # Drop bad rows
-        df = df.dropna(subset=["datetime"])
-
-        # Always keep in IST
-        if df["datetime"].dt.tz is None:
-            df["datetime"] = df["datetime"].dt.tz_localize("Asia/Kolkata")
-        else:
-            df["datetime"] = df["datetime"].dt.tz_convert("Asia/Kolkata")
-
-        # Build 5 min bars
-        df["bucket"] = df["datetime"].dt.floor("5min")
-
-        df = df.groupby("bucket").agg(
-            open=("open", "first"),
-            high=("high", "max"),
-            low=("low", "min"),
-            close=("close", "last"),
-            volume=("volume", "sum")
-        ).reset_index().rename(columns={"bucket": "datetime"})
-
-        print(f"✅ LOADED {sym}: {len(df)} candles")
-
-        # Just last 200 candles are enough
-        return df.tail(200)
+    return df.tail(200)
 
     except Exception as e:
         print(f"❌ load_live_5min error {sym}: {e}")
@@ -1190,6 +1197,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
