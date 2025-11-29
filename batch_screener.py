@@ -743,10 +743,12 @@ def process_symbol(ps_api, symbol_obj, interval, settings):
         })
         return result
 
-    if len(df) < 10:
+    # Minimum 2 candles needed:
+    # 1 TPSeries historical + 1 running live candle
+    if len(df) < 2:
         result.update({
             "status": "not_enough_candles",
-            "emsg": f"Only {len(df)} candles found"
+            "emsg": f"Need at least 2 candles (TPSeries + Live). Found {len(df)}"
         })
         return result
 
@@ -1197,6 +1199,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(None, args)   # ✅ FIXED
+
 
 
 
