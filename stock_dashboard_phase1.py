@@ -10,6 +10,8 @@ if "PORT" in os.environ:
 
 # first UI command
 st.set_page_config(page_title="Auto Intraday Trading", layout="wide")
+if "symbols" not in st.session_state:
+    st.session_state["symbols"] = []
 
 # health check (simple and safe)
 # ✅ HEALTH CHECK (no crash, no blink)
@@ -1088,6 +1090,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
