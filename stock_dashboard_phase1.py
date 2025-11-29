@@ -124,6 +124,12 @@ with st.sidebar:
                     # ===========================================
                     try:
                         ps = ps_api
+                        symbols_list = st.session_state.get("symbols", [])
+                        tokens_map = {
+                            item.get("tsym"): item.get("token")
+                            for item in symbols_list
+                            if item.get("tsym") and item.get("token")
+                        }    
                         requests.post(
                             "https://backend-stream-nmlf.onrender.com/init",
                             json={
@@ -132,12 +138,7 @@ with st.sidebar:
                                 "vc": ps.vc,
                                 "api_key": ps.api_key,
                                 "imei": ps.imei,
-                                symbols_list = st.session_state.get("symbols", [])
-                                "tokens_map": {
-                                    item.get("tsym"): item.get("token")
-                                    for item in symbols_list
-                                    if item.get("tsym") and item.get("token")
-                                },
+                                "tokens_map": tokens_map,
                                 "trm_settings": st.session_state.get("trm_settings", {})
                             },
                             timeout=5
@@ -1087,6 +1088,7 @@ with tab5:
 
         else:
             st.warning(" Need at least 50 candles for TRM indicators.\nIncrease TPSeries max_days or choose larger interval.")
+
 
 
 
