@@ -28,6 +28,30 @@ ps_api = None
 # ---- ADD THIS GLOBAL ----
 TOKENS_MAP = {}
 
+# ---- SESSION PERSISTENCE ----
+SESSION_FILE = "/opt/render/project/src/.session.json"
+
+def save_session():
+    if ps_api and getattr(ps_api, "session_token", None):
+        with open(SESSION_FILE, "w") as f:
+            json.dump({
+                "session_token": ps_api.session_token,
+                "userid": getattr(ps_api, "uid", None),
+                "tokens_map": TOKENS_MAP,
+                "vc": getattr(ps_api, "vc", None),
+                "api_key": getattr(ps_api, "api_key", None),
+                "imei": getattr(ps_api, "imei", None)
+            }, f)
+        logging.info("💾 Session saved to disk")
+
+def load_session():
+    if os.path.exists(SESSION_FILE):
+        try:
+            return json.load(open(SESSION_FILE))
+        except:
+            return {}
+    return {}
+
 # ✅✅✅ YAHI PE ADD KARO (LINE EXACT YAHI HOGI)
 @app.post("/server_login")
 async def server_login(request: Request):
@@ -69,6 +93,7 @@ async def server_login(request: Request):
     ps_api.is_logged_in = True
     ps_api.is_session_active = True
     ps_api.login_status = True
+    save_session()   # <<--- ADD THIS
 
     return {
         "status": "ok",
@@ -140,6 +165,8 @@ async def init_api(request: Request):
     logging.info("🔧 TRM settings loaded → OK")
 
     logging.info("✅ Backend session attached (FULL LOGIN MODE)")
+
+    save_session()   # <<--- ADD THIS
     return {"stat": "Ok", "msg": "Backend synced successfully"}
 
 
@@ -171,6 +198,33 @@ def run_tick_engine_forever():
 
         time.sleep(5)
 
+# ---- AUTO RESTORE SESSION AT STARTUP ----
+startup_data = load_session()
+if startup_data:
+    logging.info("♻️ Restoring session from previous state...")
+
+    ps_api = ProStocksAPI(
+        userid=startup_data.get("userid"),
+        password_plain="",
+        vc=startup_data.get("vc"),
+        api_key=startup_data.get("api_key"),
+        imei=startup_data.get("imei"),
+        base_url="https://starapi.prostocks.com/NorenWClientTP"
+    )
+
+    ps_api.session_token = startup_data.get("session_token")
+    ps_api.jKey = startup_data.get("session_token")
+    ps_api.uid = startup_data.get("userid")
+    ps_api.actid = startup_data.get("userid")
+    ps_api.logged_in = True
+    ps_api.is_logged_in = True
+    ps_api.is_session_active = True
+
+    TOKENS_MAP = startup_data.get("tokens_map", {})
+
+    logging.info(f"♻️ Session restored: userid={ps_api.uid}, tokens={len(TOKENS_MAP)}")
+else:
+    logging.info("ℹ️ No saved session: backend starting fresh.")
 
 @app.on_event("startup")
 async def start_tick_engine():
@@ -433,6 +487,7 @@ async def session_info():
         "api_key": getattr(ps_api, "api_key", None),
         "imei": getattr(ps_api, "imei", None),
     }
+
 
 
 
