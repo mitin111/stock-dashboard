@@ -349,15 +349,28 @@ if __name__ == "__main__":
     token_map = session_info.get("tokens_map", {})
     userid = session_info.get("userid")
 
-    # ✅ ADD THESE 3 LINES
+    # ⚠️ IMPORTANT: Initialize cred variables before loop
     vc      = session_info.get("vc") or os.environ.get("VC")
     api_key = session_info.get("api_key") or os.environ.get("API_KEY")
     imei    = session_info.get("imei") or os.environ.get("IMEI")
 
-    if not session_token or not token_map or not userid:
-        print("❌ No session or tokens or userid from backend — cannot continue.")
-        print("👉 Fix: Tab-3 open karke watchlist load karo, phir Tab-4 se backend /init run karo.")
-        exit(1)
+    # ---- WAIT UNTIL BACKEND RETURNS VALID SESSION ----
+    while not (session_token and token_map and userid):
+        print("⏳ Waiting for backend session… retrying in 5 sec")
+        time.sleep(5)
+        try:
+            resp = requests.get(f"{BACKEND_URL}/session_info", timeout=20)
+            session_info = resp.json()
+        except:
+            continue
+
+        session_token = session_info.get("session_token")
+        token_map     = session_info.get("tokens_map", {})
+        userid        = session_info.get("userid")
+
+        vc      = session_info.get("vc") or os.environ.get("VC")
+        api_key = session_info.get("api_key") or os.environ.get("API_KEY")
+        imei    = session_info.get("imei") or os.environ.get("IMEI")
 
     print(f"✔ Session OK, userid={userid}, tokens={len(token_map)}")
 
